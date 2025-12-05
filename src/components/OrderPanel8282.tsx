@@ -504,10 +504,11 @@ const OrderPanel8282 = ({ symbol }: OrderPanel8282Props) => {
               
               {/* 호가 */}
               <div className={cn(
-                "px-1 py-0.5 text-center border-r border-border/30 font-mono font-medium relative",
-                "text-blue-400 bg-blue-950/20"
+                "px-1 py-0.5 text-center border-r border-border/30 font-mono font-medium",
+                isEntryPrice 
+                  ? "text-blue-400 bg-blue-950/20 ring-2 ring-green-500" 
+                  : "text-blue-400 bg-blue-950/20"
               )}>
-                {isEntryPrice && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-1 bg-yellow-400 rounded-full" />}
                 {formatPrice(ask.price)}
               </div>
 
@@ -607,10 +608,11 @@ const OrderPanel8282 = ({ symbol }: OrderPanel8282Props) => {
 
               {/* 호가 */}
               <div className={cn(
-                "px-1 py-0.5 text-center border-r border-border/30 font-mono font-medium relative",
-                "text-red-400 bg-red-950/20"
+                "px-1 py-0.5 text-center border-r border-border/30 font-mono font-medium",
+                isEntryPrice 
+                  ? "text-red-400 bg-red-950/20 ring-2 ring-green-500" 
+                  : "text-red-400 bg-red-950/20"
               )}>
-                {isEntryPrice && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-1 bg-yellow-400 rounded-full" />}
                 {formatPrice(bid.price)}
               </div>
 
