@@ -514,36 +514,20 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
         </div>
       )}
 
-      {/* Toolbar Row */}
-      <div className="px-2 py-1.5 border-b border-border bg-secondary/50 flex items-center gap-2 flex-wrap">
+      {/* Quantity & Leverage Row */}
+      <div className="px-2 py-1.5 border-b border-border bg-secondary/30 flex items-center gap-1.5">
         <select 
           value={leverage} 
           onChange={(e) => setLeverage(Number(e.target.value))}
-          className="bg-background border border-border px-1.5 py-0.5 text-[10px] rounded"
+          className="bg-background border border-border px-1 py-0.5 text-[10px] rounded"
         >
           {[1, 2, 3, 5, 10, 20, 50, 75, 100, 125].map(l => (
             <option key={l} value={l}>{l}x</option>
           ))}
         </select>
-        <span className="text-[10px] text-muted-foreground">레버리지</span>
-        <div className="flex-1" />
-        {[100, 50, 25, 10].map((p) => (
-          <button 
-            key={p} 
-            onClick={() => handleQtyPreset(p)} 
-            className="px-2 py-0.5 bg-secondary border border-border text-[10px] rounded hover:bg-secondary/80"
-          >
-            {p}%
-          </button>
-        ))}
-      </div>
-
-      {/* Quantity Input Row */}
-      <div className="px-2 py-1.5 border-b border-border bg-secondary/30 flex items-center gap-2">
-        <span className="text-[10px] text-muted-foreground">수량</span>
         <button 
           onClick={() => adjustQty(-1)} 
-          className="w-6 h-6 bg-secondary border border-border rounded flex items-center justify-center hover:bg-secondary/80"
+          className="w-5 h-5 bg-secondary border border-border rounded flex items-center justify-center hover:bg-secondary/80"
         >
           <Minus className="w-3 h-3" />
         </button>
@@ -551,14 +535,24 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
           type="text"
           value={orderQty}
           onChange={(e) => setOrderQty(e.target.value)}
-          className="w-20 bg-background border border-border px-2 py-1 text-center font-mono text-[11px] rounded"
+          className="w-14 bg-background border border-border px-1 py-0.5 text-center font-mono text-[10px] rounded"
         />
         <button 
           onClick={() => adjustQty(1)} 
-          className="w-6 h-6 bg-secondary border border-border rounded flex items-center justify-center hover:bg-secondary/80"
+          className="w-5 h-5 bg-secondary border border-border rounded flex items-center justify-center hover:bg-secondary/80"
         >
           <Plus className="w-3 h-3" />
         </button>
+        <div className="flex-1" />
+        {[100, 50, 25, 10].map((p) => (
+          <button 
+            key={p} 
+            onClick={() => handleQtyPreset(p)} 
+            className="px-1.5 py-0.5 bg-secondary border border-border text-[9px] rounded hover:bg-secondary/80"
+          >
+            {p}%
+          </button>
+        ))}
       </div>
 
       {/* Market Order Buttons */}
