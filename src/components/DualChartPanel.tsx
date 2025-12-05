@@ -101,27 +101,25 @@ const DualChartPanel = ({
           </div>
         </div>
         
-        {tradeCount > 0 && (
-          <div className="mt-2 pt-2 border-t border-border/50 flex items-center justify-between text-[10px]">
-            <div className="flex items-center gap-3">
-              <span className="text-muted-foreground">
-                거래: <span className="text-foreground font-mono">{tradeCount}회</span>
-              </span>
-              <span className="text-muted-foreground">
-                승: <span className="text-red-400 font-mono">{winCount}</span>
-              </span>
-              <span className="text-muted-foreground">
-                패: <span className="text-blue-400 font-mono">{tradeCount - winCount}</span>
-              </span>
-            </div>
-            <span className={cn(
-              "font-bold",
-              parseFloat(winRate) >= 50 ? "text-red-400" : "text-blue-400"
-            )}>
-              승률 {winRate}%
+        <div className="mt-2 pt-2 border-t border-border/50 flex items-center justify-between text-[10px]">
+          <div className="flex items-center gap-3">
+            <span className="text-muted-foreground">
+              거래: <span className="text-foreground font-mono">{tradeCount}회</span>
+            </span>
+            <span className="text-muted-foreground">
+              승: <span className="text-red-400 font-mono">{winCount}</span>
+            </span>
+            <span className="text-muted-foreground">
+              패: <span className="text-blue-400 font-mono">{tradeCount - winCount}</span>
             </span>
           </div>
-        )}
+          <span className={cn(
+            "font-bold",
+            tradeCount === 0 ? "text-muted-foreground" : parseFloat(winRate) >= 50 ? "text-red-400" : "text-blue-400"
+          )}>
+            승률 {winRate}%
+          </span>
+        </div>
       </div>
 
       {/* Single Chart - Full Height */}
