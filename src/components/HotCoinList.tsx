@@ -34,7 +34,8 @@ const HotCoinList = ({ onSelectSymbol, selectedSymbol }: HotCoinListProps) => {
 
   // Sort and filter coins based on mode and search
   useEffect(() => {
-    let filtered = [...allCoins];
+    // Filter out halted coins (0 volume) and apply search
+    let filtered = allCoins.filter(c => c.volume > 10000); // 거래량 $10,000 이상만
     
     // Apply search filter
     if (searchQuery) {
@@ -65,7 +66,7 @@ const HotCoinList = ({ onSelectSymbol, selectedSymbol }: HotCoinListProps) => {
 
   useEffect(() => {
     loadCoins();
-    const interval = setInterval(() => loadCoins(), 15000);
+    const interval = setInterval(() => loadCoins(), 30000); // 30초마다 갱신
     return () => clearInterval(interval);
   }, [loadCoins]);
 
@@ -204,7 +205,7 @@ const HotCoinList = ({ onSelectSymbol, selectedSymbol }: HotCoinListProps) => {
       {/* Note */}
       <div className="px-3 py-1.5 bg-secondary/30 border-t border-border">
         <p className="text-[10px] text-muted-foreground text-center">
-          {allCoins.length}개 코인 · 15초마다 갱신
+          {allCoins.filter(c => c.volume > 10000).length}개 활성 코인 · 30초마다 갱신
         </p>
       </div>
     </div>
