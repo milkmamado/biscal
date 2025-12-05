@@ -34,7 +34,7 @@ const TradingViewChart = memo(({ symbol, interval = '1', height = 400 }: Trading
       style: "1",
       locale: "kr",
       enable_publishing: false,
-      hide_top_toolbar: false,
+      hide_top_toolbar: true,
       hide_legend: false,
       save_image: false,
       calendar: false,
@@ -45,7 +45,7 @@ const TradingViewChart = memo(({ symbol, interval = '1', height = 400 }: Trading
       details: false,
       hotlist: false,
       show_popup_button: false,
-      withdateranges: true,
+      withdateranges: false,
       hide_side_toolbar: false,
       drawings_access: {
         type: "all",
