@@ -101,8 +101,10 @@ export default function Auth() {
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <Card className="w-full max-w-md bg-card border-border">
         <CardHeader className="text-center">
-          <CardTitle className="text-3xl font-bold tracking-tight text-foreground">
-            BISCAL
+          <CardTitle className="text-4xl font-black tracking-wider">
+            <span className="bg-gradient-to-r from-emerald-400 via-cyan-400 to-blue-500 bg-clip-text text-transparent drop-shadow-sm">
+              BISCAL
+            </span>
           </CardTitle>
           <CardDescription className="text-muted-foreground text-xs mt-1">
             Binance Futures Scalping Terminal
