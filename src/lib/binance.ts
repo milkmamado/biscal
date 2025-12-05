@@ -48,14 +48,17 @@ export interface OpenInterestInfo {
   openInterest: number;
 }
 
-// Fetch all futures symbols
-export async function fetchFuturesSymbols(): Promise<string[]> {
+// Fetch all futures symbols (actively trading only)
+export async function fetchFuturesSymbols(): Promise<Set<string>> {
   const response = await fetch(`${BASE_URL}/fapi/v1/exchangeInfo`);
   const data = await response.json();
-  return data.symbols
+  const activeSymbols = new Set<string>();
+  
+  data.symbols
     .filter((s: any) => s.status === 'TRADING' && s.contractType === 'PERPETUAL')
-    .map((s: any) => s.symbol)
-    .filter((s: string) => s.endsWith('USDT'));
+    .forEach((s: any) => activeSymbols.add(s.symbol));
+  
+  return activeSymbols;
 }
 
 // Fetch 5m klines for a symbol
@@ -105,13 +108,16 @@ export async function fetch24hTicker(symbol: string): Promise<SymbolInfo> {
   };
 }
 
-// Fetch all 24h tickers
+// Fetch all 24h tickers (only actively trading symbols)
 export async function fetchAll24hTickers(): Promise<SymbolInfo[]> {
+  // First fetch active symbols from exchange info
+  const activeSymbols = await fetchFuturesSymbols();
+  
   const response = await fetch(`${BASE_URL}/fapi/v1/ticker/24hr`);
   const data = await response.json();
   
   const tickers = data
-    .filter((t: any) => t.symbol.endsWith('USDT'))
+    .filter((t: any) => t.symbol.endsWith('USDT') && activeSymbols.has(t.symbol))
     .map((t: any) => {
       const highPrice = parseFloat(t.highPrice);
       const lowPrice = parseFloat(t.lowPrice);
@@ -135,7 +141,6 @@ export async function fetchAll24hTickers(): Promise<SymbolInfo[]> {
     });
   
   // Calculate hot score using normalized values
-  // Hot score = (normalized volume * 0.5) + (normalized volatility * 0.5)
   if (tickers.length > 0) {
     const maxVolume = Math.max(...tickers.map((t: SymbolInfo) => t.volume));
     const maxVolatility = Math.max(...tickers.map((t: SymbolInfo) => t.volatilityRange));
