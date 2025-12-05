@@ -66,11 +66,11 @@ const DualChartPanel = ({
             </button>
           ))}
         </div>
-        <div className="flex-1 min-h-0">
+        <div className="flex-1 min-h-[320px]">
           <TradingViewChart 
             symbol={symbol} 
             interval={topInterval}
-            height={360}
+            height={320}
           />
         </div>
       </div>
@@ -93,11 +93,11 @@ const DualChartPanel = ({
             </button>
           ))}
         </div>
-        <div className="flex-1 min-h-0">
+        <div className="flex-1 min-h-[320px]">
           <TradingViewChart 
             symbol={symbol} 
             interval={bottomInterval}
-            height={360}
+            height={320}
           />
         </div>
       </div>
