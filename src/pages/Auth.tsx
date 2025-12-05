@@ -109,9 +109,6 @@ export default function Auth() {
           <CardDescription className="text-muted-foreground text-xs mt-1">
             Binance Futures Scalping Terminal
           </CardDescription>
-          <p className="text-muted-foreground mt-3">
-            {isLogin ? '로그인하여 트레이딩을 시작하세요' : '새 계정을 만드세요'}
-          </p>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
