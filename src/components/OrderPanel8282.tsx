@@ -258,23 +258,6 @@ const OrderPanel8282 = ({ symbol, onPositionChange }: OrderPanel8282Props) => {
 
   return (
     <div className="bg-card border border-border rounded text-[11px]">
-      {/* Title Bar */}
-      <div className="bg-secondary px-2 py-1.5 flex items-center justify-between border-b border-border">
-        <div className="flex items-center gap-2">
-          <span className="font-bold text-xs text-foreground">[8282] 선물호가주문</span>
-          <span className="text-[10px] text-muted-foreground">{symbol}</span>
-        </div>
-        <button 
-          onClick={() => setShowSettings(!showSettings)}
-          className={cn(
-            "p-1 rounded hover:bg-background/50 transition-colors",
-            showSettings && "bg-background/50"
-          )}
-        >
-          <Settings className="w-3.5 h-3.5 text-muted-foreground" />
-        </button>
-      </div>
-
       {/* Position Display */}
       {position && (
         <div className={cn(
@@ -682,10 +665,19 @@ const OrderPanel8282 = ({ symbol, onPositionChange }: OrderPanel8282Props) => {
       </div>
 
       {/* Footer */}
-      <div className="px-2 py-1 bg-secondary/30 border-t border-border text-center">
+      <div className="px-2 py-1 bg-secondary/30 border-t border-border flex items-center justify-between">
         <p className="text-[9px] text-muted-foreground">
-          S/B 더블클릭 → 진입 | 포지션 보유 시 반대방향 클릭 → 청산
+          S/B 더블클릭 → 진입 | 반대방향 → 청산
         </p>
+        <button 
+          onClick={() => setShowSettings(!showSettings)}
+          className={cn(
+            "p-0.5 rounded hover:bg-background/50 transition-colors",
+            showSettings && "bg-background/50"
+          )}
+        >
+          <Settings className="w-3 h-3 text-muted-foreground" />
+        </button>
       </div>
     </div>
   );
