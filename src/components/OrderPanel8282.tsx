@@ -537,6 +537,62 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
             </div>
           </div>
           
+          {/* Balance Setting in KRW */}
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-muted-foreground whitespace-nowrap">잔고 (₩)</span>
+            <input
+              type="number"
+              value={balanceKRW}
+              onChange={(e) => setBalanceKRW(e.target.value)}
+              className="w-24 bg-background border border-yellow-600/50 px-1.5 py-0.5 text-[10px] rounded text-center text-yellow-400 font-mono"
+              step="10000"
+            />
+            <span className="text-[10px] text-muted-foreground">
+              {rateLoading ? '환율 조회중...' : `₩${usdKrwRate.toLocaleString()}/$ • $${balanceUSD.toFixed(0)} • 구매력: $${(balanceUSD * leverage).toLocaleString()}`}
+            </span>
+          </div>
+          
+          {/* Recommended TP/SL based on leverage */}
+          {(() => {
+            const bal = balanceUSD;
+            const liquidationPct = 100 / leverage;
+            const safeSLPct = liquidationPct * 0.4;
+            const recommendedSL = Math.round(bal * (safeSLPct / 100));
+            const recommendedTP = Math.round(recommendedSL * 1.5);
+            
+            return (
+              <div className="bg-yellow-900/20 border border-yellow-600/30 rounded p-2 space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[9px] text-yellow-400/80">⚠️ {leverage}배 레버리지 추천 손익절</span>
+                  <span className="text-[8px] text-muted-foreground">(청산: {liquidationPct.toFixed(1)}%)</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-1">
+                    <span className="text-[9px] text-green-400">익절:</span>
+                    <button
+                      onClick={() => setTpAmount(recommendedTP.toString())}
+                      className="text-[10px] text-green-400 font-mono bg-green-900/30 px-1.5 py-0.5 rounded hover:bg-green-900/50 transition-colors"
+                    >
+                      ${recommendedTP}
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[9px] text-red-400">손절:</span>
+                    <button
+                      onClick={() => setSlAmount(recommendedSL.toString())}
+                      className="text-[10px] text-red-400 font-mono bg-red-900/30 px-1.5 py-0.5 rounded hover:bg-red-900/50 transition-colors"
+                    >
+                      ${recommendedSL}
+                    </button>
+                  </div>
+                </div>
+                <p className="text-[8px] text-muted-foreground">
+                  클릭하면 자동 설정 • R:R 1.5:1 • 청산의 40% 거리
+                </p>
+              </div>
+            );
+          })()}
+          
           <p className="text-[9px] text-muted-foreground">
             {enableTpSl 
               ? `손익이 +$${tpAmount} 또는 -$${slAmount}에 도달하면 자동 청산`
@@ -544,52 +600,6 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
           </p>
         </div>
       )}
-
-      {/* Balance & Recommended TP/SL - Always Visible */}
-      <div className="px-2 py-1.5 border-b border-border bg-yellow-900/10 space-y-1.5">
-        {/* Balance Setting in KRW */}
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] text-muted-foreground whitespace-nowrap">💰 잔고</span>
-          <input
-            type="number"
-            value={balanceKRW}
-            onChange={(e) => setBalanceKRW(e.target.value)}
-            className="w-24 bg-background border border-yellow-600/50 px-1.5 py-0.5 text-[10px] rounded text-center text-yellow-400 font-mono"
-            step="10000"
-          />
-          <span className="text-[9px] text-muted-foreground">
-            {rateLoading ? '환율 조회중...' : `₩${usdKrwRate.toLocaleString()}/$ • $${balanceUSD.toFixed(0)} • 구매력: $${(balanceUSD * leverage).toLocaleString()}`}
-          </span>
-        </div>
-        
-        {/* Recommended TP/SL based on leverage */}
-        {(() => {
-          const bal = balanceUSD;
-          const liquidationPct = 100 / leverage;
-          const safeSLPct = liquidationPct * 0.4;
-          const recommendedSL = Math.round(bal * (safeSLPct / 100));
-          const recommendedTP = Math.round(recommendedSL * 1.5);
-          
-          return (
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[9px] text-yellow-400/80">⚠️ {leverage}x 추천:</span>
-              <button
-                onClick={() => setTpAmount(recommendedTP.toString())}
-                className="text-[9px] text-green-400 font-mono bg-green-900/30 px-1.5 py-0.5 rounded hover:bg-green-900/50 transition-colors"
-              >
-                익절 ${recommendedTP}
-              </button>
-              <button
-                onClick={() => setSlAmount(recommendedSL.toString())}
-                className="text-[9px] text-red-400 font-mono bg-red-900/30 px-1.5 py-0.5 rounded hover:bg-red-900/50 transition-colors"
-              >
-                손절 ${recommendedSL}
-              </button>
-              <span className="text-[8px] text-muted-foreground">(청산 {liquidationPct.toFixed(1)}%)</span>
-            </div>
-          );
-        })()}
-      </div>
 
       {/* Quantity & Leverage Row */}
       <div className="px-2 py-1.5 border-b border-border bg-secondary/30 flex items-center gap-1.5">
