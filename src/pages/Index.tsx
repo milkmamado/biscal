@@ -75,19 +75,6 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background p-2">
-      {/* Logout Button */}
-      <div className="absolute top-2 right-2 z-50">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleSignOut}
-          className="text-muted-foreground hover:text-foreground"
-        >
-          <LogOut className="h-4 w-4 mr-1" />
-          로그아웃
-        </Button>
-      </div>
-
       {/* Main Content */}
       <div className="max-w-[1920px] mx-auto">
         <div className="grid grid-cols-12 gap-2">
@@ -117,13 +104,23 @@ const Index = () => {
           </div>
 
           {/* Right - Order Panel 8282 Style */}
-          <div className="col-span-12 lg:col-span-4 xl:col-span-4">
+          <div className="col-span-12 lg:col-span-4 xl:col-span-4 flex flex-col gap-2">
             <OrderPanel8282 
               symbol={selectedSymbol} 
               onPositionChange={handlePositionChange}
               onPnLChange={handlePnLChange}
               onTradeClose={handleTradeClose}
             />
+            {/* Logout Button */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleSignOut}
+              className="text-muted-foreground hover:text-foreground w-full border border-border"
+            >
+              <LogOut className="h-4 w-4 mr-1" />
+              로그아웃
+            </Button>
           </div>
         </div>
       </div>
