@@ -70,7 +70,7 @@ const DualChartPanel = ({
           <TradingViewChart 
             symbol={symbol} 
             interval={topInterval}
-            height={300}
+            height={360}
           />
         </div>
       </div>
@@ -97,7 +97,7 @@ const DualChartPanel = ({
           <TradingViewChart 
             symbol={symbol} 
             interval={bottomInterval}
-            height={300}
+            height={360}
           />
         </div>
       </div>
