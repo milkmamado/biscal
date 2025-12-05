@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import LightweightChart from './LightweightChart';
+import TradingViewChart from './TradingViewChart';
 import { cn } from '@/lib/utils';
 
 interface DualChartPanelProps {
@@ -19,7 +19,7 @@ const INTERVALS = [
   { label: '일', value: 'D' },
 ];
 
-const DualChartPanel = ({ symbol, entryPrice = null, positionType = null }: DualChartPanelProps) => {
+const DualChartPanel = ({ symbol }: DualChartPanelProps) => {
   const [topInterval, setTopInterval] = useState('1');
   const [bottomInterval, setBottomInterval] = useState('5');
 
@@ -44,11 +44,10 @@ const DualChartPanel = ({ symbol, entryPrice = null, positionType = null }: Dual
           ))}
         </div>
         <div className="flex-1 min-h-0">
-          <LightweightChart 
+          <TradingViewChart 
             symbol={symbol} 
             interval={topInterval}
-            entryPrice={entryPrice}
-            positionType={positionType}
+            height={300}
           />
         </div>
       </div>
@@ -72,11 +71,10 @@ const DualChartPanel = ({ symbol, entryPrice = null, positionType = null }: Dual
           ))}
         </div>
         <div className="flex-1 min-h-0">
-          <LightweightChart 
+          <TradingViewChart 
             symbol={symbol} 
             interval={bottomInterval}
-            entryPrice={entryPrice}
-            positionType={positionType}
+            height={300}
           />
         </div>
       </div>
