@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { fetchOrderBook, fetch24hTicker, OrderBook, formatPrice, formatQuantity } from '@/lib/binance';
 import { cn } from '@/lib/utils';
-import { Minus, Plus, Settings } from 'lucide-react';
+import { Minus, Plus, Settings, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface OrderPanel8282Props {
@@ -13,7 +13,9 @@ const OrderPanel8282 = ({ symbol }: OrderPanel8282Props) => {
   const [orderBook, setOrderBook] = useState<OrderBook | null>(null);
   const [currentPrice, setCurrentPrice] = useState<number>(0);
   const [prevPrice, setPrevPrice] = useState<number>(0);
+  const [priceChangePercent, setPriceChangePercent] = useState<number>(0);
   const [orderQty, setOrderQty] = useState<string>('1');
+  const [leverage, setLeverage] = useState<number>(20);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -26,6 +28,7 @@ const OrderPanel8282 = ({ symbol }: OrderPanel8282Props) => {
         setOrderBook(book);
         setPrevPrice(currentPrice);
         setCurrentPrice(ticker.price);
+        setPriceChangePercent(ticker.priceChangePercent);
       } catch (error) {
         console.error('Failed to fetch data:', error);
       } finally {
@@ -38,17 +41,36 @@ const OrderPanel8282 = ({ symbol }: OrderPanel8282Props) => {
     return () => clearInterval(interval);
   }, [symbol]);
 
-  const handleQuickOrder = (type: 'buy' | 'sell', price: number) => {
+  const handleQuickOrder = (type: 'long' | 'short', price: number) => {
     const qty = parseFloat(orderQty) || 1;
     toast({
-      title: type === 'buy' ? '매수 주문' : '매도 주문',
-      description: `${symbol} ${qty}개 @ $${formatPrice(price)}`,
+      title: type === 'long' ? '롱 진입' : '숏 진입',
+      description: `${symbol} ${qty}개 @ $${formatPrice(price)} (${leverage}x)`,
       duration: 2000,
     });
   };
 
-  const handleQtyPreset = (preset: number) => {
-    setOrderQty(preset.toString());
+  const handleMarketOrder = (type: 'long' | 'short') => {
+    const qty = parseFloat(orderQty) || 1;
+    toast({
+      title: type === 'long' ? '시장가 롱' : '시장가 숏',
+      description: `${symbol} ${qty}개 @ 시장가 (${leverage}x)`,
+      duration: 2000,
+    });
+  };
+
+  const handleCancelAll = () => {
+    toast({
+      title: '일괄취소',
+      description: '모든 미체결 주문이 취소되었습니다.',
+      duration: 2000,
+    });
+  };
+
+  const handleQtyPreset = (percent: number) => {
+    // In real app, this would calculate based on available balance
+    const baseQty = 100;
+    setOrderQty(Math.floor(baseQty * (percent / 100)).toString());
   };
 
   const adjustQty = (delta: number) => {
@@ -65,8 +87,8 @@ const OrderPanel8282 = ({ symbol }: OrderPanel8282Props) => {
 
   if (loading || !orderBook) {
     return (
-      <div className="bg-card rounded-lg border border-border p-4">
-        <div className="h-[600px] shimmer rounded" />
+      <div className="bg-[#f0f0f0] border border-[#808080] rounded-sm">
+        <div className="h-[600px] shimmer" />
       </div>
     );
   }
@@ -75,194 +97,269 @@ const OrderPanel8282 = ({ symbol }: OrderPanel8282Props) => {
   const totalSellQty = orderBook.asks.reduce((sum, a) => sum + a.quantity, 0);
   const priceChange = currentPrice - prevPrice;
 
-  // Reversed asks (highest first at top)
+  // 10 levels each
   const askRows = [...orderBook.asks].reverse().slice(0, 10);
-  // Bids (highest first at top)
   const bidRows = orderBook.bids.slice(0, 10);
 
   return (
-    <div className="bg-card rounded-lg border border-border overflow-hidden">
-      {/* Header */}
-      <div className="px-3 py-2 border-b border-border bg-secondary/30 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-bold">[8282] 주식호가주문</span>
-          <span className="text-[10px] text-muted-foreground">{symbol}</span>
+    <div className="bg-[#f5f5f5] border border-[#a0a0a0] rounded-sm shadow-sm font-sans text-[11px]">
+      {/* Title Bar - Windows style */}
+      <div className="bg-gradient-to-r from-[#1e3a5f] to-[#2d5a8f] px-2 py-1 flex items-center justify-between">
+        <div className="flex items-center gap-2 text-white">
+          <span className="font-bold text-xs">[8282] 선물호가주문</span>
+          <span className="text-[10px] opacity-80">{symbol}</span>
         </div>
-        <Settings className="w-3.5 h-3.5 text-muted-foreground cursor-pointer hover:text-foreground" />
+        <div className="flex items-center gap-1">
+          <button className="w-4 h-4 bg-[#c0c0c0] border border-[#808080] flex items-center justify-center text-[10px] hover:bg-[#d0d0d0]">
+            <Minus className="w-2.5 h-2.5 text-black" />
+          </button>
+          <button className="w-4 h-4 bg-[#c0c0c0] border border-[#808080] flex items-center justify-center text-[10px] hover:bg-[#d0d0d0]">
+            <X className="w-2.5 h-2.5 text-black" />
+          </button>
+        </div>
       </div>
 
-      {/* Quantity Input Row */}
-      <div className="px-2 py-1.5 border-b border-border bg-muted/30 flex items-center gap-2 text-xs">
-        <span className="text-muted-foreground">수량</span>
-        <div className="flex items-center gap-1 flex-1">
-          <button onClick={() => adjustQty(-1)} className="w-5 h-5 flex items-center justify-center bg-secondary rounded">
-            <Minus className="w-3 h-3" />
-          </button>
-          <input
-            type="text"
-            value={orderQty}
-            onChange={(e) => setOrderQty(e.target.value)}
-            className="w-16 bg-background border border-border rounded px-2 py-0.5 text-center font-mono text-xs"
-          />
-          <button onClick={() => adjustQty(1)} className="w-5 h-5 flex items-center justify-center bg-secondary rounded">
-            <Plus className="w-3 h-3" />
-          </button>
-        </div>
-        {[100, 500].map((p) => (
-          <button key={p} onClick={() => handleQtyPreset(p)} className="px-2 py-0.5 bg-secondary rounded text-[10px]">
-            {p}
+      {/* Toolbar Row */}
+      <div className="px-1 py-1 border-b border-[#c0c0c0] bg-[#e8e8e8] flex items-center gap-1 flex-wrap">
+        <select 
+          value={leverage} 
+          onChange={(e) => setLeverage(Number(e.target.value))}
+          className="bg-white border border-[#808080] px-1 py-0.5 text-[10px] w-14"
+        >
+          {[1, 2, 3, 5, 10, 20, 50, 75, 100, 125].map(l => (
+            <option key={l} value={l}>{l}x</option>
+          ))}
+        </select>
+        <span className="text-[10px] text-gray-600">레버리지</span>
+        <div className="flex-1" />
+        {[100, 50, 25, 10].map((p) => (
+          <button 
+            key={p} 
+            onClick={() => handleQtyPreset(p)} 
+            className="px-1.5 py-0.5 bg-white border border-[#808080] text-[10px] hover:bg-[#e0e0e0]"
+          >
+            {p}%
           </button>
         ))}
       </div>
 
-      {/* Column Headers - Kiwoom Style */}
-      <div className="grid grid-cols-[1fr_70px_70px_1fr] text-[10px] font-medium border-b border-border bg-muted/50">
-        <div className="px-2 py-1 text-center text-ask border-r border-border/50">매도잔량</div>
-        <div className="px-2 py-1 text-center border-r border-border/50 col-span-2">호가</div>
-        <div className="px-2 py-1 text-center text-bid">매수잔량</div>
+      {/* Quantity Input Row */}
+      <div className="px-1 py-1 border-b border-[#c0c0c0] bg-[#e8e8e8] flex items-center gap-1">
+        <span className="text-[10px] text-gray-700 w-8">수량</span>
+        <button 
+          onClick={() => adjustQty(-1)} 
+          className="w-5 h-5 bg-white border border-[#808080] flex items-center justify-center hover:bg-[#e0e0e0]"
+        >
+          <Minus className="w-3 h-3" />
+        </button>
+        <input
+          type="text"
+          value={orderQty}
+          onChange={(e) => setOrderQty(e.target.value)}
+          className="w-20 bg-white border border-[#808080] px-2 py-0.5 text-center font-mono text-[11px]"
+        />
+        <button 
+          onClick={() => adjustQty(1)} 
+          className="w-5 h-5 bg-white border border-[#808080] flex items-center justify-center hover:bg-[#e0e0e0]"
+        >
+          <Plus className="w-3 h-3" />
+        </button>
       </div>
 
-      {/* Sell Side (매도) - Blue - Top */}
-      <div className="border-b border-border/50">
+      {/* Market Order Buttons */}
+      <div className="grid grid-cols-2 border-b border-[#c0c0c0]">
+        <button 
+          onClick={handleCancelAll}
+          className="py-1 text-[10px] bg-[#f0f0f0] border-r border-[#c0c0c0] hover:bg-[#e0e0e0] font-medium"
+        >
+          일괄취소
+        </button>
+        <div className="grid grid-cols-2">
+          <button 
+            onClick={() => handleMarketOrder('short')}
+            className="py-1 text-[10px] bg-[#d0e0ff] border-r border-[#c0c0c0] hover:bg-[#b0d0ff] text-blue-800 font-medium"
+          >
+            시장가숏
+          </button>
+          <button 
+            onClick={() => handleMarketOrder('long')}
+            className="py-1 text-[10px] bg-[#ffd0d0] hover:bg-[#ffb0b0] text-red-800 font-medium"
+          >
+            시장가롱
+          </button>
+        </div>
+      </div>
+
+      {/* Column Headers */}
+      <div className="grid grid-cols-[40px_1fr_80px_1fr_40px] text-[10px] font-medium border-b border-[#a0a0a0] bg-[#d8d8d8]">
+        <div className="px-1 py-0.5 text-center border-r border-[#c0c0c0] text-blue-700">S</div>
+        <div className="px-1 py-0.5 text-center border-r border-[#c0c0c0] text-blue-700">매도잔량</div>
+        <div className="px-1 py-0.5 text-center border-r border-[#c0c0c0]">호가</div>
+        <div className="px-1 py-0.5 text-center border-r border-[#c0c0c0] text-red-700">매수잔량</div>
+        <div className="px-1 py-0.5 text-center text-red-700">B</div>
+      </div>
+
+      {/* Order Book - Sell Side (Top) */}
+      <div className="border-b border-[#a0a0a0]">
         {askRows.map((ask, index) => {
           const percentage = (ask.quantity / maxQuantity) * 100;
+          const isAboveCurrentPrice = ask.price > currentPrice;
           
           return (
             <div 
               key={`ask-${index}`} 
-              className="grid grid-cols-[1fr_70px_70px_1fr] text-xs border-b border-border/20 hover:bg-secondary/30"
+              className="grid grid-cols-[40px_1fr_80px_1fr_40px] text-[11px] border-b border-[#e0e0e0] hover:bg-[#ffffd0]"
             >
-              {/* 매도잔량 (Sell Quantity) - Left with blue bar */}
-              <div className="relative px-2 py-1 flex items-center justify-end border-r border-border/30">
+              {/* S button - Short entry */}
+              <button
+                onDoubleClick={() => handleQuickOrder('short', ask.price)}
+                className="px-1 py-0.5 text-center bg-[#e8f0ff] hover:bg-[#c0d8ff] border-r border-[#c0c0c0] text-blue-700 font-bold text-[10px]"
+                title="더블클릭: 숏 진입"
+              >
+                S
+              </button>
+              
+              {/* 매도잔량 (Sell Quantity) - Blue */}
+              <div className="relative px-1 py-0.5 flex items-center justify-end border-r border-[#c0c0c0]">
                 <div 
-                  className="absolute left-0 top-0 h-full bg-ask/20"
+                  className="absolute left-0 top-0 h-full bg-blue-200"
                   style={{ width: `${percentage}%` }}
                 />
-                <span className="relative font-mono text-[11px] text-ask">
+                <span className="relative font-mono text-blue-700 font-medium">
                   {formatQuantity(ask.quantity)}
                 </span>
               </div>
               
-              {/* 매도호가 (Sell Price) - Blue background */}
-              <button
-                onDoubleClick={() => handleQuickOrder('sell', ask.price)}
-                className="px-2 py-1 text-center bg-ask/10 hover:bg-ask/20 border-r border-border/30 transition-colors"
-                title="더블클릭: 매도"
-              >
-                <span className="font-mono text-[11px] font-medium text-ask">
-                  {formatPrice(ask.price)}
-                </span>
-              </button>
-
-              {/* Empty buy price cell */}
-              <div className="px-2 py-1 border-r border-border/30" />
+              {/* 호가 (Price) - Red if above current */}
+              <div className={cn(
+                "px-1 py-0.5 text-center border-r border-[#c0c0c0] font-mono font-medium",
+                isAboveCurrentPrice ? "text-red-600 bg-[#fff8f8]" : "text-blue-600 bg-[#f8f8ff]"
+              )}>
+                {formatPrice(ask.price)}
+              </div>
 
               {/* Empty buy quantity cell */}
-              <div className="px-2 py-1" />
+              <div className="px-1 py-0.5 border-r border-[#c0c0c0]" />
+
+              {/* Empty B button cell */}
+              <div className="px-1 py-0.5 bg-[#f8f8f8]" />
             </div>
           );
         })}
       </div>
 
-      {/* Current Price Bar - Yellow highlight */}
-      <div className="px-3 py-2 bg-yellow-400/30 border-y-2 border-yellow-500">
-        <div className="flex items-center justify-center gap-3">
+      {/* Current Price Bar - Yellow highlight like Kiwoom */}
+      <div className="bg-[#ffff00] border-y-2 border-[#ffa500] px-2 py-1.5">
+        <div className="flex items-center justify-center gap-2">
           <span className={cn(
-            "text-xl font-bold font-mono",
-            priceChange > 0 ? "text-bid" : priceChange < 0 ? "text-ask" : ""
+            "text-lg font-bold font-mono",
+            priceChange >= 0 ? "text-red-600" : "text-blue-600"
           )}>
             {formatPrice(currentPrice)}
           </span>
-          <span className="px-2 py-0.5 bg-yellow-500 text-yellow-950 text-[10px] font-bold rounded">
+          <span className="bg-[#ff6600] text-white px-1.5 py-0.5 text-[10px] font-bold rounded-sm">
             현재
+          </span>
+          <span className={cn(
+            "text-[11px] font-mono",
+            priceChangePercent >= 0 ? "text-red-600" : "text-blue-600"
+          )}>
+            {priceChangePercent >= 0 ? '▲' : '▼'} {Math.abs(priceChangePercent).toFixed(2)}%
           </span>
         </div>
       </div>
 
-      {/* Buy Side (매수) - Red - Bottom */}
-      <div className="border-t border-border/50">
+      {/* Order Book - Buy Side (Bottom) */}
+      <div className="border-b border-[#a0a0a0]">
         {bidRows.map((bid, index) => {
           const percentage = (bid.quantity / maxQuantity) * 100;
+          const isBelowCurrentPrice = bid.price < currentPrice;
           
           return (
             <div 
               key={`bid-${index}`} 
-              className="grid grid-cols-[1fr_70px_70px_1fr] text-xs border-b border-border/20 hover:bg-secondary/30"
+              className="grid grid-cols-[40px_1fr_80px_1fr_40px] text-[11px] border-b border-[#e0e0e0] hover:bg-[#ffffd0]"
             >
+              {/* Empty S button cell */}
+              <div className="px-1 py-0.5 border-r border-[#c0c0c0] bg-[#f8f8f8]" />
+
               {/* Empty sell quantity cell */}
-              <div className="px-2 py-1 border-r border-border/30" />
+              <div className="px-1 py-0.5 border-r border-[#c0c0c0]" />
 
-              {/* Empty sell price cell */}
-              <div className="px-2 py-1 border-r border-border/30" />
+              {/* 호가 (Price) - Blue if below current */}
+              <div className={cn(
+                "px-1 py-0.5 text-center border-r border-[#c0c0c0] font-mono font-medium",
+                isBelowCurrentPrice ? "text-blue-600 bg-[#f8f8ff]" : "text-red-600 bg-[#fff8f8]"
+              )}>
+                {formatPrice(bid.price)}
+              </div>
 
-              {/* 매수호가 (Buy Price) - Red background */}
-              <button
-                onDoubleClick={() => handleQuickOrder('buy', bid.price)}
-                className="px-2 py-1 text-center bg-bid/10 hover:bg-bid/20 border-r border-border/30 transition-colors"
-                title="더블클릭: 매수"
-              >
-                <span className="font-mono text-[11px] font-medium text-bid">
-                  {formatPrice(bid.price)}
-                </span>
-              </button>
-
-              {/* 매수잔량 (Buy Quantity) - Right with red bar */}
-              <div className="relative px-2 py-1 flex items-center border-r border-border/30">
+              {/* 매수잔량 (Buy Quantity) - Red */}
+              <div className="relative px-1 py-0.5 flex items-center border-r border-[#c0c0c0]">
                 <div 
-                  className="absolute right-0 top-0 h-full bg-bid/20"
+                  className="absolute right-0 top-0 h-full bg-red-200"
                   style={{ width: `${percentage}%` }}
                 />
-                <span className="relative font-mono text-[11px] text-bid">
+                <span className="relative font-mono text-red-700 font-medium">
                   {formatQuantity(bid.quantity)}
                 </span>
               </div>
+
+              {/* B button - Long entry */}
+              <button
+                onDoubleClick={() => handleQuickOrder('long', bid.price)}
+                className="px-1 py-0.5 text-center bg-[#ffe8e8] hover:bg-[#ffc0c0] text-red-700 font-bold text-[10px]"
+                title="더블클릭: 롱 진입"
+              >
+                B
+              </button>
             </div>
           );
         })}
       </div>
 
-      {/* Summary */}
-      <div className="px-2 py-1.5 bg-muted/30 border-t border-border flex items-center justify-between text-[10px]">
+      {/* Summary Bar */}
+      <div className="px-1 py-1 bg-[#e8e8e8] border-t border-[#a0a0a0] flex items-center justify-between text-[10px]">
         <div className="flex items-center gap-1">
-          <span className="text-ask">총매도</span>
-          <span className="font-mono text-ask">{formatQuantity(totalSellQty)}</span>
+          <span className="text-blue-700 font-medium">총매도</span>
+          <span className="font-mono text-blue-700">{formatQuantity(totalSellQty)}</span>
         </div>
-        <div className="flex-1 mx-3 h-1.5 bg-muted rounded-full overflow-hidden flex">
+        <div className="flex-1 mx-2 h-2 bg-[#c0c0c0] overflow-hidden flex">
           <div 
-            className="h-full bg-ask"
+            className="h-full bg-blue-500"
             style={{ width: `${(totalSellQty / (totalBuyQty + totalSellQty)) * 100}%` }}
           />
           <div 
-            className="h-full bg-bid"
+            className="h-full bg-red-500"
             style={{ width: `${(totalBuyQty / (totalBuyQty + totalSellQty)) * 100}%` }}
           />
         </div>
         <div className="flex items-center gap-1">
-          <span className="font-mono text-bid">{formatQuantity(totalBuyQty)}</span>
-          <span className="text-bid">총매수</span>
+          <span className="font-mono text-red-700">{formatQuantity(totalBuyQty)}</span>
+          <span className="text-red-700 font-medium">총매수</span>
         </div>
       </div>
 
-      {/* Quick Order Buttons */}
-      <div className="grid grid-cols-2 gap-2 p-2 border-t border-border">
+      {/* Quick Order Buttons - Kiwoom style */}
+      <div className="grid grid-cols-2 border-t border-[#a0a0a0]">
         <button 
-          onClick={() => handleQuickOrder('sell', currentPrice)}
-          className="py-2.5 rounded font-bold text-sm bg-ask hover:bg-ask/90 text-white transition-all"
+          onClick={() => handleQuickOrder('short', currentPrice)}
+          className="py-2 font-bold text-sm bg-[#3366cc] hover:bg-[#2255bb] text-white border-r border-[#a0a0a0]"
         >
-          매도
+          숏 (매도)
         </button>
         <button 
-          onClick={() => handleQuickOrder('buy', currentPrice)}
-          className="py-2.5 rounded font-bold text-sm bg-bid hover:bg-bid/90 text-white transition-all"
+          onClick={() => handleQuickOrder('long', currentPrice)}
+          className="py-2 font-bold text-sm bg-[#cc3333] hover:bg-[#bb2222] text-white"
         >
-          매수
+          롱 (매수)
         </button>
       </div>
 
-      {/* Help */}
-      <div className="px-2 py-1 bg-muted/20 border-t border-border text-center">
-        <p className="text-[9px] text-muted-foreground">
-          호가 더블클릭 → 해당 가격 주문
+      {/* Footer */}
+      <div className="px-1 py-0.5 bg-[#d8d8d8] border-t border-[#a0a0a0] text-center">
+        <p className="text-[9px] text-gray-600">
+          S/B 버튼 더블클릭 → 해당 가격 지정가 주문
         </p>
       </div>
     </div>
