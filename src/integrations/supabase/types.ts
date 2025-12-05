@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      email_verification_codes: {
+        Row: {
+          code: string
+          created_at: string
+          email: string
+          expires_at: string
+          id: string
+          used: boolean
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          email: string
+          expires_at: string
+          id?: string
+          used?: boolean
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          email?: string
+          expires_at?: string
+          id?: string
+          used?: boolean
+        }
+        Relationships: []
+      }
       user_api_keys: {
         Row: {
           api_key: string
@@ -46,7 +73,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      cleanup_expired_verification_codes: { Args: never; Returns: undefined }
     }
     Enums: {
       [_ in never]: never
