@@ -481,12 +481,11 @@ const OrderPanel8282 = ({ symbol, onPositionChange }: OrderPanel8282Props) => {
       <div className="border-b border-border/50">
         {askRows.map((ask, index) => {
           const percentage = (ask.quantity / maxQuantity) * 100;
-          const isEntryPrice = position && Math.abs(ask.price - position.entryPrice) < position.entryPrice * 0.0001;
           
           return (
             <div 
               key={`ask-${index}`} 
-            className="grid grid-cols-[32px_1fr_70px_1fr_32px] text-[11px] border-b border-border/30 hover:bg-secondary/50"
+              className="grid grid-cols-[32px_1fr_70px_1fr_32px] text-[11px] border-b border-border/30 hover:bg-secondary/50"
             >
               {/* S button */}
               <button
@@ -509,34 +508,12 @@ const OrderPanel8282 = ({ symbol, onPositionChange }: OrderPanel8282Props) => {
               </div>
               
               {/* 호가 */}
-              <div className={cn(
-                "px-1 py-0.5 text-center border-r border-border/30 font-mono font-medium",
-                isEntryPrice 
-                  ? "text-blue-400 bg-blue-950/20 ring-2 ring-green-500" 
-                  : "text-blue-400 bg-blue-950/20"
-              )}>
+              <div className="px-1 py-0.5 text-center border-r border-border/30 font-mono font-medium text-blue-400 bg-blue-950/20">
                 {formatPrice(ask.price)}
               </div>
 
-              {/* Empty buy quantity - Show PnL for LONG position at middle-right */}
-              <div className="px-1 py-0.5 border-r border-border/30 flex items-center justify-center">
-                {position?.type === 'long' && index === Math.floor(askRows.length / 2) && (
-                  <div className="flex flex-col items-center bg-red-950/70 px-1.5 py-0.5 rounded border border-red-500/50">
-                    <span className="text-[9px] font-bold text-red-400">
-                      LONG {position.quantity}개
-                    </span>
-                    <span className="text-[8px] text-red-300/80 font-mono">
-                      @{formatPrice(position.entryPrice)}
-                    </span>
-                    <span className={cn(
-                      "text-[10px] font-bold font-mono",
-                      currentPnL >= 0 ? "text-red-400" : "text-blue-400"
-                    )}>
-                      {currentPnL >= 0 ? '+' : ''}{currentPnL.toFixed(2)}$ ({currentPnLPercent >= 0 ? '+' : ''}{currentPnLPercent.toFixed(2)}%)
-                    </span>
-                  </div>
-                )}
-              </div>
+              {/* Empty buy quantity */}
+              <div className="px-1 py-0.5 border-r border-border/30" />
 
               {/* B button */}
               <button
@@ -551,37 +528,71 @@ const OrderPanel8282 = ({ symbol, onPositionChange }: OrderPanel8282Props) => {
         })}
       </div>
 
-      {/* Current Price Bar */}
-      <div className="bg-yellow-500/20 border-y-2 border-yellow-500 px-2 py-1.5">
-        <div className="flex items-center justify-center gap-2">
-          <span className={cn(
-            "text-lg font-bold font-mono",
-            priceChange >= 0 ? "text-red-400" : "text-blue-400"
-          )}>
-            {formatPrice(currentPrice)}
-          </span>
-          <span className="bg-yellow-500 text-yellow-950 px-1.5 py-0.5 text-[10px] font-bold rounded">
-            현재
-          </span>
-          <span className={cn(
-            "text-[11px] font-mono",
-            priceChangePercent >= 0 ? "text-red-400" : "text-blue-400"
-          )}>
-            {priceChangePercent >= 0 ? '▲' : '▼'} {Math.abs(priceChangePercent).toFixed(2)}%
-          </span>
+      {/* Current Price Bar / Position Info */}
+      {position ? (
+        <div className={cn(
+          "border-y-2 px-2 py-1.5",
+          position.type === 'long' ? "bg-red-950/50 border-red-500" : "bg-blue-950/50 border-blue-500"
+        )}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className={cn(
+                "text-[10px] font-bold px-1.5 py-0.5 rounded",
+                position.type === 'long' ? "bg-red-500 text-white" : "bg-blue-500 text-white"
+              )}>
+                {position.type === 'long' ? 'LONG' : 'SHORT'}
+              </span>
+              <span className="text-[10px] text-muted-foreground">
+                {position.quantity}개 @{formatPrice(position.entryPrice)}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className={cn(
+                "text-sm font-bold font-mono",
+                currentPnL >= 0 ? "text-red-400" : "text-blue-400"
+              )}>
+                {currentPnL >= 0 ? '+' : ''}{currentPnL.toFixed(2)}$ ({currentPnLPercent >= 0 ? '+' : ''}{currentPnLPercent.toFixed(2)}%)
+              </span>
+              <button
+                onClick={handleMarketClose}
+                className="px-2 py-0.5 bg-yellow-500 hover:bg-yellow-400 text-yellow-950 text-[10px] font-bold rounded"
+              >
+                청산
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="bg-yellow-500/20 border-y-2 border-yellow-500 px-2 py-1.5">
+          <div className="flex items-center justify-center gap-2">
+            <span className={cn(
+              "text-lg font-bold font-mono",
+              priceChange >= 0 ? "text-red-400" : "text-blue-400"
+            )}>
+              {formatPrice(currentPrice)}
+            </span>
+            <span className="bg-yellow-500 text-yellow-950 px-1.5 py-0.5 text-[10px] font-bold rounded">
+              현재
+            </span>
+            <span className={cn(
+              "text-[11px] font-mono",
+              priceChangePercent >= 0 ? "text-red-400" : "text-blue-400"
+            )}>
+              {priceChangePercent >= 0 ? '▲' : '▼'} {Math.abs(priceChangePercent).toFixed(2)}%
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Order Book - Buy Side (Bottom) */}
       <div className="border-b border-border/50">
         {bidRows.map((bid, index) => {
           const percentage = (bid.quantity / maxQuantity) * 100;
-          const isEntryPrice = position && Math.abs(bid.price - position.entryPrice) < position.entryPrice * 0.0001;
           
           return (
             <div 
               key={`bid-${index}`} 
-            className="grid grid-cols-[32px_1fr_70px_1fr_32px] text-[11px] border-b border-border/30 hover:bg-secondary/50"
+              className="grid grid-cols-[32px_1fr_70px_1fr_32px] text-[11px] border-b border-border/30 hover:bg-secondary/50"
             >
               {/* S button */}
               <button
@@ -592,33 +603,11 @@ const OrderPanel8282 = ({ symbol, onPositionChange }: OrderPanel8282Props) => {
                 S
               </button>
 
-              {/* Empty sell quantity - Show PnL for SHORT position at middle-left */}
-              <div className="px-1 py-0.5 border-r border-border/30 flex items-center justify-center">
-                {position?.type === 'short' && index === Math.floor(bidRows.length / 2) && (
-                  <div className="flex flex-col items-center bg-blue-950/70 px-1.5 py-0.5 rounded border border-blue-500/50">
-                    <span className="text-[9px] font-bold text-blue-400">
-                      SHORT {position.quantity}개
-                    </span>
-                    <span className="text-[8px] text-blue-300/80 font-mono">
-                      @{formatPrice(position.entryPrice)}
-                    </span>
-                    <span className={cn(
-                      "text-[10px] font-bold font-mono",
-                      currentPnL >= 0 ? "text-red-400" : "text-blue-400"
-                    )}>
-                      {currentPnL >= 0 ? '+' : ''}{currentPnL.toFixed(2)}$ ({currentPnLPercent >= 0 ? '+' : ''}{currentPnLPercent.toFixed(2)}%)
-                    </span>
-                  </div>
-                )}
-              </div>
+              {/* Empty sell quantity */}
+              <div className="px-1 py-0.5 border-r border-border/30" />
 
               {/* 호가 */}
-              <div className={cn(
-                "px-1 py-0.5 text-center border-r border-border/30 font-mono font-medium",
-                isEntryPrice 
-                  ? "text-red-400 bg-red-950/20 ring-2 ring-green-500" 
-                  : "text-red-400 bg-red-950/20"
-              )}>
+              <div className="px-1 py-0.5 text-center border-r border-border/30 font-mono font-medium text-red-400 bg-red-950/20">
                 {formatPrice(bid.price)}
               </div>
 
