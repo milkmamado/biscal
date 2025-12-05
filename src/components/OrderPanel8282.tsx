@@ -95,6 +95,35 @@ const OrderPanel8282 = ({ symbol }: OrderPanel8282Props) => {
     );
   }
 
+  // 호가 데이터가 비어있는 경우 (상장폐지/거래중단 종목)
+  const hasOrderData = orderBook.bids.length > 0 || orderBook.asks.length > 0;
+  
+  if (!hasOrderData) {
+    return (
+      <div className="bg-card border border-border rounded text-[11px]">
+        <div className="bg-secondary px-2 py-1.5 flex items-center justify-between border-b border-border">
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-xs text-foreground">[8282] 선물호가주문</span>
+            <span className="text-[10px] text-muted-foreground">{symbol}</span>
+          </div>
+        </div>
+        <div className="h-[500px] flex flex-col items-center justify-center gap-3 p-4">
+          <div className="text-4xl">⚠️</div>
+          <div className="text-center">
+            <p className="text-sm font-medium text-foreground mb-1">호가 데이터 없음</p>
+            <p className="text-xs text-muted-foreground">
+              이 종목은 거래가 중단되었거나<br/>
+              상장폐지된 종목일 수 있습니다.
+            </p>
+          </div>
+          <div className="mt-2 px-3 py-1.5 bg-yellow-500/20 border border-yellow-500/50 rounded text-[10px] text-yellow-400">
+            다른 종목을 선택해주세요
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const totalBuyQty = orderBook.bids.reduce((sum, b) => sum + b.quantity, 0);
   const totalSellQty = orderBook.asks.reduce((sum, a) => sum + a.quantity, 0);
   const priceChange = currentPrice - prevPrice;
