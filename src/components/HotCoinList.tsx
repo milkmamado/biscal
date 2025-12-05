@@ -34,8 +34,13 @@ const HotCoinList = ({ onSelectSymbol, selectedSymbol }: HotCoinListProps) => {
 
   // Sort and filter coins based on mode and search
   useEffect(() => {
-    // Filter out halted coins (0 volume) and apply search
-    let filtered = allCoins.filter(c => c.volume > 10000); // 거래량 $10,000 이상만
+    // 스캘핑 적합 코인 필터링 (해외 전문가 기준)
+    // 1. 가격 $0.1 이상 (소수점 코인 스프레드/틱사이즈 문제 회피)
+    // 2. 거래량 $50M 이상 (유동성 확보)
+    let filtered = allCoins.filter(c => 
+      c.price >= 0.1 && // $0.1 이상 가격
+      c.volume >= 50_000_000 // $50M 이상 거래량
+    );
     
     // Apply search filter
     if (searchQuery) {
@@ -205,7 +210,7 @@ const HotCoinList = ({ onSelectSymbol, selectedSymbol }: HotCoinListProps) => {
       {/* Note */}
       <div className="px-3 py-1.5 bg-secondary/30 border-t border-border">
         <p className="text-[10px] text-muted-foreground text-center">
-          {allCoins.filter(c => c.volume > 10000).length}개 활성 코인 · 30초마다 갱신
+          스캘핑 적합 {allCoins.filter(c => c.price >= 0.1 && c.volume >= 50_000_000).length}개 · $0.1↑ · $50M↑
         </p>
       </div>
     </div>
