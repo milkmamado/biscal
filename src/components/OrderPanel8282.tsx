@@ -116,7 +116,7 @@ const OrderPanel8282 = ({ symbol, onPositionChange }: OrderPanel8282Props) => {
     const baseQty = parseFloat(orderQty) || 1;
     const actualQty = Math.floor(baseQty * (clickOrderPercent / 100));
     
-    // If position exists and same direction, add to position
+    // If position exists and same direction, add to position (추매)
     // If opposite direction, close position
     if (position) {
       if (position.type !== type) {
@@ -124,9 +124,27 @@ const OrderPanel8282 = ({ symbol, onPositionChange }: OrderPanel8282Props) => {
         handleCloseAtPrice(price);
         return;
       }
+      
+      // 추매: 평균단가 계산 및 수량 합산
+      const totalQty = position.quantity + actualQty;
+      const avgPrice = ((position.entryPrice * position.quantity) + (price * actualQty)) / totalQty;
+      
+      setPosition({
+        type,
+        entryPrice: avgPrice,
+        quantity: totalQty,
+        leverage
+      });
+      
+      toast({
+        title: type === 'long' ? '🟢 롱 추매' : '🔴 숏 추매',
+        description: `${symbol} +${actualQty}개 @ $${formatPrice(price)} → 총 ${totalQty}개 (평단 $${formatPrice(avgPrice)})`,
+        duration: 2000,
+      });
+      return;
     }
     
-    // Open new position or add to existing
+    // Open new position
     setPosition({
       type,
       entryPrice: price,
@@ -146,6 +164,26 @@ const OrderPanel8282 = ({ symbol, onPositionChange }: OrderPanel8282Props) => {
     
     if (position && position.type !== type) {
       handleMarketClose();
+      return;
+    }
+    
+    // 추매: 평균단가 계산 및 수량 합산
+    if (position && position.type === type) {
+      const totalQty = position.quantity + qty;
+      const avgPrice = ((position.entryPrice * position.quantity) + (currentPrice * qty)) / totalQty;
+      
+      setPosition({
+        type,
+        entryPrice: avgPrice,
+        quantity: totalQty,
+        leverage
+      });
+      
+      toast({
+        title: type === 'long' ? '🟢 시장가 롱 추매' : '🔴 시장가 숏 추매',
+        description: `${symbol} +${qty}개 @ $${formatPrice(currentPrice)} → 총 ${totalQty}개 (평단 $${formatPrice(avgPrice)})`,
+        duration: 2000,
+      });
       return;
     }
     
