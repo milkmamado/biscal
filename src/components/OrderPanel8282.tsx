@@ -1,7 +1,7 @@
-import { useState, useEffect, useMemo } from 'react';
-import { fetchOrderBook, fetch24hTicker, OrderBook, formatPrice, formatQuantity } from '@/lib/binance';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { fetchOrderBook, fetch24hTicker, OrderBook, formatPrice, formatQuantity, calculateTechnicalSignal, TechnicalSignal } from '@/lib/binance';
 import { cn } from '@/lib/utils';
-import { Minus, Plus, Settings, X } from 'lucide-react';
+import { Minus, Plus, Settings, TrendingUp, TrendingDown } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface Position {
@@ -40,6 +40,10 @@ const OrderPanel8282 = ({ symbol, onPositionChange }: OrderPanel8282Props) => {
   const [tpAmount, setTpAmount] = useState<string>('50');
   const [slAmount, setSlAmount] = useState<string>('30');
   const [enableTpSl, setEnableTpSl] = useState<boolean>(true);
+  
+  // Technical signal state
+  const [techSignal, setTechSignal] = useState<TechnicalSignal | null>(null);
+  const lastSignalFetch = useRef<number>(0);
 
   useEffect(() => {
     const loadData = async () => {
@@ -52,6 +56,13 @@ const OrderPanel8282 = ({ symbol, onPositionChange }: OrderPanel8282Props) => {
         setPrevPrice(currentPrice);
         setCurrentPrice(ticker.price);
         setPriceChangePercent(ticker.priceChangePercent);
+        
+        // Fetch technical signal every 5 seconds
+        const now = Date.now();
+        if (now - lastSignalFetch.current > 5000) {
+          lastSignalFetch.current = now;
+          calculateTechnicalSignal(symbol).then(setTechSignal);
+        }
         
         // Check TP/SL auto close
         if (position && enableTpSl && ticker.price > 0) {
@@ -87,9 +98,11 @@ const OrderPanel8282 = ({ symbol, onPositionChange }: OrderPanel8282Props) => {
     return () => clearInterval(interval);
   }, [symbol, position, enableTpSl, tpAmount, slAmount]);
 
-  // Reset position when symbol changes
+  // Reset position and signal when symbol changes
   useEffect(() => {
     setPosition(null);
+    setTechSignal(null);
+    lastSignalFetch.current = 0;
   }, [symbol]);
 
   const calculatePnL = (pos: Position, price: number): number => {
@@ -459,6 +472,28 @@ const OrderPanel8282 = ({ symbol, onPositionChange }: OrderPanel8282Props) => {
         <div className="px-1 py-1 text-center border-r border-border/50 text-red-400">매수잔량</div>
         <div className="px-1 py-1 text-center text-red-400">B</div>
       </div>
+      
+      {/* Bearish Probability Display (Top Right) */}
+      {techSignal && (
+        <div className="grid grid-cols-[32px_1fr_70px_1fr_32px] text-[10px] border-b border-border/50 bg-blue-950/30">
+          <div className="px-1 py-1 border-r border-border/30" />
+          <div className="px-1 py-1 border-r border-border/30" />
+          <div className="px-1 py-1 text-center border-r border-border/30 text-muted-foreground text-[9px]">
+            RSI {techSignal.rsi}
+          </div>
+          <div className="px-1 py-1.5 border-r border-border/30 flex items-center justify-center gap-1">
+            <TrendingDown className="w-3 h-3 text-blue-400" />
+            <span className={cn(
+              "font-bold font-mono",
+              techSignal.bearishProb > 55 ? "text-blue-400" : "text-muted-foreground"
+            )}>
+              {techSignal.bearishProb}%
+            </span>
+            <span className="text-[8px] text-blue-400/70">하락</span>
+          </div>
+          <div className="px-1 py-1" />
+        </div>
+      )}
 
       {/* Order Book - Sell Side (Top) */}
       <div className="border-b border-border/50">
@@ -567,6 +602,28 @@ const OrderPanel8282 = ({ symbol, onPositionChange }: OrderPanel8282Props) => {
         </div>
       )}
 
+      {/* Bullish Probability Display (Bottom Left) */}
+      {techSignal && (
+        <div className="grid grid-cols-[32px_1fr_70px_1fr_32px] text-[10px] border-b border-border/50 bg-red-950/30">
+          <div className="px-1 py-1 border-r border-border/30" />
+          <div className="px-1 py-1.5 border-r border-border/30 flex items-center justify-center gap-1">
+            <TrendingUp className="w-3 h-3 text-red-400" />
+            <span className={cn(
+              "font-bold font-mono",
+              techSignal.bullishProb > 55 ? "text-red-400" : "text-muted-foreground"
+            )}>
+              {techSignal.bullishProb}%
+            </span>
+            <span className="text-[8px] text-red-400/70">상승</span>
+          </div>
+          <div className="px-1 py-1 text-center border-r border-border/30 text-muted-foreground text-[9px]">
+            {techSignal.macdSignal === 'bullish' ? '▲' : techSignal.macdSignal === 'bearish' ? '▼' : '—'} MACD
+          </div>
+          <div className="px-1 py-1 border-r border-border/30" />
+          <div className="px-1 py-1" />
+        </div>
+      )}
+      
       {/* Order Book - Buy Side (Bottom) */}
       <div className="border-b border-border/50">
         {bidRows.map((bid, index) => {
