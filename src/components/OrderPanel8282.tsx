@@ -55,6 +55,9 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
   const [slAmount, setSlAmount] = useState<string>('30');
   const [enableTpSl, setEnableTpSl] = useState<boolean>(true);
   
+  // Balance for order calculation
+  const [balance, setBalance] = useState<string>('1000');
+  
   // Technical signal state
   const [techSignal, setTechSignal] = useState<TechnicalSignal | null>(null);
   const lastSignalFetch = useRef<number>(0);
@@ -329,8 +332,11 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
   };
 
   const handleQtyPreset = (percent: number) => {
-    const baseQty = 100;
-    setOrderQty(Math.floor(baseQty * (percent / 100)).toString());
+    // Calculate quantity based on: (balance × leverage × percent) / currentPrice
+    const bal = parseFloat(balance) || 0;
+    const buyingPower = bal * leverage * (percent / 100);
+    const qty = currentPrice > 0 ? buyingPower / currentPrice : 0;
+    setOrderQty(qty.toFixed(3));
   };
 
   const adjustQty = (delta: number) => {
@@ -504,6 +510,20 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
                 disabled={!enableTpSl}
               />
             </div>
+          </div>
+          
+          {/* Balance Setting */}
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-muted-foreground whitespace-nowrap">잔고 (USDT)</span>
+            <input
+              type="number"
+              value={balance}
+              onChange={(e) => setBalance(e.target.value)}
+              className="w-20 bg-background border border-yellow-600/50 px-1.5 py-0.5 text-[10px] rounded text-center text-yellow-400 font-mono"
+            />
+            <span className="text-[10px] text-muted-foreground">
+              구매력: ${((parseFloat(balance) || 0) * leverage).toLocaleString()}
+            </span>
           </div>
           
           <p className="text-[9px] text-muted-foreground">
