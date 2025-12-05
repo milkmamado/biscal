@@ -57,8 +57,32 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
   
   // Balance for order calculation (in KRW)
   const [balanceKRW, setBalanceKRW] = useState<string>('1000000');
-  const [usdKrwRate, setUsdKrwRate] = useState<number>(1380); // USD/KRW exchange rate
+  const [usdKrwRate, setUsdKrwRate] = useState<number>(1380);
+  const [rateLoading, setRateLoading] = useState<boolean>(false);
   const balanceUSD = (parseFloat(balanceKRW) || 0) / usdKrwRate;
+  
+  // Fetch USD/KRW exchange rate
+  useEffect(() => {
+    const fetchExchangeRate = async () => {
+      setRateLoading(true);
+      try {
+        const res = await fetch('https://api.frankfurter.app/latest?from=USD&to=KRW');
+        const data = await res.json();
+        if (data.rates?.KRW) {
+          setUsdKrwRate(Math.round(data.rates.KRW));
+        }
+      } catch (error) {
+        console.error('Failed to fetch exchange rate:', error);
+      } finally {
+        setRateLoading(false);
+      }
+    };
+    
+    fetchExchangeRate();
+    // Refresh every 30 minutes
+    const interval = setInterval(fetchExchangeRate, 30 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
   
   // Technical signal state
   const [techSignal, setTechSignal] = useState<TechnicalSignal | null>(null);
@@ -524,7 +548,7 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
               step="10000"
             />
             <span className="text-[10px] text-muted-foreground">
-              ≈ ${balanceUSD.toFixed(0)} • 구매력: ${(balanceUSD * leverage).toLocaleString()}
+              {rateLoading ? '환율 조회중...' : `₩${usdKrwRate.toLocaleString()}/$ • $${balanceUSD.toFixed(0)} • 구매력: $${(balanceUSD * leverage).toLocaleString()}`}
             </span>
           </div>
           
