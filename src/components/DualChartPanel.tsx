@@ -1,5 +1,4 @@
-import { useState, useEffect } from 'react';
-import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
+import { useState } from 'react';
 import TradingViewChart from './TradingViewChart';
 import { cn } from '@/lib/utils';
 
@@ -24,7 +23,6 @@ const INTERVALS = [
 ];
 
 const KRW_RATE = 1380;
-const LAYOUT_KEY = 'chart-layout-v2';
 
 const DualChartPanel = ({ 
   symbol, 
@@ -34,24 +32,8 @@ const DualChartPanel = ({
   winCount = 0,
   hasPosition = false
 }: DualChartPanelProps) => {
-  const [topInterval, setTopInterval] = useState('1');
-  const [bottomInterval, setBottomInterval] = useState('5');
+  const [interval, setInterval] = useState('1');
   const [balance] = useState(1000);
-  const [chartSizes, setChartSizes] = useState([50, 50]);
-
-  useEffect(() => {
-    const saved = localStorage.getItem(LAYOUT_KEY);
-    if (saved) {
-      try {
-        setChartSizes(JSON.parse(saved));
-      } catch (e) {}
-    }
-  }, []);
-
-  const handleLayoutChange = (sizes: number[]) => {
-    setChartSizes(sizes);
-    localStorage.setItem(LAYOUT_KEY, JSON.stringify(sizes));
-  };
 
   const formatKRW = (usd: number) => {
     const krw = usd * KRW_RATE;
@@ -63,66 +45,7 @@ const DualChartPanel = ({
 
   return (
     <div className="flex flex-col gap-1 h-full">
-      {/* Resizable Charts */}
-      <PanelGroup 
-        direction="vertical" 
-        onLayout={handleLayoutChange}
-        className="flex-1"
-      >
-        <Panel defaultSize={chartSizes[0]} minSize={25}>
-          <div className="bg-card border border-border rounded overflow-hidden flex flex-col h-full">
-            <div className="px-2 py-1 bg-secondary/50 border-b border-border flex items-center gap-0.5 flex-wrap shrink-0">
-              {INTERVALS.map((int) => (
-                <button
-                  key={`top-${int.value}`}
-                  onClick={() => setTopInterval(int.value)}
-                  className={cn(
-                    "px-1.5 py-0.5 text-[10px] rounded transition-colors",
-                    topInterval === int.value
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-secondary hover:bg-secondary/80"
-                  )}
-                >
-                  {int.label}
-                </button>
-              ))}
-            </div>
-            <div className="flex-1 min-h-0">
-              <TradingViewChart symbol={symbol} interval={topInterval} height={350} />
-            </div>
-          </div>
-        </Panel>
-        
-        <PanelResizeHandle className="h-2 flex items-center justify-center group cursor-row-resize">
-          <div className="w-16 h-1 bg-border rounded-full group-hover:bg-primary/50 transition-colors" />
-        </PanelResizeHandle>
-        
-        <Panel defaultSize={chartSizes[1]} minSize={25}>
-          <div className="bg-card border border-border rounded overflow-hidden flex flex-col h-full">
-            <div className="px-2 py-1 bg-secondary/50 border-b border-border flex items-center gap-0.5 flex-wrap shrink-0">
-              {INTERVALS.map((int) => (
-                <button
-                  key={`bottom-${int.value}`}
-                  onClick={() => setBottomInterval(int.value)}
-                  className={cn(
-                    "px-1.5 py-0.5 text-[10px] rounded transition-colors",
-                    bottomInterval === int.value
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-secondary hover:bg-secondary/80"
-                  )}
-                >
-                  {int.label}
-                </button>
-              ))}
-            </div>
-            <div className="flex-1 min-h-0">
-              <TradingViewChart symbol={symbol} interval={bottomInterval} height={350} />
-            </div>
-          </div>
-        </Panel>
-      </PanelGroup>
-
-      {/* Balance Panel - Always visible at bottom */}
+      {/* Balance Panel - Top */}
       <div className="bg-card border border-border rounded px-3 py-2 shrink-0">
         <div className="flex items-center justify-between">
           <div className="flex flex-col">
@@ -199,6 +122,29 @@ const DualChartPanel = ({
             </span>
           </div>
         )}
+      </div>
+
+      {/* Single Chart - Full Height */}
+      <div className="bg-card border border-border rounded overflow-hidden flex flex-col flex-1 min-h-0">
+        <div className="px-2 py-1 bg-secondary/50 border-b border-border flex items-center gap-0.5 flex-wrap shrink-0">
+          {INTERVALS.map((int) => (
+            <button
+              key={int.value}
+              onClick={() => setInterval(int.value)}
+              className={cn(
+                "px-1.5 py-0.5 text-[10px] rounded transition-colors",
+                interval === int.value
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-secondary hover:bg-secondary/80"
+              )}
+            >
+              {int.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex-1 min-h-0">
+          <TradingViewChart symbol={symbol} interval={interval} height={700} />
+        </div>
       </div>
     </div>
   );
