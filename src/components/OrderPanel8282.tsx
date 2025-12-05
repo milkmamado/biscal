@@ -55,6 +55,12 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
   const [slAmount, setSlAmount] = useState<string>('30');
   const [enableTpSl, setEnableTpSl] = useState<boolean>(true);
   
+  // Trailing stop settings
+  const [enableTrailing, setEnableTrailing] = useState<boolean>(false);
+  const [trailingStep, setTrailingStep] = useState<number>(1.0); // 포인트 단위
+  const [trailingStopPrice, setTrailingStopPrice] = useState<number | null>(null);
+  const [highestProfit, setHighestProfit] = useState<number>(0);
+  
   // Balance for order calculation (in KRW)
   const [balanceKRW, setBalanceKRW] = useState<string>('1000000');
   const [usdKrwRate, setUsdKrwRate] = useState<number>(1380);
@@ -213,7 +219,54 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
     setTechSignal(null);
     setPendingOrders([]);
     lastSignalFetch.current = 0;
+    setTrailingStopPrice(null);
+    setHighestProfit(0);
   }, [symbol]);
+  
+  // Reset trailing stop when position closes
+  useEffect(() => {
+    if (!position) {
+      setTrailingStopPrice(null);
+      setHighestProfit(0);
+    }
+  }, [position]);
+  
+  // Trailing stop logic
+  useEffect(() => {
+    if (!position || !enableTrailing || currentPrice <= 0) return;
+    
+    const direction = position.type === 'long' ? 1 : -1;
+    const currentProfit = (currentPrice - position.entryPrice) * direction;
+    
+    // Update highest profit and trailing stop
+    if (currentProfit > highestProfit) {
+      setHighestProfit(currentProfit);
+      const steps = Math.floor(currentProfit / trailingStep);
+      if (steps >= 1) {
+        // Move stop to (steps - 1) * trailingStep above entry
+        const newStopPrice = position.entryPrice + ((steps - 1) * trailingStep * direction);
+        setTrailingStopPrice(newStopPrice);
+      }
+    }
+    
+    // Check if trailing stop hit
+    if (trailingStopPrice !== null) {
+      const stopHit = position.type === 'long' 
+        ? currentPrice <= trailingStopPrice 
+        : currentPrice >= trailingStopPrice;
+      
+      if (stopHit) {
+        const pnl = calculatePnL(position, currentPrice);
+        onTradeClose?.(pnl);
+        toast({
+          title: '🎯 트레일링 스탑 청산',
+          description: `${symbol} @ $${formatPrice(currentPrice)} | 확정 손익: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}`,
+          duration: 3000,
+        });
+        setPosition(null);
+      }
+    }
+  }, [currentPrice, position, enableTrailing, trailingStep, highestProfit, trailingStopPrice]);
 
   const calculatePnL = (pos: Position, price: number): number => {
     const direction = pos.type === 'long' ? 1 : -1;
@@ -573,6 +626,55 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
               ? `손익이 +$${tpAmount} 또는 -$${slAmount}에 도달하면 자동 청산`
               : '자동청산 비활성화됨'}
           </p>
+          
+          {/* Trailing Stop Settings */}
+          <div className="flex items-center gap-2 pt-1 border-t border-border/50">
+            <button
+              onClick={() => setEnableTrailing(!enableTrailing)}
+              className={cn(
+                "px-2 py-0.5 text-[10px] rounded border transition-colors",
+                enableTrailing 
+                  ? "bg-orange-600 text-white border-orange-600" 
+                  : "bg-background border-border text-muted-foreground"
+              )}
+            >
+              트레일링
+            </button>
+            <span className="text-[10px] text-orange-400">스텝</span>
+            <div className="flex gap-1">
+              {[0.5, 1.0, 1.5, 2.0].map((step) => (
+                <button
+                  key={step}
+                  onClick={() => setTrailingStep(step)}
+                  disabled={!enableTrailing}
+                  className={cn(
+                    "px-1.5 py-0.5 text-[10px] rounded border transition-colors",
+                    trailingStep === step && enableTrailing
+                      ? "bg-orange-500 text-white border-orange-500" 
+                      : "bg-background border-border hover:bg-secondary",
+                    !enableTrailing && "opacity-50 cursor-not-allowed"
+                  )}
+                >
+                  {step}pt
+                </button>
+              ))}
+            </div>
+          </div>
+          {enableTrailing && (
+            <p className="text-[9px] text-orange-400/80">
+              ⚡ +{trailingStep}pt 수익마다 손절선 자동 상향 (본전 보장 후 이익 추적)
+            </p>
+          )}
+          {position && trailingStopPrice !== null && (
+            <div className="bg-orange-900/30 border border-orange-600/50 rounded px-2 py-1">
+              <span className="text-[10px] text-orange-400">
+                🎯 현재 트레일링 손절선: <span className="font-mono font-bold">${formatPrice(trailingStopPrice)}</span>
+                <span className="text-muted-foreground ml-2">
+                  (최고수익: +{highestProfit.toFixed(2)}pt)
+                </span>
+              </span>
+            </div>
+          )}
         </div>
       )}
 
