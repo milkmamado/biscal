@@ -1,0 +1,83 @@
+import { useEffect, useRef, memo } from 'react';
+
+interface TradingViewChartProps {
+  symbol: string;
+  interval?: string;
+  height?: number;
+}
+
+const TradingViewChart = memo(({ symbol, interval = '1', height = 400 }: TradingViewChartProps) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const widgetRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    // Clean up previous widget
+    if (widgetRef.current) {
+      containerRef.current.innerHTML = '';
+    }
+
+    // Convert symbol format: BTCUSDT -> BINANCE:BTCUSDT.P (perpetual futures)
+    const tvSymbol = `BINANCE:${symbol}.P`;
+
+    const script = document.createElement('script');
+    script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js';
+    script.type = 'text/javascript';
+    script.async = true;
+    script.innerHTML = JSON.stringify({
+      autosize: true,
+      symbol: tvSymbol,
+      interval: interval,
+      timezone: "Asia/Seoul",
+      theme: "dark",
+      style: "1",
+      locale: "kr",
+      enable_publishing: false,
+      hide_top_toolbar: false,
+      hide_legend: false,
+      save_image: false,
+      calendar: false,
+      hide_volume: false,
+      support_host: "https://www.tradingview.com",
+      studies: ["STD;Bollinger_Bands"],
+      allow_symbol_change: false,
+      details: false,
+      hotlist: false,
+      show_popup_button: false,
+      withdateranges: true,
+      hide_side_toolbar: false,
+      drawings_access: {
+        type: "all",
+        tools: [
+          { name: "Trend Line" },
+          { name: "Horizontal Line" },
+          { name: "Vertical Line" },
+          { name: "Rectangle" },
+          { name: "Fibonacci Retracement" }
+        ]
+      },
+    });
+
+    containerRef.current.appendChild(script);
+    widgetRef.current = script;
+
+    return () => {
+      if (containerRef.current) {
+        containerRef.current.innerHTML = '';
+      }
+    };
+  }, [symbol, interval]);
+
+  return (
+    <div 
+      ref={containerRef} 
+      className="tradingview-widget-container w-full"
+      style={{ height: `${height}px` }}
+    />
+  );
+});
+
+TradingViewChart.displayName = 'TradingViewChart';
+
+export default TradingViewChart;
