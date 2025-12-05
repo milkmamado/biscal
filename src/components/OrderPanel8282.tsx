@@ -526,6 +526,50 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
             </span>
           </div>
           
+          {/* Recommended TP/SL based on leverage */}
+          {(() => {
+            const bal = parseFloat(balance) || 0;
+            // Liquidation happens at approximately 100%/leverage price move
+            const liquidationPct = 100 / leverage;
+            // Safe SL: use 40% of liquidation distance (conservative)
+            const safeSLPct = liquidationPct * 0.4;
+            const recommendedSL = Math.round(bal * (safeSLPct / 100));
+            // TP: 1.5:1 risk/reward ratio
+            const recommendedTP = Math.round(recommendedSL * 1.5);
+            
+            return (
+              <div className="bg-yellow-900/20 border border-yellow-600/30 rounded p-2 space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[9px] text-yellow-400/80">⚠️ {leverage}배 레버리지 추천 손익절</span>
+                  <span className="text-[8px] text-muted-foreground">(청산: {liquidationPct.toFixed(1)}%)</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-1">
+                    <span className="text-[9px] text-green-400">익절:</span>
+                    <button
+                      onClick={() => setTpAmount(recommendedTP.toString())}
+                      className="text-[10px] text-green-400 font-mono bg-green-900/30 px-1.5 py-0.5 rounded hover:bg-green-900/50 transition-colors"
+                    >
+                      ${recommendedTP}
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[9px] text-red-400">손절:</span>
+                    <button
+                      onClick={() => setSlAmount(recommendedSL.toString())}
+                      className="text-[10px] text-red-400 font-mono bg-red-900/30 px-1.5 py-0.5 rounded hover:bg-red-900/50 transition-colors"
+                    >
+                      ${recommendedSL}
+                    </button>
+                  </div>
+                </div>
+                <p className="text-[8px] text-muted-foreground">
+                  클릭하면 자동 설정 • R:R 1.5:1 • 청산의 40% 거리
+                </p>
+              </div>
+            );
+          })()}
+          
           <p className="text-[9px] text-muted-foreground">
             {enableTpSl 
               ? `손익이 +$${tpAmount} 또는 -$${slAmount}에 도달하면 자동 청산`
