@@ -200,8 +200,11 @@ const OrderPanel8282 = ({ symbol }: OrderPanel8282Props) => {
     return Math.max(...allQuantities);
   }, [orderBook]);
 
-  // Calculate current PnL
+  // Calculate current PnL and percentage
   const currentPnL = position ? calculatePnL(position, currentPrice) : 0;
+  const currentPnLPercent = position 
+    ? ((currentPnL / (position.entryPrice * position.quantity)) * 100 * position.leverage)
+    : 0;
 
   if (loading || !orderBook) {
     return (
@@ -285,12 +288,20 @@ const OrderPanel8282 = ({ symbol }: OrderPanel8282Props) => {
             <span className="text-[10px] text-muted-foreground">({position.leverage}x)</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className={cn(
-              "text-[11px] font-bold font-mono",
-              currentPnL >= 0 ? "text-red-400" : "text-blue-400"
-            )}>
-              {currentPnL >= 0 ? '+' : ''}{currentPnL.toFixed(2)} USDT
-            </span>
+            <div className="flex flex-col items-end">
+              <span className={cn(
+                "text-[11px] font-bold font-mono",
+                currentPnL >= 0 ? "text-red-400" : "text-blue-400"
+              )}>
+                {currentPnL >= 0 ? '+' : ''}{currentPnL.toFixed(2)} USDT
+              </span>
+              <span className={cn(
+                "text-[10px] font-bold font-mono",
+                currentPnLPercent >= 0 ? "text-red-400" : "text-blue-400"
+              )}>
+                ({currentPnLPercent >= 0 ? '+' : ''}{currentPnLPercent.toFixed(2)}%)
+              </span>
+            </div>
             <button
               onClick={handleMarketClose}
               className="px-2 py-0.5 bg-yellow-500 hover:bg-yellow-400 text-yellow-950 text-[10px] font-bold rounded"
@@ -505,8 +516,25 @@ const OrderPanel8282 = ({ symbol }: OrderPanel8282Props) => {
                 {isEntryPrice && <span className="ml-1 text-[8px]">★</span>}
               </div>
 
-              {/* Empty buy quantity */}
-              <div className="px-1 py-0.5 border-r border-border/30" />
+              {/* Empty buy quantity - Show PnL when position exists */}
+              <div className="px-1 py-0.5 border-r border-border/30 flex items-center justify-center">
+                {position && isEntryPrice && (
+                  <div className="flex flex-col items-center">
+                    <span className={cn(
+                      "text-[9px] font-bold font-mono",
+                      currentPnL >= 0 ? "text-red-400" : "text-blue-400"
+                    )}>
+                      {currentPnL >= 0 ? '+' : ''}{currentPnL.toFixed(2)}$
+                    </span>
+                    <span className={cn(
+                      "text-[8px] font-mono",
+                      currentPnLPercent >= 0 ? "text-red-400" : "text-blue-400"
+                    )}>
+                      ({currentPnLPercent >= 0 ? '+' : ''}{currentPnLPercent.toFixed(1)}%)
+                    </span>
+                  </div>
+                )}
+              </div>
 
               {/* B button */}
               <button
@@ -565,8 +593,25 @@ const OrderPanel8282 = ({ symbol }: OrderPanel8282Props) => {
                 S
               </button>
 
-              {/* Empty sell quantity */}
-              <div className="px-1 py-0.5 border-r border-border/30" />
+              {/* Empty sell quantity - Show PnL when position exists */}
+              <div className="px-1 py-0.5 border-r border-border/30 flex items-center justify-center">
+                {position && isEntryPrice && (
+                  <div className="flex flex-col items-center">
+                    <span className={cn(
+                      "text-[9px] font-bold font-mono",
+                      currentPnL >= 0 ? "text-red-400" : "text-blue-400"
+                    )}>
+                      {currentPnL >= 0 ? '+' : ''}{currentPnL.toFixed(2)}$
+                    </span>
+                    <span className={cn(
+                      "text-[8px] font-mono",
+                      currentPnLPercent >= 0 ? "text-red-400" : "text-blue-400"
+                    )}>
+                      ({currentPnLPercent >= 0 ? '+' : ''}{currentPnLPercent.toFixed(1)}%)
+                    </span>
+                  </div>
+                )}
+              </div>
 
               {/* 호가 */}
               <div className={cn(
