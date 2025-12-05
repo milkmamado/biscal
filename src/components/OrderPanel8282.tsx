@@ -55,8 +55,10 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
   const [slAmount, setSlAmount] = useState<string>('30');
   const [enableTpSl, setEnableTpSl] = useState<boolean>(true);
   
-  // Balance for order calculation
-  const [balance, setBalance] = useState<string>('1000');
+  // Balance for order calculation (in KRW)
+  const [balanceKRW, setBalanceKRW] = useState<string>('1000000');
+  const [usdKrwRate, setUsdKrwRate] = useState<number>(1380); // USD/KRW exchange rate
+  const balanceUSD = (parseFloat(balanceKRW) || 0) / usdKrwRate;
   
   // Technical signal state
   const [techSignal, setTechSignal] = useState<TechnicalSignal | null>(null);
@@ -332,9 +334,8 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
   };
 
   const handleQtyPreset = (percent: number) => {
-    // Calculate quantity based on: (balance × leverage × percent) / currentPrice
-    const bal = parseFloat(balance) || 0;
-    const buyingPower = bal * leverage * (percent / 100);
+    // Calculate quantity based on: (balanceUSD × leverage × percent) / currentPrice
+    const buyingPower = balanceUSD * leverage * (percent / 100);
     const qty = currentPrice > 0 ? buyingPower / currentPrice : 0;
     setOrderQty(qty.toFixed(3));
   };
@@ -512,23 +513,24 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
             </div>
           </div>
           
-          {/* Balance Setting */}
+          {/* Balance Setting in KRW */}
           <div className="flex items-center gap-2">
-            <span className="text-[10px] text-muted-foreground whitespace-nowrap">잔고 (USDT)</span>
+            <span className="text-[10px] text-muted-foreground whitespace-nowrap">잔고 (₩)</span>
             <input
               type="number"
-              value={balance}
-              onChange={(e) => setBalance(e.target.value)}
-              className="w-20 bg-background border border-yellow-600/50 px-1.5 py-0.5 text-[10px] rounded text-center text-yellow-400 font-mono"
+              value={balanceKRW}
+              onChange={(e) => setBalanceKRW(e.target.value)}
+              className="w-24 bg-background border border-yellow-600/50 px-1.5 py-0.5 text-[10px] rounded text-center text-yellow-400 font-mono"
+              step="10000"
             />
             <span className="text-[10px] text-muted-foreground">
-              구매력: ${((parseFloat(balance) || 0) * leverage).toLocaleString()}
+              ≈ ${balanceUSD.toFixed(0)} • 구매력: ${(balanceUSD * leverage).toLocaleString()}
             </span>
           </div>
           
           {/* Recommended TP/SL based on leverage */}
           {(() => {
-            const bal = parseFloat(balance) || 0;
+            const bal = balanceUSD;
             // Liquidation happens at approximately 100%/leverage price move
             const liquidationPct = 100 / leverage;
             // Safe SL: use 40% of liquidation distance (conservative)
