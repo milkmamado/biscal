@@ -25,15 +25,17 @@ export default function Auth() {
   const [otpCode, setOtpCode] = useState('');
   const [step, setStep] = useState<AuthStep>('credentials');
   const [isLoading, setIsLoading] = useState(false);
+  const [pendingOtp, setPendingOtp] = useState(false);
   const { signIn, signUp, user, loading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
   useEffect(() => {
-    if (!loading && user) {
+    // Only navigate to home if user is logged in AND not in OTP verification flow
+    if (!loading && user && !pendingOtp) {
       navigate('/');
     }
-  }, [user, loading, navigate]);
+  }, [user, loading, navigate, pendingOtp]);
 
   const sendVerificationCode = async (targetEmail: string) => {
     const { data, error } = await supabase.functions.invoke('send-verification-code', {
@@ -76,9 +78,13 @@ export default function Auth() {
 
     try {
       if (isLogin) {
+        // Set pending OTP flag before credential verification to prevent auto-navigation
+        setPendingOtp(true);
+        
         // For login: first verify credentials exist, then send OTP
         const { error } = await signIn(email, password);
         if (error) {
+          setPendingOtp(false);
           let message = "로그인에 실패했습니다";
           if (error.message.includes("Invalid login credentials")) {
             message = "이메일 또는 비밀번호가 올바르지 않습니다";
@@ -157,6 +163,7 @@ export default function Auth() {
       }
 
       // OTP verified, now actually sign in
+      setPendingOtp(false);
       const { error } = await signIn(email, password);
       if (error) {
         toast({
@@ -206,6 +213,7 @@ export default function Auth() {
   const handleBack = () => {
     setStep('credentials');
     setOtpCode('');
+    setPendingOtp(false);
   };
 
   if (loading) {
