@@ -45,7 +45,7 @@ const Index = () => {
             <CoinHeader symbol={selectedSymbol} />
             
             {/* Dual Chart Area */}
-            <div className="mt-4 min-h-[400px]">
+            <div className="mt-4 h-[700px]">
               <DualChartPanel symbol={selectedSymbol} />
             </div>
           </div>
