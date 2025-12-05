@@ -1,11 +1,18 @@
 import { useState, useEffect, useMemo } from 'react';
 import { fetchOrderBook, fetch24hTicker, OrderBook, formatPrice, formatQuantity } from '@/lib/binance';
 import { cn } from '@/lib/utils';
-import { Minus, Plus, Settings } from 'lucide-react';
+import { Minus, Plus, Settings, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface OrderPanel8282Props {
   symbol: string;
+}
+
+interface Position {
+  type: 'long' | 'short';
+  entryPrice: number;
+  quantity: number;
+  leverage: number;
 }
 
 const OrderPanel8282 = ({ symbol }: OrderPanel8282Props) => {
@@ -19,6 +26,14 @@ const OrderPanel8282 = ({ symbol }: OrderPanel8282Props) => {
   const [loading, setLoading] = useState(true);
   const [clickOrderPercent, setClickOrderPercent] = useState<number>(100);
   const [showSettings, setShowSettings] = useState(false);
+  
+  // Position state
+  const [position, setPosition] = useState<Position | null>(null);
+  
+  // TP/SL settings (USDT amount)
+  const [tpAmount, setTpAmount] = useState<string>('50');
+  const [slAmount, setSlAmount] = useState<string>('30');
+  const [enableTpSl, setEnableTpSl] = useState<boolean>(true);
 
   useEffect(() => {
     const loadData = async () => {
@@ -31,6 +46,29 @@ const OrderPanel8282 = ({ symbol }: OrderPanel8282Props) => {
         setPrevPrice(currentPrice);
         setCurrentPrice(ticker.price);
         setPriceChangePercent(ticker.priceChangePercent);
+        
+        // Check TP/SL auto close
+        if (position && enableTpSl && ticker.price > 0) {
+          const pnl = calculatePnL(position, ticker.price);
+          const tp = parseFloat(tpAmount) || 0;
+          const sl = parseFloat(slAmount) || 0;
+          
+          if (tp > 0 && pnl >= tp) {
+            handleMarketClose();
+            toast({
+              title: '✅ 익절 청산',
+              description: `목표 수익 $${tp} 달성! 실현손익: $${pnl.toFixed(2)}`,
+              duration: 3000,
+            });
+          } else if (sl > 0 && pnl <= -sl) {
+            handleMarketClose();
+            toast({
+              title: '🛑 손절 청산',
+              description: `손절선 -$${sl} 도달! 실현손익: $${pnl.toFixed(2)}`,
+              duration: 3000,
+            });
+          }
+        }
       } catch (error) {
         console.error('Failed to fetch data:', error);
       } finally {
@@ -41,25 +79,100 @@ const OrderPanel8282 = ({ symbol }: OrderPanel8282Props) => {
     loadData();
     const interval = setInterval(loadData, 500);
     return () => clearInterval(interval);
+  }, [symbol, position, enableTpSl, tpAmount, slAmount]);
+
+  // Reset position when symbol changes
+  useEffect(() => {
+    setPosition(null);
   }, [symbol]);
+
+  const calculatePnL = (pos: Position, price: number): number => {
+    const direction = pos.type === 'long' ? 1 : -1;
+    const priceDiff = (price - pos.entryPrice) * direction;
+    const pnl = priceDiff * pos.quantity;
+    return pnl;
+  };
 
   const handleQuickOrder = (type: 'long' | 'short', price: number) => {
     const baseQty = parseFloat(orderQty) || 1;
     const actualQty = Math.floor(baseQty * (clickOrderPercent / 100));
+    
+    // If position exists and same direction, add to position
+    // If opposite direction, close position
+    if (position) {
+      if (position.type !== type) {
+        // Close position (opposite direction)
+        handleCloseAtPrice(price);
+        return;
+      }
+    }
+    
+    // Open new position or add to existing
+    setPosition({
+      type,
+      entryPrice: price,
+      quantity: actualQty,
+      leverage
+    });
+    
     toast({
-      title: type === 'long' ? '롱 진입' : '숏 진입',
-      description: `${symbol} ${actualQty}개 (${clickOrderPercent}%) @ $${formatPrice(price)} (${leverage}x)`,
+      title: type === 'long' ? '🟢 롱 진입' : '🔴 숏 진입',
+      description: `${symbol} ${actualQty}개 @ $${formatPrice(price)} (${leverage}x)${enableTpSl ? ` | TP:+$${tpAmount} SL:-$${slAmount}` : ''}`,
       duration: 2000,
     });
   };
 
   const handleMarketOrder = (type: 'long' | 'short') => {
     const qty = parseFloat(orderQty) || 1;
+    
+    if (position && position.type !== type) {
+      handleMarketClose();
+      return;
+    }
+    
+    setPosition({
+      type,
+      entryPrice: currentPrice,
+      quantity: qty,
+      leverage
+    });
+    
     toast({
-      title: type === 'long' ? '시장가 롱' : '시장가 숏',
-      description: `${symbol} ${qty}개 @ 시장가 (${leverage}x)`,
+      title: type === 'long' ? '🟢 시장가 롱' : '🔴 시장가 숏',
+      description: `${symbol} ${qty}개 @ 시장가 (${leverage}x)${enableTpSl ? ` | TP:+$${tpAmount} SL:-$${slAmount}` : ''}`,
       duration: 2000,
     });
+  };
+
+  const handleMarketClose = () => {
+    if (!position) {
+      toast({
+        title: '포지션 없음',
+        description: '청산할 포지션이 없습니다.',
+        duration: 2000,
+      });
+      return;
+    }
+    
+    const pnl = calculatePnL(position, currentPrice);
+    toast({
+      title: pnl >= 0 ? '✅ 청산 완료' : '❌ 청산 완료',
+      description: `${symbol} ${position.quantity}개 @ $${formatPrice(currentPrice)} | 손익: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}`,
+      duration: 3000,
+    });
+    setPosition(null);
+  };
+
+  const handleCloseAtPrice = (price: number) => {
+    if (!position) return;
+    
+    const pnl = calculatePnL(position, price);
+    toast({
+      title: pnl >= 0 ? '✅ 지정가 청산' : '❌ 지정가 청산',
+      description: `${symbol} ${position.quantity}개 @ $${formatPrice(price)} | 예상손익: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}`,
+      duration: 3000,
+    });
+    setPosition(null);
   };
 
   const handleCancelAll = () => {
@@ -86,6 +199,9 @@ const OrderPanel8282 = ({ symbol }: OrderPanel8282Props) => {
     const allQuantities = [...orderBook.bids, ...orderBook.asks].map(e => e.quantity);
     return Math.max(...allQuantities);
   }, [orderBook]);
+
+  // Calculate current PnL
+  const currentPnL = position ? calculatePnL(position, currentPrice) : 0;
 
   if (loading || !orderBook) {
     return (
@@ -150,11 +266,47 @@ const OrderPanel8282 = ({ symbol }: OrderPanel8282Props) => {
         </button>
       </div>
 
+      {/* Position Display */}
+      {position && (
+        <div className={cn(
+          "px-2 py-1.5 border-b border-border flex items-center justify-between",
+          position.type === 'long' ? "bg-red-950/30" : "bg-blue-950/30"
+        )}>
+          <div className="flex items-center gap-2">
+            <span className={cn(
+              "px-1.5 py-0.5 rounded text-[10px] font-bold",
+              position.type === 'long' ? "bg-red-500 text-white" : "bg-blue-500 text-white"
+            )}>
+              {position.type === 'long' ? 'LONG' : 'SHORT'}
+            </span>
+            <span className="text-[10px] font-mono">
+              {position.quantity}개 @ ${formatPrice(position.entryPrice)}
+            </span>
+            <span className="text-[10px] text-muted-foreground">({position.leverage}x)</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className={cn(
+              "text-[11px] font-bold font-mono",
+              currentPnL >= 0 ? "text-red-400" : "text-blue-400"
+            )}>
+              {currentPnL >= 0 ? '+' : ''}{currentPnL.toFixed(2)} USDT
+            </span>
+            <button
+              onClick={handleMarketClose}
+              className="px-2 py-0.5 bg-yellow-500 hover:bg-yellow-400 text-yellow-950 text-[10px] font-bold rounded"
+            >
+              청산
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Settings Panel */}
       {showSettings && (
-        <div className="px-2 py-2 border-b border-border bg-secondary/80">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-[10px] text-muted-foreground whitespace-nowrap">클릭주문 비율</span>
+        <div className="px-2 py-2 border-b border-border bg-secondary/80 space-y-2">
+          {/* Click Order Percent */}
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-muted-foreground whitespace-nowrap">클릭주문</span>
             <div className="flex gap-1">
               {[100, 50, 25, 10].map((p) => (
                 <button
@@ -171,18 +323,49 @@ const OrderPanel8282 = ({ symbol }: OrderPanel8282Props) => {
                 </button>
               ))}
             </div>
-            <input
-              type="number"
-              value={clickOrderPercent}
-              onChange={(e) => setClickOrderPercent(Math.min(100, Math.max(1, Number(e.target.value))))}
-              className="w-14 bg-background border border-border px-1.5 py-0.5 text-[10px] rounded text-center"
-              min={1}
-              max={100}
-            />
-            <span className="text-[10px] text-muted-foreground">%</span>
           </div>
+          
+          {/* TP/SL Settings */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setEnableTpSl(!enableTpSl)}
+              className={cn(
+                "px-2 py-0.5 text-[10px] rounded border transition-colors",
+                enableTpSl 
+                  ? "bg-green-600 text-white border-green-600" 
+                  : "bg-background border-border text-muted-foreground"
+              )}
+            >
+              자동청산
+            </button>
+            <span className="text-[10px] text-green-400">익절</span>
+            <div className="flex items-center">
+              <span className="text-[10px] text-muted-foreground mr-1">+$</span>
+              <input
+                type="number"
+                value={tpAmount}
+                onChange={(e) => setTpAmount(e.target.value)}
+                className="w-14 bg-background border border-green-600/50 px-1.5 py-0.5 text-[10px] rounded text-center text-green-400"
+                disabled={!enableTpSl}
+              />
+            </div>
+            <span className="text-[10px] text-red-400">손절</span>
+            <div className="flex items-center">
+              <span className="text-[10px] text-muted-foreground mr-1">-$</span>
+              <input
+                type="number"
+                value={slAmount}
+                onChange={(e) => setSlAmount(e.target.value)}
+                className="w-14 bg-background border border-red-600/50 px-1.5 py-0.5 text-[10px] rounded text-center text-red-400"
+                disabled={!enableTpSl}
+              />
+            </div>
+          </div>
+          
           <p className="text-[9px] text-muted-foreground">
-            호가 더블클릭 시 주문수량의 {clickOrderPercent}% = {Math.floor((parseFloat(orderQty) || 0) * clickOrderPercent / 100)}개 주문
+            {enableTpSl 
+              ? `손익이 +$${tpAmount} 또는 -$${slAmount}에 도달하면 자동 청산`
+              : '자동청산 비활성화됨'}
           </p>
         </div>
       )}
@@ -235,7 +418,7 @@ const OrderPanel8282 = ({ symbol }: OrderPanel8282Props) => {
       </div>
 
       {/* Market Order Buttons */}
-      <div className="grid grid-cols-3 border-b border-border">
+      <div className="grid grid-cols-4 border-b border-border">
         <button 
           onClick={handleCancelAll}
           className="py-1.5 text-[10px] bg-secondary hover:bg-secondary/80 border-r border-border font-medium"
@@ -250,9 +433,21 @@ const OrderPanel8282 = ({ symbol }: OrderPanel8282Props) => {
         </button>
         <button 
           onClick={() => handleMarketOrder('long')}
-          className="py-1.5 text-[10px] bg-red-900/50 hover:bg-red-900/70 text-red-400 font-medium"
+          className="py-1.5 text-[10px] bg-red-900/50 border-r border-border hover:bg-red-900/70 text-red-400 font-medium"
         >
           시장가롱
+        </button>
+        <button 
+          onClick={handleMarketClose}
+          className={cn(
+            "py-1.5 text-[10px] font-medium",
+            position 
+              ? "bg-yellow-600 hover:bg-yellow-500 text-white" 
+              : "bg-secondary/50 text-muted-foreground cursor-not-allowed"
+          )}
+          disabled={!position}
+        >
+          시장가청산
         </button>
       </div>
 
@@ -279,9 +474,9 @@ const OrderPanel8282 = ({ symbol }: OrderPanel8282Props) => {
               <button
                 onDoubleClick={() => handleQuickOrder('short', ask.price)}
                 className="px-1 py-0.5 text-center bg-blue-950/50 hover:bg-blue-900/70 border-r border-border/30 text-blue-400 font-bold text-[10px]"
-                title="더블클릭: 숏 진입"
+                title={position ? "더블클릭: 청산" : "더블클릭: 숏 진입"}
               >
-                S
+                {position?.type === 'long' ? 'C' : 'S'}
               </button>
               
               {/* 매도잔량 */}
@@ -379,9 +574,9 @@ const OrderPanel8282 = ({ symbol }: OrderPanel8282Props) => {
               <button
                 onDoubleClick={() => handleQuickOrder('long', bid.price)}
                 className="px-1 py-0.5 text-center bg-red-950/50 hover:bg-red-900/70 text-red-400 font-bold text-[10px]"
-                title="더블클릭: 롱 진입"
+                title={position ? "더블클릭: 청산" : "더블클릭: 롱 진입"}
               >
-                B
+                {position?.type === 'short' ? 'C' : 'B'}
               </button>
             </div>
           );
@@ -411,13 +606,21 @@ const OrderPanel8282 = ({ symbol }: OrderPanel8282Props) => {
       </div>
 
       {/* Quick Order Buttons */}
-      <div className="grid grid-cols-2 border-t border-border">
+      <div className={cn("grid border-t border-border", position ? "grid-cols-3" : "grid-cols-2")}>
         <button 
           onClick={() => handleQuickOrder('short', currentPrice)}
           className="py-2.5 font-bold text-sm bg-blue-600 hover:bg-blue-500 text-white border-r border-border"
         >
           숏 (매도)
         </button>
+        {position && (
+          <button 
+            onClick={handleMarketClose}
+            className="py-2.5 font-bold text-sm bg-yellow-600 hover:bg-yellow-500 text-white border-r border-border"
+          >
+            청산
+          </button>
+        )}
         <button 
           onClick={() => handleQuickOrder('long', currentPrice)}
           className="py-2.5 font-bold text-sm bg-red-600 hover:bg-red-500 text-white"
@@ -429,7 +632,7 @@ const OrderPanel8282 = ({ symbol }: OrderPanel8282Props) => {
       {/* Footer */}
       <div className="px-2 py-1 bg-secondary/30 border-t border-border text-center">
         <p className="text-[9px] text-muted-foreground">
-          S/B 버튼 더블클릭 → 해당 가격 지정가 주문
+          S/B 더블클릭 → 진입 | 포지션 보유 시 반대방향 클릭 → 청산
         </p>
       </div>
     </div>
