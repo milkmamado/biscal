@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { fetchOrderBook, fetch24hTicker, OrderBook, formatPrice, formatQuantity } from '@/lib/binance';
 import { cn } from '@/lib/utils';
-import { Minus, Plus } from 'lucide-react';
+import { Minus, Plus, Settings } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface OrderPanel8282Props {
@@ -14,9 +14,11 @@ const OrderPanel8282 = ({ symbol }: OrderPanel8282Props) => {
   const [currentPrice, setCurrentPrice] = useState<number>(0);
   const [prevPrice, setPrevPrice] = useState<number>(0);
   const [priceChangePercent, setPriceChangePercent] = useState<number>(0);
-  const [orderQty, setOrderQty] = useState<string>('1');
+  const [orderQty, setOrderQty] = useState<string>('100');
   const [leverage, setLeverage] = useState<number>(20);
   const [loading, setLoading] = useState(true);
+  const [clickOrderPercent, setClickOrderPercent] = useState<number>(100);
+  const [showSettings, setShowSettings] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -42,10 +44,11 @@ const OrderPanel8282 = ({ symbol }: OrderPanel8282Props) => {
   }, [symbol]);
 
   const handleQuickOrder = (type: 'long' | 'short', price: number) => {
-    const qty = parseFloat(orderQty) || 1;
+    const baseQty = parseFloat(orderQty) || 1;
+    const actualQty = Math.floor(baseQty * (clickOrderPercent / 100));
     toast({
       title: type === 'long' ? '롱 진입' : '숏 진입',
-      description: `${symbol} ${qty}개 @ $${formatPrice(price)} (${leverage}x)`,
+      description: `${symbol} ${actualQty}개 (${clickOrderPercent}%) @ $${formatPrice(price)} (${leverage}x)`,
       duration: 2000,
     });
   };
@@ -107,7 +110,53 @@ const OrderPanel8282 = ({ symbol }: OrderPanel8282Props) => {
           <span className="font-bold text-xs text-foreground">[8282] 선물호가주문</span>
           <span className="text-[10px] text-muted-foreground">{symbol}</span>
         </div>
+        <button 
+          onClick={() => setShowSettings(!showSettings)}
+          className={cn(
+            "p-1 rounded hover:bg-background/50 transition-colors",
+            showSettings && "bg-background/50"
+          )}
+        >
+          <Settings className="w-3.5 h-3.5 text-muted-foreground" />
+        </button>
       </div>
+
+      {/* Settings Panel */}
+      {showSettings && (
+        <div className="px-2 py-2 border-b border-border bg-secondary/80">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-[10px] text-muted-foreground whitespace-nowrap">클릭주문 비율</span>
+            <div className="flex gap-1">
+              {[100, 50, 25, 10].map((p) => (
+                <button
+                  key={p}
+                  onClick={() => setClickOrderPercent(p)}
+                  className={cn(
+                    "px-2 py-0.5 text-[10px] rounded border transition-colors",
+                    clickOrderPercent === p 
+                      ? "bg-primary text-primary-foreground border-primary" 
+                      : "bg-background border-border hover:bg-secondary"
+                  )}
+                >
+                  {p}%
+                </button>
+              ))}
+            </div>
+            <input
+              type="number"
+              value={clickOrderPercent}
+              onChange={(e) => setClickOrderPercent(Math.min(100, Math.max(1, Number(e.target.value))))}
+              className="w-14 bg-background border border-border px-1.5 py-0.5 text-[10px] rounded text-center"
+              min={1}
+              max={100}
+            />
+            <span className="text-[10px] text-muted-foreground">%</span>
+          </div>
+          <p className="text-[9px] text-muted-foreground">
+            호가 더블클릭 시 주문수량의 {clickOrderPercent}% = {Math.floor((parseFloat(orderQty) || 0) * clickOrderPercent / 100)}개 주문
+          </p>
+        </div>
+      )}
 
       {/* Toolbar Row */}
       <div className="px-2 py-1.5 border-b border-border bg-secondary/50 flex items-center gap-2 flex-wrap">
