@@ -41,6 +41,14 @@ const TradingViewChart = memo(({ symbol, interval = '1', height = 400 }: Trading
       hide_volume: false,
       support_host: "https://www.tradingview.com",
       studies: ["STD;Bollinger_Bands"],
+      studies_overrides: {
+        "volume.volume.color.0": "#ef535080",
+        "volume.volume.color.1": "#26a69a80",
+        "volume.volume ma.color": "#FF9800",
+        "volume.volume ma.linewidth": 1,
+        "volume.show ma": false,
+        "volume.volume.transparency": 70
+      },
       allow_symbol_change: false,
       details: false,
       hotlist: false,
