@@ -1,8 +1,12 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth';
 import HotCoinList from '@/components/HotCoinList';
 import OrderPanel8282 from '@/components/OrderPanel8282';
 import CoinHeader from '@/components/CoinHeader';
 import DualChartPanel from '@/components/DualChartPanel';
+import { Button } from '@/components/ui/button';
+import { LogOut } from 'lucide-react';
 
 interface TradeStats {
   realizedPnL: number;
@@ -27,6 +31,15 @@ const Index = () => {
     winCount: 0
   });
 
+  const { user, loading, signOut } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      navigate('/auth');
+    }
+  }, [user, loading, navigate]);
+
   const handlePositionChange = useCallback((position: Position | null) => {
     setCurrentPosition(position);
   }, []);
@@ -43,8 +56,38 @@ const Index = () => {
     }));
   }, []);
 
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/auth');
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-foreground">로딩중...</div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
+
   return (
     <div className="min-h-screen bg-background p-2">
+      {/* Logout Button */}
+      <div className="absolute top-2 right-2 z-50">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleSignOut}
+          className="text-muted-foreground hover:text-foreground"
+        >
+          <LogOut className="h-4 w-4 mr-1" />
+          로그아웃
+        </Button>
+      </div>
+
       {/* Main Content */}
       <div className="max-w-[1920px] mx-auto">
         <div className="grid grid-cols-12 gap-2">
