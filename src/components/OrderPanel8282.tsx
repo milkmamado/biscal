@@ -511,9 +511,9 @@ const OrderPanel8282 = ({ symbol }: OrderPanel8282Props) => {
                 {formatPrice(ask.price)}
               </div>
 
-              {/* Empty buy quantity - Show PnL for LONG position at top-right */}
+              {/* Empty buy quantity - Show PnL for LONG position at middle-right */}
               <div className="px-1 py-0.5 border-r border-border/30 flex items-center justify-center">
-                {position?.type === 'long' && index === 0 && (
+                {position?.type === 'long' && index === Math.floor(askRows.length / 2) && (
                   <div className="flex flex-col items-center bg-red-950/70 px-1.5 py-0.5 rounded border border-red-500/50">
                     <span className="text-[9px] font-bold text-red-400">
                       LONG {position.quantity}개
@@ -585,9 +585,9 @@ const OrderPanel8282 = ({ symbol }: OrderPanel8282Props) => {
                 S
               </button>
 
-              {/* Empty sell quantity - Show PnL for SHORT position at bottom-left */}
+              {/* Empty sell quantity - Show PnL for SHORT position at middle-left */}
               <div className="px-1 py-0.5 border-r border-border/30 flex items-center justify-center">
-                {position?.type === 'short' && index === bidRows.length - 1 && (
+                {position?.type === 'short' && index === Math.floor(bidRows.length / 2) && (
                   <div className="flex flex-col items-center bg-blue-950/70 px-1.5 py-0.5 rounded border border-blue-500/50">
                     <span className="text-[9px] font-bold text-blue-400">
                       SHORT {position.quantity}개
