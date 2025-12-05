@@ -36,13 +36,15 @@
 
     --radius: 0.5rem;
 
-    /* Trading colors */
-    --bid: 210 100% 50%;
-    --bid-bg: 210 100% 50%;
-    --ask: 0 85% 55%;
-    --ask-bg: 0 85% 55%;
-    --positive: 142 70% 45%;
-    --negative: 0 85% 55%;
+    /* Trading colors - Korean style */
+    /* 매도 (Sell/Ask) = Blue */
+    --ask: 210 100% 50%;
+    --ask-bg: 210 100% 50%;
+    /* 매수 (Buy/Bid) = Red */
+    --bid: 0 85% 55%;
+    --bid-bg: 0 85% 55%;
+    --positive: 0 85% 55%;
+    --negative: 210 100% 50%;
 
     /* Glow effects */
     --glow-bid: 210 100% 60%;
