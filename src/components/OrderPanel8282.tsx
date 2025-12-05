@@ -11,6 +11,15 @@ interface Position {
   leverage: number;
 }
 
+interface PendingOrder {
+  id: string;
+  type: 'long' | 'short';
+  price: number;
+  quantity: number;
+  leverage: number;
+  createdAt: number;
+}
+
 interface OrderPanel8282Props {
   symbol: string;
   onPositionChange?: (position: Position | null) => void;
@@ -32,6 +41,9 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
   
   // Position state
   const [position, setPosition] = useState<Position | null>(null);
+  
+  // Pending orders state
+  const [pendingOrders, setPendingOrders] = useState<PendingOrder[]>([]);
   
   // Notify parent when position changes
   useEffect(() => {
@@ -66,6 +78,72 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
           calculateTechnicalSignal(symbol).then(setTechSignal);
         }
         
+        // Check pending orders for fill
+        if (pendingOrders.length > 0 && ticker.price > 0) {
+          const filledOrders: PendingOrder[] = [];
+          const remainingOrders: PendingOrder[] = [];
+          
+          pendingOrders.forEach(order => {
+            // Long order fills when price drops to or below order price
+            // Short order fills when price rises to or above order price
+            const shouldFill = order.type === 'long' 
+              ? ticker.price <= order.price 
+              : ticker.price >= order.price;
+            
+            if (shouldFill) {
+              filledOrders.push(order);
+            } else {
+              remainingOrders.push(order);
+            }
+          });
+          
+          // Process filled orders
+          if (filledOrders.length > 0) {
+            filledOrders.forEach(order => {
+              if (position && position.type === order.type) {
+                // 추매
+                const totalQty = position.quantity + order.quantity;
+                const avgPrice = ((position.entryPrice * position.quantity) + (order.price * order.quantity)) / totalQty;
+                setPosition({
+                  type: order.type,
+                  entryPrice: avgPrice,
+                  quantity: totalQty,
+                  leverage: order.leverage
+                });
+                toast({
+                  title: order.type === 'long' ? '🟢 지정가 롱 체결 (추매)' : '🔴 지정가 숏 체결 (추매)',
+                  description: `${symbol} +${order.quantity}개 @ $${formatPrice(order.price)} 체결`,
+                  duration: 2000,
+                });
+              } else if (position && position.type !== order.type) {
+                // 청산
+                const pnl = calculatePnL(position, order.price);
+                onTradeClose?.(pnl);
+                toast({
+                  title: pnl >= 0 ? '✅ 지정가 청산 체결' : '❌ 지정가 청산 체결',
+                  description: `${symbol} @ $${formatPrice(order.price)} | 손익: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}`,
+                  duration: 3000,
+                });
+                setPosition(null);
+              } else {
+                // 신규 진입
+                setPosition({
+                  type: order.type,
+                  entryPrice: order.price,
+                  quantity: order.quantity,
+                  leverage: order.leverage
+                });
+                toast({
+                  title: order.type === 'long' ? '🟢 지정가 롱 체결' : '🔴 지정가 숏 체결',
+                  description: `${symbol} ${order.quantity}개 @ $${formatPrice(order.price)} 체결`,
+                  duration: 2000,
+                });
+              }
+            });
+            setPendingOrders(remainingOrders);
+          }
+        }
+        
         // Check TP/SL auto close
         if (position && enableTpSl && ticker.price > 0) {
           const pnl = calculatePnL(position, ticker.price);
@@ -98,12 +176,13 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
     loadData();
     const interval = setInterval(loadData, 500);
     return () => clearInterval(interval);
-  }, [symbol, position, enableTpSl, tpAmount, slAmount]);
+  }, [symbol, position, enableTpSl, tpAmount, slAmount, pendingOrders]);
 
   // Reset position and signal when symbol changes
   useEffect(() => {
     setPosition(null);
     setTechSignal(null);
+    setPendingOrders([]);
     lastSignalFetch.current = 0;
   }, [symbol]);
 
@@ -118,45 +197,41 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
     const baseQty = parseFloat(orderQty) || 1;
     const actualQty = Math.floor(baseQty * (clickOrderPercent / 100));
     
-    // If position exists and same direction, add to position (추매)
-    // If opposite direction, close position
-    if (position) {
-      if (position.type !== type) {
-        // Close position (opposite direction)
-        handleCloseAtPrice(price);
-        return;
-      }
-      
-      // 추매: 평균단가 계산 및 수량 합산
-      const totalQty = position.quantity + actualQty;
-      const avgPrice = ((position.entryPrice * position.quantity) + (price * actualQty)) / totalQty;
-      
-      setPosition({
+    // If position exists and opposite direction, create limit close order
+    if (position && position.type !== type) {
+      // Create pending close order
+      const newOrder: PendingOrder = {
+        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         type,
-        entryPrice: avgPrice,
-        quantity: totalQty,
-        leverage
-      });
+        price,
+        quantity: position.quantity,
+        leverage,
+        createdAt: Date.now()
+      };
+      setPendingOrders(prev => [...prev, newOrder]);
       
       toast({
-        title: type === 'long' ? '🟢 롱 추매' : '🔴 숏 추매',
-        description: `${symbol} +${actualQty}개 @ $${formatPrice(price)} → 총 ${totalQty}개 (평단 $${formatPrice(avgPrice)})`,
+        title: '📋 지정가 청산 주문',
+        description: `${symbol} @ $${formatPrice(price)} 대기중`,
         duration: 2000,
       });
       return;
     }
     
-    // Open new position
-    setPosition({
+    // Create pending order for entry or 추매
+    const newOrder: PendingOrder = {
+      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       type,
-      entryPrice: price,
+      price,
       quantity: actualQty,
-      leverage
-    });
+      leverage,
+      createdAt: Date.now()
+    };
+    setPendingOrders(prev => [...prev, newOrder]);
     
     toast({
-      title: type === 'long' ? '🟢 롱 진입' : '🔴 숏 진입',
-      description: `${symbol} ${actualQty}개 @ $${formatPrice(price)} (${leverage}x)${enableTpSl ? ` | TP:+$${tpAmount} SL:-$${slAmount}` : ''}`,
+      title: type === 'long' ? '📋 지정가 롱 주문' : '📋 지정가 숏 주문',
+      description: `${symbol} ${actualQty}개 @ $${formatPrice(price)} 대기중`,
       duration: 2000,
     });
   };
@@ -237,9 +312,18 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
   };
 
   const handleCancelAll = () => {
+    if (pendingOrders.length === 0) {
+      toast({
+        title: '취소할 주문 없음',
+        description: '대기중인 주문이 없습니다.',
+        duration: 2000,
+      });
+      return;
+    }
+    setPendingOrders([]);
     toast({
       title: '일괄취소',
-      description: '모든 미체결 주문이 취소되었습니다.',
+      description: `${pendingOrders.length}건의 주문이 취소되었습니다.`,
       duration: 2000,
     });
   };
@@ -481,9 +565,19 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
       <div className="grid grid-cols-4 border-b border-border">
         <button 
           onClick={handleCancelAll}
-          className="py-1.5 text-[10px] bg-secondary hover:bg-secondary/80 border-r border-border font-medium"
+          className={cn(
+            "py-1.5 text-[10px] border-r border-border font-medium relative",
+            pendingOrders.length > 0 
+              ? "bg-orange-900/50 hover:bg-orange-900/70 text-orange-400" 
+              : "bg-secondary hover:bg-secondary/80"
+          )}
         >
           일괄취소
+          {pendingOrders.length > 0 && (
+            <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-[8px] rounded-full w-4 h-4 flex items-center justify-center">
+              {pendingOrders.length}
+            </span>
+          )}
         </button>
         <button 
           onClick={() => handleMarketOrder('short')}
