@@ -35,10 +35,10 @@ const TradingViewChart = memo(({ symbol, interval = '1', height = 400 }: Trading
       locale: "kr",
       enable_publishing: false,
       hide_top_toolbar: true,
-      hide_legend: false,
+      hide_legend: true,
       save_image: false,
       calendar: false,
-      hide_volume: false,
+      hide_volume: true,
       support_host: "https://www.tradingview.com",
       studies: ["STD;Bollinger_Bands"],
       allow_symbol_change: false,
@@ -46,17 +46,7 @@ const TradingViewChart = memo(({ symbol, interval = '1', height = 400 }: Trading
       hotlist: false,
       show_popup_button: false,
       withdateranges: false,
-      hide_side_toolbar: false,
-      drawings_access: {
-        type: "all",
-        tools: [
-          { name: "Trend Line" },
-          { name: "Horizontal Line" },
-          { name: "Vertical Line" },
-          { name: "Rectangle" },
-          { name: "Fibonacci Retracement" }
-        ]
-      },
+      hide_side_toolbar: true,
     });
 
     containerRef.current.appendChild(script);
