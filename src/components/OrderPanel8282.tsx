@@ -513,7 +513,15 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
 
       {/* Column Headers */}
       <div className="grid grid-cols-[32px_1fr_70px_1fr_32px] text-[10px] font-medium border-b border-border bg-secondary/70">
-        <div className="px-1 py-1 text-center border-r border-border/50 text-blue-400">S</div>
+        <button 
+          onClick={() => setShowSettings(!showSettings)}
+          className={cn(
+            "px-1 py-1 text-center border-r border-border/50 hover:bg-background/50 transition-colors",
+            showSettings && "bg-background/50"
+          )}
+        >
+          <Settings className="w-3 h-3 text-muted-foreground mx-auto" />
+        </button>
         <div className="px-1 py-1 text-center border-r border-border/50 text-blue-400">매도잔량</div>
         <div className="px-1 py-1 text-center border-r border-border/50 text-muted-foreground">호가</div>
         <div className="px-1 py-1 text-center border-r border-border/50 text-red-400">매수잔량</div>
@@ -768,21 +776,6 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
         </button>
       </div>
 
-      {/* Footer */}
-      <div className="px-2 py-1 bg-secondary/30 border-t border-border flex items-center justify-between">
-        <p className="text-[9px] text-muted-foreground">
-          S/B 더블클릭 → 진입 | 반대방향 → 청산
-        </p>
-        <button 
-          onClick={() => setShowSettings(!showSettings)}
-          className={cn(
-            "p-0.5 rounded hover:bg-background/50 transition-colors",
-            showSettings && "bg-background/50"
-          )}
-        >
-          <Settings className="w-3 h-3 text-muted-foreground" />
-        </button>
-      </div>
     </div>
   );
 };
