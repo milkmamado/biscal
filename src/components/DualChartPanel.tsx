@@ -24,7 +24,7 @@ const DualChartPanel = ({ symbol }: DualChartPanelProps) => {
   const [rightInterval, setRightInterval] = useState('5');
 
   return (
-    <div className="grid grid-cols-2 gap-2 h-full">
+    <div className="flex flex-col gap-2 h-full">
       {/* Left Chart */}
       <div className="bg-card border border-border rounded overflow-hidden flex flex-col">
         <div className="px-2 py-1.5 bg-secondary/50 border-b border-border flex items-center gap-1 flex-wrap">
