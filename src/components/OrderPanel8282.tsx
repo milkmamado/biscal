@@ -307,7 +307,7 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
     });
   };
 
-  const handleMarketClose = () => {
+  const handleMarketClose = (percent: number = 100) => {
     if (!position) {
       toast({
         title: '포지션 없음',
@@ -317,14 +317,32 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
       return;
     }
     
-    const pnl = calculatePnL(position, currentPrice);
+    const closeQty = position.quantity * (percent / 100);
+    const remainingQty = position.quantity - closeQty;
+    const pnl = calculatePnL({ ...position, quantity: closeQty }, currentPrice);
+    
     onTradeClose?.(pnl);
-    toast({
-      title: pnl >= 0 ? '✅ 청산 완료' : '❌ 청산 완료',
-      description: `${symbol} ${position.quantity}개 @ $${formatPrice(currentPrice)} | 손익: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}`,
-      duration: 3000,
-    });
-    setPosition(null);
+    
+    if (remainingQty > 0.0001) {
+      // 부분 청산 - 남은 포지션 유지
+      setPosition({
+        ...position,
+        quantity: remainingQty
+      });
+      toast({
+        title: pnl >= 0 ? '✅ 부분 청산' : '❌ 부분 청산',
+        description: `${percent}% 청산 (${closeQty.toFixed(3)}개) | 손익: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)} | 잔여: ${remainingQty.toFixed(3)}개`,
+        duration: 3000,
+      });
+    } else {
+      // 전량 청산
+      toast({
+        title: pnl >= 0 ? '✅ 청산 완료' : '❌ 청산 완료',
+        description: `${symbol} ${position.quantity}개 @ $${formatPrice(currentPrice)} | 손익: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}`,
+        duration: 3000,
+      });
+      setPosition(null);
+    }
   };
 
   const handleCloseAtPrice = (price: number) => {
@@ -467,7 +485,7 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
               </span>
             </div>
             <button
-              onClick={handleMarketClose}
+              onClick={() => handleMarketClose()}
               className="px-2 py-0.5 bg-yellow-500 hover:bg-yellow-400 text-yellow-950 text-[10px] font-bold rounded"
             >
               청산
@@ -673,7 +691,7 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
           시장가롱
         </button>
         <button 
-          onClick={handleMarketClose}
+          onClick={() => handleMarketClose()}
           className={cn(
             "py-1.5 text-[10px] font-medium",
             position 
@@ -801,12 +819,23 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
               )}>
                 {currentPnL >= 0 ? '+' : ''}{currentPnL.toFixed(2)}$ ({currentPnLPercent >= 0 ? '+' : ''}{currentPnLPercent.toFixed(2)}%)
               </span>
-              <button
-                onClick={handleMarketClose}
-                className="px-2 py-0.5 bg-yellow-500 hover:bg-yellow-400 text-yellow-950 text-[10px] font-bold rounded"
-              >
-                청산
-              </button>
+              <div className="flex items-center gap-1">
+                {[25, 50, 75].map(p => (
+                  <button
+                    key={p}
+                    onClick={() => handleMarketClose(p)}
+                    className="px-1 py-0.5 bg-yellow-900/50 hover:bg-yellow-800/70 text-yellow-400 text-[9px] rounded"
+                  >
+                    {p}%
+                  </button>
+                ))}
+                <button
+                  onClick={() => handleMarketClose()}
+                  className="px-2 py-0.5 bg-yellow-500 hover:bg-yellow-400 text-yellow-950 text-[10px] font-bold rounded"
+                >
+                  전량
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -937,7 +966,7 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
         </button>
         {position && (
           <button 
-            onClick={handleMarketClose}
+            onClick={() => handleMarketClose()}
             className="py-2.5 font-bold text-sm bg-yellow-600 hover:bg-yellow-500 text-white border-r border-border"
           >
             청산
