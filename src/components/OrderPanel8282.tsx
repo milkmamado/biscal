@@ -296,7 +296,7 @@ const OrderPanel8282 = ({ symbol }: OrderPanel8282Props) => {
               </div>
               
               {/* 호가 */}
-              <div className="px-1 py-0.5 text-center border-r border-border/30 font-mono font-medium text-red-400 bg-red-950/20">
+              <div className="px-1 py-0.5 text-center border-r border-border/30 font-mono font-medium text-blue-400 bg-blue-950/20">
                 {formatPrice(ask.price)}
               </div>
 
@@ -360,7 +360,7 @@ const OrderPanel8282 = ({ symbol }: OrderPanel8282Props) => {
               <div className="px-1 py-0.5 border-r border-border/30" />
 
               {/* 호가 */}
-              <div className="px-1 py-0.5 text-center border-r border-border/30 font-mono font-medium text-blue-400 bg-blue-950/20">
+              <div className="px-1 py-0.5 text-center border-r border-border/30 font-mono font-medium text-red-400 bg-red-950/20">
                 {formatPrice(bid.price)}
               </div>
 
