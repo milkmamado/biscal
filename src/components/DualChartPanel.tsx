@@ -25,10 +25,10 @@ const DualChartPanel = ({ symbol }: DualChartPanelProps) => {
 
   return (
     <div className="flex flex-col gap-2 h-full">
-      {/* Left Chart */}
-      <div className="bg-card border border-border rounded overflow-hidden flex flex-col">
+      {/* Top Chart */}
+      <div className="bg-card border border-border rounded overflow-hidden flex flex-col flex-1 min-h-0">
         <div className="px-2 py-1.5 bg-secondary/50 border-b border-border flex items-center gap-1 flex-wrap">
-          <span className="text-[10px] text-muted-foreground mr-1">좌측</span>
+          <span className="text-[10px] text-muted-foreground mr-1">상단</span>
           {INTERVALS.map((int) => (
             <button
               key={`left-${int.value}`}
@@ -48,15 +48,15 @@ const DualChartPanel = ({ symbol }: DualChartPanelProps) => {
           <TradingViewChart 
             symbol={symbol} 
             interval={leftInterval} 
-            height={350}
+            height={300}
           />
         </div>
       </div>
 
-      {/* Right Chart */}
-      <div className="bg-card border border-border rounded overflow-hidden flex flex-col">
+      {/* Bottom Chart */}
+      <div className="bg-card border border-border rounded overflow-hidden flex flex-col flex-1 min-h-0">
         <div className="px-2 py-1.5 bg-secondary/50 border-b border-border flex items-center gap-1 flex-wrap">
-          <span className="text-[10px] text-muted-foreground mr-1">우측</span>
+          <span className="text-[10px] text-muted-foreground mr-1">하단</span>
           {INTERVALS.map((int) => (
             <button
               key={`right-${int.value}`}
@@ -76,7 +76,7 @@ const DualChartPanel = ({ symbol }: DualChartPanelProps) => {
           <TradingViewChart 
             symbol={symbol} 
             interval={rightInterval} 
-            height={350}
+            height={300}
           />
         </div>
       </div>
