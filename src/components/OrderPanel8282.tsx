@@ -287,7 +287,7 @@ const OrderPanel8282 = ({ symbol }: OrderPanel8282Props) => {
               {/* 매도잔량 */}
               <div className="relative px-1 py-0.5 flex items-center justify-end border-r border-border/30">
                 <div 
-                  className="absolute left-0 top-0 h-full bg-blue-500/20"
+                  className="absolute right-0 top-0 h-full bg-blue-500/20"
                   style={{ width: `${percentage}%` }}
                 />
                 <span className="relative font-mono text-blue-400">
@@ -367,7 +367,7 @@ const OrderPanel8282 = ({ symbol }: OrderPanel8282Props) => {
               {/* 매수잔량 */}
               <div className="relative px-1 py-0.5 flex items-center border-r border-border/30">
                 <div 
-                  className="absolute right-0 top-0 h-full bg-red-500/20"
+                  className="absolute left-0 top-0 h-full bg-red-500/20"
                   style={{ width: `${percentage}%` }}
                 />
                 <span className="relative font-mono text-red-400">
