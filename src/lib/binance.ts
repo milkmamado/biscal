@@ -18,6 +18,10 @@ export interface SymbolInfo {
   priceChange: number;
   priceChangePercent: number;
   volume: number;
+  highPrice: number;
+  lowPrice: number;
+  volatilityRange: number; // (high - low) / low * 100
+  hotScore: number; // composite score
 }
 
 export interface OrderBookEntry {
@@ -84,12 +88,20 @@ export async function fetchOrderBook(symbol: string, limit: number = 20): Promis
 export async function fetch24hTicker(symbol: string): Promise<SymbolInfo> {
   const response = await fetch(`${BASE_URL}/fapi/v1/ticker/24hr?symbol=${symbol}`);
   const data = await response.json();
+  const highPrice = parseFloat(data.highPrice);
+  const lowPrice = parseFloat(data.lowPrice);
+  const volatilityRange = lowPrice > 0 ? ((highPrice - lowPrice) / lowPrice) * 100 : 0;
+  
   return {
     symbol: data.symbol,
     price: parseFloat(data.lastPrice),
     priceChange: parseFloat(data.priceChange),
     priceChangePercent: parseFloat(data.priceChangePercent),
     volume: parseFloat(data.quoteVolume),
+    highPrice,
+    lowPrice,
+    volatilityRange,
+    hotScore: 0,
   };
 }
 
@@ -97,15 +109,47 @@ export async function fetch24hTicker(symbol: string): Promise<SymbolInfo> {
 export async function fetchAll24hTickers(): Promise<SymbolInfo[]> {
   const response = await fetch(`${BASE_URL}/fapi/v1/ticker/24hr`);
   const data = await response.json();
-  return data
+  
+  const tickers = data
     .filter((t: any) => t.symbol.endsWith('USDT'))
-    .map((t: any) => ({
-      symbol: t.symbol,
-      price: parseFloat(t.lastPrice),
-      priceChange: parseFloat(t.priceChange),
-      priceChangePercent: parseFloat(t.priceChangePercent),
-      volume: parseFloat(t.quoteVolume),
-    }));
+    .map((t: any) => {
+      const highPrice = parseFloat(t.highPrice);
+      const lowPrice = parseFloat(t.lowPrice);
+      const volume = parseFloat(t.quoteVolume);
+      const priceChangePercent = parseFloat(t.priceChangePercent);
+      
+      // Calculate volatility range: (high - low) / low * 100
+      const volatilityRange = lowPrice > 0 ? ((highPrice - lowPrice) / lowPrice) * 100 : 0;
+      
+      return {
+        symbol: t.symbol,
+        price: parseFloat(t.lastPrice),
+        priceChange: parseFloat(t.priceChange),
+        priceChangePercent,
+        volume,
+        highPrice,
+        lowPrice,
+        volatilityRange,
+        hotScore: 0, // Will be calculated after normalization
+      };
+    });
+  
+  // Calculate hot score using normalized values
+  // Hot score = (normalized volume * 0.5) + (normalized volatility * 0.5)
+  if (tickers.length > 0) {
+    const maxVolume = Math.max(...tickers.map((t: SymbolInfo) => t.volume));
+    const maxVolatility = Math.max(...tickers.map((t: SymbolInfo) => t.volatilityRange));
+    
+    tickers.forEach((t: SymbolInfo) => {
+      const normalizedVolume = maxVolume > 0 ? t.volume / maxVolume : 0;
+      const normalizedVolatility = maxVolatility > 0 ? t.volatilityRange / maxVolatility : 0;
+      
+      // Composite score: 50% volume + 50% volatility
+      t.hotScore = (normalizedVolume * 50) + (normalizedVolatility * 50);
+    });
+  }
+  
+  return tickers;
 }
 
 // Fetch Open Interest for all symbols

@@ -46,8 +46,8 @@ const HotCoinList = ({ onSelectSymbol, selectedSymbol }: HotCoinListProps) => {
     // Apply sorting
     switch (sortMode) {
       case 'hot':
-        // Hot = highest absolute volatility
-        filtered.sort((a, b) => Math.abs(b.priceChangePercent) - Math.abs(a.priceChangePercent));
+        // Hot = composite score (volume + volatility)
+        filtered.sort((a, b) => b.hotScore - a.hotScore);
         break;
       case 'volume':
         filtered.sort((a, b) => b.volume - a.volume);
