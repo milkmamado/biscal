@@ -473,23 +473,23 @@ const OrderPanel8282 = ({ symbol, onPositionChange }: OrderPanel8282Props) => {
         <div className="px-1 py-1 text-center text-red-400">B</div>
       </div>
       
-      {/* Bearish Probability Display (Top Right) */}
+      {/* Bullish Probability Display (Top Right) */}
       {techSignal && (
-        <div className="grid grid-cols-[32px_1fr_70px_1fr_32px] text-[10px] border-b border-border/50 bg-blue-950/30">
+        <div className="grid grid-cols-[32px_1fr_70px_1fr_32px] text-[10px] border-b border-border/50 bg-red-950/30">
           <div className="px-1 py-1 border-r border-border/30" />
           <div className="px-1 py-1 border-r border-border/30" />
           <div className="px-1 py-1 text-center border-r border-border/30 text-muted-foreground text-[9px]">
             RSI {techSignal.rsi}
           </div>
           <div className="px-1 py-1.5 border-r border-border/30 flex items-center justify-center gap-1">
-            <TrendingDown className="w-3 h-3 text-blue-400" />
+            <TrendingUp className="w-3 h-3 text-red-400" />
             <span className={cn(
               "font-bold font-mono",
-              techSignal.bearishProb > 55 ? "text-blue-400" : "text-muted-foreground"
+              techSignal.bullishProb > 55 ? "text-red-400" : "text-muted-foreground"
             )}>
-              {techSignal.bearishProb}%
+              {techSignal.bullishProb}%
             </span>
-            <span className="text-[8px] text-blue-400/70">하락</span>
+            <span className="text-[8px] text-red-400/70">상승</span>
           </div>
           <div className="px-1 py-1" />
         </div>
@@ -602,19 +602,19 @@ const OrderPanel8282 = ({ symbol, onPositionChange }: OrderPanel8282Props) => {
         </div>
       )}
 
-      {/* Bullish Probability Display (Bottom Left) */}
+      {/* Bearish Probability Display (Bottom Left) */}
       {techSignal && (
-        <div className="grid grid-cols-[32px_1fr_70px_1fr_32px] text-[10px] border-b border-border/50 bg-red-950/30">
+        <div className="grid grid-cols-[32px_1fr_70px_1fr_32px] text-[10px] border-b border-border/50 bg-blue-950/30">
           <div className="px-1 py-1 border-r border-border/30" />
           <div className="px-1 py-1.5 border-r border-border/30 flex items-center justify-center gap-1">
-            <TrendingUp className="w-3 h-3 text-red-400" />
+            <TrendingDown className="w-3 h-3 text-blue-400" />
             <span className={cn(
               "font-bold font-mono",
-              techSignal.bullishProb > 55 ? "text-red-400" : "text-muted-foreground"
+              techSignal.bearishProb > 55 ? "text-blue-400" : "text-muted-foreground"
             )}>
-              {techSignal.bullishProb}%
+              {techSignal.bearishProb}%
             </span>
-            <span className="text-[8px] text-red-400/70">상승</span>
+            <span className="text-[8px] text-blue-400/70">하락</span>
           </div>
           <div className="px-1 py-1 text-center border-r border-border/30 text-muted-foreground text-[9px]">
             {techSignal.macdSignal === 'bullish' ? '▲' : techSignal.macdSignal === 'bearish' ? '▼' : '—'} MACD
