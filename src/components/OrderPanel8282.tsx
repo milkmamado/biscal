@@ -14,9 +14,11 @@ interface Position {
 interface OrderPanel8282Props {
   symbol: string;
   onPositionChange?: (position: Position | null) => void;
+  onPnLChange?: (pnl: number) => void;
+  onTradeClose?: (pnl: number) => void;
 }
 
-const OrderPanel8282 = ({ symbol, onPositionChange }: OrderPanel8282Props) => {
+const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }: OrderPanel8282Props) => {
   const { toast } = useToast();
   const [orderBook, setOrderBook] = useState<OrderBook | null>(null);
   const [currentPrice, setCurrentPrice] = useState<number>(0);
@@ -212,6 +214,7 @@ const OrderPanel8282 = ({ symbol, onPositionChange }: OrderPanel8282Props) => {
     }
     
     const pnl = calculatePnL(position, currentPrice);
+    onTradeClose?.(pnl);
     toast({
       title: pnl >= 0 ? '✅ 청산 완료' : '❌ 청산 완료',
       description: `${symbol} ${position.quantity}개 @ $${formatPrice(currentPrice)} | 손익: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}`,
@@ -224,6 +227,7 @@ const OrderPanel8282 = ({ symbol, onPositionChange }: OrderPanel8282Props) => {
     if (!position) return;
     
     const pnl = calculatePnL(position, price);
+    onTradeClose?.(pnl);
     toast({
       title: pnl >= 0 ? '✅ 지정가 청산' : '❌ 지정가 청산',
       description: `${symbol} ${position.quantity}개 @ $${formatPrice(price)} | 예상손익: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}`,
@@ -262,6 +266,11 @@ const OrderPanel8282 = ({ symbol, onPositionChange }: OrderPanel8282Props) => {
   const currentPnLPercent = position 
     ? ((currentPnL / (position.entryPrice * position.quantity)) * 100 * position.leverage)
     : 0;
+
+  // Notify parent of PnL changes
+  useEffect(() => {
+    onPnLChange?.(currentPnL);
+  }, [currentPnL, onPnLChange]);
 
   if (loading || !orderBook) {
     return (

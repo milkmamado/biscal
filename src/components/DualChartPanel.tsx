@@ -4,6 +4,11 @@ import { cn } from '@/lib/utils';
 
 interface DualChartPanelProps {
   symbol: string;
+  unrealizedPnL?: number;
+  realizedPnL?: number;
+  tradeCount?: number;
+  winCount?: number;
+  hasPosition?: boolean;
 }
 
 const INTERVALS = [
@@ -19,18 +24,27 @@ const INTERVALS = [
 
 const KRW_RATE = 1380; // USD to KRW
 
-const DualChartPanel = ({ symbol }: DualChartPanelProps) => {
+const DualChartPanel = ({ 
+  symbol, 
+  unrealizedPnL = 0, 
+  realizedPnL = 0,
+  tradeCount = 0,
+  winCount = 0,
+  hasPosition = false
+}: DualChartPanelProps) => {
   const [topInterval, setTopInterval] = useState('1');
   const [bottomInterval, setBottomInterval] = useState('5');
   
   // Mock data - 실제로는 API나 상태관리에서 가져와야 함
   const [balance] = useState(1000); // USDT 잔고
-  const [dailyPnL] = useState(0); // 당일 손익
 
   const formatKRW = (usd: number) => {
     const krw = usd * KRW_RATE;
     return krw.toLocaleString('ko-KR', { maximumFractionDigits: 0 });
   };
+
+  const winRate = tradeCount > 0 ? ((winCount / tradeCount) * 100).toFixed(1) : '0.0';
+  const totalPnL = unrealizedPnL + realizedPnL;
 
   return (
     <div className="flex flex-col gap-1 h-full">
@@ -89,8 +103,9 @@ const DualChartPanel = ({ symbol }: DualChartPanelProps) => {
       </div>
 
       {/* Balance & Daily PnL Panel */}
-      <div className="bg-card border border-border rounded px-3 py-2 flex items-center justify-between">
-        <div className="flex items-center gap-4">
+      <div className="bg-card border border-border rounded px-3 py-2">
+        <div className="flex items-center justify-between">
+          {/* 잔고 */}
           <div className="flex flex-col">
             <span className="text-[10px] text-muted-foreground">잔고</span>
             <div className="flex items-baseline gap-1">
@@ -102,25 +117,73 @@ const DualChartPanel = ({ symbol }: DualChartPanelProps) => {
               </span>
             </div>
           </div>
-        </div>
-        
-        <div className="flex flex-col items-end">
-          <span className="text-[10px] text-muted-foreground">당일 손익</span>
-          <div className="flex items-baseline gap-1">
+          
+          {/* 미실현 손익 */}
+          {hasPosition && (
+            <div className="flex flex-col items-center">
+              <span className="text-[10px] text-muted-foreground">미실현</span>
+              <span className={cn(
+                "text-sm font-bold font-mono",
+                unrealizedPnL >= 0 ? "text-red-400" : "text-blue-400"
+              )}>
+                {unrealizedPnL >= 0 ? '+' : ''}{unrealizedPnL.toFixed(2)}$
+              </span>
+            </div>
+          )}
+          
+          {/* 당일 실현 손익 */}
+          <div className="flex flex-col items-center">
+            <span className="text-[10px] text-muted-foreground">실현손익</span>
             <span className={cn(
               "text-sm font-bold font-mono",
-              dailyPnL >= 0 ? "text-red-400" : "text-blue-400"
+              realizedPnL >= 0 ? "text-red-400" : "text-blue-400"
             )}>
-              {dailyPnL >= 0 ? '+' : ''}{dailyPnL.toFixed(2)}$
-            </span>
-            <span className={cn(
-              "text-[10px] font-mono",
-              dailyPnL >= 0 ? "text-red-400" : "text-blue-400"
-            )}>
-              ({dailyPnL >= 0 ? '+' : ''}₩{formatKRW(dailyPnL)})
+              {realizedPnL >= 0 ? '+' : ''}{realizedPnL.toFixed(2)}$
             </span>
           </div>
+          
+          {/* 당일 총손익 */}
+          <div className="flex flex-col items-end">
+            <span className="text-[10px] text-muted-foreground">당일 총손익</span>
+            <div className="flex items-baseline gap-1">
+              <span className={cn(
+                "text-sm font-bold font-mono",
+                totalPnL >= 0 ? "text-red-400" : "text-blue-400"
+              )}>
+                {totalPnL >= 0 ? '+' : ''}{totalPnL.toFixed(2)}$
+              </span>
+              <span className={cn(
+                "text-[10px] font-mono",
+                totalPnL >= 0 ? "text-red-400" : "text-blue-400"
+              )}>
+                (₩{formatKRW(totalPnL)})
+              </span>
+            </div>
+          </div>
         </div>
+        
+        {/* 거래 통계 */}
+        {tradeCount > 0 && (
+          <div className="mt-2 pt-2 border-t border-border/50 flex items-center justify-between text-[10px]">
+            <div className="flex items-center gap-3">
+              <span className="text-muted-foreground">
+                거래: <span className="text-foreground font-mono">{tradeCount}회</span>
+              </span>
+              <span className="text-muted-foreground">
+                승: <span className="text-red-400 font-mono">{winCount}</span>
+              </span>
+              <span className="text-muted-foreground">
+                패: <span className="text-blue-400 font-mono">{tradeCount - winCount}</span>
+              </span>
+            </div>
+            <span className={cn(
+              "font-bold",
+              parseFloat(winRate) >= 50 ? "text-red-400" : "text-blue-400"
+            )}>
+              승률 {winRate}%
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );
