@@ -464,11 +464,15 @@ const OrderPanel8282 = ({ symbol }: OrderPanel8282Props) => {
       <div className="border-b border-border/50">
         {askRows.map((ask, index) => {
           const percentage = (ask.quantity / maxQuantity) * 100;
+          const isEntryPrice = position && Math.abs(ask.price - position.entryPrice) < position.entryPrice * 0.0001;
           
           return (
             <div 
               key={`ask-${index}`} 
-              className="grid grid-cols-[32px_1fr_70px_1fr_32px] text-[11px] border-b border-border/30 hover:bg-secondary/50"
+              className={cn(
+                "grid grid-cols-[32px_1fr_70px_1fr_32px] text-[11px] border-b border-border/30 hover:bg-secondary/50",
+                isEntryPrice && "ring-2 ring-inset ring-green-500 bg-green-950/30"
+              )}
             >
               {/* S button */}
               <button
@@ -491,8 +495,14 @@ const OrderPanel8282 = ({ symbol }: OrderPanel8282Props) => {
               </div>
               
               {/* 호가 */}
-              <div className="px-1 py-0.5 text-center border-r border-border/30 font-mono font-medium text-blue-400 bg-blue-950/20">
+              <div className={cn(
+                "px-1 py-0.5 text-center border-r border-border/30 font-mono font-medium",
+                isEntryPrice 
+                  ? "text-green-400 bg-green-950/50" 
+                  : "text-blue-400 bg-blue-950/20"
+              )}>
                 {formatPrice(ask.price)}
+                {isEntryPrice && <span className="ml-1 text-[8px]">★</span>}
               </div>
 
               {/* Empty buy quantity */}
@@ -536,11 +546,15 @@ const OrderPanel8282 = ({ symbol }: OrderPanel8282Props) => {
       <div className="border-b border-border/50">
         {bidRows.map((bid, index) => {
           const percentage = (bid.quantity / maxQuantity) * 100;
+          const isEntryPrice = position && Math.abs(bid.price - position.entryPrice) < position.entryPrice * 0.0001;
           
           return (
             <div 
               key={`bid-${index}`} 
-              className="grid grid-cols-[32px_1fr_70px_1fr_32px] text-[11px] border-b border-border/30 hover:bg-secondary/50"
+              className={cn(
+                "grid grid-cols-[32px_1fr_70px_1fr_32px] text-[11px] border-b border-border/30 hover:bg-secondary/50",
+                isEntryPrice && "ring-2 ring-inset ring-green-500 bg-green-950/30"
+              )}
             >
               {/* S button */}
               <button
@@ -555,8 +569,14 @@ const OrderPanel8282 = ({ symbol }: OrderPanel8282Props) => {
               <div className="px-1 py-0.5 border-r border-border/30" />
 
               {/* 호가 */}
-              <div className="px-1 py-0.5 text-center border-r border-border/30 font-mono font-medium text-red-400 bg-red-950/20">
+              <div className={cn(
+                "px-1 py-0.5 text-center border-r border-border/30 font-mono font-medium",
+                isEntryPrice 
+                  ? "text-green-400 bg-green-950/50" 
+                  : "text-red-400 bg-red-950/20"
+              )}>
                 {formatPrice(bid.price)}
+                {isEntryPrice && <span className="ml-1 text-[8px]">★</span>}
               </div>
 
               {/* 매수잔량 */}
