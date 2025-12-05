@@ -451,49 +451,6 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
 
   return (
     <div className="bg-card border border-border rounded text-[11px]">
-      {/* Position Display */}
-      {position && (
-        <div className={cn(
-          "px-2 py-1.5 border-b border-border flex items-center justify-between",
-          position.type === 'long' ? "bg-red-950/30" : "bg-blue-950/30"
-        )}>
-          <div className="flex items-center gap-2">
-            <span className={cn(
-              "px-1.5 py-0.5 rounded text-[10px] font-bold",
-              position.type === 'long' ? "bg-red-500 text-white" : "bg-blue-500 text-white"
-            )}>
-              {position.type === 'long' ? 'LONG' : 'SHORT'}
-            </span>
-            <span className="text-[10px] font-mono">
-              {position.quantity}개 @ ${formatPrice(position.entryPrice)}
-            </span>
-            <span className="text-[10px] text-muted-foreground">({position.leverage}x)</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="flex flex-col items-end">
-              <span className={cn(
-                "text-[11px] font-bold font-mono",
-                currentPnL >= 0 ? "text-red-400" : "text-blue-400"
-              )}>
-                {currentPnL >= 0 ? '+' : ''}{currentPnL.toFixed(2)} USDT
-              </span>
-              <span className={cn(
-                "text-[10px] font-bold font-mono",
-                currentPnLPercent >= 0 ? "text-red-400" : "text-blue-400"
-              )}>
-                ({currentPnLPercent >= 0 ? '+' : ''}{currentPnLPercent.toFixed(2)}%)
-              </span>
-            </div>
-            <button
-              onClick={() => handleMarketClose()}
-              className="px-2 py-0.5 bg-yellow-500 hover:bg-yellow-400 text-yellow-950 text-[10px] font-bold rounded"
-            >
-              청산
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Settings Panel */}
       {showSettings && (
         <div className="px-2 py-2 border-b border-border bg-secondary/80 space-y-2">
