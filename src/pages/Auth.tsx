@@ -101,12 +101,15 @@ export default function Auth() {
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <Card className="w-full max-w-md bg-card border-border">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl text-foreground">
-            바이낸스 스캘핑 트레이더
+          <CardTitle className="text-3xl font-bold tracking-tight text-foreground">
+            BISCAL
           </CardTitle>
-          <CardDescription className="text-muted-foreground">
-            {isLogin ? '로그인하여 트레이딩을 시작하세요' : '새 계정을 만드세요'}
+          <CardDescription className="text-muted-foreground text-xs mt-1">
+            Binance Futures Scalping Terminal
           </CardDescription>
+          <p className="text-muted-foreground mt-3">
+            {isLogin ? '로그인하여 트레이딩을 시작하세요' : '새 계정을 만드세요'}
+          </p>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
