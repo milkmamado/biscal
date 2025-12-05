@@ -4,10 +4,6 @@ import { cn } from '@/lib/utils';
 import { Minus, Plus, Settings, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
-interface OrderPanel8282Props {
-  symbol: string;
-}
-
 interface Position {
   type: 'long' | 'short';
   entryPrice: number;
@@ -15,7 +11,12 @@ interface Position {
   leverage: number;
 }
 
-const OrderPanel8282 = ({ symbol }: OrderPanel8282Props) => {
+interface OrderPanel8282Props {
+  symbol: string;
+  onPositionChange?: (position: Position | null) => void;
+}
+
+const OrderPanel8282 = ({ symbol, onPositionChange }: OrderPanel8282Props) => {
   const { toast } = useToast();
   const [orderBook, setOrderBook] = useState<OrderBook | null>(null);
   const [currentPrice, setCurrentPrice] = useState<number>(0);
@@ -29,6 +30,11 @@ const OrderPanel8282 = ({ symbol }: OrderPanel8282Props) => {
   
   // Position state
   const [position, setPosition] = useState<Position | null>(null);
+  
+  // Notify parent when position changes
+  useEffect(() => {
+    onPositionChange?.(position);
+  }, [position, onPositionChange]);
   
   // TP/SL settings (USDT amount)
   const [tpAmount, setTpAmount] = useState<string>('50');
