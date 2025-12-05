@@ -516,21 +516,21 @@ const OrderPanel8282 = ({ symbol }: OrderPanel8282Props) => {
                 {isEntryPrice && <span className="ml-1 text-[8px]">★</span>}
               </div>
 
-              {/* Empty buy quantity - Show PnL when position exists */}
+              {/* Empty buy quantity - Show PnL for LONG position at top-right */}
               <div className="px-1 py-0.5 border-r border-border/30 flex items-center justify-center">
-                {position && isEntryPrice && (
-                  <div className="flex flex-col items-center">
+                {position?.type === 'long' && index === 0 && (
+                  <div className="flex flex-col items-center bg-green-950/50 px-1 rounded">
                     <span className={cn(
-                      "text-[9px] font-bold font-mono",
+                      "text-[10px] font-bold font-mono",
                       currentPnL >= 0 ? "text-red-400" : "text-blue-400"
                     )}>
                       {currentPnL >= 0 ? '+' : ''}{currentPnL.toFixed(2)}$
                     </span>
                     <span className={cn(
-                      "text-[8px] font-mono",
+                      "text-[9px] font-bold font-mono",
                       currentPnLPercent >= 0 ? "text-red-400" : "text-blue-400"
                     )}>
-                      ({currentPnLPercent >= 0 ? '+' : ''}{currentPnLPercent.toFixed(1)}%)
+                      ({currentPnLPercent >= 0 ? '+' : ''}{currentPnLPercent.toFixed(2)}%)
                     </span>
                   </div>
                 )}
@@ -593,21 +593,21 @@ const OrderPanel8282 = ({ symbol }: OrderPanel8282Props) => {
                 S
               </button>
 
-              {/* Empty sell quantity - Show PnL when position exists */}
+              {/* Empty sell quantity - Show PnL for SHORT position at bottom-left */}
               <div className="px-1 py-0.5 border-r border-border/30 flex items-center justify-center">
-                {position && isEntryPrice && (
-                  <div className="flex flex-col items-center">
+                {position?.type === 'short' && index === bidRows.length - 1 && (
+                  <div className="flex flex-col items-center bg-green-950/50 px-1 rounded">
                     <span className={cn(
-                      "text-[9px] font-bold font-mono",
+                      "text-[10px] font-bold font-mono",
                       currentPnL >= 0 ? "text-red-400" : "text-blue-400"
                     )}>
                       {currentPnL >= 0 ? '+' : ''}{currentPnL.toFixed(2)}$
                     </span>
                     <span className={cn(
-                      "text-[8px] font-mono",
+                      "text-[9px] font-bold font-mono",
                       currentPnLPercent >= 0 ? "text-red-400" : "text-blue-400"
                     )}>
-                      ({currentPnLPercent >= 0 ? '+' : ''}{currentPnLPercent.toFixed(1)}%)
+                      ({currentPnLPercent >= 0 ? '+' : ''}{currentPnLPercent.toFixed(2)}%)
                     </span>
                   </div>
                 )}
