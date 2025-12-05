@@ -91,7 +91,7 @@ const Index = () => {
             <CoinHeader symbol={selectedSymbol} />
             
             {/* Dual Chart Area */}
-            <div className="mt-2 h-[calc(100vh-120px)]">
+            <div className="mt-2 h-[calc(100vh-90px)]">
               <DualChartPanel 
                 symbol={selectedSymbol} 
                 unrealizedPnL={currentPnL}
