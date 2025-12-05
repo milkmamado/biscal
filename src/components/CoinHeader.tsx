@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { fetch24hTicker, SymbolInfo, formatPrice, formatVolume } from '@/lib/binance';
 import { cn } from '@/lib/utils';
-import { ArrowUp, ArrowDown, Activity } from 'lucide-react';
 
 interface CoinHeaderProps {
   symbol: string;
@@ -45,68 +44,35 @@ const CoinHeader = ({ symbol }: CoinHeaderProps) => {
   const isPositive = ticker.priceChangePercent >= 0;
 
   return (
-    <div className="bg-card rounded-lg border border-border p-4">
-      <div className="flex items-center justify-between">
-        {/* Symbol & Price */}
-        <div className="flex items-center gap-4">
-          <div>
-            <h2 className="text-xl font-bold">
-              {symbol.replace('USDT', '')}
-              <span className="text-muted-foreground font-normal text-base ml-1">/USDT</span>
-            </h2>
-            <p className="text-xs text-muted-foreground mt-0.5">바이낸스 무기한 선물</p>
-          </div>
-          
-          <div className="flex items-center gap-2">
-            <span className={cn(
-              "text-3xl font-bold font-mono transition-colors",
-              priceDirection === 'up' && "text-positive price-pulse",
-              priceDirection === 'down' && "text-negative price-pulse",
-              !priceDirection && (isPositive ? "text-positive" : "text-negative")
-            )}>
-              ${formatPrice(ticker.price)}
-            </span>
-            
-            {priceDirection && (
-              <span className={cn(
-                "animate-fade-in",
-                priceDirection === 'up' ? "text-positive" : "text-negative"
-              )}>
-                {priceDirection === 'up' ? <ArrowUp className="w-5 h-5" /> : <ArrowDown className="w-5 h-5" />}
-              </span>
-            )}
-          </div>
-        </div>
+    <div className="bg-card rounded border border-border px-3 py-1.5 flex items-center justify-between">
+      {/* Symbol & Price */}
+      <div className="flex items-center gap-3">
+        <h2 className="text-sm font-bold">
+          {symbol.replace('USDT', '')}
+          <span className="text-muted-foreground font-normal text-xs">/USDT</span>
+        </h2>
+        
+        <span className={cn(
+          "text-lg font-bold font-mono transition-colors",
+          priceDirection === 'up' && "text-positive price-pulse",
+          priceDirection === 'down' && "text-negative price-pulse",
+          !priceDirection && (isPositive ? "text-positive" : "text-negative")
+        )}>
+          ${formatPrice(ticker.price)}
+        </span>
+        
+        <span className={cn(
+          "text-xs font-mono font-medium",
+          isPositive ? "text-positive" : "text-negative"
+        )}>
+          {isPositive ? '+' : ''}{ticker.priceChangePercent.toFixed(2)}%
+        </span>
+      </div>
 
-        {/* Stats */}
-        <div className="flex items-center gap-6">
-          {/* 24h Change */}
-          <div className="text-right">
-            <p className="text-xs text-muted-foreground mb-1">24시간 변동</p>
-            <div className={cn(
-              "flex items-center gap-1 justify-end font-mono font-medium",
-              isPositive ? "text-positive" : "text-negative"
-            )}>
-              {isPositive ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />}
-              <span>{isPositive ? '+' : ''}{ticker.priceChangePercent.toFixed(2)}%</span>
-            </div>
-            <p className={cn(
-              "text-xs font-mono",
-              isPositive ? "text-positive" : "text-negative"
-            )}>
-              {isPositive ? '+' : ''}{formatPrice(ticker.priceChange)}
-            </p>
-          </div>
-
-          {/* Volume */}
-          <div className="text-right">
-            <p className="text-xs text-muted-foreground mb-1">24시간 거래량</p>
-            <div className="flex items-center gap-1 justify-end">
-              <Activity className="w-4 h-4 text-primary" />
-              <span className="font-mono font-medium">${formatVolume(ticker.volume)}</span>
-            </div>
-          </div>
-        </div>
+      {/* Volume */}
+      <div className="flex items-center gap-1 text-xs">
+        <span className="text-muted-foreground">거래량</span>
+        <span className="font-mono">${formatVolume(ticker.volume)}</span>
       </div>
     </div>
   );
