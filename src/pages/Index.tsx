@@ -2,6 +2,7 @@ import { useState } from 'react';
 import HotCoinList from '@/components/HotCoinList';
 import OrderPanel8282 from '@/components/OrderPanel8282';
 import CoinHeader from '@/components/CoinHeader';
+import DualChartPanel from '@/components/DualChartPanel';
 import { Activity } from 'lucide-react';
 
 const Index = () => {
@@ -43,13 +44,9 @@ const Index = () => {
           <div className="col-span-12 lg:col-span-5 xl:col-span-6">
             <CoinHeader symbol={selectedSymbol} />
             
-            {/* Additional info area - can add chart here later */}
-            <div className="mt-4 bg-card rounded-lg border border-border p-6 min-h-[400px] flex items-center justify-center">
-              <div className="text-center text-muted-foreground">
-                <Activity className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                <p className="text-sm">차트 영역</p>
-                <p className="text-xs mt-1">TradingView 차트 연동 가능</p>
-              </div>
+            {/* Dual Chart Area */}
+            <div className="mt-4 min-h-[400px]">
+              <DualChartPanel symbol={selectedSymbol} />
             </div>
           </div>
 
