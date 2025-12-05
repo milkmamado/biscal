@@ -39,6 +39,11 @@ export interface BollingerBands {
   isAboveUpper: boolean;
 }
 
+export interface OpenInterestInfo {
+  symbol: string;
+  openInterest: number;
+}
+
 // Fetch all futures symbols
 export async function fetchFuturesSymbols(): Promise<string[]> {
   const response = await fetch(`${BASE_URL}/fapi/v1/exchangeInfo`);
@@ -101,6 +106,24 @@ export async function fetchAll24hTickers(): Promise<SymbolInfo[]> {
       priceChangePercent: parseFloat(t.priceChangePercent),
       volume: parseFloat(t.quoteVolume),
     }));
+}
+
+// Fetch Open Interest for all symbols
+export async function fetchAllOpenInterest(): Promise<OpenInterestInfo[]> {
+  const response = await fetch(`${BASE_URL}/fapi/v1/openInterest?symbol=BTCUSDT`);
+  // Note: This endpoint requires symbol, so we'll use ticker for now
+  return [];
+}
+
+// Fetch Open Interest Statistics (top traders)
+export async function fetchTopLongShortRatio(): Promise<any[]> {
+  try {
+    const response = await fetch(`${BASE_URL}/futures/data/topLongShortPositionRatio?symbol=BTCUSDT&period=1h&limit=1`);
+    const data = await response.json();
+    return data;
+  } catch {
+    return [];
+  }
 }
 
 // Calculate Bollinger Bands

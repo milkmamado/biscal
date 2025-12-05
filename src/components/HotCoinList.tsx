@@ -19,13 +19,17 @@ const HotCoinList = ({ onSelectSymbol, selectedSymbol }: HotCoinListProps) => {
     try {
       const tickers = await fetchAll24hTickers();
       
-      // Calculate "hotness" score based on volume and price change
-      const withScore = tickers.map(t => ({
-        ...t,
-        hotScore: (Math.abs(t.priceChangePercent) * 0.6) + (Math.log10(t.volume + 1) * 0.4)
-      }));
+      // Calculate hot score based on multiple factors
+      // Binance HOT typically shows: high volatility + high relative volume + momentum
+      const withScore = tickers.map(t => {
+        const volatilityScore = Math.abs(t.priceChangePercent);
+        const volumeScore = Math.log10(t.volume + 1);
+        // Combine scores - higher weight on volatility like Binance Hot
+        const hotScore = (volatilityScore * 0.8) + (volumeScore * 0.2);
+        return { ...t, hotScore };
+      });
       
-      // Sort by hot score and take top 10
+      // Sort by hot score (volatility dominant) and take top 10
       const hotCoins = withScore
         .sort((a, b) => b.hotScore - a.hotScore)
         .slice(0, 10);
@@ -41,7 +45,7 @@ const HotCoinList = ({ onSelectSymbol, selectedSymbol }: HotCoinListProps) => {
 
   useEffect(() => {
     loadCoins();
-    const interval = setInterval(() => loadCoins(), 30000);
+    const interval = setInterval(() => loadCoins(), 15000); // Refresh every 15s
     return () => clearInterval(interval);
   }, [loadCoins]);
 
@@ -69,7 +73,7 @@ const HotCoinList = ({ onSelectSymbol, selectedSymbol }: HotCoinListProps) => {
           <Flame className="w-5 h-5 text-orange-500" />
           <div>
             <h3 className="text-sm font-semibold">선물 HOT</h3>
-            <p className="text-xs text-muted-foreground">인기 코인 TOP 10</p>
+            <p className="text-xs text-muted-foreground">실시간 인기 TOP 10</p>
           </div>
         </div>
         <button
@@ -133,6 +137,13 @@ const HotCoinList = ({ onSelectSymbol, selectedSymbol }: HotCoinListProps) => {
             </button>
           );
         })}
+      </div>
+
+      {/* Note */}
+      <div className="px-3 py-2 bg-secondary/30 border-t border-border">
+        <p className="text-[10px] text-muted-foreground text-center">
+          변동률 + 거래량 기준 · 15초마다 갱신
+        </p>
       </div>
     </div>
   );
