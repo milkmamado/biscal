@@ -19,7 +19,7 @@ const intervalMap: Record<string, string> = {
   'D': '1d',
 };
 
-const LightweightChart = memo(({ symbol, interval = '1', height = 600 }: LightweightChartProps) => {
+const LightweightChart = memo(({ symbol, interval = '1', height = 500 }: LightweightChartProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<{
@@ -32,102 +32,134 @@ const LightweightChart = memo(({ symbol, interval = '1', height = 600 }: Lightwe
   const wsRef = useRef<WebSocket | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isChartReady, setIsChartReady] = useState(false);
 
-  // Initialize chart once
+  // Initialize chart - wait for container to have dimensions
   useEffect(() => {
     if (!containerRef.current) return;
 
-    try {
-      const chart = createChart(containerRef.current, {
-        width: containerRef.current.clientWidth,
-        height: height,
-        layout: {
-          background: { color: '#0a0a0a' },
-          textColor: '#9ca3af',
-        },
-        grid: {
-          vertLines: { color: '#1f2937' },
-          horzLines: { color: '#1f2937' },
-        },
-        crosshair: {
-          mode: 0,
-        },
-        rightPriceScale: {
-          borderColor: '#374151',
-          scaleMargins: { top: 0.1, bottom: 0.2 },
-        },
-        timeScale: {
-          borderColor: '#374151',
-          timeVisible: true,
-          secondsVisible: false,
-        },
-      });
+    // Check container dimensions - this is critical!
+    const initChart = () => {
+      const container = containerRef.current;
+      if (!container) return;
 
-      chartRef.current = chart;
+      const width = container.clientWidth;
+      const containerHeight = height;
 
-      // Candlestick
-      seriesRef.current.candle = chart.addCandlestickSeries({
-        upColor: '#ef4444',
-        downColor: '#3b82f6',
-        borderUpColor: '#ef4444',
-        borderDownColor: '#3b82f6',
-        wickUpColor: '#ef4444',
-        wickDownColor: '#3b82f6',
-      });
+      // If container has no width, wait and retry
+      if (width === 0) {
+        console.log('Container width is 0, retrying...');
+        setTimeout(initChart, 100);
+        return;
+      }
 
-      // Volume
-      seriesRef.current.volume = chart.addHistogramSeries({
-        color: '#4b5563',
-        priceFormat: { type: 'volume' },
-        priceScaleId: 'volume',
-      });
-      chart.priceScale('volume').applyOptions({
-        scaleMargins: { top: 0.85, bottom: 0 },
-      });
+      console.log('Creating chart with dimensions:', width, containerHeight);
 
-      // Bollinger Bands
-      seriesRef.current.upper = chart.addLineSeries({
-        color: '#f59e0b',
-        lineWidth: 1,
-        priceLineVisible: false,
-        lastValueVisible: false,
-      });
-      seriesRef.current.middle = chart.addLineSeries({
-        color: '#8b5cf6',
-        lineWidth: 1,
-        lineStyle: 2,
-        priceLineVisible: false,
-        lastValueVisible: false,
-      });
-      seriesRef.current.lower = chart.addLineSeries({
-        color: '#f59e0b',
-        lineWidth: 1,
-        priceLineVisible: false,
-        lastValueVisible: false,
-      });
+      try {
+        // Create chart with explicit dimensions
+        const chart = createChart(container, {
+          width: width,
+          height: containerHeight,
+          layout: {
+            background: { color: '#0a0a0a' },
+            textColor: '#9ca3af',
+          },
+          grid: {
+            vertLines: { color: '#1f2937' },
+            horzLines: { color: '#1f2937' },
+          },
+          crosshair: {
+            mode: 0,
+          },
+          rightPriceScale: {
+            borderColor: '#374151',
+            scaleMargins: { top: 0.1, bottom: 0.2 },
+          },
+          timeScale: {
+            borderColor: '#374151',
+            timeVisible: true,
+            secondsVisible: false,
+          },
+        });
 
-      const handleResize = () => {
-        if (containerRef.current && chartRef.current) {
-          chartRef.current.applyOptions({ width: containerRef.current.clientWidth });
-        }
-      };
-      window.addEventListener('resize', handleResize);
+        chartRef.current = chart;
 
-      return () => {
-        window.removeEventListener('resize', handleResize);
-        chart.remove();
+        // Add series
+        seriesRef.current.candle = chart.addCandlestickSeries({
+          upColor: '#ef4444',
+          downColor: '#3b82f6',
+          borderUpColor: '#ef4444',
+          borderDownColor: '#3b82f6',
+          wickUpColor: '#ef4444',
+          wickDownColor: '#3b82f6',
+        });
+
+        seriesRef.current.volume = chart.addHistogramSeries({
+          color: '#4b5563',
+          priceFormat: { type: 'volume' },
+          priceScaleId: 'volume',
+        });
+        chart.priceScale('volume').applyOptions({
+          scaleMargins: { top: 0.85, bottom: 0 },
+        });
+
+        seriesRef.current.upper = chart.addLineSeries({
+          color: '#f59e0b',
+          lineWidth: 1,
+          priceLineVisible: false,
+          lastValueVisible: false,
+        });
+        seriesRef.current.middle = chart.addLineSeries({
+          color: '#8b5cf6',
+          lineWidth: 1,
+          lineStyle: 2,
+          priceLineVisible: false,
+          lastValueVisible: false,
+        });
+        seriesRef.current.lower = chart.addLineSeries({
+          color: '#f59e0b',
+          lineWidth: 1,
+          priceLineVisible: false,
+          lastValueVisible: false,
+        });
+
+        setIsChartReady(true);
+        setError(null);
+        console.log('Chart created successfully');
+      } catch (err) {
+        console.error('Chart creation error:', err);
+        setError('차트 생성 실패');
+      }
+    };
+
+    // Use requestAnimationFrame to ensure DOM is ready
+    requestAnimationFrame(() => {
+      initChart();
+    });
+
+    // Resize handler
+    const handleResize = () => {
+      if (containerRef.current && chartRef.current) {
+        chartRef.current.applyOptions({ 
+          width: containerRef.current.clientWidth 
+        });
+      }
+    };
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      if (chartRef.current) {
+        chartRef.current.remove();
         chartRef.current = null;
-      };
-    } catch (err) {
-      console.error('Chart init error:', err);
-      setError('차트 초기화 실패');
-    }
+        setIsChartReady(false);
+      }
+    };
   }, [height]);
 
-  // Load data when symbol/interval changes
+  // Load data when chart is ready and symbol/interval changes
   useEffect(() => {
-    const { candle, volume, upper, middle, lower } = seriesRef.current;
-    if (!candle) return;
+    if (!isChartReady || !seriesRef.current.candle) return;
 
     const binanceInterval = intervalMap[interval] || '1m';
     setIsLoading(true);
@@ -165,11 +197,11 @@ const LightweightChart = memo(({ symbol, interval = '1', height = 600 }: Lightwe
           lowerData.push({ time, value: bb.lower });
         }
 
-        candle.setData(candleData);
-        volume.setData(volumeData);
-        upper.setData(upperData);
-        middle.setData(middleData);
-        lower.setData(lowerData);
+        seriesRef.current.candle?.setData(candleData);
+        seriesRef.current.volume?.setData(volumeData);
+        seriesRef.current.upper?.setData(upperData);
+        seriesRef.current.middle?.setData(middleData);
+        seriesRef.current.lower?.setData(lowerData);
 
         chartRef.current?.timeScale().fitContent();
         setIsLoading(false);
@@ -182,7 +214,7 @@ const LightweightChart = memo(({ symbol, interval = '1', height = 600 }: Lightwe
 
     loadData();
 
-    // WebSocket for real-time
+    // WebSocket for real-time updates
     if (wsRef.current) {
       wsRef.current.close();
     }
@@ -212,7 +244,7 @@ const LightweightChart = memo(({ symbol, interval = '1', height = 600 }: Lightwe
           });
         }
       } catch (e) {
-        // ignore parse errors
+        // ignore
       }
     };
 
@@ -222,24 +254,31 @@ const LightweightChart = memo(({ symbol, interval = '1', height = 600 }: Lightwe
         wsRef.current = null;
       }
     };
-  }, [symbol, interval]);
+  }, [symbol, interval, isChartReady]);
 
   if (error) {
     return (
-      <div className="w-full h-full flex items-center justify-center bg-card text-destructive text-sm">
+      <div 
+        style={{ width: '100%', height: `${height}px` }}
+        className="flex items-center justify-center bg-card text-destructive text-sm"
+      >
         {error}
       </div>
     );
   }
 
   return (
-    <div className="relative w-full h-full">
+    <div style={{ width: '100%', height: `${height}px`, position: 'relative' }}>
       {isLoading && (
         <div className="absolute inset-0 flex items-center justify-center bg-card/80 z-10">
           <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
         </div>
       )}
-      <div ref={containerRef} className="w-full h-full" />
+      {/* Container with explicit dimensions */}
+      <div 
+        ref={containerRef} 
+        style={{ width: '100%', height: `${height}px` }}
+      />
     </div>
   );
 });
