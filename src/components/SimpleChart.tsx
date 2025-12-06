@@ -40,7 +40,7 @@ const SimpleChart = memo(({ symbol, interval = '1', height = 500 }: SimpleChartP
     };
 
     loadKlines();
-    const timer = setInterval(loadKlines, 1000); // 1초마다 업데이트
+    const timer = setInterval(loadKlines, 500); // 500ms마다 업데이트
 
     return () => {
       mounted = false;
