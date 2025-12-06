@@ -61,7 +61,7 @@ export const useBinanceApi = () => {
           throw new Error('청산할 포지션이 없습니다');
         }
         if (data.code === -2019) {
-          throw new Error('마진이 부족합니다');
+          throw new Error('마진 부족: 주문 수량을 줄이거나 레버리지를 낮춰주세요');
         }
         if (data.code === -4061) {
           throw new Error('주문 수량이 최소 단위보다 작습니다');
