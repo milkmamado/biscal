@@ -115,6 +115,11 @@ serve(async (req) => {
         );
     }
 
+    // Filter out null/undefined params to prevent Binance API errors
+    const filteredParams = Object.fromEntries(
+      Object.entries(params).filter(([_, value]) => value !== null && value !== undefined)
+    );
+
     // Call VPS Proxy Server
     console.log(`Calling VPS Proxy: ${method} ${endpoint}`);
     
@@ -128,7 +133,7 @@ serve(async (req) => {
         apiSecret,
         endpoint,
         method,
-        params,
+        params: filteredParams,
         testnet,
       }),
     });
