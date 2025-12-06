@@ -140,9 +140,23 @@ serve(async (req) => {
 
     const data = await proxyResponse.json();
 
+    // Log balance info for debugging
+    if (action === 'getBalance' && Array.isArray(data)) {
+      const usdtBalance = data.find((b: any) => b.asset === 'USDT');
+      if (usdtBalance) {
+        console.log(`USDT Balance - available: $${usdtBalance.availableBalance}, total: $${usdtBalance.balance}, crossWallet: $${usdtBalance.crossWalletBalance}`);
+      }
+    }
+
     // Check for actual errors (negative codes are Binance errors, 200 is success)
     if (data.error || (data.code && data.code < 0)) {
       console.error('Binance API error via VPS:', data);
+      
+      // Enhanced error message for margin insufficient
+      if (data.code === -2019) {
+        console.error(`Margin insufficient - Order params: ${JSON.stringify(filteredParams)}`);
+      }
+      
       return new Response(
         JSON.stringify({ error: data.msg || data.error || 'Binance API error', code: data.code }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
