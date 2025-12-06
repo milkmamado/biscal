@@ -161,13 +161,13 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
   useEffect(() => {
     if (balanceUSD > 0 && currentPrice > 0 && !autoTpSlInitialized) {
       // 구매력 = 원금 × 레버리지
-      // 30% 버퍼 (수수료, 마크가격차이, 펀딩비, 유지마진 등)
+      // 50% 버퍼 (개시마진 + 유지마진 + 수수료 + 펀딩비)
       const buyingPower = balanceUSD * leverage;
-      const safeBuyingPower = buyingPower * 0.70; // 30% 버퍼
+      const safeBuyingPower = buyingPower * 0.50; // 50% 버퍼
       const qty = safeBuyingPower / currentPrice;
       // Ensure minimum notional of $5
       const minQty = 5.5 / currentPrice;
-      setOrderQty(Math.max(qty, minQty).toFixed(0)); // 정수로 반올림
+      setOrderQty(Math.max(qty, minQty).toFixed(0));
       
       // Set recommended TP/SL based on leverage
       // 청산가격까지의 거리 = 100% / 레버리지
@@ -188,9 +188,9 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
   // Recalculate quantity and TP/SL when leverage changes
   useEffect(() => {
     if (balanceUSD > 0 && currentPrice > 0 && autoTpSlInitialized) {
-      // 30% 버퍼
+      // 50% 버퍼
       const buyingPower = balanceUSD * leverage;
-      const safeBuyingPower = buyingPower * 0.70;
+      const safeBuyingPower = buyingPower * 0.50;
       const qty = safeBuyingPower / currentPrice;
       // Ensure minimum notional of $5
       const minQty = 5.5 / currentPrice;
@@ -436,9 +436,9 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
       return;
     }
     
-    // 30% 버퍼 적용
+    // 50% 버퍼 적용
     const buyingPower = balanceUSD * leverage * (clickOrderPercent / 100);
-    const safeBuyingPower = buyingPower * 0.70;
+    const safeBuyingPower = buyingPower * 0.50;
     const qty = safeBuyingPower / price;
     
     // Ensure minimum notional of $5.5
