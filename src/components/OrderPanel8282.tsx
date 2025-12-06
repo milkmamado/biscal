@@ -256,6 +256,9 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
   
   // Ref to prevent duplicate TP/SL execution
   const tpSlProcessing = useRef<boolean>(false);
+  
+  // Ref to prevent duplicate close operations
+  const closingInProgress = useRef<boolean>(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -350,8 +353,8 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
           }
         }
         
-        // Check TP/SL auto close (use ref to prevent multiple executions)
-        if (position && enableTpSl && ticker.price > 0 && !tpSlProcessing.current) {
+        // Check TP/SL auto close (use refs to prevent multiple executions)
+        if (position && enableTpSl && ticker.price > 0 && !tpSlProcessing.current && !closingInProgress.current) {
           const pnl = calculatePnL(position, ticker.price);
           const tp = parseFloat(tpAmount) || 0;
           const sl = parseFloat(slAmount) || 0;
@@ -577,6 +580,13 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
       return;
     }
     
+    // Prevent duplicate close operations
+    if (closingInProgress.current) {
+      console.log('Close already in progress, skipping...');
+      return;
+    }
+    
+    closingInProgress.current = true;
     const closeQty = position.quantity * (percent / 100);
     
     try {
@@ -610,6 +620,11 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
         variant: 'destructive',
         duration: 3000,
       });
+    } finally {
+      // Reset lock after a short delay to allow position state to update
+      setTimeout(() => {
+        closingInProgress.current = false;
+      }, 2000);
     }
   };
 
