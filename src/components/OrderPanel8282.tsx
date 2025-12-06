@@ -521,9 +521,6 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
   };
 
   const handleQuickOrder = async (type: 'long' | 'short', price: number) => {
-    const baseQty = parseFloat(orderQty) || 0.001;
-    const actualQty = baseQty * (clickOrderPercent / 100);
-    
     if (balanceUSD <= 0) {
       toast({
         title: '잔고 부족',
@@ -537,7 +534,22 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
     try {
       const side = type === 'long' ? 'BUY' : 'SELL';
       const reduceOnly = position && position.type !== type;
-      const qty = reduceOnly ? position!.quantity : actualQty;
+      
+      let qty: number;
+      if (reduceOnly) {
+        // Close position - use position quantity
+        qty = position!.quantity;
+      } else {
+        // New order - calculate 98% of available margin at the clicked price
+        // Formula: (balanceUSD * 0.98 * leverage * clickOrderPercent%) / orderPrice
+        const safeBalance = balanceUSD * 0.98; // 98% 사용하여 마진 오류 방지
+        const buyingPower = safeBalance * leverage * (clickOrderPercent / 100);
+        qty = buyingPower / price;
+        
+        // Ensure minimum notional of $5.5
+        const minQty = 5.5 / price;
+        qty = Math.max(qty, minQty);
+      }
       
       await apiPlaceLimitOrder(symbol, side, qty, price, reduceOnly);
       
