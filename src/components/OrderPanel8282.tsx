@@ -149,10 +149,14 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
       setOrderQty(qty.toFixed(3));
       
       // Set recommended TP/SL based on leverage
+      // 청산가격까지의 거리 = 100% / 레버리지
+      // 안전 손절 = 청산거리의 40%
       const liquidationPct = 100 / leverage;
       const safeSLPct = liquidationPct * 0.4;
-      const recommendedSL = Math.round(balanceUSD * (safeSLPct / 100));
-      const recommendedTP = Math.round(recommendedSL * 1.5);
+      // 소수점 2자리까지, 최소 $0.10
+      const rawSL = balanceUSD * (safeSLPct / 100);
+      const recommendedSL = Math.max(0.10, parseFloat(rawSL.toFixed(2)));
+      const recommendedTP = parseFloat((recommendedSL * 1.5).toFixed(2));
       setTpAmount(recommendedTP.toString());
       setSlAmount(recommendedSL.toString());
       
@@ -172,8 +176,9 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
       // Update recommended TP/SL
       const liquidationPct = 100 / leverage;
       const safeSLPct = liquidationPct * 0.4;
-      const recommendedSL = Math.round(balanceUSD * (safeSLPct / 100));
-      const recommendedTP = Math.round(recommendedSL * 1.5);
+      const rawSL = balanceUSD * (safeSLPct / 100);
+      const recommendedSL = Math.max(0.10, parseFloat(rawSL.toFixed(2)));
+      const recommendedTP = parseFloat((recommendedSL * 1.5).toFixed(2));
       setTpAmount(recommendedTP.toString());
       setSlAmount(recommendedSL.toString());
     }
