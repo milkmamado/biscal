@@ -59,14 +59,14 @@ const DualChartPanel = ({
   const { getBalances, getPositions } = useBinanceApi();
 
   // Fetch price range for chart overlay positioning
-  const fetchPriceRange = async () => {
+  const fetchPriceRange = async (currentInterval: string) => {
     try {
       // Map TradingView interval to Binance interval
       const intervalMap: Record<string, string> = {
         '1': '1m', '3': '3m', '5': '5m', '15': '15m', '30': '30m',
         '60': '1h', '240': '4h', 'D': '1d'
       };
-      const binanceInterval = intervalMap[interval] || '1m';
+      const binanceInterval = intervalMap[currentInterval] || '1m';
       const klines = await fetchKlines(symbol, binanceInterval, 100);
       
       if (klines.length > 0) {
@@ -74,8 +74,8 @@ const DualChartPanel = ({
         const lows = klines.map(k => k.low);
         const high = Math.max(...highs);
         const low = Math.min(...lows);
-        // Add 5% padding
-        const padding = (high - low) * 0.05;
+        // Add 10% padding for better visibility
+        const padding = (high - low) * 0.10;
         setPriceRange({ high: high + padding, low: low - padding });
       }
     } catch (error) {
@@ -85,8 +85,16 @@ const DualChartPanel = ({
 
   // Fetch price range when symbol or interval changes
   useEffect(() => {
-    fetchPriceRange();
-    const intervalId = window.setInterval(fetchPriceRange, 5000);
+    // Reset price range immediately when interval changes
+    setPriceRange({ high: 0, low: 0 });
+    
+    // Fetch new price range
+    fetchPriceRange(interval);
+    
+    const intervalId = window.setInterval(() => {
+      fetchPriceRange(interval);
+    }, 5000);
+    
     return () => window.clearInterval(intervalId);
   }, [symbol, interval]);
 
