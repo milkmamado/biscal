@@ -1,12 +1,14 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 import HotCoinList from '@/components/HotCoinList';
 import OrderPanel8282 from '@/components/OrderPanel8282';
 import CoinHeader from '@/components/CoinHeader';
 import DualChartPanel from '@/components/DualChartPanel';
+import ApiKeySetup from '@/components/ApiKeySetup';
 import { Button } from '@/components/ui/button';
-import { LogOut } from 'lucide-react';
+import { LogOut, Settings } from 'lucide-react';
 
 interface TradeStats {
   realizedPnL: number;
@@ -30,9 +32,36 @@ const Index = () => {
     tradeCount: 0,
     winCount: 0
   });
+  const [hasApiKeys, setHasApiKeys] = useState<boolean | null>(null);
+  const [checkingKeys, setCheckingKeys] = useState(true);
 
   const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
+
+  // Check if user has API keys configured
+  useEffect(() => {
+    const checkApiKeys = async () => {
+      if (!user) return;
+      
+      try {
+        const { data, error } = await supabase
+          .from('user_api_keys')
+          .select('id')
+          .eq('user_id', user.id)
+          .single();
+        
+        setHasApiKeys(!!data && !error);
+      } catch (e) {
+        setHasApiKeys(false);
+      } finally {
+        setCheckingKeys(false);
+      }
+    };
+
+    if (user) {
+      checkApiKeys();
+    }
+  }, [user]);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -61,7 +90,11 @@ const Index = () => {
     navigate('/auth');
   };
 
-  if (loading) {
+  const handleApiKeyComplete = () => {
+    setHasApiKeys(true);
+  };
+
+  if (loading || checkingKeys) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-foreground">로딩중...</div>
@@ -71,6 +104,11 @@ const Index = () => {
 
   if (!user) {
     return null;
+  }
+
+  // Show API key setup if not configured
+  if (hasApiKeys === false) {
+    return <ApiKeySetup onComplete={handleApiKeyComplete} />;
   }
 
   return (
