@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { fetchOrderBook, fetch24hTicker, OrderBook, formatPrice, formatQuantity, calculateTechnicalSignal, TechnicalSignal } from '@/lib/binance';
 import { cn } from '@/lib/utils';
-import { Minus, Plus, Settings, TrendingUp, TrendingDown, RefreshCw } from 'lucide-react';
+import { Minus, Plus, TrendingUp, TrendingDown, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useBinanceApi } from '@/hooks/useBinanceApi';
 
@@ -59,7 +59,7 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
   const [loading, setLoading] = useState(true);
   const [clickOrderPercent, setClickOrderPercent] = useState<number>(100);
   const [autoTpSlInitialized, setAutoTpSlInitialized] = useState<boolean>(false);
-  const [showSettings, setShowSettings] = useState(false);
+  
   
   // Position state
   const [position, setPosition] = useState<Position | null>(null);
@@ -708,60 +708,14 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
 
   return (
     <div className="bg-card border border-border rounded text-[11px]">
-      {/* Settings Panel */}
-      {showSettings && (
-        <div className="px-2 py-2 border-b border-border bg-secondary/80 space-y-2">
-          {/* Click Order Percent */}
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] text-muted-foreground whitespace-nowrap">클릭주문</span>
-            <div className="flex gap-1">
-              {[100, 50, 25, 10].map((p) => (
-                <button
-                  key={p}
-                  onClick={() => setClickOrderPercent(p)}
-                  className={cn(
-                    "px-2 py-0.5 text-[10px] rounded border transition-colors",
-                    clickOrderPercent === p 
-                      ? "bg-primary text-primary-foreground border-primary" 
-                      : "bg-background border-border hover:bg-secondary"
-                  )}
-                >
-                  {p}%
-                </button>
-              ))}
-            </div>
-          </div>
-          
-          {/* Balance Display (from Binance) */}
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] text-muted-foreground whitespace-nowrap">잔고</span>
-            <div className="flex items-center gap-1">
-              <span className="text-[11px] font-mono text-yellow-400">
-                {balanceLoading ? '로딩...' : `₩${balanceKRW.toLocaleString()}`}
-              </span>
-              <button
-                onClick={fetchRealBalance}
-                className="p-0.5 hover:bg-secondary rounded"
-                title="잔고 새로고침"
-              >
-                <RefreshCw className={cn("w-3 h-3 text-muted-foreground", balanceLoading && "animate-spin")} />
-              </button>
-            </div>
-            <span className="text-[10px] text-muted-foreground">
-              {rateLoading ? '환율 조회중...' : `₩${usdKrwRate.toLocaleString()}/$ • $${balanceUSD.toFixed(2)} • 구매력: $${(balanceUSD * leverage).toLocaleString()}`}
-            </span>
-          </div>
-        </div>
-      )}
 
-      {/* Quantity & Leverage Row with TP/SL */}
-      <div className="px-2 py-1.5 border-b border-border bg-secondary/30 flex items-center gap-1.5 flex-wrap">
+      {/* Row 1: Leverage + TP/SL + Auto Toggle */}
+      <div className="px-2 py-1.5 border-b border-border bg-secondary/30 flex items-center gap-2">
         <select 
           value={leverage} 
           onChange={async (e) => {
             const newLeverage = Number(e.target.value);
             setLeverage(newLeverage);
-            // Set leverage on Binance
             try {
               await apiSetLeverage(symbol, newLeverage);
               toast({
@@ -771,7 +725,6 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
               });
             } catch (error: any) {
               console.error('Failed to set leverage:', error);
-              // Don't show error for already set leverage
               if (!error.message?.includes('-4046')) {
                 toast({
                   title: '레버리지 설정 실패',
@@ -782,48 +735,56 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
               }
             }
           }}
-          className="bg-background border border-border px-1 py-0.5 text-[10px] rounded"
+          className="bg-background border border-border px-1.5 py-0.5 text-[10px] rounded font-bold"
         >
           {[1, 2, 3, 5, 10, 20, 50, 75, 100, 125].map(l => (
             <option key={l} value={l}>{l}x</option>
           ))}
         </select>
         
-        {/* TP/SL Controls - Inline */}
+        <div className="border-l border-border/50 h-4" />
+        
         <button
           onClick={() => setEnableTpSl(!enableTpSl)}
           className={cn(
-            "px-1.5 py-0.5 text-[9px] rounded border transition-colors",
+            "px-1.5 py-0.5 text-[9px] rounded border transition-colors whitespace-nowrap",
             enableTpSl 
               ? "bg-green-600 text-white border-green-600" 
               : "bg-background border-border text-muted-foreground"
           )}
         >
-          자동
+          자동청산
         </button>
         <div className="flex items-center gap-0.5">
-          <span className="text-[9px] text-green-400">+$</span>
+          <span className="text-[9px] text-green-400">익절+$</span>
           <input
             type="number"
             value={tpAmount}
             onChange={(e) => setTpAmount(e.target.value)}
-            className="w-10 bg-background border border-green-600/50 px-1 py-0.5 text-[9px] rounded text-center text-green-400"
+            className="w-12 bg-background border border-green-600/50 px-1 py-0.5 text-[9px] rounded text-center text-green-400"
             disabled={!enableTpSl}
           />
         </div>
         <div className="flex items-center gap-0.5">
-          <span className="text-[9px] text-red-400">-$</span>
+          <span className="text-[9px] text-red-400">손절-$</span>
           <input
             type="number"
             value={slAmount}
             onChange={(e) => setSlAmount(e.target.value)}
-            className="w-10 bg-background border border-red-600/50 px-1 py-0.5 text-[9px] rounded text-center text-red-400"
+            className="w-12 bg-background border border-red-600/50 px-1 py-0.5 text-[9px] rounded text-center text-red-400"
             disabled={!enableTpSl}
           />
         </div>
         
-        <div className="border-l border-border/50 h-4 mx-1" />
+        <div className="flex-1" />
         
+        <span className="text-[9px] text-muted-foreground">
+          잔고 <span className="text-yellow-400 font-mono">${balanceUSD.toFixed(0)}</span>
+        </span>
+      </div>
+      
+      {/* Row 2: Quantity Controls */}
+      <div className="px-2 py-1.5 border-b border-border bg-secondary/30 flex items-center gap-1.5">
         <button
           onClick={() => adjustQty(-1)} 
           className="w-5 h-5 bg-secondary border border-border rounded flex items-center justify-center hover:bg-secondary/80"
@@ -834,7 +795,7 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
           type="text"
           value={orderQty}
           onChange={(e) => setOrderQty(e.target.value)}
-          className="w-14 bg-background border border-border px-1 py-0.5 text-center font-mono text-[10px] rounded"
+          className="w-16 bg-background border border-border px-1 py-0.5 text-center font-mono text-[10px] rounded"
         />
         <button 
           onClick={() => adjustQty(1)} 
@@ -842,12 +803,14 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
         >
           <Plus className="w-3 h-3" />
         </button>
+        
         <div className="flex-1" />
+        
         {[100, 50, 25, 10].map((p) => (
           <button 
             key={p} 
             onClick={() => handleQtyPreset(p)} 
-            className="px-1.5 py-0.5 bg-secondary border border-border text-[9px] rounded hover:bg-secondary/80"
+            className="px-2 py-0.5 bg-secondary border border-border text-[9px] rounded hover:bg-secondary/80"
           >
             {p}%
           </button>
@@ -894,31 +857,20 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
       </div>
 
       {/* Column Headers */}
-      <div className="grid grid-cols-[32px_1fr_70px_1fr_32px] text-[10px] font-medium border-b border-border bg-secondary/70">
-        <button 
-          onClick={() => setShowSettings(!showSettings)}
-          className={cn(
-            "px-1 py-1 text-center border-r border-border/50 hover:bg-background/50 transition-colors",
-            showSettings && "bg-background/50"
-          )}
-        >
-          <Settings className="w-3 h-3 text-muted-foreground mx-auto" />
-        </button>
+      <div className="grid grid-cols-[1fr_70px_1fr] text-[10px] font-medium border-b border-border bg-secondary/70">
         <div className="px-1 py-1 text-center border-r border-border/50 text-blue-400">매도잔량</div>
         <div className="px-1 py-1 text-center border-r border-border/50 text-muted-foreground">호가</div>
-        <div className="px-1 py-1 text-center border-r border-border/50 text-red-400">매수잔량</div>
-        <div className="px-1 py-1 text-center text-red-400">B</div>
+        <div className="px-1 py-1 text-center text-red-400">매수잔량</div>
       </div>
       
-      {/* Bullish Probability Display (Top Right) */}
+      {/* Bullish Probability Display */}
       {techSignal && (
-        <div className="grid grid-cols-[32px_1fr_70px_1fr_32px] text-[10px] border-b border-border/50 bg-red-950/30">
-          <div className="px-1 py-1 border-r border-border/30" />
+        <div className="grid grid-cols-[1fr_70px_1fr] text-[10px] border-b border-border/50 bg-red-950/30">
           <div className="px-1 py-1 border-r border-border/30" />
           <div className="px-1 py-1 text-center border-r border-border/30 text-muted-foreground text-[9px]">
             RSI {techSignal.rsi}
           </div>
-          <div className="px-1 py-1.5 border-r border-border/30 flex items-center justify-center gap-1">
+          <div className="px-1 py-1.5 flex items-center justify-center gap-1">
             <TrendingUp className="w-3 h-3 text-red-400" />
             <span className={cn(
               "font-bold font-mono",
@@ -928,7 +880,6 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
             </span>
             <span className="text-[8px] text-red-400/70">상승</span>
           </div>
-          <div className="px-1 py-1" />
         </div>
       )}
 
@@ -940,17 +891,8 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
           return (
             <div 
               key={`ask-${index}`} 
-              className="grid grid-cols-[32px_1fr_70px_1fr_32px] text-[11px] border-b border-border/30 hover:bg-secondary/50"
+              className="grid grid-cols-[1fr_70px_1fr] text-[11px] border-b border-border/30 hover:bg-secondary/50"
             >
-              {/* S button */}
-              <button
-                onDoubleClick={() => handleQuickOrder('short', ask.price)}
-                className="px-1 py-0.5 text-center bg-blue-950/50 hover:bg-blue-900/70 border-r border-border/30 text-blue-400 font-bold text-[10px]"
-                title={position ? "더블클릭: 청산" : "더블클릭: 숏 진입"}
-              >
-                {position?.type === 'long' ? 'C' : 'S'}
-              </button>
-              
               {/* 매도잔량 */}
               <div className="relative px-1 py-0.5 flex items-center justify-end border-r border-border/30">
                 <div 
@@ -972,16 +914,7 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
               </div>
 
               {/* Empty buy quantity */}
-              <div className="px-1 py-0.5 border-r border-border/30" />
-
-              {/* B button */}
-              <button
-                onDoubleClick={() => handleQuickOrder('long', ask.price)}
-                className="px-1 py-0.5 text-center bg-red-950/50 hover:bg-red-900/70 text-red-400 font-bold text-[10px]"
-                title="더블클릭: 롱 진입"
-              >
-                B
-              </button>
+              <div className="px-1 py-0.5" />
             </div>
           );
         })}
@@ -1054,11 +987,10 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
         </div>
       )}
 
-      {/* Bearish Probability Display (Bottom Left) */}
+      {/* Bearish Probability Display */}
       {techSignal && (
-        <div className="grid grid-cols-[32px_1fr_70px_1fr_32px] text-[10px] border-b border-border/50 bg-blue-950/30">
-          <div className="px-1 py-1 border-r border-border/30" />
-          <div className="px-1 py-1.5 border-r border-border/30 flex items-center justify-center gap-1">
+        <div className="grid grid-cols-[1fr_70px_1fr] text-[10px] border-b border-border/50 bg-blue-950/30">
+          <div className="px-1 py-1.5 flex items-center justify-center gap-1">
             <TrendingDown className="w-3 h-3 text-blue-400" />
             <span className={cn(
               "font-bold font-mono",
@@ -1068,10 +1000,9 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
             </span>
             <span className="text-[8px] text-blue-400/70">하락</span>
           </div>
-          <div className="px-1 py-1 text-center border-r border-border/30 text-muted-foreground text-[9px]">
+          <div className="px-1 py-1 text-center border-x border-border/30 text-muted-foreground text-[9px]">
             {techSignal.macdSignal === 'bullish' ? '▲' : techSignal.macdSignal === 'bearish' ? '▼' : '—'} MACD
           </div>
-          <div className="px-1 py-1 border-r border-border/30" />
           <div className="px-1 py-1" />
         </div>
       )}
@@ -1084,17 +1015,8 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
           return (
             <div 
               key={`bid-${index}`} 
-              className="grid grid-cols-[32px_1fr_70px_1fr_32px] text-[11px] border-b border-border/30 hover:bg-secondary/50"
+              className="grid grid-cols-[1fr_70px_1fr] text-[11px] border-b border-border/30 hover:bg-secondary/50"
             >
-              {/* S button */}
-              <button
-                onDoubleClick={() => handleQuickOrder('short', bid.price)}
-                className="px-1 py-0.5 text-center bg-blue-950/50 hover:bg-blue-900/70 border-r border-border/30 text-blue-400 font-bold text-[10px]"
-                title="더블클릭: 숏 진입"
-              >
-                S
-              </button>
-
               {/* Empty sell quantity */}
               <div className="px-1 py-0.5 border-r border-border/30" />
 
@@ -1108,7 +1030,7 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
               </div>
 
               {/* 매수잔량 */}
-              <div className="relative px-1 py-0.5 flex items-center border-r border-border/30">
+              <div className="relative px-1 py-0.5 flex items-center">
                 <div 
                   className="absolute left-0 top-0 h-full bg-red-500/20"
                   style={{ width: `${percentage}%` }}
@@ -1117,15 +1039,6 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
                   {formatQuantity(bid.quantity)}
                 </span>
               </div>
-
-              {/* B button */}
-              <button
-                onDoubleClick={() => handleQuickOrder('long', bid.price)}
-                className="px-1 py-0.5 text-center bg-red-950/50 hover:bg-red-900/70 text-red-400 font-bold text-[10px]"
-                title={position ? "더블클릭: 청산" : "더블클릭: 롱 진입"}
-              >
-                {position?.type === 'short' ? 'C' : 'B'}
-              </button>
             </div>
           );
         })}
