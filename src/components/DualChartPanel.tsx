@@ -317,89 +317,60 @@ const DualChartPanel = ({
         <div className="flex-1 min-h-0 relative" style={{ minHeight: '400px' }}>
           <SimpleChart symbol={symbol} interval={interval} height={500} />
           
-          {/* Horizontal Price Lines Overlay */}
+          {/* Price Labels Overlay (no lines) */}
           {(openOrders.length > 0 || entryPrice || tpPrice || slPrice) && priceRange.high > priceRange.low && (
             <>
-              {/* Take Profit Line */}
+              {/* Take Profit Label */}
               {tpPrice && tpPrice > 0 && (
                 <div 
-                  className="absolute left-0 right-0 z-20 pointer-events-none"
+                  className="absolute right-1 z-20 pointer-events-none"
                   style={{ top: getPriceYPosition(tpPrice) }}
                 >
-                  <div className="relative w-full">
-                    <div className="w-full h-px" style={{ 
-                      backgroundImage: 'repeating-linear-gradient(90deg, transparent, transparent 4px, rgb(34 197 94) 4px, rgb(34 197 94) 8px)',
-                      backgroundSize: '12px 1px'
-                    }} />
-                    <div className="absolute right-1 -top-2 bg-emerald-600 text-white text-[9px] px-1.5 py-0.5 rounded font-bold shadow-lg">
-                      익절
-                    </div>
+                  <div className="bg-emerald-600 text-white text-[9px] px-1.5 py-0.5 rounded font-bold shadow-lg -translate-y-1/2">
+                    익절 ${tpPrice.toFixed(4)}
                   </div>
                 </div>
               )}
               
-              {/* Entry Price Line */}
+              {/* Entry Price Label */}
               {entryPrice && entryPrice > 0 && (
                 <div 
-                  className="absolute left-0 right-0 z-20 pointer-events-none"
+                  className="absolute right-1 z-20 pointer-events-none"
                   style={{ top: getPriceYPosition(entryPrice) }}
                 >
-                  <div className="relative w-full">
-                    <div className="w-full h-px" style={{ 
-                      backgroundImage: 'repeating-linear-gradient(90deg, transparent, transparent 4px, rgb(234 179 8) 4px, rgb(234 179 8) 8px)',
-                      backgroundSize: '12px 1px'
-                    }} />
-                    <div className="absolute right-1 -top-2 bg-yellow-600 text-white text-[9px] px-1.5 py-0.5 rounded font-bold shadow-lg">
-                      진입
-                    </div>
+                  <div className="bg-yellow-600 text-white text-[9px] px-1.5 py-0.5 rounded font-bold shadow-lg -translate-y-1/2">
+                    진입 ${entryPrice.toFixed(4)}
                   </div>
                 </div>
               )}
               
-              {/* Stop Loss Line */}
+              {/* Stop Loss Label */}
               {slPrice && slPrice > 0 && (
                 <div 
-                  className="absolute left-0 right-0 z-20 pointer-events-none"
+                  className="absolute right-1 z-20 pointer-events-none"
                   style={{ top: getPriceYPosition(slPrice) }}
                 >
-                  <div className="relative w-full">
-                    <div className="w-full h-px" style={{ 
-                      backgroundImage: 'repeating-linear-gradient(90deg, transparent, transparent 4px, rgb(239 68 68) 4px, rgb(239 68 68) 8px)',
-                      backgroundSize: '12px 1px'
-                    }} />
-                    <div className="absolute right-1 -top-2 bg-red-600 text-white text-[9px] px-1.5 py-0.5 rounded font-bold shadow-lg">
-                      손절
-                    </div>
+                  <div className="bg-red-600 text-white text-[9px] px-1.5 py-0.5 rounded font-bold shadow-lg -translate-y-1/2">
+                    손절 ${slPrice.toFixed(4)}
                   </div>
                 </div>
               )}
               
-              {/* Pending Order Lines */}
+              {/* Pending Order Labels */}
               {openOrders.map((order) => (
                 <div 
                   key={order.orderId}
-                  className="absolute left-0 right-0 z-20 pointer-events-none"
+                  className="absolute right-1 z-20 pointer-events-none"
                   style={{ top: getPriceYPosition(order.price) }}
                 >
-                  <div className="relative w-full">
-                    <div 
-                      className={cn("w-full h-px", order.side === 'BUY' ? "bg-red-500" : "bg-blue-500")} 
-                      style={{ 
-                        backgroundImage: order.side === 'BUY' 
-                          ? 'repeating-linear-gradient(90deg, transparent, transparent 4px, rgb(239 68 68) 4px, rgb(239 68 68) 8px)'
-                          : 'repeating-linear-gradient(90deg, transparent, transparent 4px, rgb(59 130 246) 4px, rgb(59 130 246) 8px)',
-                        backgroundSize: '12px 1px'
-                      }} 
-                    />
-                    <div className={cn(
-                      "absolute right-1 -top-2.5 flex items-center gap-1 text-white text-[9px] px-1.5 py-0.5 rounded font-mono shadow-lg",
-                      order.side === 'BUY' ? "bg-red-600" : "bg-blue-600"
-                    )}>
-                      <span className={order.side === 'BUY' ? "text-red-200" : "text-blue-200"}>
-                        {order.side === 'BUY' ? '롱대기' : '숏대기'}
-                      </span>
-                      <span className="font-bold">${order.price.toFixed(5)}</span>
-                    </div>
+                  <div className={cn(
+                    "flex items-center gap-1 text-white text-[9px] px-1.5 py-0.5 rounded font-mono shadow-lg -translate-y-1/2",
+                    order.side === 'BUY' ? "bg-red-600" : "bg-blue-600"
+                  )}>
+                    <span className={order.side === 'BUY' ? "text-red-200" : "text-blue-200"}>
+                      {order.side === 'BUY' ? '롱' : '숏'}
+                    </span>
+                    <span className="font-bold">${order.price.toFixed(4)}</span>
                   </div>
                 </div>
               ))}
