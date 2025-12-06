@@ -398,11 +398,16 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
           
           if (tp > 0 && pnl >= tp) {
             tpSlProcessing.current = true;
+            closingInProgress.current = true;
+            // Immediately clear position to prevent duplicate calls
+            const positionToClose = { ...position };
+            setPosition(null);
+            
             // Execute TP close via API
             const executeTpClose = async () => {
               try {
-                const side = position.type === 'long' ? 'SELL' : 'BUY';
-                await apiPlaceMarketOrder(symbol, side, position.quantity, true);
+                const side = positionToClose.type === 'long' ? 'SELL' : 'BUY';
+                await apiPlaceMarketOrder(symbol, side, positionToClose.quantity, true);
                 toast({
                   title: '✅ 익절 청산',
                   description: `목표 수익 $${tp} 달성! 실현손익: $${pnl.toFixed(2)}`,
@@ -410,15 +415,17 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
                 });
                 onTradeClose?.({
                   symbol,
-                  side: position.type,
-                  entryPrice: position.entryPrice,
+                  side: positionToClose.type,
+                  entryPrice: positionToClose.entryPrice,
                   exitPrice: ticker.price,
-                  quantity: position.quantity,
-                  leverage: position.leverage,
+                  quantity: positionToClose.quantity,
+                  leverage: positionToClose.leverage,
                   pnl,
                 });
-                setTimeout(fetchBalanceAndPosition, 1000);
+                setTimeout(fetchBalanceAndPosition, 1500);
               } catch (error: any) {
+                // Restore position if close failed
+                setPosition(positionToClose);
                 toast({
                   title: '익절 청산 실패',
                   description: error.message || '청산을 처리할 수 없습니다.',
@@ -427,16 +434,22 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
                 });
               } finally {
                 tpSlProcessing.current = false;
+                setTimeout(() => { closingInProgress.current = false; }, 2000);
               }
             };
             executeTpClose();
           } else if (sl > 0 && pnl <= -sl) {
             tpSlProcessing.current = true;
+            closingInProgress.current = true;
+            // Immediately clear position to prevent duplicate calls
+            const positionToClose = { ...position };
+            setPosition(null);
+            
             // Execute SL close via API
             const executeSlClose = async () => {
               try {
-                const side = position.type === 'long' ? 'SELL' : 'BUY';
-                await apiPlaceMarketOrder(symbol, side, position.quantity, true);
+                const side = positionToClose.type === 'long' ? 'SELL' : 'BUY';
+                await apiPlaceMarketOrder(symbol, side, positionToClose.quantity, true);
                 toast({
                   title: '🛑 손절 청산',
                   description: `손절선 -$${sl} 도달! 실현손익: $${pnl.toFixed(2)}`,
@@ -444,15 +457,17 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
                 });
                 onTradeClose?.({
                   symbol,
-                  side: position.type,
-                  entryPrice: position.entryPrice,
+                  side: positionToClose.type,
+                  entryPrice: positionToClose.entryPrice,
                   exitPrice: ticker.price,
-                  quantity: position.quantity,
-                  leverage: position.leverage,
+                  quantity: positionToClose.quantity,
+                  leverage: positionToClose.leverage,
                   pnl,
                 });
-                setTimeout(fetchBalanceAndPosition, 1000);
+                setTimeout(fetchBalanceAndPosition, 1500);
               } catch (error: any) {
+                // Restore position if close failed
+                setPosition(positionToClose);
                 toast({
                   title: '손절 청산 실패',
                   description: error.message || '청산을 처리할 수 없습니다.',
@@ -461,6 +476,7 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
                 });
               } finally {
                 tpSlProcessing.current = false;
+                setTimeout(() => { closingInProgress.current = false; }, 2000);
               }
             };
             executeSlClose();
