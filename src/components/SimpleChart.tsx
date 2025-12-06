@@ -90,11 +90,11 @@ const detectSupportResistance = (klines: KlineData[], avgVolume: number): Suppor
     used.add(i);
   });
   
-  // Return only strongest levels (max 3 of each type)
-  const supports = clustered.filter(l => l.type === 'support').sort((a, b) => b.strength - a.strength).slice(0, 3);
-  const resistances = clustered.filter(l => l.type === 'resistance').sort((a, b) => b.strength - a.strength).slice(0, 3);
+  // Return only the strongest level of each type (max 1 each)
+  const support = clustered.filter(l => l.type === 'support').sort((a, b) => b.strength - a.strength)[0];
+  const resistance = clustered.filter(l => l.type === 'resistance').sort((a, b) => b.strength - a.strength)[0];
   
-  return [...supports, ...resistances];
+  return [support, resistance].filter(Boolean) as SupportResistanceLevel[];
 };
 
 const SimpleChart = memo(({ symbol, interval = '1', height = 500 }: SimpleChartProps) => {
@@ -183,11 +183,6 @@ const SimpleChart = memo(({ symbol, interval = '1', height = 500 }: SimpleChartP
             {chartData.currentPrice.toLocaleString()}
           </span>
         </div>
-        <div className="flex items-center gap-3 text-[9px] font-mono">
-          <span className="text-emerald-400">BB상:{chartData.bb.upper.toFixed(1)}</span>
-          <span className="text-emerald-400/70">BB중:{chartData.bb.middle.toFixed(1)}</span>
-          <span className="text-emerald-400">BB하:{chartData.bb.lower.toFixed(1)}</span>
-        </div>
       </div>
 
       {/* Price Chart */}
@@ -212,65 +207,34 @@ const SimpleChart = memo(({ symbol, interval = '1', height = 500 }: SimpleChartP
             />
           ))}
 
-          {/* Support/Resistance Lines */}
+          {/* Support/Resistance - only strongest 1 each */}
           {chartData.srLevels.map((level, i) => {
             const y = getY(level.price);
-            if (y < 0 || y > 100) return null;
+            if (y < 5 || y > 95) return null;
             
             const isSupport = level.type === 'support';
-            const opacity = level.strength === 3 ? 1 : level.strength === 2 ? 0.7 : 0.5;
-            const width = level.strength === 3 ? 2 : 1;
             
             return (
-              <div key={`sr-${i}`} className="absolute left-0 right-0 flex items-center" style={{ top: `${y}%` }}>
+              <div key={`sr-${i}`} className="absolute left-0 right-0" style={{ top: `${y}%` }}>
                 <div
                   className={cn(
                     "w-full border-t",
-                    isSupport ? "border-cyan-400" : "border-orange-400"
+                    isSupport ? "border-cyan-400/60" : "border-orange-400/60"
                   )}
-                  style={{ 
-                    borderStyle: 'dashed',
-                    borderWidth: `${width}px`,
-                    opacity,
-                  }}
+                  style={{ borderStyle: 'dashed', borderWidth: '1px' }}
                 />
-                <span 
-                  className={cn(
-                    "absolute right-0 text-[7px] font-mono px-0.5",
-                    isSupport ? "text-cyan-400 bg-cyan-950/80" : "text-orange-400 bg-orange-950/80"
-                  )}
-                  style={{ opacity }}
-                >
-                  {isSupport ? 'S' : 'R'}{level.strength}
-                </span>
               </div>
             );
           })}
 
-          {/* Bollinger Bands - Green dotted 1px lines */}
+          {/* Bollinger Bands - subtle green dotted */}
           <div
-            className="absolute left-0 right-0 border-t border-emerald-400"
-            style={{ 
-              top: `${getY(chartData.bb.upper)}%`,
-              borderStyle: 'dotted',
-              borderWidth: '1px',
-            }}
+            className="absolute left-0 right-0 border-t border-emerald-500/40"
+            style={{ top: `${getY(chartData.bb.upper)}%`, borderStyle: 'dotted' }}
           />
           <div
-            className="absolute left-0 right-0 border-t border-emerald-400/50"
-            style={{ 
-              top: `${getY(chartData.bb.middle)}%`,
-              borderStyle: 'dotted',
-              borderWidth: '1px',
-            }}
-          />
-          <div
-            className="absolute left-0 right-0 border-t border-emerald-400"
-            style={{ 
-              top: `${getY(chartData.bb.lower)}%`,
-              borderStyle: 'dotted',
-              borderWidth: '1px',
-            }}
+            className="absolute left-0 right-0 border-t border-emerald-500/40"
+            style={{ top: `${getY(chartData.bb.lower)}%`, borderStyle: 'dotted' }}
           />
 
           {/* Current price line */}
@@ -288,21 +252,9 @@ const SimpleChart = memo(({ symbol, interval = '1', height = 500 }: SimpleChartP
               const bodyHeight = Math.max(bodyBottom - bodyTop, 0.5);
               const wickTop = getY(k.high);
               const wickBottom = getY(k.low);
-              
-              // High volume indicator
-              const volumeRatio = k.volume / chartData.avgVolume;
-              const isHighVolume = volumeRatio >= 2;
 
               return (
                 <div key={i} className="flex-1 relative">
-                  {/* High volume marker */}
-                  {isHighVolume && (
-                    <div
-                      className="absolute left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-yellow-400 z-20"
-                      style={{ top: `${isUp ? wickTop - 1 : wickBottom + 1}%` }}
-                      title={`거래량 ${volumeRatio.toFixed(1)}x`}
-                    />
-                  )}
                   {/* Wick */}
                   <div
                     className={cn(
@@ -318,8 +270,7 @@ const SimpleChart = memo(({ symbol, interval = '1', height = 500 }: SimpleChartP
                   <div
                     className={cn(
                       "absolute left-1/2 -translate-x-1/2",
-                      isUp ? "bg-red-500" : "bg-blue-500",
-                      isHighVolume && "ring-1 ring-yellow-400/50"
+                      isUp ? "bg-red-500" : "bg-blue-500"
                     )}
                     style={{
                       top: `${bodyTop}%`,
@@ -341,16 +292,13 @@ const SimpleChart = memo(({ symbol, interval = '1', height = 500 }: SimpleChartP
           {chartData.klines.map((k, i) => {
             const volPct = Math.max((k.volume / chartData.maxVolume) * 100, 5);
             const isUp = k.close >= k.open;
-            const volumeRatio = k.volume / chartData.avgVolume;
-            const isHighVolume = volumeRatio >= 2;
 
             return (
               <div key={i} className="flex-1 flex flex-col justify-end">
                 <div
                   className={cn(
                     "w-full rounded-t-sm",
-                    isUp ? "bg-red-500/70" : "bg-blue-500/70",
-                    isHighVolume && "!bg-yellow-400/80"
+                    isUp ? "bg-red-500/70" : "bg-blue-500/70"
                   )}
                   style={{ height: `${volPct}%` }}
                 />
@@ -359,7 +307,6 @@ const SimpleChart = memo(({ symbol, interval = '1', height = 500 }: SimpleChartP
           })}
         </div>
         <span className="absolute right-1 top-0.5 text-[8px] text-muted-foreground">VOL</span>
-        <span className="absolute right-1 bottom-0.5 text-[7px] text-yellow-400/60">●=거래량 급등</span>
       </div>
     </div>
   );
