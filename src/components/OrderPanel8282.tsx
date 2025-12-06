@@ -857,20 +857,23 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
       </div>
 
       {/* Column Headers */}
-      <div className="grid grid-cols-[1fr_70px_1fr] text-[10px] font-medium border-b border-border bg-secondary/70">
+      <div className="grid grid-cols-[32px_1fr_70px_1fr_32px] text-[10px] font-medium border-b border-border bg-secondary/70">
+        <div className="px-1 py-1 text-center border-r border-border/50 text-blue-400">S</div>
         <div className="px-1 py-1 text-center border-r border-border/50 text-blue-400">매도잔량</div>
         <div className="px-1 py-1 text-center border-r border-border/50 text-muted-foreground">호가</div>
-        <div className="px-1 py-1 text-center text-red-400">매수잔량</div>
+        <div className="px-1 py-1 text-center border-r border-border/50 text-red-400">매수잔량</div>
+        <div className="px-1 py-1 text-center text-red-400">B</div>
       </div>
       
       {/* Bullish Probability Display */}
       {techSignal && (
-        <div className="grid grid-cols-[1fr_70px_1fr] text-[10px] border-b border-border/50 bg-red-950/30">
+        <div className="grid grid-cols-[32px_1fr_70px_1fr_32px] text-[10px] border-b border-border/50 bg-red-950/30">
+          <div className="px-1 py-1 border-r border-border/30" />
           <div className="px-1 py-1 border-r border-border/30" />
           <div className="px-1 py-1 text-center border-r border-border/30 text-muted-foreground text-[9px]">
             RSI {techSignal.rsi}
           </div>
-          <div className="px-1 py-1.5 flex items-center justify-center gap-1">
+          <div className="px-1 py-1.5 border-r border-border/30 flex items-center justify-center gap-1">
             <TrendingUp className="w-3 h-3 text-red-400" />
             <span className={cn(
               "font-bold font-mono",
@@ -880,6 +883,7 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
             </span>
             <span className="text-[8px] text-red-400/70">상승</span>
           </div>
+          <div className="px-1 py-1" />
         </div>
       )}
 
@@ -891,8 +895,17 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
           return (
             <div 
               key={`ask-${index}`} 
-              className="grid grid-cols-[1fr_70px_1fr] text-[11px] border-b border-border/30 hover:bg-secondary/50"
+              className="grid grid-cols-[32px_1fr_70px_1fr_32px] text-[11px] border-b border-border/30 hover:bg-secondary/50"
             >
+              {/* S button */}
+              <button
+                onDoubleClick={() => handleQuickOrder('short', ask.price)}
+                className="px-1 py-0.5 text-center bg-blue-950/50 hover:bg-blue-900/70 border-r border-border/30 text-blue-400 font-bold text-[10px]"
+                title={position ? "더블클릭: 청산" : "더블클릭: 숏 진입"}
+              >
+                {position?.type === 'long' ? 'C' : 'S'}
+              </button>
+              
               {/* 매도잔량 */}
               <div className="relative px-1 py-0.5 flex items-center justify-end border-r border-border/30">
                 <div 
@@ -914,7 +927,16 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
               </div>
 
               {/* Empty buy quantity */}
-              <div className="px-1 py-0.5" />
+              <div className="px-1 py-0.5 border-r border-border/30" />
+
+              {/* B button */}
+              <button
+                onDoubleClick={() => handleQuickOrder('long', ask.price)}
+                className="px-1 py-0.5 text-center bg-red-950/50 hover:bg-red-900/70 text-red-400 font-bold text-[10px]"
+                title="더블클릭: 롱 진입"
+              >
+                B
+              </button>
             </div>
           );
         })}
@@ -989,8 +1011,9 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
 
       {/* Bearish Probability Display */}
       {techSignal && (
-        <div className="grid grid-cols-[1fr_70px_1fr] text-[10px] border-b border-border/50 bg-blue-950/30">
-          <div className="px-1 py-1.5 flex items-center justify-center gap-1">
+        <div className="grid grid-cols-[32px_1fr_70px_1fr_32px] text-[10px] border-b border-border/50 bg-blue-950/30">
+          <div className="px-1 py-1 border-r border-border/30" />
+          <div className="px-1 py-1.5 border-r border-border/30 flex items-center justify-center gap-1">
             <TrendingDown className="w-3 h-3 text-blue-400" />
             <span className={cn(
               "font-bold font-mono",
@@ -1000,9 +1023,10 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
             </span>
             <span className="text-[8px] text-blue-400/70">하락</span>
           </div>
-          <div className="px-1 py-1 text-center border-x border-border/30 text-muted-foreground text-[9px]">
+          <div className="px-1 py-1 text-center border-r border-border/30 text-muted-foreground text-[9px]">
             {techSignal.macdSignal === 'bullish' ? '▲' : techSignal.macdSignal === 'bearish' ? '▼' : '—'} MACD
           </div>
+          <div className="px-1 py-1 border-r border-border/30" />
           <div className="px-1 py-1" />
         </div>
       )}
@@ -1015,8 +1039,17 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
           return (
             <div 
               key={`bid-${index}`} 
-              className="grid grid-cols-[1fr_70px_1fr] text-[11px] border-b border-border/30 hover:bg-secondary/50"
+              className="grid grid-cols-[32px_1fr_70px_1fr_32px] text-[11px] border-b border-border/30 hover:bg-secondary/50"
             >
+              {/* S button */}
+              <button
+                onDoubleClick={() => handleQuickOrder('short', bid.price)}
+                className="px-1 py-0.5 text-center bg-blue-950/50 hover:bg-blue-900/70 border-r border-border/30 text-blue-400 font-bold text-[10px]"
+                title="더블클릭: 숏 진입"
+              >
+                S
+              </button>
+
               {/* Empty sell quantity */}
               <div className="px-1 py-0.5 border-r border-border/30" />
 
@@ -1030,7 +1063,7 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
               </div>
 
               {/* 매수잔량 */}
-              <div className="relative px-1 py-0.5 flex items-center">
+              <div className="relative px-1 py-0.5 flex items-center border-r border-border/30">
                 <div 
                   className="absolute left-0 top-0 h-full bg-red-500/20"
                   style={{ width: `${percentage}%` }}
@@ -1039,6 +1072,15 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
                   {formatQuantity(bid.quantity)}
                 </span>
               </div>
+
+              {/* B button */}
+              <button
+                onDoubleClick={() => handleQuickOrder('long', bid.price)}
+                className="px-1 py-0.5 text-center bg-red-950/50 hover:bg-red-900/70 text-red-400 font-bold text-[10px]"
+                title={position ? "더블클릭: 청산" : "더블클릭: 롱 진입"}
+              >
+                {position?.type === 'short' ? 'C' : 'B'}
+              </button>
             </div>
           );
         })}
@@ -1066,29 +1108,6 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
         </div>
       </div>
 
-      {/* Quick Order Buttons */}
-      <div className={cn("grid border-t border-border", position ? "grid-cols-3" : "grid-cols-2")}>
-        <button 
-          onClick={() => handleQuickOrder('short', currentPrice)}
-          className="py-2.5 font-bold text-sm bg-blue-600 hover:bg-blue-500 text-white border-r border-border"
-        >
-          숏 (매도)
-        </button>
-        {position && (
-          <button 
-            onClick={() => handleMarketClose()}
-            className="py-2.5 font-bold text-sm bg-yellow-600 hover:bg-yellow-500 text-white border-r border-border"
-          >
-            청산
-          </button>
-        )}
-        <button 
-          onClick={() => handleQuickOrder('long', currentPrice)}
-          className="py-2.5 font-bold text-sm bg-red-600 hover:bg-red-500 text-white"
-        >
-          롱 (매수)
-        </button>
-      </div>
 
     </div>
   );
