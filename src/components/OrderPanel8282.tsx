@@ -778,8 +778,16 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
         
         <div className="flex-1" />
         
+        {/* 디버그: 마진 정보 */}
         <span className="text-[9px] text-muted-foreground">
-          잔고 <span className="text-yellow-400 font-mono">${balanceUSD.toFixed(0)}</span>
+          잔고 <span className="text-yellow-400 font-mono">${balanceUSD.toFixed(2)}</span>
+          {currentPrice > 0 && (
+            <>
+              {' | '}필요마진 <span className="text-orange-400 font-mono">
+                ${((parseFloat(orderQty) || 0) * currentPrice / leverage).toFixed(2)}
+              </span>
+            </>
+          )}
         </span>
       </div>
       
