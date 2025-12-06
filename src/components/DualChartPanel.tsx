@@ -206,7 +206,7 @@ const DualChartPanel = ({
                 "text-sm font-bold font-mono",
                 unrealizedPnL >= 0 ? "text-red-400" : "text-blue-400"
               )}>
-                {unrealizedPnL >= 0 ? '+' : ''}{unrealizedPnL.toFixed(2)}$
+                {unrealizedPnL >= 0 ? '+' : ''}₩{formatKRW(unrealizedPnL)}
               </span>
             </div>
           )}
@@ -217,7 +217,7 @@ const DualChartPanel = ({
               "text-sm font-bold font-mono",
               realizedPnL >= 0 ? "text-red-400" : "text-blue-400"
             )}>
-              {realizedPnL >= 0 ? '+' : ''}{realizedPnL.toFixed(2)}$
+              {realizedPnL >= 0 ? '+' : ''}₩{formatKRW(realizedPnL)}
             </span>
           </div>
           
@@ -228,7 +228,7 @@ const DualChartPanel = ({
                 "text-sm font-bold font-mono",
                 totalPnL >= 0 ? "text-red-400" : "text-blue-400"
               )}>
-                {totalPnL >= 0 ? '+' : ''}{totalPnL.toFixed(2)}$
+                {totalPnL >= 0 ? '+' : ''}₩{formatKRW(totalPnL)}
               </span>
               <span className={cn(
                 "text-[10px] font-bold font-mono",
