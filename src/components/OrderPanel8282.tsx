@@ -152,8 +152,8 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
   // Auto-set 100% quantity and recommended TP/SL when balance loads
   useEffect(() => {
     if (balanceUSD > 0 && currentPrice > 0 && !autoTpSlInitialized) {
-      // Set 100% quantity with 5% margin buffer
-      const safeBalance = balanceUSD * 0.95;
+      // Set 100% quantity with 20% margin buffer (Binance requires more buffer for fees, mark price, etc.)
+      const safeBalance = balanceUSD * 0.80;
       const buyingPower = safeBalance * leverage;
       const qty = buyingPower / currentPrice;
       setOrderQty(qty.toFixed(3));
@@ -177,8 +177,8 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
   // Recalculate quantity and TP/SL when leverage changes
   useEffect(() => {
     if (balanceUSD > 0 && currentPrice > 0 && autoTpSlInitialized) {
-      // Update quantity for 100% with 5% margin buffer
-      const safeBalance = balanceUSD * 0.95;
+      // Update quantity for 100% with 20% margin buffer
+      const safeBalance = balanceUSD * 0.80;
       const buyingPower = safeBalance * leverage;
       const qty = buyingPower / currentPrice;
       setOrderQty(qty.toFixed(3));
