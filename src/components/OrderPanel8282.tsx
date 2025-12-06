@@ -31,7 +31,15 @@ interface OrderPanel8282Props {
 
 const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose, testnet = false }: OrderPanel8282Props) => {
   const { toast } = useToast();
-  const { getBalances, loading: apiLoading } = useBinanceApi(testnet);
+  const { 
+    getBalances, 
+    getPositions,
+    placeMarketOrder: apiPlaceMarketOrder, 
+    placeLimitOrder: apiPlaceLimitOrder,
+    cancelAllOrders: apiCancelAllOrders,
+    setLeverage: apiSetLeverage,
+    loading: apiLoading 
+  } = useBinanceApi(testnet);
   const [orderBook, setOrderBook] = useState<OrderBook | null>(null);
   const [currentPrice, setCurrentPrice] = useState<number>(0);
   const [prevPrice, setPrevPrice] = useState<number>(0);
@@ -89,12 +97,47 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose, t
     }
   };
   
-  // Fetch balance on mount and every 10 seconds
+  // Fetch balance and position on mount and every 10 seconds
+  const fetchBalanceAndPosition = async () => {
+    setBalanceLoading(true);
+    try {
+      // Fetch balance
+      const balances = await getBalances();
+      const usdtBalance = balances?.find((b: any) => b.asset === 'USDT');
+      if (usdtBalance) {
+        const available = parseFloat(usdtBalance.availableBalance) || 0;
+        setBalanceUSD(available);
+      }
+      
+      // Fetch real position for this symbol
+      const positions = await getPositions(symbol);
+      const symbolPosition = positions?.find((p: any) => p.symbol === symbol);
+      if (symbolPosition) {
+        const positionAmt = parseFloat(symbolPosition.positionAmt);
+        if (Math.abs(positionAmt) > 0.00001) {
+          setPosition({
+            type: positionAmt > 0 ? 'long' : 'short',
+            entryPrice: parseFloat(symbolPosition.entryPrice),
+            quantity: Math.abs(positionAmt),
+            leverage: parseInt(symbolPosition.leverage) || 20
+          });
+          setLeverage(parseInt(symbolPosition.leverage) || 20);
+        } else {
+          setPosition(null);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch balance/position:', error);
+    } finally {
+      setBalanceLoading(false);
+    }
+  };
+  
   useEffect(() => {
-    fetchRealBalance();
-    const interval = setInterval(fetchRealBalance, 10000);
+    fetchBalanceAndPosition();
+    const interval = setInterval(fetchBalanceAndPosition, 10000);
     return () => clearInterval(interval);
-  }, []);
+  }, [symbol]);
   
   // Fetch USD/KRW exchange rate
   useEffect(() => {
@@ -304,92 +347,87 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose, t
     return pnl;
   };
 
-  const handleQuickOrder = (type: 'long' | 'short', price: number) => {
-    const baseQty = parseFloat(orderQty) || 1;
-    const actualQty = Math.floor(baseQty * (clickOrderPercent / 100));
+  const handleQuickOrder = async (type: 'long' | 'short', price: number) => {
+    const baseQty = parseFloat(orderQty) || 0.001;
+    const actualQty = baseQty * (clickOrderPercent / 100);
     
-    // If position exists and opposite direction, create limit close order
-    if (position && position.type !== type) {
-      // Create pending close order
-      const newOrder: PendingOrder = {
-        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        type,
-        price,
-        quantity: position.quantity,
-        leverage,
-        createdAt: Date.now()
-      };
-      setPendingOrders(prev => [...prev, newOrder]);
-      
+    if (balanceUSD <= 0) {
       toast({
-        title: '📋 지정가 청산 주문',
-        description: `${symbol} @ $${formatPrice(price)} 대기중`,
+        title: '잔고 부족',
+        description: '거래 가능한 잔고가 없습니다.',
+        variant: 'destructive',
         duration: 2000,
       });
       return;
     }
     
-    // Create pending order for entry or 추매
-    const newOrder: PendingOrder = {
-      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      type,
-      price,
-      quantity: actualQty,
-      leverage,
-      createdAt: Date.now()
-    };
-    setPendingOrders(prev => [...prev, newOrder]);
-    
-    toast({
-      title: type === 'long' ? '📋 지정가 롱 주문' : '📋 지정가 숏 주문',
-      description: `${symbol} ${actualQty}개 @ $${formatPrice(price)} 대기중`,
-      duration: 2000,
-    });
-  };
-
-  const handleMarketOrder = (type: 'long' | 'short') => {
-    const qty = parseFloat(orderQty) || 1;
-    
-    if (position && position.type !== type) {
-      handleMarketClose();
-      return;
-    }
-    
-    // 추매: 평균단가 계산 및 수량 합산
-    if (position && position.type === type) {
-      const totalQty = position.quantity + qty;
-      const avgPrice = ((position.entryPrice * position.quantity) + (currentPrice * qty)) / totalQty;
+    try {
+      const side = type === 'long' ? 'BUY' : 'SELL';
+      const reduceOnly = position && position.type !== type;
+      const qty = reduceOnly ? position!.quantity : actualQty;
       
-      setPosition({
-        type,
-        entryPrice: avgPrice,
-        quantity: totalQty,
-        leverage
-      });
+      await apiPlaceLimitOrder(symbol, side, qty, price, reduceOnly);
       
       toast({
-        title: type === 'long' ? '🟢 시장가 롱 추매' : '🔴 시장가 숏 추매',
-        description: `${symbol} +${qty}개 @ $${formatPrice(currentPrice)} → 총 ${totalQty}개 (평단 $${formatPrice(avgPrice)})`,
+        title: type === 'long' ? '📋 지정가 롱 주문' : '📋 지정가 숏 주문',
+        description: `${symbol} ${qty.toFixed(3)}개 @ $${formatPrice(price)}`,
+        duration: 2000,
+      });
+      
+      // Refresh position after order
+      setTimeout(fetchBalanceAndPosition, 1000);
+    } catch (error: any) {
+      toast({
+        title: '주문 실패',
+        description: error.message || '주문을 처리할 수 없습니다.',
+        variant: 'destructive',
+        duration: 3000,
+      });
+    }
+  };
+
+  const handleMarketOrder = async (type: 'long' | 'short') => {
+    const qty = parseFloat(orderQty) || 0.001;
+    
+    if (balanceUSD <= 0) {
+      toast({
+        title: '잔고 부족',
+        description: '거래 가능한 잔고가 없습니다.',
+        variant: 'destructive',
         duration: 2000,
       });
       return;
     }
     
-    setPosition({
-      type,
-      entryPrice: currentPrice,
-      quantity: qty,
-      leverage
-    });
+    // If opposite position exists, close it
+    if (position && position.type !== type) {
+      await handleMarketClose();
+      return;
+    }
     
-    toast({
-      title: type === 'long' ? '🟢 시장가 롱' : '🔴 시장가 숏',
-      description: `${symbol} ${qty}개 @ 시장가 (${leverage}x)${enableTpSl ? ` | TP:+$${tpAmount} SL:-$${slAmount}` : ''}`,
-      duration: 2000,
-    });
+    try {
+      const side = type === 'long' ? 'BUY' : 'SELL';
+      await apiPlaceMarketOrder(symbol, side, qty, false);
+      
+      toast({
+        title: type === 'long' ? '🟢 시장가 롱' : '🔴 시장가 숏',
+        description: `${symbol} ${qty}개 @ 시장가 (${leverage}x)`,
+        duration: 2000,
+      });
+      
+      // Refresh position after order
+      setTimeout(fetchBalanceAndPosition, 1000);
+    } catch (error: any) {
+      toast({
+        title: '주문 실패',
+        description: error.message || '주문을 처리할 수 없습니다.',
+        variant: 'destructive',
+        duration: 3000,
+      });
+    }
   };
 
-  const handleMarketClose = (percent: number = 100) => {
+  const handleMarketClose = async (percent: number = 100) => {
     if (!position) {
       toast({
         title: '포지션 없음',
@@ -400,61 +438,74 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose, t
     }
     
     const closeQty = position.quantity * (percent / 100);
-    const remainingQty = position.quantity - closeQty;
-    const pnl = calculatePnL({ ...position, quantity: closeQty }, currentPrice);
     
-    onTradeClose?.(pnl);
-    
-    if (remainingQty > 0.0001) {
-      // 부분 청산 - 남은 포지션 유지
-      setPosition({
-        ...position,
-        quantity: remainingQty
-      });
-      toast({
-        title: pnl >= 0 ? '✅ 부분 청산' : '❌ 부분 청산',
-        description: `${percent}% 청산 (${closeQty.toFixed(3)}개) | 손익: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)} | 잔여: ${remainingQty.toFixed(3)}개`,
-        duration: 3000,
-      });
-    } else {
-      // 전량 청산
+    try {
+      // Close position with opposite side order
+      const side = position.type === 'long' ? 'SELL' : 'BUY';
+      await apiPlaceMarketOrder(symbol, side, closeQty, true);
+      
+      const pnl = calculatePnL({ ...position, quantity: closeQty }, currentPrice);
+      onTradeClose?.(pnl);
+      
       toast({
         title: pnl >= 0 ? '✅ 청산 완료' : '❌ 청산 완료',
-        description: `${symbol} ${position.quantity}개 @ $${formatPrice(currentPrice)} | 손익: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}`,
+        description: `${symbol} ${closeQty.toFixed(3)}개 | 손익: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}`,
         duration: 3000,
       });
-      setPosition(null);
+      
+      // Refresh position after close
+      setTimeout(fetchBalanceAndPosition, 1000);
+    } catch (error: any) {
+      toast({
+        title: '청산 실패',
+        description: error.message || '청산을 처리할 수 없습니다.',
+        variant: 'destructive',
+        duration: 3000,
+      });
     }
   };
 
-  const handleCloseAtPrice = (price: number) => {
+  const handleCloseAtPrice = async (price: number) => {
     if (!position) return;
     
-    const pnl = calculatePnL(position, price);
-    onTradeClose?.(pnl);
-    toast({
-      title: pnl >= 0 ? '✅ 지정가 청산' : '❌ 지정가 청산',
-      description: `${symbol} ${position.quantity}개 @ $${formatPrice(price)} | 예상손익: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}`,
-      duration: 3000,
-    });
-    setPosition(null);
+    try {
+      const side = position.type === 'long' ? 'SELL' : 'BUY';
+      await apiPlaceLimitOrder(symbol, side, position.quantity, price, true);
+      
+      const pnl = calculatePnL(position, price);
+      
+      toast({
+        title: '📋 지정가 청산 주문',
+        description: `${symbol} ${position.quantity.toFixed(3)}개 @ $${formatPrice(price)} | 예상손익: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}`,
+        duration: 3000,
+      });
+    } catch (error: any) {
+      toast({
+        title: '주문 실패',
+        description: error.message || '주문을 처리할 수 없습니다.',
+        variant: 'destructive',
+        duration: 3000,
+      });
+    }
   };
 
-  const handleCancelAll = () => {
-    if (pendingOrders.length === 0) {
+  const handleCancelAll = async () => {
+    try {
+      await apiCancelAllOrders(symbol);
+      setPendingOrders([]);
       toast({
-        title: '취소할 주문 없음',
-        description: '대기중인 주문이 없습니다.',
+        title: '일괄취소 완료',
+        description: `${symbol} 모든 주문이 취소되었습니다.`,
         duration: 2000,
       });
-      return;
+    } catch (error: any) {
+      toast({
+        title: '취소 실패',
+        description: error.message || '주문 취소를 처리할 수 없습니다.',
+        variant: 'destructive',
+        duration: 3000,
+      });
     }
-    setPendingOrders([]);
-    toast({
-      title: '일괄취소',
-      description: `${pendingOrders.length}건의 주문이 취소되었습니다.`,
-      duration: 2000,
-    });
   };
 
   const handleQtyPreset = (percent: number) => {
