@@ -1,7 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { cn } from '@/lib/utils';
 import { useBinanceApi } from '@/hooks/useBinanceApi';
 import { RefreshCw } from 'lucide-react';
+
+// Lazy load chart to prevent blocking
+const LightweightChart = lazy(() => import('./LightweightChart'));
 
 interface DualChartPanelProps {
   symbol: string;
@@ -174,7 +177,7 @@ const DualChartPanel = ({
         </div>
       </div>
 
-      {/* Chart Area - Temporarily disabled */}
+      {/* Chart Area */}
       <div className="bg-card border border-border rounded overflow-hidden flex flex-col flex-1 min-h-0">
         <div className="px-2 py-1 bg-secondary/50 border-b border-border flex items-center gap-0.5 flex-wrap shrink-0">
           {INTERVALS.map((int) => (
@@ -192,8 +195,14 @@ const DualChartPanel = ({
             </button>
           ))}
         </div>
-        <div className="flex-1 min-h-0 flex items-center justify-center text-muted-foreground text-sm">
-          차트 로딩 중... (라이브러리 설치 확인 필요)
+        <div className="flex-1 min-h-0" style={{ minHeight: '400px' }}>
+          <Suspense fallback={
+            <div className="w-full h-full flex items-center justify-center bg-card">
+              <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            </div>
+          }>
+            <LightweightChart symbol={symbol} interval={interval} height={500} />
+          </Suspense>
         </div>
       </div>
     </div>
