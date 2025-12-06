@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { fetchSymbolPrecision, roundQuantity, roundPrice } from '@/lib/binance';
 
 export interface BinanceBalance {
   asset: string;
@@ -101,11 +102,15 @@ export const useBinanceApi = () => {
     quantity: number,
     reduceOnly: boolean = false
   ) => {
+    // Fetch precision and round quantity
+    const precision = await fetchSymbolPrecision(symbol);
+    const roundedQuantity = roundQuantity(quantity, precision);
+    
     return callBinanceApi('placeOrder', {
       symbol,
       side,
       type: 'MARKET',
-      quantity,
+      quantity: roundedQuantity,
       reduceOnly,
     });
   }, [callBinanceApi]);
@@ -117,12 +122,17 @@ export const useBinanceApi = () => {
     price: number,
     reduceOnly: boolean = false
   ) => {
+    // Fetch precision and round quantity/price
+    const precision = await fetchSymbolPrecision(symbol);
+    const roundedQuantity = roundQuantity(quantity, precision);
+    const roundedPrice = roundPrice(price, precision);
+    
     return callBinanceApi('placeOrder', {
       symbol,
       side,
       type: 'LIMIT',
-      quantity,
-      price,
+      quantity: roundedQuantity,
+      price: roundedPrice,
       timeInForce: 'GTC',
       reduceOnly,
     });

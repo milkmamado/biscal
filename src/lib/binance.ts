@@ -48,6 +48,79 @@ export interface OpenInterestInfo {
   openInterest: number;
 }
 
+export interface SymbolPrecision {
+  symbol: string;
+  pricePrecision: number;
+  quantityPrecision: number;
+  tickSize: number;
+  stepSize: number;
+  minQty: number;
+  minNotional: number;
+}
+
+// Cache for symbol precision info
+const symbolPrecisionCache: Map<string, SymbolPrecision> = new Map();
+
+// Fetch symbol precision info
+export async function fetchSymbolPrecision(symbol: string): Promise<SymbolPrecision> {
+  // Check cache first
+  if (symbolPrecisionCache.has(symbol)) {
+    return symbolPrecisionCache.get(symbol)!;
+  }
+
+  const response = await fetch(`${BASE_URL}/fapi/v1/exchangeInfo`);
+  const data = await response.json();
+  
+  const symbolInfo = data.symbols.find((s: any) => s.symbol === symbol);
+  
+  if (!symbolInfo) {
+    // Return default precision if symbol not found
+    return {
+      symbol,
+      pricePrecision: 2,
+      quantityPrecision: 3,
+      tickSize: 0.01,
+      stepSize: 0.001,
+      minQty: 0.001,
+      minNotional: 5,
+    };
+  }
+
+  // Extract filters
+  const priceFilter = symbolInfo.filters.find((f: any) => f.filterType === 'PRICE_FILTER');
+  const lotSizeFilter = symbolInfo.filters.find((f: any) => f.filterType === 'LOT_SIZE');
+  const minNotionalFilter = symbolInfo.filters.find((f: any) => f.filterType === 'MIN_NOTIONAL');
+
+  const precision: SymbolPrecision = {
+    symbol,
+    pricePrecision: symbolInfo.pricePrecision,
+    quantityPrecision: symbolInfo.quantityPrecision,
+    tickSize: parseFloat(priceFilter?.tickSize || '0.01'),
+    stepSize: parseFloat(lotSizeFilter?.stepSize || '0.001'),
+    minQty: parseFloat(lotSizeFilter?.minQty || '0.001'),
+    minNotional: parseFloat(minNotionalFilter?.notional || '5'),
+  };
+
+  // Cache the result
+  symbolPrecisionCache.set(symbol, precision);
+
+  return precision;
+}
+
+// Round quantity to valid precision
+export function roundQuantity(quantity: number, precision: SymbolPrecision): number {
+  const stepSize = precision.stepSize;
+  const rounded = Math.floor(quantity / stepSize) * stepSize;
+  return parseFloat(rounded.toFixed(precision.quantityPrecision));
+}
+
+// Round price to valid precision
+export function roundPrice(price: number, precision: SymbolPrecision): number {
+  const tickSize = precision.tickSize;
+  const rounded = Math.round(price / tickSize) * tickSize;
+  return parseFloat(rounded.toFixed(precision.pricePrecision));
+}
+
 // Fetch all futures symbols (actively trading only)
 export async function fetchFuturesSymbols(): Promise<Set<string>> {
   const response = await fetch(`${BASE_URL}/fapi/v1/exchangeInfo`);
