@@ -202,25 +202,25 @@ const SimpleChart = memo(({ symbol, interval = '1', height = 500 }: SimpleChartP
 
       {/* Volume Chart */}
       <div className="relative shrink-0 border-t border-gray-800" style={{ height: volumeChartHeight }}>
-        <div className="absolute left-1 right-12 top-0 bottom-0 flex items-end">
+        <div className="absolute left-1 right-12 top-1 bottom-1 flex gap-px">
           {chartData.klines.map((k, i) => {
-            const volPct = (k.volume / chartData.maxVolume) * 100;
+            const volPct = Math.max((k.volume / chartData.maxVolume) * 100, 5); // 최소 5%
             const isUp = k.close >= k.open;
 
             return (
-              <div key={i} className="flex-1 flex justify-center h-full items-end pb-0.5">
+              <div key={i} className="flex-1 flex flex-col justify-end">
                 <div
                   className={cn(
-                    "w-[70%]",
-                    isUp ? "bg-red-500/60" : "bg-blue-500/60"
+                    "w-full rounded-t-sm",
+                    isUp ? "bg-red-500/70" : "bg-blue-500/70"
                   )}
-                  style={{ height: `${volPct}%`, minHeight: '1px' }}
+                  style={{ height: `${volPct}%` }}
                 />
               </div>
             );
           })}
         </div>
-        <span className="absolute right-1 top-0 text-[8px] text-muted-foreground">VOL</span>
+        <span className="absolute right-1 top-0.5 text-[8px] text-muted-foreground">VOL</span>
       </div>
     </div>
   );
