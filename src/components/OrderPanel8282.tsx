@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { fetchOrderBook, fetch24hTicker, OrderBook, formatPrice, formatQuantity, calculateTechnicalSignal, TechnicalSignal } from '@/lib/binance';
 import { cn } from '@/lib/utils';
-import { Minus, Plus, Settings, TrendingUp, TrendingDown } from 'lucide-react';
+import { Minus, Plus, Settings, TrendingUp, TrendingDown, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useBinanceApi } from '@/hooks/useBinanceApi';
 
 interface Position {
   type: 'long' | 'short';
@@ -29,6 +30,7 @@ interface OrderPanel8282Props {
 
 const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }: OrderPanel8282Props) => {
   const { toast } = useToast();
+  const { getBalances, loading: apiLoading } = useBinanceApi();
   const [orderBook, setOrderBook] = useState<OrderBook | null>(null);
   const [currentPrice, setCurrentPrice] = useState<number>(0);
   const [prevPrice, setPrevPrice] = useState<number>(0);
@@ -61,11 +63,37 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
   const [trailingStopPrice, setTrailingStopPrice] = useState<number | null>(null);
   const [highestProfit, setHighestProfit] = useState<number>(0);
   
-  // Balance for order calculation (in KRW)
-  const [balanceKRW, setBalanceKRW] = useState<string>('1000000');
+  // Balance for order calculation (in USD from Binance)
+  const [balanceUSD, setBalanceUSD] = useState<number>(0);
   const [usdKrwRate, setUsdKrwRate] = useState<number>(1380);
   const [rateLoading, setRateLoading] = useState<boolean>(false);
-  const balanceUSD = (parseFloat(balanceKRW) || 0) / usdKrwRate;
+  const [balanceLoading, setBalanceLoading] = useState<boolean>(false);
+  const balanceKRW = Math.round(balanceUSD * usdKrwRate);
+  
+  // Fetch real balance from Binance
+  const fetchRealBalance = async () => {
+    setBalanceLoading(true);
+    try {
+      const balances = await getBalances();
+      // Find USDT balance
+      const usdtBalance = balances?.find((b: any) => b.asset === 'USDT');
+      if (usdtBalance) {
+        const available = parseFloat(usdtBalance.availableBalance) || 0;
+        setBalanceUSD(available);
+      }
+    } catch (error) {
+      console.error('Failed to fetch balance:', error);
+    } finally {
+      setBalanceLoading(false);
+    }
+  };
+  
+  // Fetch balance on mount and every 10 seconds
+  useEffect(() => {
+    fetchRealBalance();
+    const interval = setInterval(fetchRealBalance, 10000);
+    return () => clearInterval(interval);
+  }, []);
   
   // Fetch USD/KRW exchange rate
   useEffect(() => {
@@ -565,18 +593,23 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
             </div>
           </div>
           
-          {/* Balance Setting in KRW */}
+          {/* Balance Display (from Binance) */}
           <div className="flex items-center gap-2">
-            <span className="text-[10px] text-muted-foreground whitespace-nowrap">잔고 (₩)</span>
-            <input
-              type="number"
-              value={balanceKRW}
-              onChange={(e) => setBalanceKRW(e.target.value)}
-              className="w-24 bg-background border border-yellow-600/50 px-1.5 py-0.5 text-[10px] rounded text-center text-yellow-400 font-mono"
-              step="10000"
-            />
+            <span className="text-[10px] text-muted-foreground whitespace-nowrap">잔고</span>
+            <div className="flex items-center gap-1">
+              <span className="text-[11px] font-mono text-yellow-400">
+                {balanceLoading ? '로딩...' : `₩${balanceKRW.toLocaleString()}`}
+              </span>
+              <button
+                onClick={fetchRealBalance}
+                className="p-0.5 hover:bg-secondary rounded"
+                title="잔고 새로고침"
+              >
+                <RefreshCw className={cn("w-3 h-3 text-muted-foreground", balanceLoading && "animate-spin")} />
+              </button>
+            </div>
             <span className="text-[10px] text-muted-foreground">
-              {rateLoading ? '환율 조회중...' : `₩${usdKrwRate.toLocaleString()}/$ • $${balanceUSD.toFixed(0)} • 구매력: $${(balanceUSD * leverage).toLocaleString()}`}
+              {rateLoading ? '환율 조회중...' : `₩${usdKrwRate.toLocaleString()}/$ • $${balanceUSD.toFixed(2)} • 구매력: $${(balanceUSD * leverage).toLocaleString()}`}
             </span>
           </div>
           
