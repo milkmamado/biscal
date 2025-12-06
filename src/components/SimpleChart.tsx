@@ -137,19 +137,17 @@ const SimpleChart = memo(({ symbol, interval = '1', height = 500 }: SimpleChartP
     const displayKlines = klines.slice(-candleCount);
     if (displayKlines.length < 20) return null;
 
-    const bb = calculateBollingerBands(displayKlines, 20, 2);
     const avgVolume = displayKlines.reduce((sum, k) => sum + k.volume, 0) / displayKlines.length;
     const srLevels = detectSupportResistance(displayKlines, avgVolume);
     
     const allPrices = displayKlines.flatMap(k => [k.low, k.high]);
-    const minPrice = Math.min(...allPrices, bb.lower);
-    const maxPrice = Math.max(...allPrices, bb.upper);
+    const minPrice = Math.min(...allPrices);
+    const maxPrice = Math.max(...allPrices);
     const range = maxPrice - minPrice;
     const padding = range * 0.1;
 
     return {
       klines: displayKlines,
-      bb,
       srLevels,
       avgVolume,
       minPrice: minPrice - padding,
@@ -194,11 +192,7 @@ const SimpleChart = memo(({ symbol, interval = '1', height = 500 }: SimpleChartP
           <div className="flex items-center gap-2 ml-2">
             <div className="flex items-center gap-0.5">
               <div className="w-2 h-0.5 bg-yellow-500" />
-              <span className="text-[8px] text-muted-foreground">중심</span>
-            </div>
-            <div className="flex items-center gap-0.5">
-              <div className="w-2 h-0.5 bg-purple-500/60" />
-              <span className="text-[8px] text-muted-foreground">BB</span>
+              <span className="text-[8px] text-muted-foreground">현재가</span>
             </div>
             <div className="flex items-center gap-0.5">
               <div className="w-2 h-0.5 bg-green-500/50" />
@@ -252,15 +246,6 @@ const SimpleChart = memo(({ symbol, interval = '1', height = 500 }: SimpleChartP
             />
           ))}
 
-          {/* Bollinger Bands - 초록 점선 (상/하단만) */}
-          <div
-            className="absolute left-0 right-0 border-t-2 border-lime-400"
-            style={{ top: `${getY(chartData.bb.upper)}%`, borderStyle: 'dotted' }}
-          />
-          <div
-            className="absolute left-0 right-0 border-t-2 border-lime-400"
-            style={{ top: `${getY(chartData.bb.lower)}%`, borderStyle: 'dotted' }}
-          />
 
           {/* Support/Resistance - 보라색 실선 */}
           {chartData.srLevels.map((level, i) => {
