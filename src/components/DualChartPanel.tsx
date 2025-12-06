@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { useBinanceApi, BinancePosition } from '@/hooks/useBinanceApi';
 import { RefreshCw } from 'lucide-react';
 import SimpleChart from './SimpleChart';
+import { fetchKlines } from '@/lib/binance';
 
 interface OpenOrder {
   orderId: number;
@@ -54,7 +55,49 @@ const DualChartPanel = ({
   const [balanceLoading, setBalanceLoading] = useState(false);
   const [krwRate, setKrwRate] = useState(1380);
   const [positions, setPositions] = useState<BinancePosition[]>([]);
+  const [priceRange, setPriceRange] = useState<{ high: number; low: number }>({ high: 0, low: 0 });
   const { getBalances, getPositions } = useBinanceApi();
+
+  // Fetch price range for chart overlay positioning
+  const fetchPriceRange = async () => {
+    try {
+      // Map TradingView interval to Binance interval
+      const intervalMap: Record<string, string> = {
+        '1': '1m', '3': '3m', '5': '5m', '15': '15m', '30': '30m',
+        '60': '1h', '240': '4h', 'D': '1d'
+      };
+      const binanceInterval = intervalMap[interval] || '1m';
+      const klines = await fetchKlines(symbol, binanceInterval, 100);
+      
+      if (klines.length > 0) {
+        const highs = klines.map(k => k.high);
+        const lows = klines.map(k => k.low);
+        const high = Math.max(...highs);
+        const low = Math.min(...lows);
+        // Add 5% padding
+        const padding = (high - low) * 0.05;
+        setPriceRange({ high: high + padding, low: low - padding });
+      }
+    } catch (error) {
+      console.error('Failed to fetch price range:', error);
+    }
+  };
+
+  // Fetch price range when symbol or interval changes
+  useEffect(() => {
+    fetchPriceRange();
+    const intervalId = window.setInterval(fetchPriceRange, 5000);
+    return () => window.clearInterval(intervalId);
+  }, [symbol, interval]);
+
+  // Calculate Y position for a price (0% = top, 100% = bottom)
+  const getPriceYPosition = (price: number): string => {
+    if (priceRange.high <= priceRange.low || !price) return '50%';
+    const range = priceRange.high - priceRange.low;
+    const percent = ((priceRange.high - price) / range) * 100;
+    // Clamp between 5% and 95% to keep labels visible
+    return `${Math.max(5, Math.min(95, percent))}%`;
+  };
 
   // Fetch positions
   const fetchPositions = async () => {
@@ -267,13 +310,13 @@ const DualChartPanel = ({
           <SimpleChart symbol={symbol} interval={interval} height={500} />
           
           {/* Horizontal Price Lines Overlay */}
-          {(openOrders.length > 0 || entryPrice || tpPrice || slPrice) && (
+          {(openOrders.length > 0 || entryPrice || tpPrice || slPrice) && priceRange.high > priceRange.low && (
             <>
               {/* Take Profit Line */}
               {tpPrice && tpPrice > 0 && (
                 <div 
                   className="absolute left-0 right-0 z-20 pointer-events-none"
-                  style={{ top: '20%' }}
+                  style={{ top: getPriceYPosition(tpPrice) }}
                 >
                   <div className="relative w-full">
                     <div className="w-full h-px" style={{ 
@@ -292,7 +335,7 @@ const DualChartPanel = ({
               {entryPrice && entryPrice > 0 && (
                 <div 
                   className="absolute left-0 right-0 z-20 pointer-events-none"
-                  style={{ top: '35%' }}
+                  style={{ top: getPriceYPosition(entryPrice) }}
                 >
                   <div className="relative w-full">
                     <div className="w-full h-px bg-yellow-500" style={{ 
@@ -311,7 +354,7 @@ const DualChartPanel = ({
               {slPrice && slPrice > 0 && (
                 <div 
                   className="absolute left-0 right-0 z-20 pointer-events-none"
-                  style={{ top: '50%' }}
+                  style={{ top: getPriceYPosition(slPrice) }}
                 >
                   <div className="relative w-full">
                     <div className="w-full h-px" style={{ 
@@ -327,11 +370,11 @@ const DualChartPanel = ({
               )}
               
               {/* Pending Order Lines */}
-              {openOrders.map((order, idx) => (
+              {openOrders.map((order) => (
                 <div 
                   key={order.orderId}
                   className="absolute left-0 right-0 z-20 pointer-events-none"
-                  style={{ top: `${65 + idx * 8}%` }}
+                  style={{ top: getPriceYPosition(order.price) }}
                 >
                   <div className="relative w-full">
                     <div 
