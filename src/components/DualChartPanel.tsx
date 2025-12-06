@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { useBinanceApi } from '@/hooks/useBinanceApi';
 import { RefreshCw } from 'lucide-react';
-import RealtimeChart from './RealtimeChart';
+import TradingViewWidget from './TradingViewWidget';
 
 interface DualChartPanelProps {
   symbol: string;
@@ -194,7 +194,7 @@ const DualChartPanel = ({
           ))}
         </div>
         <div className="flex-1 min-h-0" style={{ minHeight: '400px' }}>
-          <RealtimeChart symbol={symbol} interval={interval} height={500} />
+          <TradingViewWidget symbol={symbol} interval={interval} height={500} />
         </div>
       </div>
     </div>
