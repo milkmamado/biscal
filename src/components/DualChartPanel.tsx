@@ -42,6 +42,7 @@ const DualChartPanel = ({
 
   const winRate = tradeCount > 0 ? ((winCount / tradeCount) * 100).toFixed(1) : '0.0';
   const totalPnL = unrealizedPnL + realizedPnL;
+  const totalPnLPercent = balance > 0 ? ((totalPnL / balance) * 100).toFixed(2) : '0.00';
 
   return (
     <div className="flex flex-col gap-1 h-full">
@@ -92,10 +93,10 @@ const DualChartPanel = ({
                 {totalPnL >= 0 ? '+' : ''}{totalPnL.toFixed(2)}$
               </span>
               <span className={cn(
-                "text-[10px] font-mono",
+                "text-[10px] font-bold font-mono",
                 totalPnL >= 0 ? "text-red-400" : "text-blue-400"
               )}>
-                (₩{formatKRW(totalPnL)})
+                ({totalPnL >= 0 ? '+' : ''}{totalPnLPercent}%)
               </span>
             </div>
           </div>
