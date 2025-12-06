@@ -131,13 +131,18 @@ export const useBinanceApi = () => {
       }
     }
     
-    return callBinanceApi('placeOrder', {
+    // Only include reduceOnly if true (Binance rejects reduceOnly: false for new positions)
+    const params: Record<string, any> = {
       symbol,
       side,
       type: 'MARKET',
       quantity: roundedQuantity,
-      reduceOnly,
-    });
+    };
+    if (reduceOnly) {
+      params.reduceOnly = true;
+    }
+    
+    return callBinanceApi('placeOrder', params);
   }, [callBinanceApi]);
 
   const placeLimitOrder = useCallback(async (
@@ -160,15 +165,20 @@ export const useBinanceApi = () => {
       }
     }
     
-    return callBinanceApi('placeOrder', {
+    // Only include reduceOnly if true
+    const params: Record<string, any> = {
       symbol,
       side,
       type: 'LIMIT',
       quantity: roundedQuantity,
       price: roundedPrice,
       timeInForce: 'GTC',
-      reduceOnly,
-    });
+    };
+    if (reduceOnly) {
+      params.reduceOnly = true;
+    }
+    
+    return callBinanceApi('placeOrder', params);
   }, [callBinanceApi]);
 
   const cancelOrder = useCallback(async (symbol: string, orderId: number) => {
