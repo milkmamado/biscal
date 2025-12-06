@@ -247,15 +247,20 @@ const SimpleChart = memo(({ symbol, interval = '1', height = 500 }: SimpleChartP
           ))}
 
 
-          {/* Support/Resistance - 보라색 실선 */}
+          {/* Support/Resistance - 지지선 녹색, 저항선 빨강 */}
           {chartData.srLevels.map((level, i) => {
             const y = getY(level.price);
             if (y < 5 || y > 95) return null;
             
+            const isSupport = level.type === 'support';
+            
             return (
               <div key={`sr-${i}`} className="absolute left-0 right-0" style={{ top: `${y}%` }}>
                 <div
-                  className="w-full border-t-2 border-fuchsia-400"
+                  className={cn(
+                    "w-full border-t-2",
+                    isSupport ? "border-green-500" : "border-red-500"
+                  )}
                   style={{ borderStyle: 'dashed' }}
                 />
               </div>
