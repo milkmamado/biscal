@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import TradingViewChart from './TradingViewChart';
+import LightweightChart from './LightweightChart';
 import { cn } from '@/lib/utils';
 import { useBinanceApi } from '@/hooks/useBinanceApi';
 import { RefreshCw } from 'lucide-react';
@@ -194,7 +194,7 @@ const DualChartPanel = ({
           ))}
         </div>
         <div className="flex-1 min-h-0">
-          <TradingViewChart symbol={symbol} interval={interval} height={600} />
+          <LightweightChart symbol={symbol} interval={interval} height={600} />
         </div>
       </div>
     </div>
