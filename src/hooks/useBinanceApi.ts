@@ -37,10 +37,13 @@ export interface BinanceAccountInfo {
 export const useBinanceApi = (testnet: boolean = false) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [ipError, setIpError] = useState<string | null>(null);
 
-  const callBinanceApi = useCallback(async (action: string, params: Record<string, any> = {}) => {
+  const callBinanceApi = useCallback(async (action: string, params: Record<string, any> = {}, retryCount: number = 0): Promise<any> => {
     setLoading(true);
     setError(null);
+
+    const maxRetries = 3;
 
     try {
       const { data, error: fnError } = await supabase.functions.invoke('binance-api', {
@@ -52,9 +55,25 @@ export const useBinanceApi = (testnet: boolean = false) => {
       }
 
       if (data?.error) {
+        // Check if it's an IP error
+        if (data.code === -2015 && data.error?.includes('request ip:')) {
+          const ipMatch = data.error.match(/request ip: ([\d.]+)/);
+          const blockedIp = ipMatch ? ipMatch[1] : 'unknown';
+          setIpError(blockedIp);
+          
+          // Retry automatically up to maxRetries times
+          if (retryCount < maxRetries) {
+            console.log(`IP error, retrying... (${retryCount + 1}/${maxRetries})`);
+            await new Promise(resolve => setTimeout(resolve, 500)); // Wait 500ms
+            return callBinanceApi(action, params, retryCount + 1);
+          }
+          
+          throw new Error(`IP 제한: ${blockedIp} 추가 필요`);
+        }
         throw new Error(data.error);
       }
 
+      setIpError(null); // Clear IP error on success
       return data;
     } catch (err: any) {
       setError(err.message);
@@ -128,6 +147,7 @@ export const useBinanceApi = (testnet: boolean = false) => {
   return {
     loading,
     error,
+    ipError,
     callBinanceApi,
     getAccountInfo,
     getBalances,
