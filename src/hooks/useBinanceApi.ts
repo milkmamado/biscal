@@ -34,7 +34,7 @@ export interface BinanceAccountInfo {
   positions: BinancePosition[];
 }
 
-export const useBinanceApi = () => {
+export const useBinanceApi = (testnet: boolean = false) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -44,7 +44,7 @@ export const useBinanceApi = () => {
 
     try {
       const { data, error: fnError } = await supabase.functions.invoke('binance-api', {
-        body: { action, params }
+        body: { action, params, testnet }
       });
 
       if (fnError) {
@@ -62,7 +62,7 @@ export const useBinanceApi = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [testnet]);
 
   const getAccountInfo = useCallback(async (): Promise<BinanceAccountInfo> => {
     return callBinanceApi('getAccountInfo');

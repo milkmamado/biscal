@@ -47,6 +47,7 @@ export type Database = {
           api_secret: string
           created_at: string
           id: string
+          is_testnet: boolean
           updated_at: string
           user_id: string
         }
@@ -55,6 +56,7 @@ export type Database = {
           api_secret: string
           created_at?: string
           id?: string
+          is_testnet?: boolean
           updated_at?: string
           user_id: string
         }
@@ -63,6 +65,7 @@ export type Database = {
           api_secret?: string
           created_at?: string
           id?: string
+          is_testnet?: boolean
           updated_at?: string
           user_id?: string
         }
