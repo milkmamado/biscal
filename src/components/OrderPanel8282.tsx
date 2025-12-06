@@ -45,9 +45,10 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose, t
   const [prevPrice, setPrevPrice] = useState<number>(0);
   const [priceChangePercent, setPriceChangePercent] = useState<number>(0);
   const [orderQty, setOrderQty] = useState<string>('100');
-  const [leverage, setLeverage] = useState<number>(20);
+  const [leverage, setLeverage] = useState<number>(10);
   const [loading, setLoading] = useState(true);
   const [clickOrderPercent, setClickOrderPercent] = useState<number>(100);
+  const [autoTpSlInitialized, setAutoTpSlInitialized] = useState<boolean>(false);
   const [showSettings, setShowSettings] = useState(false);
   
   // Position state
@@ -119,9 +120,9 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose, t
             type: positionAmt > 0 ? 'long' : 'short',
             entryPrice: parseFloat(symbolPosition.entryPrice),
             quantity: Math.abs(positionAmt),
-            leverage: parseInt(symbolPosition.leverage) || 20
+            leverage: parseInt(symbolPosition.leverage) || 10
           });
-          setLeverage(parseInt(symbolPosition.leverage) || 20);
+          setLeverage(parseInt(symbolPosition.leverage) || 10);
         } else {
           setPosition(null);
         }
@@ -138,6 +139,44 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose, t
     const interval = setInterval(fetchBalanceAndPosition, 10000);
     return () => clearInterval(interval);
   }, [symbol]);
+  
+  // Auto-set 100% quantity and recommended TP/SL when balance loads
+  useEffect(() => {
+    if (balanceUSD > 0 && currentPrice > 0 && !autoTpSlInitialized) {
+      // Set 100% quantity
+      const buyingPower = balanceUSD * leverage;
+      const qty = buyingPower / currentPrice;
+      setOrderQty(qty.toFixed(3));
+      
+      // Set recommended TP/SL based on leverage
+      const liquidationPct = 100 / leverage;
+      const safeSLPct = liquidationPct * 0.4;
+      const recommendedSL = Math.round(balanceUSD * (safeSLPct / 100));
+      const recommendedTP = Math.round(recommendedSL * 1.5);
+      setTpAmount(recommendedTP.toString());
+      setSlAmount(recommendedSL.toString());
+      
+      setAutoTpSlInitialized(true);
+    }
+  }, [balanceUSD, currentPrice, leverage, autoTpSlInitialized]);
+  
+  // Recalculate quantity and TP/SL when leverage changes
+  useEffect(() => {
+    if (balanceUSD > 0 && currentPrice > 0 && autoTpSlInitialized) {
+      // Update quantity for 100%
+      const buyingPower = balanceUSD * leverage;
+      const qty = buyingPower / currentPrice;
+      setOrderQty(qty.toFixed(3));
+      
+      // Update recommended TP/SL
+      const liquidationPct = 100 / leverage;
+      const safeSLPct = liquidationPct * 0.4;
+      const recommendedSL = Math.round(balanceUSD * (safeSLPct / 100));
+      const recommendedTP = Math.round(recommendedSL * 1.5);
+      setTpAmount(recommendedTP.toString());
+      setSlAmount(recommendedSL.toString());
+    }
+  }, [leverage]);
   
   // Fetch USD/KRW exchange rate
   useEffect(() => {
