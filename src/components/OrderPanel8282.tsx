@@ -351,7 +351,6 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
                 toast({
                   title: order.type === 'long' ? '🟢 지정가 롱 체결 (추매)' : '🔴 지정가 숏 체결 (추매)',
                   description: `${symbol} +${order.quantity}개 @ $${formatPrice(order.price)} 체결`,
-                  duration: 2000,
                 });
               } else if (position && position.type !== order.type) {
                 // 청산
@@ -368,7 +367,6 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
                 toast({
                   title: pnl >= 0 ? '✅ 지정가 청산 체결' : '❌ 지정가 청산 체결',
                   description: `${symbol} @ $${formatPrice(order.price)} | 손익: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}`,
-                  duration: 3000,
                 });
                 setPosition(null);
               } else {
@@ -382,7 +380,6 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
                 toast({
                   title: order.type === 'long' ? '🟢 지정가 롱 체결' : '🔴 지정가 숏 체결',
                   description: `${symbol} ${order.quantity}개 @ $${formatPrice(order.price)} 체결`,
-                  duration: 2000,
                 });
               }
             });
@@ -411,7 +408,6 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
                 toast({
                   title: '✅ 익절 청산',
                   description: `목표 수익 $${tp} 달성! 실현손익: $${pnl.toFixed(2)}`,
-                  duration: 3000,
                 });
                 onTradeClose?.({
                   symbol,
@@ -430,7 +426,6 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
                   title: '익절 청산 실패',
                   description: error.message || '청산을 처리할 수 없습니다.',
                   variant: 'destructive',
-                  duration: 3000,
                 });
               } finally {
                 tpSlProcessing.current = false;
@@ -453,7 +448,6 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
                 toast({
                   title: '🛑 손절 청산',
                   description: `손절선 -$${sl} 도달! 실현손익: $${pnl.toFixed(2)}`,
-                  duration: 3000,
                 });
                 onTradeClose?.({
                   symbol,
@@ -472,7 +466,6 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
                   title: '손절 청산 실패',
                   description: error.message || '청산을 처리할 수 없습니다.',
                   variant: 'destructive',
-                  duration: 3000,
                 });
               } finally {
                 tpSlProcessing.current = false;
@@ -515,7 +508,6 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
         title: '계산 불가',
         description: '잔고 또는 가격 정보가 없습니다.',
         variant: 'destructive',
-        duration: 2000,
       });
       return;
     }
@@ -534,7 +526,6 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
     toast({
       title: '📊 수량 자동 계산',
       description: `${leverage}x 레버리지, ${clickOrderPercent}% → ${finalQty.toFixed(3)}개`,
-      duration: 2000,
     });
   };
 
@@ -544,7 +535,6 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
         title: '잔고 부족',
         description: '거래 가능한 잔고가 없습니다.',
         variant: 'destructive',
-        duration: 2000,
       });
       return;
     }
@@ -567,7 +557,6 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
       toast({
         title: type === 'long' ? '📋 지정가 롱 주문' : '📋 지정가 숏 주문',
         description: `${symbol} ${qty.toFixed(3)}개 @ $${formatPrice(price)}`,
-        duration: 2000,
       });
       
       // Refresh position after order
@@ -577,7 +566,6 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
         title: '주문 실패',
         description: error.message || '주문을 처리할 수 없습니다.',
         variant: 'destructive',
-        duration: 3000,
       });
     }
   };
@@ -590,7 +578,6 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
         title: '잔고 부족',
         description: '거래 가능한 잔고가 없습니다.',
         variant: 'destructive',
-        duration: 2000,
       });
       return;
     }
@@ -608,7 +595,6 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
       toast({
         title: type === 'long' ? '🟢 시장가 롱' : '🔴 시장가 숏',
         description: `${symbol} ${qty}개 @ 시장가 (${leverage}x)`,
-        duration: 2000,
       });
       
       // Refresh position after order
@@ -618,7 +604,6 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
         title: '주문 실패',
         description: error.message || '주문을 처리할 수 없습니다.',
         variant: 'destructive',
-        duration: 3000,
       });
     }
   };
@@ -628,7 +613,6 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
       toast({
         title: '포지션 없음',
         description: '청산할 포지션이 없습니다.',
-        duration: 2000,
       });
       return;
     }
@@ -640,38 +624,44 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
     }
     
     closingInProgress.current = true;
-    const closeQty = position.quantity * (percent / 100);
+    const positionToClose = { ...position };
+    const closeQty = positionToClose.quantity * (percent / 100);
+    
+    // Clear position immediately to prevent duplicate calls
+    if (percent === 100) {
+      setPosition(null);
+    }
     
     try {
       // Close position with opposite side order
-      const side = position.type === 'long' ? 'SELL' : 'BUY';
+      const side = positionToClose.type === 'long' ? 'SELL' : 'BUY';
       await apiPlaceMarketOrder(symbol, side, closeQty, true);
       
-      const pnl = calculatePnL({ ...position, quantity: closeQty }, currentPrice);
+      const pnl = calculatePnL({ ...positionToClose, quantity: closeQty }, currentPrice);
       onTradeClose?.({
         symbol,
-        side: position.type,
-        entryPrice: position.entryPrice,
+        side: positionToClose.type,
+        entryPrice: positionToClose.entryPrice,
         exitPrice: currentPrice,
         quantity: closeQty,
-        leverage: position.leverage,
+        leverage: positionToClose.leverage,
         pnl,
       });
       
       toast({
         title: pnl >= 0 ? '✅ 청산 완료' : '❌ 청산 완료',
         description: `${symbol} ${closeQty.toFixed(3)}개 | 손익: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}`,
-        duration: 3000,
       });
       
       // Refresh position after close
-      setTimeout(fetchBalanceAndPosition, 1000);
+      setTimeout(fetchBalanceAndPosition, 1500);
     } catch (error: any) {
+      // Restore position if close failed
+      setPosition(positionToClose);
       toast({
         title: '청산 실패',
         description: error.message || '청산을 처리할 수 없습니다.',
         variant: 'destructive',
-        duration: 3000,
       });
     } finally {
       // Reset lock after a short delay to allow position state to update
@@ -693,14 +683,12 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
       toast({
         title: '📋 지정가 청산 주문',
         description: `${symbol} ${position.quantity.toFixed(3)}개 @ $${formatPrice(price)} | 예상손익: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}`,
-        duration: 3000,
       });
     } catch (error: any) {
       toast({
         title: '주문 실패',
         description: error.message || '주문을 처리할 수 없습니다.',
         variant: 'destructive',
-        duration: 3000,
       });
     }
   };
@@ -712,14 +700,12 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
       toast({
         title: '일괄취소 완료',
         description: `${symbol} 모든 주문이 취소되었습니다.`,
-        duration: 2000,
       });
     } catch (error: any) {
       toast({
         title: '취소 실패',
         description: error.message || '주문 취소를 처리할 수 없습니다.',
         variant: 'destructive',
-        duration: 3000,
       });
     }
   };
@@ -817,7 +803,6 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
               toast({
                 title: '레버리지 변경',
                 description: `${symbol} 레버리지가 ${newLeverage}x로 설정되었습니다.`,
-                duration: 2000,
               });
             } catch (error: any) {
               console.error('Failed to set leverage:', error);
@@ -826,7 +811,6 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
                   title: '레버리지 설정 실패',
                   description: error.message || '레버리지 설정 중 오류가 발생했습니다.',
                   variant: 'destructive',
-                  duration: 3000,
                 });
               }
             }
