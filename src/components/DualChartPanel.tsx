@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import LightweightChart from './LightweightChart';
 import { cn } from '@/lib/utils';
 import { useBinanceApi } from '@/hooks/useBinanceApi';
 import { RefreshCw } from 'lucide-react';
@@ -175,7 +174,7 @@ const DualChartPanel = ({
         </div>
       </div>
 
-      {/* Single Chart - Full Height */}
+      {/* Chart Area - Placeholder */}
       <div className="bg-card border border-border rounded overflow-hidden flex flex-col flex-1 min-h-0">
         <div className="px-2 py-1 bg-secondary/50 border-b border-border flex items-center gap-0.5 flex-wrap shrink-0">
           {INTERVALS.map((int) => (
@@ -193,8 +192,8 @@ const DualChartPanel = ({
             </button>
           ))}
         </div>
-        <div className="flex-1 min-h-0">
-          <LightweightChart symbol={symbol} interval={interval} height={600} />
+        <div className="flex-1 min-h-0 flex items-center justify-center text-muted-foreground">
+          차트 영역 (임시 제거됨)
         </div>
       </div>
     </div>
