@@ -161,13 +161,13 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
   useEffect(() => {
     if (balanceUSD > 0 && currentPrice > 0 && !autoTpSlInitialized) {
       // 구매력 = 원금 × 레버리지
-      // 수수료 버퍼 10% 적용
+      // 30% 버퍼 (수수료, 마크가격차이, 펀딩비, 유지마진 등)
       const buyingPower = balanceUSD * leverage;
-      const safeBuyingPower = buyingPower * 0.90; // 10% 수수료 버퍼
+      const safeBuyingPower = buyingPower * 0.70; // 30% 버퍼
       const qty = safeBuyingPower / currentPrice;
       // Ensure minimum notional of $5
       const minQty = 5.5 / currentPrice;
-      setOrderQty(Math.max(qty, minQty).toFixed(3));
+      setOrderQty(Math.max(qty, minQty).toFixed(0)); // 정수로 반올림
       
       // Set recommended TP/SL based on leverage
       // 청산가격까지의 거리 = 100% / 레버리지
@@ -188,13 +188,13 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
   // Recalculate quantity and TP/SL when leverage changes
   useEffect(() => {
     if (balanceUSD > 0 && currentPrice > 0 && autoTpSlInitialized) {
-      // 구매력 = 원금 × 레버리지, 10% 수수료 버퍼
+      // 30% 버퍼
       const buyingPower = balanceUSD * leverage;
-      const safeBuyingPower = buyingPower * 0.90;
+      const safeBuyingPower = buyingPower * 0.70;
       const qty = safeBuyingPower / currentPrice;
       // Ensure minimum notional of $5
       const minQty = 5.5 / currentPrice;
-      setOrderQty(Math.max(qty, minQty).toFixed(3));
+      setOrderQty(Math.max(qty, minQty).toFixed(0));
       
     }
   }, [leverage]);
@@ -436,16 +436,16 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
       return;
     }
     
-    // 구매력 = 원금 × 레버리지 × 비율, 10% 수수료 버퍼
+    // 30% 버퍼 적용
     const buyingPower = balanceUSD * leverage * (clickOrderPercent / 100);
-    const safeBuyingPower = buyingPower * 0.90;
+    const safeBuyingPower = buyingPower * 0.70;
     const qty = safeBuyingPower / price;
     
     // Ensure minimum notional of $5.5
     const minQty = 5.5 / price;
     const finalQty = Math.max(qty, minQty);
     
-    setOrderQty(finalQty.toFixed(3));
+    setOrderQty(Math.floor(finalQty).toString()); // 정수로 내림
     
     toast({
       title: '📊 수량 자동 계산',
