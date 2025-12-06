@@ -38,15 +38,21 @@ interface OpenOrderData {
   origQty: number;
 }
 
+interface TpSlPrices {
+  tpPrice: number | null;
+  slPrice: number | null;
+}
+
 interface OrderPanel8282Props {
   symbol: string;
   onPositionChange?: (position: Position | null) => void;
   onPnLChange?: (pnl: number) => void;
   onOpenOrdersChange?: (orders: OpenOrderData[]) => void;
   onTradeClose?: (trade: TradeCloseData) => void;
+  onTpSlChange?: (tpsl: TpSlPrices) => void;
 }
 
-const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersChange, onTradeClose }: OrderPanel8282Props) => {
+const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersChange, onTradeClose, onTpSlChange }: OrderPanel8282Props) => {
   const { toast } = useToast();
   const { 
     getBalances, 
@@ -87,6 +93,37 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
   const [tpAmount, setTpAmount] = useState<string>('50');
   const [slAmount, setSlAmount] = useState<string>('30');
   const [enableTpSl, setEnableTpSl] = useState<boolean>(true);
+  
+  // Calculate and notify TP/SL price levels
+  useEffect(() => {
+    if (!position || !enableTpSl) {
+      onTpSlChange?.({ tpPrice: null, slPrice: null });
+      return;
+    }
+    
+    const tp = parseFloat(tpAmount) || 0;
+    const sl = parseFloat(slAmount) || 0;
+    
+    // Calculate price levels from USDT amounts
+    // PnL = (exitPrice - entryPrice) * quantity * direction
+    // So: priceChange = pnlAmount / quantity
+    const direction = position.type === 'long' ? 1 : -1;
+    
+    let tpPrice: number | null = null;
+    let slPrice: number | null = null;
+    
+    if (tp > 0 && position.quantity > 0) {
+      const priceChange = tp / position.quantity;
+      tpPrice = position.entryPrice + (priceChange * direction);
+    }
+    
+    if (sl > 0 && position.quantity > 0) {
+      const priceChange = sl / position.quantity;
+      slPrice = position.entryPrice - (priceChange * direction);
+    }
+    
+    onTpSlChange?.({ tpPrice, slPrice });
+  }, [position, tpAmount, slAmount, enableTpSl, onTpSlChange]);
   
   // Balance for order calculation (in USD from Binance)
   
