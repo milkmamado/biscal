@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, memo } from 'react';
+import { useEffect, useState, memo } from 'react';
+import { ComposedChart, Line, Bar, XAxis, YAxis, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { fetchKlines, calculateBollingerBands, KlineData } from '@/lib/binance';
 
 interface LightweightChartProps {
@@ -18,207 +19,126 @@ const intervalMap: Record<string, string> = {
   'D': '1d',
 };
 
+interface ChartDataPoint {
+  time: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+  upper?: number;
+  middle?: number;
+  lower?: number;
+}
+
 const LightweightChart = memo(({ symbol, interval = '1', height = 500 }: LightweightChartProps) => {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<any>(null);
-  const seriesRef = useRef<any>({});
-  const wsRef = useRef<WebSocket | null>(null);
+  const [data, setData] = useState<ChartDataPoint[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Initialize chart
   useEffect(() => {
     let mounted = true;
-    let chart: any = null;
-
-    const init = async () => {
-      if (!containerRef.current) return;
-
-      try {
-        // Dynamic import
-        const { createChart } = await import('lightweight-charts');
-        
-        if (!mounted || !containerRef.current) return;
-
-        const width = containerRef.current.clientWidth || 800;
-        
-        chart = createChart(containerRef.current, {
-          width,
-          height,
-          layout: {
-            background: { color: '#0a0a0a' },
-            textColor: '#9ca3af',
-          },
-          grid: {
-            vertLines: { color: '#1f2937' },
-            horzLines: { color: '#1f2937' },
-          },
-          rightPriceScale: {
-            borderColor: '#374151',
-          },
-          timeScale: {
-            borderColor: '#374151',
-            timeVisible: true,
-          },
-        });
-
-        chartRef.current = chart;
-
-        // Add series
-        seriesRef.current.candle = chart.addCandlestickSeries({
-          upColor: '#ef4444',
-          downColor: '#3b82f6',
-          borderUpColor: '#ef4444',
-          borderDownColor: '#3b82f6',
-          wickUpColor: '#ef4444',
-          wickDownColor: '#3b82f6',
-        });
-
-        seriesRef.current.volume = chart.addHistogramSeries({
-          color: '#4b5563',
-          priceFormat: { type: 'volume' },
-          priceScaleId: 'volume',
-        });
-        chart.priceScale('volume').applyOptions({
-          scaleMargins: { top: 0.85, bottom: 0 },
-        });
-
-        seriesRef.current.upper = chart.addLineSeries({
-          color: '#f59e0b',
-          lineWidth: 1,
-          priceLineVisible: false,
-          lastValueVisible: false,
-        });
-        seriesRef.current.middle = chart.addLineSeries({
-          color: '#8b5cf6',
-          lineWidth: 1,
-          priceLineVisible: false,
-          lastValueVisible: false,
-        });
-        seriesRef.current.lower = chart.addLineSeries({
-          color: '#f59e0b',
-          lineWidth: 1,
-          priceLineVisible: false,
-          lastValueVisible: false,
-        });
-
-        // Load initial data
-        await loadData();
-
-        setError(null);
-      } catch (err) {
-        console.error('Chart init error:', err);
-        if (mounted) setError('차트 초기화 실패');
-      }
-    };
+    let wsRef: WebSocket | null = null;
 
     const loadData = async () => {
       const binanceInterval = intervalMap[interval] || '1m';
       setIsLoading(true);
 
       try {
-        const klines = await fetchKlines(symbol, binanceInterval, 200);
+        const klines = await fetchKlines(symbol, binanceInterval, 100);
 
-        if (!seriesRef.current.candle) return;
+        if (!mounted) return;
 
-        const candleData = klines.map((k: KlineData) => ({
-          time: Math.floor(k.openTime / 1000) as any,
-          open: k.open,
-          high: k.high,
-          low: k.low,
-          close: k.close,
-        }));
+        const chartData: ChartDataPoint[] = klines.map((k: KlineData, i: number) => {
+          const point: ChartDataPoint = {
+            time: k.openTime,
+            open: k.open,
+            high: k.high,
+            low: k.low,
+            close: k.close,
+            volume: k.volume,
+          };
 
-        const volumeData = klines.map((k: KlineData) => ({
-          time: Math.floor(k.openTime / 1000) as any,
-          value: k.volume,
-          color: k.close >= k.open ? 'rgba(239, 68, 68, 0.3)' : 'rgba(59, 130, 246, 0.3)',
-        }));
+          // Calculate Bollinger Bands for points with enough history
+          if (i >= 19) {
+            const slice = klines.slice(i - 19, i + 1);
+            const bb = calculateBollingerBands(slice, 20, 2);
+            point.upper = bb.upper;
+            point.middle = bb.middle;
+            point.lower = bb.lower;
+          }
 
-        const upperData: any[] = [];
-        const middleData: any[] = [];
-        const lowerData: any[] = [];
+          return point;
+        });
 
-        for (let i = 19; i < klines.length; i++) {
-          const slice = klines.slice(i - 19, i + 1);
-          const bb = calculateBollingerBands(slice, 20, 2);
-          const time = Math.floor(klines[i].openTime / 1000);
-          upperData.push({ time, value: bb.upper });
-          middleData.push({ time, value: bb.middle });
-          lowerData.push({ time, value: bb.lower });
-        }
-
-        seriesRef.current.candle.setData(candleData);
-        seriesRef.current.volume.setData(volumeData);
-        seriesRef.current.upper.setData(upperData);
-        seriesRef.current.middle.setData(middleData);
-        seriesRef.current.lower.setData(lowerData);
-
-        chartRef.current?.timeScale().fitContent();
+        setData(chartData);
+        setError(null);
         setIsLoading(false);
       } catch (err) {
         console.error('Data load error:', err);
-        setIsLoading(false);
+        if (mounted) {
+          setError('차트 데이터 로드 실패');
+          setIsLoading(false);
+        }
       }
     };
 
-    init();
+    const setupWebSocket = () => {
+      const binanceInterval = intervalMap[interval] || '1m';
+      const ws = new WebSocket(`wss://fstream.binance.com/ws/${symbol.toLowerCase()}@kline_${binanceInterval}`);
+      wsRef = ws;
 
-    const handleResize = () => {
-      if (containerRef.current && chartRef.current) {
-        chartRef.current.applyOptions({ width: containerRef.current.clientWidth });
-      }
+      ws.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          if (message.k && mounted) {
+            const k = message.k;
+            const newPoint: ChartDataPoint = {
+              time: k.t,
+              open: parseFloat(k.o),
+              high: parseFloat(k.h),
+              low: parseFloat(k.l),
+              close: parseFloat(k.c),
+              volume: parseFloat(k.v),
+            };
+
+            setData(prev => {
+              const updated = [...prev];
+              const lastIndex = updated.length - 1;
+              if (lastIndex >= 0 && updated[lastIndex].time === newPoint.time) {
+                updated[lastIndex] = { ...updated[lastIndex], ...newPoint };
+              } else if (lastIndex >= 0 && newPoint.time > updated[lastIndex].time) {
+                // New candle
+                if (updated.length >= 19) {
+                  const slice = updated.slice(-19);
+                  slice.push(newPoint);
+                  const bb = calculateBollingerBands(
+                    slice.map(p => ({ open: p.open, high: p.high, low: p.low, close: p.close, volume: p.volume, openTime: p.time, closeTime: p.time + 60000 })),
+                    20, 2
+                  );
+                  newPoint.upper = bb.upper;
+                  newPoint.middle = bb.middle;
+                  newPoint.lower = bb.lower;
+                }
+                updated.push(newPoint);
+                if (updated.length > 100) updated.shift();
+              }
+              return updated;
+            });
+          }
+        } catch (e) {
+          // Ignore parse errors
+        }
+      };
     };
-    window.addEventListener('resize', handleResize);
+
+    loadData().then(() => {
+      if (mounted) setupWebSocket();
+    });
 
     return () => {
       mounted = false;
-      window.removeEventListener('resize', handleResize);
-      if (chart) {
-        chart.remove();
-      }
-      if (wsRef.current) {
-        wsRef.current.close();
-      }
-    };
-  }, [symbol, interval, height]);
-
-  // WebSocket for real-time updates
-  useEffect(() => {
-    if (!seriesRef.current.candle) return;
-
-    const binanceInterval = intervalMap[interval] || '1m';
-    
-    if (wsRef.current) {
-      wsRef.current.close();
-    }
-
-    const ws = new WebSocket(`wss://fstream.binance.com/ws/${symbol.toLowerCase()}@kline_${binanceInterval}`);
-    wsRef.current = ws;
-
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (data.k && seriesRef.current.candle) {
-          const k = data.k;
-          seriesRef.current.candle.update({
-            time: Math.floor(k.t / 1000) as any,
-            open: parseFloat(k.o),
-            high: parseFloat(k.h),
-            low: parseFloat(k.l),
-            close: parseFloat(k.c),
-          });
-          seriesRef.current.volume?.update({
-            time: Math.floor(k.t / 1000) as any,
-            value: parseFloat(k.v),
-            color: parseFloat(k.c) >= parseFloat(k.o) ? 'rgba(239, 68, 68, 0.3)' : 'rgba(59, 130, 246, 0.3)',
-          });
-        }
-      } catch (e) {}
-    };
-
-    return () => {
-      ws.close();
+      if (wsRef) wsRef.close();
     };
   }, [symbol, interval]);
 
@@ -230,14 +150,77 @@ const LightweightChart = memo(({ symbol, interval = '1', height = 500 }: Lightwe
     );
   }
 
+  if (isLoading) {
+    return (
+      <div style={{ width: '100%', height }} className="flex items-center justify-center bg-card">
+        <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  const currentPrice = data.length > 0 ? data[data.length - 1].close : 0;
+  const minPrice = Math.min(...data.map(d => Math.min(d.low, d.lower || d.low)));
+  const maxPrice = Math.max(...data.map(d => Math.max(d.high, d.upper || d.high)));
+  const priceRange = maxPrice - minPrice;
+  const domainMin = minPrice - priceRange * 0.05;
+  const domainMax = maxPrice + priceRange * 0.05;
+
   return (
-    <div style={{ width: '100%', height, position: 'relative' }}>
-      {isLoading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-card/80 z-10">
-          <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-        </div>
-      )}
-      <div ref={containerRef} style={{ width: '100%', height }} />
+    <div style={{ width: '100%', height, position: 'relative' }} className="bg-[#0a0a0a]">
+      <ResponsiveContainer width="100%" height={height * 0.75}>
+        <ComposedChart data={data} margin={{ top: 10, right: 60, left: 0, bottom: 0 }}>
+          <XAxis 
+            dataKey="time" 
+            tickFormatter={(t) => new Date(t).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
+            stroke="#6b7280"
+            fontSize={10}
+            tickLine={false}
+          />
+          <YAxis 
+            domain={[domainMin, domainMax]}
+            orientation="right"
+            stroke="#6b7280"
+            fontSize={10}
+            tickFormatter={(v) => v.toLocaleString()}
+            tickLine={false}
+          />
+          
+          {/* Bollinger Bands */}
+          <Line type="monotone" dataKey="upper" stroke="#f59e0b" dot={false} strokeWidth={1} />
+          <Line type="monotone" dataKey="middle" stroke="#8b5cf6" dot={false} strokeWidth={1} />
+          <Line type="monotone" dataKey="lower" stroke="#f59e0b" dot={false} strokeWidth={1} />
+          
+          {/* Candlestick approximation using high-low range */}
+          <Line 
+            type="monotone" 
+            dataKey="close" 
+            stroke="#10b981" 
+            dot={false} 
+            strokeWidth={2}
+          />
+          
+          {/* Current price line */}
+          <ReferenceLine y={currentPrice} stroke="#fbbf24" strokeDasharray="3 3" />
+        </ComposedChart>
+      </ResponsiveContainer>
+      
+      {/* Volume chart */}
+      <ResponsiveContainer width="100%" height={height * 0.2}>
+        <ComposedChart data={data} margin={{ top: 0, right: 60, left: 0, bottom: 10 }}>
+          <XAxis dataKey="time" hide />
+          <YAxis hide />
+          <Bar 
+            dataKey="volume" 
+            fill="#4b5563"
+            opacity={0.5}
+          />
+        </ComposedChart>
+      </ResponsiveContainer>
+
+      {/* Current price display */}
+      <div className="absolute top-2 left-2 text-xs text-muted-foreground">
+        {symbol} | {currentPrice.toLocaleString()}
+      </div>
     </div>
   );
 });
