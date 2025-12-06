@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, memo } from 'react';
+import { createChart } from 'lightweight-charts';
 import { fetchKlines, calculateBollingerBands, KlineData } from '@/lib/binance';
 
 interface LightweightChartProps {
@@ -32,21 +33,20 @@ const LightweightChart = memo(({ symbol, interval = '1', height = 600 }: Lightwe
   const [error, setError] = useState<string | null>(null);
   const [chartLoaded, setChartLoaded] = useState(false);
 
-  // Initialize chart dynamically
+  // Initialize chart
   useEffect(() => {
     if (!containerRef.current) return;
 
     let mounted = true;
 
-    const initChart = async () => {
+    const initChart = () => {
       try {
-        // Dynamic import to avoid SSR/bundling issues
-        const LightweightCharts = await import('lightweight-charts');
+        if (!mounted || !containerRef.current) return;
         
         if (!mounted || !containerRef.current) return;
 
-        // Create chart using the default export
-        const chart = LightweightCharts.createChart(containerRef.current, {
+        // Create chart
+        const chart = createChart(containerRef.current, {
           width: containerRef.current.clientWidth,
           height: height,
           layout: {
