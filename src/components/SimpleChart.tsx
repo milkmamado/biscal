@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo, memo } from 'react';
 import { fetchKlines, calculateBollingerBands, KlineData } from '@/lib/binance';
 import { cn } from '@/lib/utils';
+import { ZoomIn, ZoomOut } from 'lucide-react';
 
 interface SimpleChartProps {
   symbol: string;
@@ -97,9 +98,13 @@ const detectSupportResistance = (klines: KlineData[], avgVolume: number): Suppor
   return [support, resistance].filter(Boolean) as SupportResistanceLevel[];
 };
 
+const ZOOM_LEVELS = [30, 45, 60, 90, 120];
+
 const SimpleChart = memo(({ symbol, interval = '1', height = 500 }: SimpleChartProps) => {
   const [klines, setKlines] = useState<KlineData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [zoomIndex, setZoomIndex] = useState(2); // Default 60 candles
+  const candleCount = ZOOM_LEVELS[zoomIndex];
 
   useEffect(() => {
     let mounted = true;
@@ -107,7 +112,8 @@ const SimpleChart = memo(({ symbol, interval = '1', height = 500 }: SimpleChartP
     const loadKlines = async () => {
       try {
         const binanceInterval = intervalMap[interval] || '1m';
-        const data = await fetchKlines(symbol, binanceInterval, 60);
+        // Fetch max candles, we'll slice based on zoom
+        const data = await fetchKlines(symbol, binanceInterval, 120);
         if (mounted) {
           setKlines(data);
           setLoading(false);
@@ -127,20 +133,22 @@ const SimpleChart = memo(({ symbol, interval = '1', height = 500 }: SimpleChartP
   }, [symbol, interval]);
 
   const chartData = useMemo(() => {
-    if (klines.length < 20) return null;
+    // Slice klines based on zoom level
+    const displayKlines = klines.slice(-candleCount);
+    if (displayKlines.length < 20) return null;
 
-    const bb = calculateBollingerBands(klines, 20, 2);
-    const avgVolume = klines.reduce((sum, k) => sum + k.volume, 0) / klines.length;
-    const srLevels = detectSupportResistance(klines, avgVolume);
+    const bb = calculateBollingerBands(displayKlines, 20, 2);
+    const avgVolume = displayKlines.reduce((sum, k) => sum + k.volume, 0) / displayKlines.length;
+    const srLevels = detectSupportResistance(displayKlines, avgVolume);
     
-    const allPrices = klines.flatMap(k => [k.low, k.high]);
+    const allPrices = displayKlines.flatMap(k => [k.low, k.high]);
     const minPrice = Math.min(...allPrices, bb.lower);
     const maxPrice = Math.max(...allPrices, bb.upper);
     const range = maxPrice - minPrice;
     const padding = range * 0.1;
 
     return {
-      klines,
+      klines: displayKlines,
       bb,
       srLevels,
       avgVolume,
@@ -148,10 +156,10 @@ const SimpleChart = memo(({ symbol, interval = '1', height = 500 }: SimpleChartP
       maxPrice: maxPrice + padding,
       range: range + padding * 2,
       currentPrice: klines[klines.length - 1].close,
-      isUp: klines[klines.length - 1].close >= klines[klines.length - 1].open,
-      maxVolume: Math.max(...klines.map(k => k.volume)),
+      isUp: displayKlines[displayKlines.length - 1].close >= displayKlines[displayKlines.length - 1].open,
+      maxVolume: Math.max(...displayKlines.map(k => k.volume)),
     };
-  }, [klines]);
+  }, [klines, candleCount]);
 
   const getY = (price: number) => {
     if (!chartData) return 0;
@@ -182,6 +190,24 @@ const SimpleChart = memo(({ symbol, interval = '1', height = 500 }: SimpleChartP
           )}>
             {chartData.currentPrice.toLocaleString()}
           </span>
+        </div>
+        {/* Zoom controls */}
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setZoomIndex(prev => Math.min(prev + 1, ZOOM_LEVELS.length - 1))}
+            className="p-1 hover:bg-gray-800 rounded text-muted-foreground hover:text-foreground"
+            title="축소 (더 많은 캔들)"
+          >
+            <ZoomOut className="w-3 h-3" />
+          </button>
+          <span className="text-[8px] text-muted-foreground w-6 text-center">{candleCount}</span>
+          <button
+            onClick={() => setZoomIndex(prev => Math.max(prev - 1, 0))}
+            className="p-1 hover:bg-gray-800 rounded text-muted-foreground hover:text-foreground"
+            title="확대 (더 적은 캔들)"
+          >
+            <ZoomIn className="w-3 h-3" />
+          </button>
         </div>
       </div>
 
