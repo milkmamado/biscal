@@ -207,35 +207,30 @@ const SimpleChart = memo(({ symbol, interval = '1', height = 500 }: SimpleChartP
             />
           ))}
 
-          {/* Support/Resistance - only strongest 1 each */}
+          {/* Bollinger Bands - 초록 점선 (상/하단만) */}
+          <div
+            className="absolute left-0 right-0 border-t-2 border-lime-400"
+            style={{ top: `${getY(chartData.bb.upper)}%`, borderStyle: 'dotted' }}
+          />
+          <div
+            className="absolute left-0 right-0 border-t-2 border-lime-400"
+            style={{ top: `${getY(chartData.bb.lower)}%`, borderStyle: 'dotted' }}
+          />
+
+          {/* Support/Resistance - 보라색 실선 */}
           {chartData.srLevels.map((level, i) => {
             const y = getY(level.price);
             if (y < 5 || y > 95) return null;
             
-            const isSupport = level.type === 'support';
-            
             return (
               <div key={`sr-${i}`} className="absolute left-0 right-0" style={{ top: `${y}%` }}>
                 <div
-                  className={cn(
-                    "w-full border-t",
-                    isSupport ? "border-cyan-400/60" : "border-orange-400/60"
-                  )}
-                  style={{ borderStyle: 'dashed', borderWidth: '1px' }}
+                  className="w-full border-t-2 border-fuchsia-400"
+                  style={{ borderStyle: 'dashed' }}
                 />
               </div>
             );
           })}
-
-          {/* Bollinger Bands - subtle green dotted */}
-          <div
-            className="absolute left-0 right-0 border-t border-emerald-500/40"
-            style={{ top: `${getY(chartData.bb.upper)}%`, borderStyle: 'dotted' }}
-          />
-          <div
-            className="absolute left-0 right-0 border-t border-emerald-500/40"
-            style={{ top: `${getY(chartData.bb.lower)}%`, borderStyle: 'dotted' }}
-          />
 
           {/* Current price line */}
           <div
