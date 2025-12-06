@@ -38,7 +38,7 @@ const TradingViewChart = memo(({ symbol, interval = '1', height = 400 }: Trading
       hide_legend: true,
       save_image: false,
       calendar: false,
-      hide_volume: true,
+      hide_volume: false,
       support_host: "https://www.tradingview.com",
       studies: ["STD;Bollinger_Bands"],
       allow_symbol_change: false,
