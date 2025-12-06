@@ -160,13 +160,14 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
   // Auto-set 100% quantity and recommended TP/SL when balance loads
   useEffect(() => {
     if (balanceUSD > 0 && currentPrice > 0 && !autoTpSlInitialized) {
-      // Set 100% quantity with 30% margin buffer (Binance requires buffer for fees, mark price, funding, etc.)
-      const safeBalance = balanceUSD * 0.70;
-      const buyingPower = safeBalance * leverage;
-      const qty = buyingPower / currentPrice;
+      // Binance Futures margin formula: requiredMargin = (qty * price) / leverage
+      // So: qty = (availableBalance * leverage) / price
+      // Use 50% of balance for safety (fees, mark price diff, funding rate, etc.)
+      const safeBalance = balanceUSD * 0.50;
+      const maxQty = (safeBalance * leverage) / currentPrice;
       // Ensure minimum notional of $5
-      const minQty = 5.5 / currentPrice; // $5.5 to have some buffer
-      setOrderQty(Math.max(qty, minQty).toFixed(3));
+      const minQty = 5.5 / currentPrice;
+      setOrderQty(Math.max(maxQty, minQty).toFixed(3));
       
       // Set recommended TP/SL based on leverage
       // 청산가격까지의 거리 = 100% / 레버리지
@@ -187,13 +188,12 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
   // Recalculate quantity and TP/SL when leverage changes
   useEffect(() => {
     if (balanceUSD > 0 && currentPrice > 0 && autoTpSlInitialized) {
-      // Update quantity for 100% with 30% margin buffer
-      const safeBalance = balanceUSD * 0.70;
-      const buyingPower = safeBalance * leverage;
-      const qty = buyingPower / currentPrice;
+      // Use 50% of balance for safety margin
+      const safeBalance = balanceUSD * 0.50;
+      const maxQty = (safeBalance * leverage) / currentPrice;
       // Ensure minimum notional of $5
       const minQty = 5.5 / currentPrice;
-      setOrderQty(Math.max(qty, minQty).toFixed(3));
+      setOrderQty(Math.max(maxQty, minQty).toFixed(3));
       
     }
   }, [leverage]);
@@ -435,11 +435,11 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
       return;
     }
     
-    // Calculate 98% of available margin at the clicked price
-    // Formula: (balanceUSD * 0.98 * leverage * clickOrderPercent%) / orderPrice
-    const safeBalance = balanceUSD * 0.98; // 98% 사용하여 마진 오류 방지
-    const buyingPower = safeBalance * leverage * (clickOrderPercent / 100);
-    const qty = buyingPower / price;
+    // Calculate quantity based on margin formula: qty = (margin * leverage) / price
+    // Use 50% of balance for safety, then apply clickOrderPercent
+    const safeBalance = balanceUSD * 0.50; // 50% 안전 마진
+    const marginToUse = safeBalance * (clickOrderPercent / 100);
+    const qty = (marginToUse * leverage) / price;
     
     // Ensure minimum notional of $5.5
     const minQty = 5.5 / price;
