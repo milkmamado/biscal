@@ -153,6 +153,20 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
   
   useEffect(() => {
     fetchBalanceAndPosition();
+    // 심볼 변경 시 레버리지 강제 설정
+    const setInitialLeverage = async () => {
+      try {
+        await apiSetLeverage(symbol, leverage);
+        console.log(`Leverage set to ${leverage}x for ${symbol}`);
+      } catch (error: any) {
+        // -4046 = no need to change leverage (already set)
+        if (!error.message?.includes('-4046')) {
+          console.error('Failed to set initial leverage:', error);
+        }
+      }
+    };
+    setInitialLeverage();
+    
     const interval = setInterval(fetchBalanceAndPosition, 10000);
     return () => clearInterval(interval);
   }, [symbol]);
