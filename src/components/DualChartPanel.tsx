@@ -20,6 +20,8 @@ interface DualChartPanelProps {
   hasPosition?: boolean;
   entryPrice?: number;
   openOrders?: OpenOrder[];
+  tpPrice?: number | null;
+  slPrice?: number | null;
   onSelectSymbol?: (symbol: string) => void;
 }
 
@@ -43,6 +45,8 @@ const DualChartPanel = ({
   hasPosition = false,
   entryPrice,
   openOrders = [],
+  tpPrice,
+  slPrice,
   onSelectSymbol
 }: DualChartPanelProps) => {
   const [interval, setInterval] = useState('1');
@@ -263,24 +267,60 @@ const DualChartPanel = ({
           <SimpleChart symbol={symbol} interval={interval} height={500} />
           
           {/* Horizontal Price Lines Overlay */}
-          {(openOrders.length > 0 || entryPrice) && (
+          {(openOrders.length > 0 || entryPrice || tpPrice || slPrice) && (
             <>
+              {/* Take Profit Line */}
+              {tpPrice && tpPrice > 0 && (
+                <div 
+                  className="absolute left-0 right-0 z-20 pointer-events-none"
+                  style={{ top: '20%' }}
+                >
+                  <div className="relative w-full">
+                    <div className="w-full h-px" style={{ 
+                      backgroundImage: 'repeating-linear-gradient(90deg, transparent, transparent 4px, rgb(34 197 94) 4px, rgb(34 197 94) 8px)',
+                      backgroundSize: '12px 1px'
+                    }} />
+                    <div className="absolute right-1 -top-2.5 flex items-center gap-1 bg-emerald-600 text-white text-[9px] px-1.5 py-0.5 rounded font-mono shadow-lg">
+                      <span className="text-emerald-200">익절</span>
+                      <span className="font-bold">${tpPrice.toFixed(5)}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
               {/* Entry Price Line */}
               {entryPrice && entryPrice > 0 && (
                 <div 
                   className="absolute left-0 right-0 z-20 pointer-events-none"
-                  style={{ top: '30%' }}
+                  style={{ top: '35%' }}
                 >
                   <div className="relative w-full">
-                    {/* Dashed line */}
-                    <div className="w-full h-px bg-green-500" style={{ 
-                      backgroundImage: 'repeating-linear-gradient(90deg, transparent, transparent 4px, rgb(34 197 94) 4px, rgb(34 197 94) 8px)',
+                    <div className="w-full h-px bg-yellow-500" style={{ 
+                      backgroundImage: 'repeating-linear-gradient(90deg, transparent, transparent 4px, rgb(234 179 8) 4px, rgb(234 179 8) 8px)',
                       backgroundSize: '12px 1px'
                     }} />
-                    {/* Label at right */}
-                    <div className="absolute right-1 -top-2.5 flex items-center gap-1 bg-green-600 text-white text-[9px] px-1.5 py-0.5 rounded font-mono shadow-lg">
-                      <span className="text-green-200">진입</span>
+                    <div className="absolute right-1 -top-2.5 flex items-center gap-1 bg-yellow-600 text-white text-[9px] px-1.5 py-0.5 rounded font-mono shadow-lg">
+                      <span className="text-yellow-200">진입</span>
                       <span className="font-bold">${entryPrice.toFixed(5)}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* Stop Loss Line */}
+              {slPrice && slPrice > 0 && (
+                <div 
+                  className="absolute left-0 right-0 z-20 pointer-events-none"
+                  style={{ top: '50%' }}
+                >
+                  <div className="relative w-full">
+                    <div className="w-full h-px" style={{ 
+                      backgroundImage: 'repeating-linear-gradient(90deg, transparent, transparent 4px, rgb(239 68 68) 4px, rgb(239 68 68) 8px)',
+                      backgroundSize: '12px 1px'
+                    }} />
+                    <div className="absolute right-1 -top-2.5 flex items-center gap-1 bg-red-600 text-white text-[9px] px-1.5 py-0.5 rounded font-mono shadow-lg">
+                      <span className="text-red-200">손절</span>
+                      <span className="font-bold">${slPrice.toFixed(5)}</span>
                     </div>
                   </div>
                 </div>
@@ -291,10 +331,9 @@ const DualChartPanel = ({
                 <div 
                   key={order.orderId}
                   className="absolute left-0 right-0 z-20 pointer-events-none"
-                  style={{ top: `${45 + idx * 10}%` }}
+                  style={{ top: `${65 + idx * 8}%` }}
                 >
                   <div className="relative w-full">
-                    {/* Dashed line */}
                     <div 
                       className={cn("w-full h-px", order.side === 'BUY' ? "bg-red-500" : "bg-blue-500")} 
                       style={{ 
@@ -304,7 +343,6 @@ const DualChartPanel = ({
                         backgroundSize: '12px 1px'
                       }} 
                     />
-                    {/* Label at right */}
                     <div className={cn(
                       "absolute right-1 -top-2.5 flex items-center gap-1 text-white text-[9px] px-1.5 py-0.5 rounded font-mono shadow-lg",
                       order.side === 'BUY' ? "bg-red-600" : "bg-blue-600"

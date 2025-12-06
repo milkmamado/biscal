@@ -25,11 +25,17 @@ interface OpenOrder {
   origQty: number;
 }
 
+interface TpSlPrices {
+  tpPrice: number | null;
+  slPrice: number | null;
+}
+
 const Index = () => {
   const [selectedSymbol, setSelectedSymbol] = useState('BTCUSDT');
   const [currentPosition, setCurrentPosition] = useState<Position | null>(null);
   const [currentPnL, setCurrentPnL] = useState(0);
   const [openOrders, setOpenOrders] = useState<OpenOrder[]>([]);
+  const [tpSlPrices, setTpSlPrices] = useState<TpSlPrices>({ tpPrice: null, slPrice: null });
   const [hasApiKeys, setHasApiKeys] = useState<boolean | null>(null);
   const [checkingKeys, setCheckingKeys] = useState(true);
 
@@ -78,6 +84,10 @@ const Index = () => {
 
   const handleOpenOrdersChange = useCallback((orders: OpenOrder[]) => {
     setOpenOrders(orders);
+  }, []);
+
+  const handleTpSlChange = useCallback((tpsl: TpSlPrices) => {
+    setTpSlPrices(tpsl);
   }, []);
 
   const handleTradeClose = useCallback((trade: {
@@ -155,6 +165,8 @@ const Index = () => {
                 hasPosition={!!currentPosition}
                 entryPrice={currentPosition?.entryPrice}
                 openOrders={openOrders}
+                tpPrice={tpSlPrices.tpPrice}
+                slPrice={tpSlPrices.slPrice}
                 onSelectSymbol={setSelectedSymbol}
               />
             </div>
@@ -168,6 +180,7 @@ const Index = () => {
               onPnLChange={handlePnLChange}
               onOpenOrdersChange={handleOpenOrdersChange}
               onTradeClose={handleTradeClose}
+              onTpSlChange={handleTpSlChange}
             />
             
             {/* Logout */}
