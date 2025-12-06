@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
-import { useBinanceApi } from '@/hooks/useBinanceApi';
+import { useBinanceApi, BinancePosition } from '@/hooks/useBinanceApi';
 import { RefreshCw } from 'lucide-react';
 import SimpleChart from './SimpleChart';
 
@@ -11,6 +11,7 @@ interface DualChartPanelProps {
   tradeCount?: number;
   winCount?: number;
   hasPosition?: boolean;
+  onSelectSymbol?: (symbol: string) => void;
 }
 
 const INTERVALS = [
@@ -30,13 +31,28 @@ const DualChartPanel = ({
   realizedPnL = 0,
   tradeCount = 0,
   winCount = 0,
-  hasPosition = false
+  hasPosition = false,
+  onSelectSymbol
 }: DualChartPanelProps) => {
   const [interval, setInterval] = useState('1');
   const [balanceUSD, setBalanceUSD] = useState<number>(0);
   const [balanceLoading, setBalanceLoading] = useState(false);
   const [krwRate, setKrwRate] = useState(1380);
-  const { getBalances } = useBinanceApi();
+  const [positions, setPositions] = useState<BinancePosition[]>([]);
+  const { getBalances, getPositions } = useBinanceApi();
+
+  // Fetch positions
+  const fetchPositions = async () => {
+    try {
+      const allPositions = await getPositions();
+      const activePositions = allPositions.filter((p: BinancePosition) => 
+        parseFloat(String(p.positionAmt)) !== 0
+      );
+      setPositions(activePositions);
+    } catch (error) {
+      console.error('Failed to fetch positions:', error);
+    }
+  };
 
   // Fetch real balance from Binance
   const fetchRealBalance = async () => {
@@ -71,10 +87,14 @@ const DualChartPanel = ({
     fetchRate();
   }, []);
 
-  // Fetch balance on mount and every 30 seconds
+  // Fetch balance and positions on mount and every 10 seconds
   useEffect(() => {
     fetchRealBalance();
-    const intervalId = window.setInterval(fetchRealBalance, 30000);
+    fetchPositions();
+    const intervalId = window.setInterval(() => {
+      fetchRealBalance();
+      fetchPositions();
+    }, 10000);
     return () => window.clearInterval(intervalId);
   }, []);
 
@@ -173,6 +193,41 @@ const DualChartPanel = ({
             승률 {winRate}%
           </span>
         </div>
+        
+        {/* Active Positions */}
+        {positions.length > 0 && (
+          <div className="mt-2 pt-2 border-t border-border/50">
+            <div className="flex items-center gap-1 flex-wrap">
+              <span className="text-[10px] text-muted-foreground mr-1">보유:</span>
+              {positions.map((pos) => {
+                const pnl = parseFloat(String(pos.unRealizedProfit)) || 0;
+                const isLong = parseFloat(String(pos.positionAmt)) > 0;
+                const displaySymbol = pos.symbol.replace('USDT', '');
+                return (
+                  <button
+                    key={pos.symbol}
+                    onClick={() => onSelectSymbol?.(pos.symbol)}
+                    className={cn(
+                      "px-1.5 py-0.5 rounded text-[10px] font-mono transition-colors border",
+                      pos.symbol === symbol 
+                        ? "bg-primary/20 border-primary" 
+                        : "bg-secondary/50 border-border hover:bg-secondary",
+                      isLong ? "text-red-400" : "text-blue-400"
+                    )}
+                  >
+                    {displaySymbol}
+                    <span className={cn(
+                      "ml-1",
+                      pnl >= 0 ? "text-red-400" : "text-blue-400"
+                    )}>
+                      {pnl >= 0 ? '+' : ''}{pnl.toFixed(2)}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Chart Area */}
