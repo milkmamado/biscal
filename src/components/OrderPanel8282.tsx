@@ -142,8 +142,9 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
   // Auto-set 100% quantity and recommended TP/SL when balance loads
   useEffect(() => {
     if (balanceUSD > 0 && currentPrice > 0 && !autoTpSlInitialized) {
-      // Set 100% quantity
-      const buyingPower = balanceUSD * leverage;
+      // Set 100% quantity with 5% margin buffer
+      const safeBalance = balanceUSD * 0.95;
+      const buyingPower = safeBalance * leverage;
       const qty = buyingPower / currentPrice;
       setOrderQty(qty.toFixed(3));
       
@@ -162,8 +163,9 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
   // Recalculate quantity and TP/SL when leverage changes
   useEffect(() => {
     if (balanceUSD > 0 && currentPrice > 0 && autoTpSlInitialized) {
-      // Update quantity for 100%
-      const buyingPower = balanceUSD * leverage;
+      // Update quantity for 100% with 5% margin buffer
+      const safeBalance = balanceUSD * 0.95;
+      const buyingPower = safeBalance * leverage;
       const qty = buyingPower / currentPrice;
       setOrderQty(qty.toFixed(3));
       
@@ -547,8 +549,10 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
   };
 
   const handleQtyPreset = (percent: number) => {
-    // Calculate quantity based on: (balanceUSD × leverage × percent) / currentPrice
-    const buyingPower = balanceUSD * leverage * (percent / 100);
+    // Calculate quantity based on: (balanceUSD × leverage × percent × 0.95) / currentPrice
+    // 95%만 사용하여 수수료 및 마진 여유 확보
+    const safeBalance = balanceUSD * 0.95; // 5% 마진 여유
+    const buyingPower = safeBalance * leverage * (percent / 100);
     const qty = currentPrice > 0 ? buyingPower / currentPrice : 0;
     setOrderQty(qty.toFixed(3));
   };
