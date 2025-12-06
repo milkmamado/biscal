@@ -31,14 +31,22 @@ interface TradeCloseData {
   pnl: number;
 }
 
+interface OpenOrderData {
+  orderId: number;
+  price: number;
+  side: 'BUY' | 'SELL';
+  origQty: number;
+}
+
 interface OrderPanel8282Props {
   symbol: string;
   onPositionChange?: (position: Position | null) => void;
   onPnLChange?: (pnl: number) => void;
+  onOpenOrdersChange?: (orders: OpenOrderData[]) => void;
   onTradeClose?: (trade: TradeCloseData) => void;
 }
 
-const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }: OrderPanel8282Props) => {
+const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersChange, onTradeClose }: OrderPanel8282Props) => {
   const { toast } = useToast();
   const { 
     getBalances, 
@@ -137,10 +145,22 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
         }
       }
       
-      // Fetch open orders count for this symbol
+      // Fetch open orders for this symbol
       try {
         const openOrders = await getOpenOrders(symbol);
-        setOpenOrdersCount(Array.isArray(openOrders) ? openOrders.length : 0);
+        const ordersArray = Array.isArray(openOrders) ? openOrders : [];
+        setOpenOrdersCount(ordersArray.length);
+        
+        // Notify parent about open orders
+        if (onOpenOrdersChange) {
+          const orderData = ordersArray.map((o: any) => ({
+            orderId: o.orderId,
+            price: parseFloat(o.price),
+            side: o.side as 'BUY' | 'SELL',
+            origQty: parseFloat(o.origQty)
+          }));
+          onOpenOrdersChange(orderData);
+        }
       } catch (e) {
         console.error('Failed to fetch open orders:', e);
       }
