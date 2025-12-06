@@ -106,6 +106,9 @@ export const useBinanceApi = () => {
     return callBinanceApi('getPositions', symbol ? { symbol } : {});
   }, [callBinanceApi]);
 
+  const getOpenOrders = useCallback(async (symbol?: string): Promise<any[]> => {
+    return callBinanceApi('getOpenOrders', symbol ? { symbol } : {});
+  }, [callBinanceApi]);
   const placeMarketOrder = useCallback(async (
     symbol: string,
     side: 'BUY' | 'SELL',
@@ -189,6 +192,7 @@ export const useBinanceApi = () => {
     getAccountInfo,
     getBalances,
     getPositions,
+    getOpenOrders,
     placeMarketOrder,
     placeLimitOrder,
     cancelOrder,

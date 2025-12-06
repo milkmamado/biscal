@@ -43,6 +43,7 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
   const { 
     getBalances, 
     getPositions,
+    getOpenOrders,
     placeMarketOrder: apiPlaceMarketOrder, 
     placeLimitOrder: apiPlaceLimitOrder,
     cancelAllOrders: apiCancelAllOrders,
@@ -63,8 +64,11 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
   // Position state
   const [position, setPosition] = useState<Position | null>(null);
   
-  // Pending orders state
+  // Pending orders state (local simulation)
   const [pendingOrders, setPendingOrders] = useState<PendingOrder[]>([]);
+  
+  // Real open orders count from Binance
+  const [openOrdersCount, setOpenOrdersCount] = useState<number>(0);
   
   // Notify parent when position changes
   useEffect(() => {
@@ -107,7 +111,7 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
     }
   };
   
-  // Fetch balance and position on mount and every 10 seconds
+  // Fetch balance, position, and open orders on mount and every 10 seconds
   const fetchBalanceAndPosition = async () => {
     setBalanceLoading(true);
     try {
@@ -135,6 +139,14 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
         } else {
           setPosition(null);
         }
+      }
+      
+      // Fetch open orders count for this symbol
+      try {
+        const openOrders = await getOpenOrders(symbol);
+        setOpenOrdersCount(Array.isArray(openOrders) ? openOrders.length : 0);
+      } catch (e) {
+        console.error('Failed to fetch open orders:', e);
       }
     } catch (error) {
       console.error('Failed to fetch balance/position:', error);
@@ -891,17 +903,12 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
           onClick={handleCancelAll}
           className={cn(
             "py-1.5 text-[10px] border-r border-border font-medium relative",
-            pendingOrders.length > 0 
+            openOrdersCount > 0 
               ? "bg-orange-900/50 hover:bg-orange-900/70 text-orange-400" 
               : "bg-secondary hover:bg-secondary/80"
           )}
         >
-          일괄취소
-          {pendingOrders.length > 0 && (
-            <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-[8px] rounded-full w-4 h-4 flex items-center justify-center">
-              {pendingOrders.length}
-            </span>
-          )}
+          {openOrdersCount > 0 ? `미체결 (${openOrdersCount})` : '일괄취소'}
         </button>
         <button 
           onClick={() => handleMarketOrder('short')}
