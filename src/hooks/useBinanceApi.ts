@@ -100,11 +100,20 @@ export const useBinanceApi = () => {
     symbol: string,
     side: 'BUY' | 'SELL',
     quantity: number,
-    reduceOnly: boolean = false
+    reduceOnly: boolean = false,
+    currentPrice?: number
   ) => {
     // Fetch precision and round quantity
     const precision = await fetchSymbolPrecision(symbol);
     const roundedQuantity = roundQuantity(quantity, precision);
+    
+    // Validate minimum notional (skip for reduceOnly orders)
+    if (!reduceOnly && currentPrice) {
+      const notional = roundedQuantity * currentPrice;
+      if (notional < precision.minNotional) {
+        throw new Error(`주문 금액이 최소 ${precision.minNotional} USDT 이상이어야 합니다. 현재: ${notional.toFixed(2)} USDT`);
+      }
+    }
     
     return callBinanceApi('placeOrder', {
       symbol,
@@ -126,6 +135,14 @@ export const useBinanceApi = () => {
     const precision = await fetchSymbolPrecision(symbol);
     const roundedQuantity = roundQuantity(quantity, precision);
     const roundedPrice = roundPrice(price, precision);
+    
+    // Validate minimum notional (skip for reduceOnly orders)
+    if (!reduceOnly) {
+      const notional = roundedQuantity * roundedPrice;
+      if (notional < precision.minNotional) {
+        throw new Error(`주문 금액이 최소 ${precision.minNotional} USDT 이상이어야 합니다. 현재: ${notional.toFixed(2)} USDT`);
+      }
+    }
     
     return callBinanceApi('placeOrder', {
       symbol,
