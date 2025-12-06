@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { useTradingLogs } from '@/hooks/useTradingLogs';
 import { supabase } from '@/integrations/supabase/client';
 import HotCoinList from '@/components/HotCoinList';
 import OrderPanel8282 from '@/components/OrderPanel8282';
@@ -9,12 +10,6 @@ import DualChartPanel from '@/components/DualChartPanel';
 import ApiKeySetup from '@/components/ApiKeySetup';
 import { Button } from '@/components/ui/button';
 import { LogOut } from 'lucide-react';
-
-interface TradeStats {
-  realizedPnL: number;
-  tradeCount: number;
-  winCount: number;
-}
 
 interface Position {
   type: 'long' | 'short';
@@ -27,16 +22,12 @@ const Index = () => {
   const [selectedSymbol, setSelectedSymbol] = useState('BTCUSDT');
   const [currentPosition, setCurrentPosition] = useState<Position | null>(null);
   const [currentPnL, setCurrentPnL] = useState(0);
-  const [tradeStats, setTradeStats] = useState<TradeStats>({
-    realizedPnL: 0,
-    tradeCount: 0,
-    winCount: 0
-  });
   const [hasApiKeys, setHasApiKeys] = useState<boolean | null>(null);
   const [checkingKeys, setCheckingKeys] = useState(true);
 
   const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
+  const { dailyStats, logTrade } = useTradingLogs();
 
   // Check if user has API keys configured
   useEffect(() => {
@@ -77,13 +68,26 @@ const Index = () => {
     setCurrentPnL(pnl);
   }, []);
 
-  const handleTradeClose = useCallback((pnl: number) => {
-    setTradeStats(prev => ({
-      realizedPnL: prev.realizedPnL + pnl,
-      tradeCount: prev.tradeCount + 1,
-      winCount: pnl >= 0 ? prev.winCount + 1 : prev.winCount
-    }));
-  }, []);
+  const handleTradeClose = useCallback((trade: {
+    symbol: string;
+    side: 'long' | 'short';
+    entryPrice: number;
+    exitPrice: number;
+    quantity: number;
+    leverage: number;
+    pnl: number;
+  }) => {
+    // Log trade to database
+    logTrade({
+      symbol: trade.symbol,
+      side: trade.side,
+      entryPrice: trade.entryPrice,
+      exitPrice: trade.exitPrice,
+      quantity: trade.quantity,
+      leverage: trade.leverage,
+      pnlUsd: trade.pnl,
+    });
+  }, [logTrade]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -133,9 +137,9 @@ const Index = () => {
               <DualChartPanel 
                 symbol={selectedSymbol} 
                 unrealizedPnL={currentPnL}
-                realizedPnL={tradeStats.realizedPnL}
-                tradeCount={tradeStats.tradeCount}
-                winCount={tradeStats.winCount}
+                realizedPnL={dailyStats.totalPnL}
+                tradeCount={dailyStats.tradeCount}
+                winCount={dailyStats.winCount}
                 hasPosition={!!currentPosition}
               />
             </div>
