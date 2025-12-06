@@ -66,6 +66,9 @@ export const useBinanceApi = () => {
         if (data.code === -4061) {
           throw new Error('주문 수량이 최소 단위보다 작습니다');
         }
+        if (data.code === -4164) {
+          throw new Error('최소 주문 금액은 $5 이상이어야 합니다');
+        }
         // Check if it's an IP error
         if (data.code === -2015 && data.error?.includes('request ip:')) {
           const ipMatch = data.error.match(/request ip: ([\d.]+)/);
