@@ -140,11 +140,12 @@ serve(async (req) => {
 
     const data = await proxyResponse.json();
 
-    if (data.error || data.code) {
+    // Check for actual errors (negative codes are Binance errors, 200 is success)
+    if (data.error || (data.code && data.code < 0)) {
       console.error('Binance API error via VPS:', data);
       return new Response(
         JSON.stringify({ error: data.msg || data.error || 'Binance API error', code: data.code }),
-        { status: proxyResponse.status === 200 ? 400 : proxyResponse.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
