@@ -323,9 +323,8 @@ const DualChartPanel = ({
                       backgroundImage: 'repeating-linear-gradient(90deg, transparent, transparent 4px, rgb(34 197 94) 4px, rgb(34 197 94) 8px)',
                       backgroundSize: '12px 1px'
                     }} />
-                    <div className="absolute right-1 -top-2.5 flex items-center gap-1 bg-emerald-600 text-white text-[9px] px-1.5 py-0.5 rounded font-mono shadow-lg">
-                      <span className="text-emerald-200">익절</span>
-                      <span className="font-bold">${tpPrice.toFixed(5)}</span>
+                    <div className="absolute right-1 -top-2 bg-emerald-600 text-white text-[9px] px-1.5 py-0.5 rounded font-bold shadow-lg">
+                      익절
                     </div>
                   </div>
                 </div>
@@ -338,13 +337,12 @@ const DualChartPanel = ({
                   style={{ top: getPriceYPosition(entryPrice) }}
                 >
                   <div className="relative w-full">
-                    <div className="w-full h-px bg-yellow-500" style={{ 
+                    <div className="w-full h-px" style={{ 
                       backgroundImage: 'repeating-linear-gradient(90deg, transparent, transparent 4px, rgb(234 179 8) 4px, rgb(234 179 8) 8px)',
                       backgroundSize: '12px 1px'
                     }} />
-                    <div className="absolute right-1 -top-2.5 flex items-center gap-1 bg-yellow-600 text-white text-[9px] px-1.5 py-0.5 rounded font-mono shadow-lg">
-                      <span className="text-yellow-200">진입</span>
-                      <span className="font-bold">${entryPrice.toFixed(5)}</span>
+                    <div className="absolute right-1 -top-2 bg-yellow-600 text-white text-[9px] px-1.5 py-0.5 rounded font-bold shadow-lg">
+                      진입
                     </div>
                   </div>
                 </div>
@@ -361,9 +359,8 @@ const DualChartPanel = ({
                       backgroundImage: 'repeating-linear-gradient(90deg, transparent, transparent 4px, rgb(239 68 68) 4px, rgb(239 68 68) 8px)',
                       backgroundSize: '12px 1px'
                     }} />
-                    <div className="absolute right-1 -top-2.5 flex items-center gap-1 bg-red-600 text-white text-[9px] px-1.5 py-0.5 rounded font-mono shadow-lg">
-                      <span className="text-red-200">손절</span>
-                      <span className="font-bold">${slPrice.toFixed(5)}</span>
+                    <div className="absolute right-1 -top-2 bg-red-600 text-white text-[9px] px-1.5 py-0.5 rounded font-bold shadow-lg">
+                      손절
                     </div>
                   </div>
                 </div>
