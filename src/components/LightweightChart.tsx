@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, memo } from 'react';
-import { createChart, IChartApi, ISeriesApi } from 'lightweight-charts';
-import { fetchKlines, calculateBollingerBands } from '@/lib/binance';
+import { fetchKlines, calculateBollingerBands, KlineData } from '@/lib/binance';
 
 interface LightweightChartProps {
   symbol: string;
@@ -22,124 +21,147 @@ const intervalMap: Record<string, string> = {
 
 const LightweightChart = memo(({ symbol, interval = '1', height = 600 }: LightweightChartProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<IChartApi | null>(null);
-  const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
-  const upperBandRef = useRef<ISeriesApi<'Line'> | null>(null);
-  const middleBandRef = useRef<ISeriesApi<'Line'> | null>(null);
-  const lowerBandRef = useRef<ISeriesApi<'Line'> | null>(null);
-  const volumeSeriesRef = useRef<ISeriesApi<'Histogram'> | null>(null);
+  const chartRef = useRef<any>(null);
+  const candleSeriesRef = useRef<any>(null);
+  const upperBandRef = useRef<any>(null);
+  const middleBandRef = useRef<any>(null);
+  const lowerBandRef = useRef<any>(null);
+  const volumeSeriesRef = useRef<any>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [chartLoaded, setChartLoaded] = useState(false);
 
-  // Initialize chart
+  // Initialize chart dynamically
   useEffect(() => {
     if (!containerRef.current) return;
 
-    try {
-      // Create chart
-      const chart = createChart(containerRef.current, {
-        width: containerRef.current.clientWidth,
-        height: height,
-        layout: {
-          background: { color: '#0a0a0a' },
-          textColor: '#9ca3af',
-        },
-        grid: {
-          vertLines: { color: '#1f2937' },
-          horzLines: { color: '#1f2937' },
-        },
-        crosshair: {
-          mode: 0,
-          vertLine: { color: '#4b5563', width: 1, style: 2 },
-          horzLine: { color: '#4b5563', width: 1, style: 2 },
-        },
-        rightPriceScale: {
-          borderColor: '#374151',
-          scaleMargins: { top: 0.1, bottom: 0.2 },
-        },
-        timeScale: {
-          borderColor: '#374151',
-          timeVisible: true,
-          secondsVisible: false,
-        },
-      });
+    let mounted = true;
 
-      chartRef.current = chart;
+    const initChart = async () => {
+      try {
+        // Dynamic import to avoid SSR/bundling issues
+        const LightweightCharts = await import('lightweight-charts');
+        
+        if (!mounted || !containerRef.current) return;
 
-      // Add candlestick series
-      const candleSeries = chart.addCandlestickSeries({
-        upColor: '#ef4444',
-        downColor: '#3b82f6',
-        borderUpColor: '#ef4444',
-        borderDownColor: '#3b82f6',
-        wickUpColor: '#ef4444',
-        wickDownColor: '#3b82f6',
-      });
-      candleSeriesRef.current = candleSeries;
+        // Create chart using the default export
+        const chart = LightweightCharts.createChart(containerRef.current, {
+          width: containerRef.current.clientWidth,
+          height: height,
+          layout: {
+            background: { color: '#0a0a0a' },
+            textColor: '#9ca3af',
+          },
+          grid: {
+            vertLines: { color: '#1f2937' },
+            horzLines: { color: '#1f2937' },
+          },
+          crosshair: {
+            mode: 0,
+            vertLine: { color: '#4b5563', width: 1, style: 2 },
+            horzLine: { color: '#4b5563', width: 1, style: 2 },
+          },
+          rightPriceScale: {
+            borderColor: '#374151',
+            scaleMargins: { top: 0.1, bottom: 0.2 },
+          },
+          timeScale: {
+            borderColor: '#374151',
+            timeVisible: true,
+            secondsVisible: false,
+          },
+        });
 
-      // Add volume series
-      const volumeSeries = chart.addHistogramSeries({
-        color: '#4b5563',
-        priceFormat: { type: 'volume' },
-        priceScaleId: 'volume',
-      });
-      chart.priceScale('volume').applyOptions({
-        scaleMargins: { top: 0.85, bottom: 0 },
-      });
-      volumeSeriesRef.current = volumeSeries;
+        chartRef.current = chart;
 
-      // Add Bollinger Bands
-      upperBandRef.current = chart.addLineSeries({
-        color: '#f59e0b',
-        lineWidth: 1,
-        lineStyle: 0,
-        priceLineVisible: false,
-        lastValueVisible: false,
-      });
+        // Add candlestick series (v4 API)
+        const candleSeries = chart.addCandlestickSeries({
+          upColor: '#ef4444',
+          downColor: '#3b82f6',
+          borderUpColor: '#ef4444',
+          borderDownColor: '#3b82f6',
+          wickUpColor: '#ef4444',
+          wickDownColor: '#3b82f6',
+        });
+        candleSeriesRef.current = candleSeries;
 
-      middleBandRef.current = chart.addLineSeries({
-        color: '#8b5cf6',
-        lineWidth: 1,
-        lineStyle: 2,
-        priceLineVisible: false,
-        lastValueVisible: false,
-      });
+        // Add volume series
+        const volumeSeries = chart.addHistogramSeries({
+          color: '#4b5563',
+          priceFormat: { type: 'volume' },
+          priceScaleId: 'volume',
+        });
+        chart.priceScale('volume').applyOptions({
+          scaleMargins: { top: 0.85, bottom: 0 },
+        });
+        volumeSeriesRef.current = volumeSeries;
 
-      lowerBandRef.current = chart.addLineSeries({
-        color: '#f59e0b',
-        lineWidth: 1,
-        lineStyle: 0,
-        priceLineVisible: false,
-        lastValueVisible: false,
-      });
+        // Add Bollinger Bands
+        upperBandRef.current = chart.addLineSeries({
+          color: '#f59e0b',
+          lineWidth: 1,
+          lineStyle: 0,
+          priceLineVisible: false,
+          lastValueVisible: false,
+        });
 
-      // Handle resize
-      const handleResize = () => {
-        if (containerRef.current && chartRef.current) {
-          chartRef.current.applyOptions({ width: containerRef.current.clientWidth });
+        middleBandRef.current = chart.addLineSeries({
+          color: '#8b5cf6',
+          lineWidth: 1,
+          lineStyle: 2,
+          priceLineVisible: false,
+          lastValueVisible: false,
+        });
+
+        lowerBandRef.current = chart.addLineSeries({
+          color: '#f59e0b',
+          lineWidth: 1,
+          lineStyle: 0,
+          priceLineVisible: false,
+          lastValueVisible: false,
+        });
+
+        // Handle resize
+        const handleResize = () => {
+          if (containerRef.current && chartRef.current) {
+            chartRef.current.applyOptions({ width: containerRef.current.clientWidth });
+          }
+        };
+        window.addEventListener('resize', handleResize);
+
+        setChartLoaded(true);
+        setError(null);
+
+        // Store cleanup function
+        (chartRef.current as any)._cleanup = () => {
+          window.removeEventListener('resize', handleResize);
+        };
+      } catch (err) {
+        console.error('Chart initialization error:', err);
+        if (mounted) {
+          setError('차트 라이브러리 로딩 실패');
         }
-      };
-      window.addEventListener('resize', handleResize);
+      }
+    };
 
-      setError(null);
+    initChart();
 
-      return () => {
-        window.removeEventListener('resize', handleResize);
-        if (chartRef.current) {
-          chartRef.current.remove();
-          chartRef.current = null;
+    return () => {
+      mounted = false;
+      if (chartRef.current) {
+        if ((chartRef.current as any)._cleanup) {
+          (chartRef.current as any)._cleanup();
         }
-      };
-    } catch (err) {
-      console.error('Chart initialization error:', err);
-      setError('차트 초기화 실패');
-    }
+        chartRef.current.remove();
+        chartRef.current = null;
+      }
+    };
   }, [height]);
 
   // Fetch and update data when symbol or interval changes
   useEffect(() => {
-    if (!candleSeriesRef.current) return;
+    if (!chartLoaded || !candleSeriesRef.current) return;
 
     const binanceInterval = intervalMap[interval] || '1m';
     setIsLoading(true);
@@ -149,25 +171,27 @@ const LightweightChart = memo(({ symbol, interval = '1', height = 600 }: Lightwe
         // Fetch 200 candles for Bollinger Bands calculation
         const klines = await fetchKlines(symbol, binanceInterval, 200);
         
+        if (!candleSeriesRef.current) return;
+
         // Convert to chart format
-        const candleData = klines.map(k => ({
-          time: Math.floor(k.openTime / 1000) as any,
+        const candleData = klines.map((k: KlineData) => ({
+          time: Math.floor(k.openTime / 1000),
           open: k.open,
           high: k.high,
           low: k.low,
           close: k.close,
         }));
 
-        const volumeData = klines.map(k => ({
-          time: Math.floor(k.openTime / 1000) as any,
+        const volumeData = klines.map((k: KlineData) => ({
+          time: Math.floor(k.openTime / 1000),
           value: k.volume,
           color: k.close >= k.open ? 'rgba(239, 68, 68, 0.3)' : 'rgba(59, 130, 246, 0.3)',
         }));
 
         // Calculate Bollinger Bands for each point
-        const upperData: any[] = [];
-        const middleData: any[] = [];
-        const lowerData: any[] = [];
+        const upperData: Array<{ time: number; value: number }> = [];
+        const middleData: Array<{ time: number; value: number }> = [];
+        const lowerData: Array<{ time: number; value: number }> = [];
 
         for (let i = 19; i < klines.length; i++) {
           const slice = klines.slice(i - 19, i + 1);
@@ -211,20 +235,20 @@ const LightweightChart = memo(({ symbol, interval = '1', height = 600 }: Lightwe
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        if (data.k) {
+        if (data.k && candleSeriesRef.current) {
           const kline = data.k;
           const candle = {
-            time: Math.floor(kline.t / 1000) as any,
+            time: Math.floor(kline.t / 1000),
             open: parseFloat(kline.o),
             high: parseFloat(kline.h),
             low: parseFloat(kline.l),
             close: parseFloat(kline.c),
           };
           
-          candleSeriesRef.current?.update(candle);
+          candleSeriesRef.current.update(candle);
           
           volumeSeriesRef.current?.update({
-            time: Math.floor(kline.t / 1000) as any,
+            time: Math.floor(kline.t / 1000),
             value: parseFloat(kline.v),
             color: candle.close >= candle.open 
               ? 'rgba(239, 68, 68, 0.3)' 
@@ -246,12 +270,12 @@ const LightweightChart = memo(({ symbol, interval = '1', height = 600 }: Lightwe
         wsRef.current = null;
       }
     };
-  }, [symbol, interval]);
+  }, [symbol, interval, chartLoaded]);
 
   if (error) {
     return (
       <div className="relative w-full h-full flex items-center justify-center bg-card">
-        <div className="text-red-400 text-sm">{error}</div>
+        <div className="text-destructive text-sm">{error}</div>
       </div>
     );
   }
