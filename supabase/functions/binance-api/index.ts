@@ -1,33 +1,13 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { encode as hexEncode } from "https://deno.land/std@0.177.0/encoding/hex.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Production and Testnet base URLs
-const BINANCE_FUTURES_BASE = 'https://fapi.binance.com';
-const BINANCE_TESTNET_BASE = 'https://testnet.binancefuture.com';
-
-// HMAC-SHA256 signature
-async function createSignature(queryString: string, secretKey: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    "raw",
-    encoder.encode(secretKey),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"]
-  );
-  const signature = await crypto.subtle.sign(
-    "HMAC",
-    key,
-    encoder.encode(queryString)
-  );
-  return new TextDecoder().decode(hexEncode(new Uint8Array(signature)));
-}
+// VPS Proxy Server (Fixed IP: 158.247.211.233)
+const VPS_PROXY_URL = 'http://158.247.211.233:3000/api/binance';
 
 serve(async (req) => {
   // Handle CORS preflight
@@ -89,97 +69,45 @@ serve(async (req) => {
 
     const { api_key: apiKey, api_secret: apiSecret } = apiKeys;
 
-    // Select base URL based on mode
-    const baseUrl = testnet ? BINANCE_TESTNET_BASE : BINANCE_FUTURES_BASE;
+    console.log(`Binance API action: ${action} (${testnet ? 'TESTNET' : 'MAINNET'}) via VPS Proxy`, JSON.stringify(params));
 
-    console.log(`Binance API action: ${action} (${testnet ? 'TESTNET' : 'MAINNET'})`, JSON.stringify(params));
-
-    const timestamp = Date.now();
+    // Map action to endpoint
     let endpoint = '';
     let method = 'GET';
-    let queryParams: Record<string, string> = { timestamp: timestamp.toString() };
 
     switch (action) {
       case 'getAccountInfo':
         endpoint = '/fapi/v2/account';
         break;
-
       case 'getBalance':
         endpoint = '/fapi/v2/balance';
         break;
-
       case 'getPositions':
         endpoint = '/fapi/v2/positionRisk';
-        if (params.symbol) {
-          queryParams.symbol = params.symbol;
-        }
         break;
-
       case 'getOpenOrders':
         endpoint = '/fapi/v1/openOrders';
-        if (params.symbol) {
-          queryParams.symbol = params.symbol;
-        }
         break;
-
       case 'placeOrder':
         endpoint = '/fapi/v1/order';
         method = 'POST';
-        queryParams = {
-          ...queryParams,
-          symbol: params.symbol,
-          side: params.side,
-          type: params.type || 'MARKET',
-          quantity: params.quantity.toString(),
-        };
-        if (params.type === 'LIMIT') {
-          queryParams.price = params.price.toString();
-          queryParams.timeInForce = params.timeInForce || 'GTC';
-        }
-        if (params.reduceOnly) {
-          queryParams.reduceOnly = 'true';
-        }
         break;
-
       case 'cancelOrder':
         endpoint = '/fapi/v1/order';
         method = 'DELETE';
-        queryParams = {
-          ...queryParams,
-          symbol: params.symbol,
-          orderId: params.orderId?.toString(),
-        };
         break;
-
       case 'cancelAllOrders':
         endpoint = '/fapi/v1/allOpenOrders';
         method = 'DELETE';
-        queryParams = {
-          ...queryParams,
-          symbol: params.symbol,
-        };
         break;
-
       case 'setLeverage':
         endpoint = '/fapi/v1/leverage';
         method = 'POST';
-        queryParams = {
-          ...queryParams,
-          symbol: params.symbol,
-          leverage: params.leverage.toString(),
-        };
         break;
-
       case 'setMarginType':
         endpoint = '/fapi/v1/marginType';
         method = 'POST';
-        queryParams = {
-          ...queryParams,
-          symbol: params.symbol,
-          marginType: params.marginType,
-        };
         break;
-
       default:
         return new Response(
           JSON.stringify({ error: `Unknown action: ${action}` }),
@@ -187,34 +115,35 @@ serve(async (req) => {
         );
     }
 
-    // Build query string and signature
-    const queryString = new URLSearchParams(queryParams).toString();
-    const signature = await createSignature(queryString, apiSecret);
-    const signedQuery = `${queryString}&signature=${signature}`;
-
-    // Make request to Binance
-    const url = `${baseUrl}${endpoint}?${signedQuery}`;
-    console.log(`Calling Binance: ${method} ${endpoint} (${testnet ? 'TESTNET' : 'MAINNET'})`);
-
-    const response = await fetch(url, {
-      method,
+    // Call VPS Proxy Server
+    console.log(`Calling VPS Proxy: ${method} ${endpoint}`);
+    
+    const proxyResponse = await fetch(VPS_PROXY_URL, {
+      method: 'POST',
       headers: {
-        'X-MBX-APIKEY': apiKey,
-        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Type': 'application/json',
       },
+      body: JSON.stringify({
+        apiKey,
+        apiSecret,
+        endpoint,
+        method,
+        params,
+        testnet,
+      }),
     });
 
-    const data = await response.json();
+    const data = await proxyResponse.json();
 
-    if (!response.ok) {
-      console.error('Binance API error:', data);
+    if (data.error || data.code) {
+      console.error('Binance API error via VPS:', data);
       return new Response(
-        JSON.stringify({ error: data.msg || 'Binance API error', code: data.code }),
-        { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: data.msg || data.error || 'Binance API error', code: data.code }),
+        { status: proxyResponse.status === 200 ? 400 : proxyResponse.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log(`Binance API success for ${action} (${testnet ? 'TESTNET' : 'MAINNET'})`);
+    console.log(`Binance API success for ${action} via VPS Proxy`);
     return new Response(
       JSON.stringify(data),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
