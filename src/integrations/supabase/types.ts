@@ -14,6 +14,48 @@ export type Database = {
   }
   public: {
     Tables: {
+      daily_trading_logs: {
+        Row: {
+          created_at: string
+          entry_price: number
+          exit_price: number
+          id: string
+          leverage: number
+          pnl_usd: number
+          quantity: number
+          side: string
+          symbol: string
+          trade_date: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          entry_price: number
+          exit_price: number
+          id?: string
+          leverage?: number
+          pnl_usd: number
+          quantity: number
+          side: string
+          symbol: string
+          trade_date?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          entry_price?: number
+          exit_price?: number
+          id?: string
+          leverage?: number
+          pnl_usd?: number
+          quantity?: number
+          side?: string
+          symbol?: string
+          trade_date?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       email_verification_codes: {
         Row: {
           code: string

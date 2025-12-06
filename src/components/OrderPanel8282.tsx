@@ -21,11 +21,21 @@ interface PendingOrder {
   createdAt: number;
 }
 
+interface TradeCloseData {
+  symbol: string;
+  side: 'long' | 'short';
+  entryPrice: number;
+  exitPrice: number;
+  quantity: number;
+  leverage: number;
+  pnl: number;
+}
+
 interface OrderPanel8282Props {
   symbol: string;
   onPositionChange?: (position: Position | null) => void;
   onPnLChange?: (pnl: number) => void;
-  onTradeClose?: (pnl: number) => void;
+  onTradeClose?: (trade: TradeCloseData) => void;
 }
 
 const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }: OrderPanel8282Props) => {
@@ -270,7 +280,15 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
               } else if (position && position.type !== order.type) {
                 // 청산
                 const pnl = calculatePnL(position, order.price);
-                onTradeClose?.(pnl);
+                onTradeClose?.({
+                  symbol,
+                  side: position.type,
+                  entryPrice: position.entryPrice,
+                  exitPrice: order.price,
+                  quantity: position.quantity,
+                  leverage: position.leverage,
+                  pnl,
+                });
                 toast({
                   title: pnl >= 0 ? '✅ 지정가 청산 체결' : '❌ 지정가 청산 체결',
                   description: `${symbol} @ $${formatPrice(order.price)} | 손익: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}`,
@@ -374,7 +392,15 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
       
       if (stopHit) {
         const pnl = calculatePnL(position, currentPrice);
-        onTradeClose?.(pnl);
+        onTradeClose?.({
+          symbol,
+          side: position.type,
+          entryPrice: position.entryPrice,
+          exitPrice: currentPrice,
+          quantity: position.quantity,
+          leverage: position.leverage,
+          pnl,
+        });
         toast({
           title: '🎯 트레일링 스탑 청산',
           description: `${symbol} @ $${formatPrice(currentPrice)} | 확정 손익: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}`,
@@ -490,7 +516,15 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
       await apiPlaceMarketOrder(symbol, side, closeQty, true);
       
       const pnl = calculatePnL({ ...position, quantity: closeQty }, currentPrice);
-      onTradeClose?.(pnl);
+      onTradeClose?.({
+        symbol,
+        side: position.type,
+        entryPrice: position.entryPrice,
+        exitPrice: currentPrice,
+        quantity: closeQty,
+        leverage: position.leverage,
+        pnl,
+      });
       
       toast({
         title: pnl >= 0 ? '✅ 청산 완료' : '❌ 청산 완료',
