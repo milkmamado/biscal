@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, memo } from 'react';
-import { createChart, IChartApi, ISeriesApi, CandlestickData, LineData, Time, CandlestickSeries, LineSeries, HistogramSeries } from 'lightweight-charts';
-import { KlineData, fetchKlines, calculateBollingerBands } from '@/lib/binance';
+import { createChart, CandlestickSeries, LineSeries, HistogramSeries } from 'lightweight-charts';
+import type { IChartApi, ISeriesApi, CandlestickData, LineData, Time } from 'lightweight-charts';
+import { fetchKlines, calculateBollingerBands } from '@/lib/binance';
 
 interface LightweightChartProps {
   symbol: string;
