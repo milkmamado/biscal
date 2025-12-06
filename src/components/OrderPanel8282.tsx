@@ -236,6 +236,9 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
   // Technical signal state
   const [techSignal, setTechSignal] = useState<TechnicalSignal | null>(null);
   const lastSignalFetch = useRef<number>(0);
+  
+  // Ref to prevent duplicate TP/SL execution
+  const tpSlProcessing = useRef<boolean>(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -330,26 +333,80 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
           }
         }
         
-        // Check TP/SL auto close
-        if (position && enableTpSl && ticker.price > 0) {
+        // Check TP/SL auto close (use ref to prevent multiple executions)
+        if (position && enableTpSl && ticker.price > 0 && !tpSlProcessing.current) {
           const pnl = calculatePnL(position, ticker.price);
           const tp = parseFloat(tpAmount) || 0;
           const sl = parseFloat(slAmount) || 0;
           
           if (tp > 0 && pnl >= tp) {
-            handleMarketClose();
-            toast({
-              title: '✅ 익절 청산',
-              description: `목표 수익 $${tp} 달성! 실현손익: $${pnl.toFixed(2)}`,
-              duration: 3000,
-            });
+            tpSlProcessing.current = true;
+            // Execute TP close via API
+            const executeTpClose = async () => {
+              try {
+                const side = position.type === 'long' ? 'SELL' : 'BUY';
+                await apiPlaceMarketOrder(symbol, side, position.quantity, true);
+                toast({
+                  title: '✅ 익절 청산',
+                  description: `목표 수익 $${tp} 달성! 실현손익: $${pnl.toFixed(2)}`,
+                  duration: 3000,
+                });
+                onTradeClose?.({
+                  symbol,
+                  side: position.type,
+                  entryPrice: position.entryPrice,
+                  exitPrice: ticker.price,
+                  quantity: position.quantity,
+                  leverage: position.leverage,
+                  pnl,
+                });
+                setTimeout(fetchBalanceAndPosition, 1000);
+              } catch (error: any) {
+                toast({
+                  title: '익절 청산 실패',
+                  description: error.message || '청산을 처리할 수 없습니다.',
+                  variant: 'destructive',
+                  duration: 3000,
+                });
+              } finally {
+                tpSlProcessing.current = false;
+              }
+            };
+            executeTpClose();
           } else if (sl > 0 && pnl <= -sl) {
-            handleMarketClose();
-            toast({
-              title: '🛑 손절 청산',
-              description: `손절선 -$${sl} 도달! 실현손익: $${pnl.toFixed(2)}`,
-              duration: 3000,
-            });
+            tpSlProcessing.current = true;
+            // Execute SL close via API
+            const executeSlClose = async () => {
+              try {
+                const side = position.type === 'long' ? 'SELL' : 'BUY';
+                await apiPlaceMarketOrder(symbol, side, position.quantity, true);
+                toast({
+                  title: '🛑 손절 청산',
+                  description: `손절선 -$${sl} 도달! 실현손익: $${pnl.toFixed(2)}`,
+                  duration: 3000,
+                });
+                onTradeClose?.({
+                  symbol,
+                  side: position.type,
+                  entryPrice: position.entryPrice,
+                  exitPrice: ticker.price,
+                  quantity: position.quantity,
+                  leverage: position.leverage,
+                  pnl,
+                });
+                setTimeout(fetchBalanceAndPosition, 1000);
+              } catch (error: any) {
+                toast({
+                  title: '손절 청산 실패',
+                  description: error.message || '청산을 처리할 수 없습니다.',
+                  variant: 'destructive',
+                  duration: 3000,
+                });
+              } finally {
+                tpSlProcessing.current = false;
+              }
+            };
+            executeSlClose();
           }
         }
       } catch (error) {
@@ -382,20 +439,27 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
     }
   }, [position]);
   
-  // Trailing stop logic
+  // Trailing stop logic - using percentage of entry price for step calculation
+  const trailingStopProcessing = useRef(false);
+  
   useEffect(() => {
-    if (!position || !enableTrailing || currentPrice <= 0) return;
+    if (!position || !enableTrailing || currentPrice <= 0 || trailingStopProcessing.current) return;
     
     const direction = position.type === 'long' ? 1 : -1;
-    const currentProfit = (currentPrice - position.entryPrice) * direction;
+    // Calculate profit as percentage of entry price to handle small-priced coins
+    const profitPercent = ((currentPrice - position.entryPrice) / position.entryPrice) * 100 * direction;
+    
+    // Convert step points to percentage (1pt = 1%)
+    const stepPercent = trailingStep;
     
     // Update highest profit and trailing stop
-    if (currentProfit > highestProfit) {
-      setHighestProfit(currentProfit);
-      const steps = Math.floor(currentProfit / trailingStep);
+    if (profitPercent > highestProfit) {
+      setHighestProfit(profitPercent);
+      const steps = Math.floor(profitPercent / stepPercent);
       if (steps >= 1) {
-        // Move stop to (steps - 1) * trailingStep above entry
-        const newStopPrice = position.entryPrice + ((steps - 1) * trailingStep * direction);
+        // Move stop to (steps - 1) * stepPercent above entry
+        const stopOffsetPercent = (steps - 1) * stepPercent;
+        const newStopPrice = position.entryPrice * (1 + (stopOffsetPercent / 100) * direction);
         setTrailingStopPrice(newStopPrice);
       }
     }
@@ -407,22 +471,44 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
         : currentPrice >= trailingStopPrice;
       
       if (stopHit) {
-        const pnl = calculatePnL(position, currentPrice);
-        onTradeClose?.({
-          symbol,
-          side: position.type,
-          entryPrice: position.entryPrice,
-          exitPrice: currentPrice,
-          quantity: position.quantity,
-          leverage: position.leverage,
-          pnl,
-        });
-        toast({
-          title: '🎯 트레일링 스탑 청산',
-          description: `${symbol} @ $${formatPrice(currentPrice)} | 확정 손익: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}`,
-          duration: 3000,
-        });
-        setPosition(null);
+        trailingStopProcessing.current = true;
+        
+        // Execute actual market close via Binance API
+        const executeTrailingClose = async () => {
+          try {
+            const side = position.type === 'long' ? 'SELL' : 'BUY';
+            await apiPlaceMarketOrder(symbol, side, position.quantity, true);
+            
+            const pnl = calculatePnL(position, currentPrice);
+            onTradeClose?.({
+              symbol,
+              side: position.type,
+              entryPrice: position.entryPrice,
+              exitPrice: currentPrice,
+              quantity: position.quantity,
+              leverage: position.leverage,
+              pnl,
+            });
+            toast({
+              title: '🎯 트레일링 스탑 청산',
+              description: `${symbol} @ $${formatPrice(currentPrice)} | 확정 손익: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}`,
+              duration: 3000,
+            });
+            
+            setTimeout(fetchBalanceAndPosition, 1000);
+          } catch (error: any) {
+            toast({
+              title: '트레일링 청산 실패',
+              description: error.message || '청산을 처리할 수 없습니다.',
+              variant: 'destructive',
+              duration: 3000,
+            });
+          } finally {
+            trailingStopProcessing.current = false;
+          }
+        };
+        
+        executeTrailingClose();
       }
     }
   }, [currentPrice, position, enableTrailing, trailingStep, highestProfit, trailingStopPrice]);
@@ -846,7 +932,7 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
           </div>
           {enableTrailing && (
             <p className="text-[9px] text-orange-400/80">
-              ⚡ +{trailingStep}pt 수익마다 손절선 자동 상향 (본전 보장 후 이익 추적)
+              ⚡ +{trailingStep}% 수익마다 손절선 자동 상향 (본전 보장 후 이익 추적)
             </p>
           )}
           {position && trailingStopPrice !== null && (
@@ -854,7 +940,7 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
               <span className="text-[10px] text-orange-400">
                 🎯 현재 트레일링 손절선: <span className="font-mono font-bold">${formatPrice(trailingStopPrice)}</span>
                 <span className="text-muted-foreground ml-2">
-                  (최고수익: +{highestProfit.toFixed(2)}pt)
+                  (최고수익: +{highestProfit.toFixed(2)}%)
                 </span>
               </span>
             </div>
@@ -866,14 +952,37 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
       <div className="px-2 py-1.5 border-b border-border bg-secondary/30 flex items-center gap-1.5">
         <select 
           value={leverage} 
-          onChange={(e) => setLeverage(Number(e.target.value))}
+          onChange={async (e) => {
+            const newLeverage = Number(e.target.value);
+            setLeverage(newLeverage);
+            // Set leverage on Binance
+            try {
+              await apiSetLeverage(symbol, newLeverage);
+              toast({
+                title: '레버리지 변경',
+                description: `${symbol} 레버리지가 ${newLeverage}x로 설정되었습니다.`,
+                duration: 2000,
+              });
+            } catch (error: any) {
+              console.error('Failed to set leverage:', error);
+              // Don't show error for already set leverage
+              if (!error.message?.includes('-4046')) {
+                toast({
+                  title: '레버리지 설정 실패',
+                  description: error.message || '레버리지 설정 중 오류가 발생했습니다.',
+                  variant: 'destructive',
+                  duration: 3000,
+                });
+              }
+            }
+          }}
           className="bg-background border border-border px-1 py-0.5 text-[10px] rounded"
         >
           {[1, 2, 3, 5, 10, 20, 50, 75, 100, 125].map(l => (
             <option key={l} value={l}>{l}x</option>
           ))}
         </select>
-        <button 
+        <button
           onClick={() => adjustQty(-1)} 
           className="w-5 h-5 bg-secondary border border-border rounded flex items-center justify-center hover:bg-secondary/80"
         >
