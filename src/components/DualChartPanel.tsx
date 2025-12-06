@@ -262,34 +262,62 @@ const DualChartPanel = ({
         <div className="flex-1 min-h-0 relative" style={{ minHeight: '400px' }}>
           <SimpleChart symbol={symbol} interval={interval} height={500} />
           
-          {/* Order Price Labels Overlay */}
+          {/* Horizontal Price Lines Overlay */}
           {(openOrders.length > 0 || entryPrice) && (
-            <div className="absolute right-2 top-16 z-20 flex flex-col gap-1">
-              {/* Entry Price */}
+            <>
+              {/* Entry Price Line */}
               {entryPrice && entryPrice > 0 && (
-                <div className="flex items-center gap-1 bg-green-600/90 text-white text-[9px] px-2 py-0.5 rounded font-mono shadow-lg">
-                  <span className="text-green-300">진입</span>
-                  <span className="font-bold">${entryPrice.toFixed(5)}</span>
+                <div 
+                  className="absolute left-0 right-0 z-20 pointer-events-none"
+                  style={{ top: '30%' }}
+                >
+                  <div className="relative w-full">
+                    {/* Dashed line */}
+                    <div className="w-full h-px bg-green-500" style={{ 
+                      backgroundImage: 'repeating-linear-gradient(90deg, transparent, transparent 4px, rgb(34 197 94) 4px, rgb(34 197 94) 8px)',
+                      backgroundSize: '12px 1px'
+                    }} />
+                    {/* Label at right */}
+                    <div className="absolute right-1 -top-2.5 flex items-center gap-1 bg-green-600 text-white text-[9px] px-1.5 py-0.5 rounded font-mono shadow-lg">
+                      <span className="text-green-200">진입</span>
+                      <span className="font-bold">${entryPrice.toFixed(5)}</span>
+                    </div>
+                  </div>
                 </div>
               )}
               
-              {/* Pending Orders */}
-              {openOrders.map((order) => (
+              {/* Pending Order Lines */}
+              {openOrders.map((order, idx) => (
                 <div 
                   key={order.orderId}
-                  className={cn(
-                    "flex items-center gap-1 text-white text-[9px] px-2 py-0.5 rounded font-mono shadow-lg",
-                    order.side === 'BUY' ? "bg-red-600/90" : "bg-blue-600/90"
-                  )}
+                  className="absolute left-0 right-0 z-20 pointer-events-none"
+                  style={{ top: `${45 + idx * 10}%` }}
                 >
-                  <span className={order.side === 'BUY' ? "text-red-300" : "text-blue-300"}>
-                    {order.side === 'BUY' ? '롱' : '숏'}
-                  </span>
-                  <span className="font-bold">${order.price.toFixed(5)}</span>
-                  <span className="text-white/70">×{order.origQty}</span>
+                  <div className="relative w-full">
+                    {/* Dashed line */}
+                    <div 
+                      className={cn("w-full h-px", order.side === 'BUY' ? "bg-red-500" : "bg-blue-500")} 
+                      style={{ 
+                        backgroundImage: order.side === 'BUY' 
+                          ? 'repeating-linear-gradient(90deg, transparent, transparent 4px, rgb(239 68 68) 4px, rgb(239 68 68) 8px)'
+                          : 'repeating-linear-gradient(90deg, transparent, transparent 4px, rgb(59 130 246) 4px, rgb(59 130 246) 8px)',
+                        backgroundSize: '12px 1px'
+                      }} 
+                    />
+                    {/* Label at right */}
+                    <div className={cn(
+                      "absolute right-1 -top-2.5 flex items-center gap-1 text-white text-[9px] px-1.5 py-0.5 rounded font-mono shadow-lg",
+                      order.side === 'BUY' ? "bg-red-600" : "bg-blue-600"
+                    )}>
+                      <span className={order.side === 'BUY' ? "text-red-200" : "text-blue-200"}>
+                        {order.side === 'BUY' ? '롱대기' : '숏대기'}
+                      </span>
+                      <span className="font-bold">${order.price.toFixed(5)}</span>
+                    </div>
+                  </div>
                 </div>
               ))}
-            </div>
+            </>
           )}
         </div>
       </div>
