@@ -520,6 +520,37 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
     return pnl;
   };
 
+  // 호가 더블클릭 시 수량만 자동 계산 (주문 X)
+  const handlePriceClick = (price: number) => {
+    if (balanceUSD <= 0 || price <= 0) {
+      toast({
+        title: '계산 불가',
+        description: '잔고 또는 가격 정보가 없습니다.',
+        variant: 'destructive',
+        duration: 2000,
+      });
+      return;
+    }
+    
+    // Calculate 98% of available margin at the clicked price
+    // Formula: (balanceUSD * 0.98 * leverage * clickOrderPercent%) / orderPrice
+    const safeBalance = balanceUSD * 0.98; // 98% 사용하여 마진 오류 방지
+    const buyingPower = safeBalance * leverage * (clickOrderPercent / 100);
+    const qty = buyingPower / price;
+    
+    // Ensure minimum notional of $5.5
+    const minQty = 5.5 / price;
+    const finalQty = Math.max(qty, minQty);
+    
+    setOrderQty(finalQty.toFixed(3));
+    
+    toast({
+      title: '📊 수량 자동 계산',
+      description: `${leverage}x 레버리지, ${clickOrderPercent}% 마진 → ${finalQty.toFixed(3)}개 @ $${formatPrice(price)}`,
+      duration: 2000,
+    });
+  };
+
   const handleQuickOrder = async (type: 'long' | 'short', price: number) => {
     if (balanceUSD <= 0) {
       toast({
@@ -540,15 +571,8 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
         // Close position - use position quantity
         qty = position!.quantity;
       } else {
-        // New order - calculate 98% of available margin at the clicked price
-        // Formula: (balanceUSD * 0.98 * leverage * clickOrderPercent%) / orderPrice
-        const safeBalance = balanceUSD * 0.98; // 98% 사용하여 마진 오류 방지
-        const buyingPower = safeBalance * leverage * (clickOrderPercent / 100);
-        qty = buyingPower / price;
-        
-        // Ensure minimum notional of $5.5
-        const minQty = 5.5 / price;
-        qty = Math.max(qty, minQty);
+        // Use current orderQty value
+        qty = parseFloat(orderQty) || 0.001;
       }
       
       await apiPlaceLimitOrder(symbol, side, qty, price, reduceOnly);
@@ -1132,11 +1156,11 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
                 </span>
               </div>
               
-              {/* 호가 - 더블클릭 시 롱 주문 */}
+              {/* 호가 - 더블클릭 시 수량 자동 계산 */}
               <div 
-                onDoubleClick={() => handleQuickOrder('long', ask.price)}
+                onDoubleClick={() => handlePriceClick(ask.price)}
                 className="px-1 py-0.5 text-center border-r border-border/30 font-mono font-medium text-blue-400 bg-blue-950/20 cursor-pointer hover:bg-blue-900/30"
-                title="더블클릭: 롱 진입"
+                title="더블클릭: 수량 자동 계산"
               >
                 {formatPrice(ask.price)}
               </div>
@@ -1268,11 +1292,11 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
               {/* Empty sell quantity */}
               <div className="px-1 py-0.5 border-r border-border/30" />
 
-              {/* 호가 - 더블클릭 시 숏 주문 */}
+              {/* 호가 - 더블클릭 시 수량 자동 계산 */}
               <div 
-                onDoubleClick={() => handleQuickOrder('short', bid.price)}
+                onDoubleClick={() => handlePriceClick(bid.price)}
                 className="px-1 py-0.5 text-center border-r border-border/30 font-mono font-medium text-red-400 bg-red-950/20 cursor-pointer hover:bg-red-900/30"
-                title="더블클릭: 숏 진입"
+                title="더블클릭: 수량 자동 계산"
               >
                 {formatPrice(bid.price)}
               </div>
