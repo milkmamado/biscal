@@ -160,14 +160,12 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
   // Auto-set 100% quantity and recommended TP/SL when balance loads
   useEffect(() => {
     if (balanceUSD > 0 && currentPrice > 0 && !autoTpSlInitialized) {
-      // 구매력 = 원금 × 레버리지
-      // 70% 버퍼 (개시마진 + 유지마진 + 수수료 + 펀딩비 + 다른포지션)
-      const buyingPower = balanceUSD * leverage;
-      const safeBuyingPower = buyingPower * 0.30; // 잔고의 30%만 사용
-      const qty = safeBuyingPower / currentPrice;
-      // Ensure minimum notional of $5
+      // 최소 주문으로 테스트 - $5.5 notional만 사용
       const minQty = 5.5 / currentPrice;
-      setOrderQty(Math.max(qty, minQty).toFixed(0));
+      // 또는 잔고의 15%만 사용
+      const buyingPower = balanceUSD * leverage;
+      const safeQty = (buyingPower * 0.15) / currentPrice;
+      setOrderQty(Math.max(minQty, safeQty).toFixed(0));
       
       // Set recommended TP/SL based on leverage
       // 청산가격까지의 거리 = 100% / 레버리지
@@ -185,17 +183,13 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
     }
   }, [balanceUSD, currentPrice, leverage, autoTpSlInitialized]);
   
-  // Recalculate quantity and TP/SL when leverage changes
+  // Recalculate quantity when leverage changes
   useEffect(() => {
     if (balanceUSD > 0 && currentPrice > 0 && autoTpSlInitialized) {
-      // 잔고의 30%만 사용
-      const buyingPower = balanceUSD * leverage;
-      const safeBuyingPower = buyingPower * 0.30;
-      const qty = safeBuyingPower / currentPrice;
-      // Ensure minimum notional of $5
       const minQty = 5.5 / currentPrice;
-      setOrderQty(Math.max(qty, minQty).toFixed(0));
-      
+      const buyingPower = balanceUSD * leverage;
+      const safeQty = (buyingPower * 0.15) / currentPrice;
+      setOrderQty(Math.max(minQty, safeQty).toFixed(0));
     }
   }, [leverage]);
   
@@ -436,9 +430,9 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
       return;
     }
     
-    // 잔고의 30%만 사용
+    // 잔고의 15%만 사용 (보수적)
     const buyingPower = balanceUSD * leverage * (clickOrderPercent / 100);
-    const safeBuyingPower = buyingPower * 0.30;
+    const safeBuyingPower = buyingPower * 0.15;
     const qty = safeBuyingPower / price;
     
     // Ensure minimum notional of $5.5
