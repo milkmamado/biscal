@@ -24,7 +24,7 @@ const OrderBook = ({ symbol, currentPrice }: OrderBookProps) => {
     };
 
     loadOrderBook();
-    const interval = setInterval(loadOrderBook, 1000);
+    const interval = setInterval(loadOrderBook, 300); // 300ms 최고속
     return () => clearInterval(interval);
   }, [symbol]);
 
