@@ -492,7 +492,7 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
     return pnl;
   };
 
-  // 호가 더블클릭 시 수량만 자동 계산 (주문 X)
+  // 호가 더블클릭 시 수량만 자동 계산 (주문 X) - 100% 버튼과 동일한 계산
   const handlePriceClick = (price: number) => {
     if (balanceUSD <= 0 || price <= 0) {
       toast({
@@ -504,20 +504,20 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
       return;
     }
     
-    // 잔고의 15%만 사용 (보수적)
-    const buyingPower = balanceUSD * leverage * (clickOrderPercent / 100);
-    const safeBuyingPower = buyingPower * 0.15;
-    const qty = safeBuyingPower / price;
+    // 100% 버튼과 동일: (balanceUSD × 0.70 × leverage × clickOrderPercent%) / price
+    const safeBalance = balanceUSD * 0.70;
+    const buyingPower = safeBalance * leverage * (clickOrderPercent / 100);
+    const qty = buyingPower / price;
     
     // Ensure minimum notional of $5.5
     const minQty = 5.5 / price;
     const finalQty = Math.max(qty, minQty);
     
-    setOrderQty(Math.floor(finalQty).toString()); // 정수로 내림
+    setOrderQty(finalQty.toFixed(3));
     
     toast({
       title: '📊 수량 자동 계산',
-      description: `${leverage}x 레버리지, ${clickOrderPercent}% 마진 → ${finalQty.toFixed(3)}개 @ $${formatPrice(price)}`,
+      description: `${leverage}x 레버리지, ${clickOrderPercent}% → ${finalQty.toFixed(3)}개`,
       duration: 2000,
     });
   };
