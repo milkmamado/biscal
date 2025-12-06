@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import TradingViewChart from './TradingViewChart';
 import { cn } from '@/lib/utils';
+import { useBinanceApi } from '@/hooks/useBinanceApi';
+import { RefreshCw } from 'lucide-react';
 
 interface DualChartPanelProps {
   symbol: string;
@@ -22,8 +24,6 @@ const INTERVALS = [
   { label: '일', value: 'D' },
 ];
 
-const KRW_RATE = 1380;
-
 const DualChartPanel = ({ 
   symbol, 
   unrealizedPnL = 0, 
@@ -33,16 +33,59 @@ const DualChartPanel = ({
   hasPosition = false
 }: DualChartPanelProps) => {
   const [interval, setInterval] = useState('1');
-  const [balance] = useState(1000);
+  const [balanceUSD, setBalanceUSD] = useState<number>(0);
+  const [balanceLoading, setBalanceLoading] = useState(false);
+  const [krwRate, setKrwRate] = useState(1380);
+  const { getBalances } = useBinanceApi();
+
+  // Fetch real balance from Binance
+  const fetchRealBalance = async () => {
+    setBalanceLoading(true);
+    try {
+      const balances = await getBalances();
+      const usdtBalance = balances?.find((b: any) => b.asset === 'USDT');
+      if (usdtBalance) {
+        const available = parseFloat(usdtBalance.availableBalance) || 0;
+        setBalanceUSD(available);
+      }
+    } catch (error) {
+      console.error('Failed to fetch balance:', error);
+    } finally {
+      setBalanceLoading(false);
+    }
+  };
+
+  // Fetch USD/KRW rate
+  useEffect(() => {
+    const fetchRate = async () => {
+      try {
+        const res = await fetch('https://api.frankfurter.app/latest?from=USD&to=KRW');
+        const data = await res.json();
+        if (data.rates?.KRW) {
+          setKrwRate(Math.round(data.rates.KRW));
+        }
+      } catch (error) {
+        console.error('Failed to fetch exchange rate:', error);
+      }
+    };
+    fetchRate();
+  }, []);
+
+  // Fetch balance on mount and every 30 seconds
+  useEffect(() => {
+    fetchRealBalance();
+    const intervalId = window.setInterval(fetchRealBalance, 30000);
+    return () => window.clearInterval(intervalId);
+  }, []);
 
   const formatKRW = (usd: number) => {
-    const krw = usd * KRW_RATE;
+    const krw = usd * krwRate;
     return krw.toLocaleString('ko-KR', { maximumFractionDigits: 0 });
   };
 
   const winRate = tradeCount > 0 ? ((winCount / tradeCount) * 100).toFixed(1) : '0.0';
   const totalPnL = unrealizedPnL + realizedPnL;
-  const totalPnLPercent = balance > 0 ? ((totalPnL / balance) * 100).toFixed(2) : '0.00';
+  const totalPnLPercent = balanceUSD > 0 ? ((totalPnL / balanceUSD) * 100).toFixed(2) : '0.00';
 
   return (
     <div className="flex flex-col gap-1 h-full">
@@ -50,13 +93,22 @@ const DualChartPanel = ({
       <div className="bg-card border border-border rounded px-3 py-2 shrink-0">
         <div className="flex items-center justify-between">
           <div className="flex flex-col">
-            <span className="text-[10px] text-muted-foreground">잔고</span>
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] text-muted-foreground">잔고</span>
+              <button
+                onClick={fetchRealBalance}
+                className="p-0.5 hover:bg-secondary rounded"
+                title="잔고 새로고침"
+              >
+                <RefreshCw className={cn("w-2.5 h-2.5 text-muted-foreground", balanceLoading && "animate-spin")} />
+              </button>
+            </div>
             <div className="flex items-baseline gap-1">
               <span className="text-sm font-bold font-mono text-foreground">
-                ${balance.toFixed(2)}
+                {balanceLoading ? '...' : `$${balanceUSD.toFixed(2)}`}
               </span>
               <span className="text-[10px] text-muted-foreground font-mono">
-                (₩{formatKRW(balance)})
+                (₩{formatKRW(balanceUSD)})
               </span>
             </div>
           </div>
