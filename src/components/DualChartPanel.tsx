@@ -4,6 +4,13 @@ import { useBinanceApi, BinancePosition } from '@/hooks/useBinanceApi';
 import { RefreshCw } from 'lucide-react';
 import SimpleChart from './SimpleChart';
 
+interface OpenOrder {
+  orderId: number;
+  price: number;
+  side: 'BUY' | 'SELL';
+  origQty: number;
+}
+
 interface DualChartPanelProps {
   symbol: string;
   unrealizedPnL?: number;
@@ -11,6 +18,8 @@ interface DualChartPanelProps {
   tradeCount?: number;
   winCount?: number;
   hasPosition?: boolean;
+  entryPrice?: number;
+  openOrders?: OpenOrder[];
   onSelectSymbol?: (symbol: string) => void;
 }
 
@@ -32,6 +41,8 @@ const DualChartPanel = ({
   tradeCount = 0,
   winCount = 0,
   hasPosition = false,
+  entryPrice,
+  openOrders = [],
   onSelectSymbol
 }: DualChartPanelProps) => {
   const [interval, setInterval] = useState('1');
@@ -248,8 +259,38 @@ const DualChartPanel = ({
             </button>
           ))}
         </div>
-        <div className="flex-1 min-h-0" style={{ minHeight: '400px' }}>
+        <div className="flex-1 min-h-0 relative" style={{ minHeight: '400px' }}>
           <SimpleChart symbol={symbol} interval={interval} height={500} />
+          
+          {/* Order Price Labels Overlay */}
+          {(openOrders.length > 0 || entryPrice) && (
+            <div className="absolute right-2 top-16 z-20 flex flex-col gap-1">
+              {/* Entry Price */}
+              {entryPrice && entryPrice > 0 && (
+                <div className="flex items-center gap-1 bg-green-600/90 text-white text-[9px] px-2 py-0.5 rounded font-mono shadow-lg">
+                  <span className="text-green-300">진입</span>
+                  <span className="font-bold">${entryPrice.toFixed(5)}</span>
+                </div>
+              )}
+              
+              {/* Pending Orders */}
+              {openOrders.map((order) => (
+                <div 
+                  key={order.orderId}
+                  className={cn(
+                    "flex items-center gap-1 text-white text-[9px] px-2 py-0.5 rounded font-mono shadow-lg",
+                    order.side === 'BUY' ? "bg-red-600/90" : "bg-blue-600/90"
+                  )}
+                >
+                  <span className={order.side === 'BUY' ? "text-red-300" : "text-blue-300"}>
+                    {order.side === 'BUY' ? '롱' : '숏'}
+                  </span>
+                  <span className="font-bold">${order.price.toFixed(5)}</span>
+                  <span className="text-white/70">×{order.origQty}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

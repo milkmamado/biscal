@@ -18,10 +18,18 @@ interface Position {
   leverage: number;
 }
 
+interface OpenOrder {
+  orderId: number;
+  price: number;
+  side: 'BUY' | 'SELL';
+  origQty: number;
+}
+
 const Index = () => {
   const [selectedSymbol, setSelectedSymbol] = useState('BTCUSDT');
   const [currentPosition, setCurrentPosition] = useState<Position | null>(null);
   const [currentPnL, setCurrentPnL] = useState(0);
+  const [openOrders, setOpenOrders] = useState<OpenOrder[]>([]);
   const [hasApiKeys, setHasApiKeys] = useState<boolean | null>(null);
   const [checkingKeys, setCheckingKeys] = useState(true);
 
@@ -66,6 +74,10 @@ const Index = () => {
 
   const handlePnLChange = useCallback((pnl: number) => {
     setCurrentPnL(pnl);
+  }, []);
+
+  const handleOpenOrdersChange = useCallback((orders: OpenOrder[]) => {
+    setOpenOrders(orders);
   }, []);
 
   const handleTradeClose = useCallback((trade: {
@@ -141,6 +153,8 @@ const Index = () => {
                 tradeCount={dailyStats.tradeCount}
                 winCount={dailyStats.winCount}
                 hasPosition={!!currentPosition}
+                entryPrice={currentPosition?.entryPrice}
+                openOrders={openOrders}
                 onSelectSymbol={setSelectedSymbol}
               />
             </div>
@@ -152,6 +166,7 @@ const Index = () => {
               symbol={selectedSymbol} 
               onPositionChange={handlePositionChange}
               onPnLChange={handlePnLChange}
+              onOpenOrdersChange={handleOpenOrdersChange}
               onTradeClose={handleTradeClose}
             />
             
