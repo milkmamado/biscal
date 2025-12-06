@@ -327,7 +327,7 @@ const DualChartPanel = ({
                   style={{ top: getPriceYPosition(tpPrice) }}
                 >
                   <div className="bg-emerald-600 text-white text-[9px] px-1.5 py-0.5 rounded font-bold shadow-lg -translate-y-1/2">
-                    익절 ${tpPrice.toFixed(4)}
+                    익절
                   </div>
                 </div>
               )}
@@ -339,7 +339,7 @@ const DualChartPanel = ({
                   style={{ top: getPriceYPosition(entryPrice) }}
                 >
                   <div className="bg-yellow-600 text-white text-[9px] px-1.5 py-0.5 rounded font-bold shadow-lg -translate-y-1/2">
-                    진입 ${entryPrice.toFixed(4)}
+                    진입
                   </div>
                 </div>
               )}
@@ -351,7 +351,7 @@ const DualChartPanel = ({
                   style={{ top: getPriceYPosition(slPrice) }}
                 >
                   <div className="bg-red-600 text-white text-[9px] px-1.5 py-0.5 rounded font-bold shadow-lg -translate-y-1/2">
-                    손절 ${slPrice.toFixed(4)}
+                    손절
                   </div>
                 </div>
               )}
@@ -364,13 +364,10 @@ const DualChartPanel = ({
                   style={{ top: getPriceYPosition(order.price) }}
                 >
                   <div className={cn(
-                    "flex items-center gap-1 text-white text-[9px] px-1.5 py-0.5 rounded font-mono shadow-lg -translate-y-1/2",
+                    "text-white text-[9px] px-1.5 py-0.5 rounded font-bold shadow-lg -translate-y-1/2",
                     order.side === 'BUY' ? "bg-red-600" : "bg-blue-600"
                   )}>
-                    <span className={order.side === 'BUY' ? "text-red-200" : "text-blue-200"}>
-                      {order.side === 'BUY' ? '롱' : '숏'}
-                    </span>
-                    <span className="font-bold">${order.price.toFixed(4)}</span>
+                    {order.side === 'BUY' ? '롱' : '숏'}
                   </div>
                 </div>
               ))}
