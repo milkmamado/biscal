@@ -1132,8 +1132,12 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
                 </span>
               </div>
               
-              {/* 호가 */}
-              <div className="px-1 py-0.5 text-center border-r border-border/30 font-mono font-medium text-blue-400 bg-blue-950/20">
+              {/* 호가 - 더블클릭 시 롱 주문 */}
+              <div 
+                onDoubleClick={() => handleQuickOrder('long', ask.price)}
+                className="px-1 py-0.5 text-center border-r border-border/30 font-mono font-medium text-blue-400 bg-blue-950/20 cursor-pointer hover:bg-blue-900/30"
+                title="더블클릭: 롱 진입"
+              >
                 {formatPrice(ask.price)}
               </div>
 
@@ -1264,8 +1268,12 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
               {/* Empty sell quantity */}
               <div className="px-1 py-0.5 border-r border-border/30" />
 
-              {/* 호가 */}
-              <div className="px-1 py-0.5 text-center border-r border-border/30 font-mono font-medium text-red-400 bg-red-950/20">
+              {/* 호가 - 더블클릭 시 숏 주문 */}
+              <div 
+                onDoubleClick={() => handleQuickOrder('short', bid.price)}
+                className="px-1 py-0.5 text-center border-r border-border/30 font-mono font-medium text-red-400 bg-red-950/20 cursor-pointer hover:bg-red-900/30"
+                title="더블클릭: 숏 진입"
+              >
                 {formatPrice(bid.price)}
               </div>
 
