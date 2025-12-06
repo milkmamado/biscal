@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState, memo } from 'react';
-import { createChart, IChartApi } from 'lightweight-charts';
 import { fetchKlines, calculateBollingerBands, KlineData } from '@/lib/binance';
 
 interface LightweightChartProps {
@@ -21,45 +20,31 @@ const intervalMap: Record<string, string> = {
 
 const LightweightChart = memo(({ symbol, interval = '1', height = 500 }: LightweightChartProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<IChartApi | null>(null);
-  const seriesRef = useRef<{
-    candle: any;
-    volume: any;
-    upper: any;
-    middle: any;
-    lower: any;
-  }>({ candle: null, volume: null, upper: null, middle: null, lower: null });
+  const chartRef = useRef<any>(null);
+  const seriesRef = useRef<any>({});
   const wsRef = useRef<WebSocket | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isChartReady, setIsChartReady] = useState(false);
 
-  // Initialize chart - wait for container to have dimensions
+  // Initialize chart
   useEffect(() => {
-    if (!containerRef.current) return;
+    let mounted = true;
+    let chart: any = null;
 
-    // Check container dimensions - this is critical!
-    const initChart = () => {
-      const container = containerRef.current;
-      if (!container) return;
-
-      const width = container.clientWidth;
-      const containerHeight = height;
-
-      // If container has no width, wait and retry
-      if (width === 0) {
-        console.log('Container width is 0, retrying...');
-        setTimeout(initChart, 100);
-        return;
-      }
-
-      console.log('Creating chart with dimensions:', width, containerHeight);
+    const init = async () => {
+      if (!containerRef.current) return;
 
       try {
-        // Create chart with explicit dimensions
-        const chart = createChart(container, {
-          width: width,
-          height: containerHeight,
+        // Dynamic import
+        const { createChart } = await import('lightweight-charts');
+        
+        if (!mounted || !containerRef.current) return;
+
+        const width = containerRef.current.clientWidth || 800;
+        
+        chart = createChart(containerRef.current, {
+          width,
+          height,
           layout: {
             background: { color: '#0a0a0a' },
             textColor: '#9ca3af',
@@ -68,17 +53,12 @@ const LightweightChart = memo(({ symbol, interval = '1', height = 500 }: Lightwe
             vertLines: { color: '#1f2937' },
             horzLines: { color: '#1f2937' },
           },
-          crosshair: {
-            mode: 0,
-          },
           rightPriceScale: {
             borderColor: '#374151',
-            scaleMargins: { top: 0.1, bottom: 0.2 },
           },
           timeScale: {
             borderColor: '#374151',
             timeVisible: true,
-            secondsVisible: false,
           },
         });
 
@@ -112,7 +92,6 @@ const LightweightChart = memo(({ symbol, interval = '1', height = 500 }: Lightwe
         seriesRef.current.middle = chart.addLineSeries({
           color: '#8b5cf6',
           lineWidth: 1,
-          lineStyle: 2,
           priceLineVisible: false,
           lastValueVisible: false,
         });
@@ -123,51 +102,24 @@ const LightweightChart = memo(({ symbol, interval = '1', height = 500 }: Lightwe
           lastValueVisible: false,
         });
 
-        setIsChartReady(true);
+        // Load initial data
+        await loadData();
+
         setError(null);
-        console.log('Chart created successfully');
       } catch (err) {
-        console.error('Chart creation error:', err);
-        setError('차트 생성 실패');
+        console.error('Chart init error:', err);
+        if (mounted) setError('차트 초기화 실패');
       }
     };
-
-    // Use requestAnimationFrame to ensure DOM is ready
-    requestAnimationFrame(() => {
-      initChart();
-    });
-
-    // Resize handler
-    const handleResize = () => {
-      if (containerRef.current && chartRef.current) {
-        chartRef.current.applyOptions({ 
-          width: containerRef.current.clientWidth 
-        });
-      }
-    };
-    window.addEventListener('resize', handleResize);
-
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      if (chartRef.current) {
-        chartRef.current.remove();
-        chartRef.current = null;
-        setIsChartReady(false);
-      }
-    };
-  }, [height]);
-
-  // Load data when chart is ready and symbol/interval changes
-  useEffect(() => {
-    if (!isChartReady || !seriesRef.current.candle) return;
-
-    const binanceInterval = intervalMap[interval] || '1m';
-    setIsLoading(true);
-    setError(null);
 
     const loadData = async () => {
+      const binanceInterval = intervalMap[interval] || '1m';
+      setIsLoading(true);
+
       try {
         const klines = await fetchKlines(symbol, binanceInterval, 200);
+
+        if (!seriesRef.current.candle) return;
 
         const candleData = klines.map((k: KlineData) => ({
           time: Math.floor(k.openTime / 1000) as any,
@@ -183,7 +135,6 @@ const LightweightChart = memo(({ symbol, interval = '1', height = 500 }: Lightwe
           color: k.close >= k.open ? 'rgba(239, 68, 68, 0.3)' : 'rgba(59, 130, 246, 0.3)',
         }));
 
-        // Bollinger Bands
         const upperData: any[] = [];
         const middleData: any[] = [];
         const lowerData: any[] = [];
@@ -197,38 +148,60 @@ const LightweightChart = memo(({ symbol, interval = '1', height = 500 }: Lightwe
           lowerData.push({ time, value: bb.lower });
         }
 
-        seriesRef.current.candle?.setData(candleData);
-        seriesRef.current.volume?.setData(volumeData);
-        seriesRef.current.upper?.setData(upperData);
-        seriesRef.current.middle?.setData(middleData);
-        seriesRef.current.lower?.setData(lowerData);
+        seriesRef.current.candle.setData(candleData);
+        seriesRef.current.volume.setData(volumeData);
+        seriesRef.current.upper.setData(upperData);
+        seriesRef.current.middle.setData(middleData);
+        seriesRef.current.lower.setData(lowerData);
 
         chartRef.current?.timeScale().fitContent();
         setIsLoading(false);
       } catch (err) {
         console.error('Data load error:', err);
-        setError('데이터 로딩 실패');
         setIsLoading(false);
       }
     };
 
-    loadData();
+    init();
 
-    // WebSocket for real-time updates
+    const handleResize = () => {
+      if (containerRef.current && chartRef.current) {
+        chartRef.current.applyOptions({ width: containerRef.current.clientWidth });
+      }
+    };
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      mounted = false;
+      window.removeEventListener('resize', handleResize);
+      if (chart) {
+        chart.remove();
+      }
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
+    };
+  }, [symbol, interval, height]);
+
+  // WebSocket for real-time updates
+  useEffect(() => {
+    if (!seriesRef.current.candle) return;
+
+    const binanceInterval = intervalMap[interval] || '1m';
+    
     if (wsRef.current) {
       wsRef.current.close();
     }
 
-    const wsUrl = `wss://fstream.binance.com/ws/${symbol.toLowerCase()}@kline_${binanceInterval}`;
-    const ws = new WebSocket(wsUrl);
+    const ws = new WebSocket(`wss://fstream.binance.com/ws/${symbol.toLowerCase()}@kline_${binanceInterval}`);
     wsRef.current = ws;
 
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        if (data.k) {
+        if (data.k && seriesRef.current.candle) {
           const k = data.k;
-          seriesRef.current.candle?.update({
+          seriesRef.current.candle.update({
             time: Math.floor(k.t / 1000) as any,
             open: parseFloat(k.o),
             high: parseFloat(k.h),
@@ -238,47 +211,33 @@ const LightweightChart = memo(({ symbol, interval = '1', height = 500 }: Lightwe
           seriesRef.current.volume?.update({
             time: Math.floor(k.t / 1000) as any,
             value: parseFloat(k.v),
-            color: parseFloat(k.c) >= parseFloat(k.o) 
-              ? 'rgba(239, 68, 68, 0.3)' 
-              : 'rgba(59, 130, 246, 0.3)',
+            color: parseFloat(k.c) >= parseFloat(k.o) ? 'rgba(239, 68, 68, 0.3)' : 'rgba(59, 130, 246, 0.3)',
           });
         }
-      } catch (e) {
-        // ignore
-      }
+      } catch (e) {}
     };
 
     return () => {
-      if (wsRef.current) {
-        wsRef.current.close();
-        wsRef.current = null;
-      }
+      ws.close();
     };
-  }, [symbol, interval, isChartReady]);
+  }, [symbol, interval]);
 
   if (error) {
     return (
-      <div 
-        style={{ width: '100%', height: `${height}px` }}
-        className="flex items-center justify-center bg-card text-destructive text-sm"
-      >
+      <div style={{ width: '100%', height }} className="flex items-center justify-center bg-card text-destructive">
         {error}
       </div>
     );
   }
 
   return (
-    <div style={{ width: '100%', height: `${height}px`, position: 'relative' }}>
+    <div style={{ width: '100%', height, position: 'relative' }}>
       {isLoading && (
         <div className="absolute inset-0 flex items-center justify-center bg-card/80 z-10">
           <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
         </div>
       )}
-      {/* Container with explicit dimensions */}
-      <div 
-        ref={containerRef} 
-        style={{ width: '100%', height: `${height}px` }}
-      />
+      <div ref={containerRef} style={{ width: '100%', height }} />
     </div>
   );
 });
