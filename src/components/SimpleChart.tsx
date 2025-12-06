@@ -190,6 +190,25 @@ const SimpleChart = memo(({ symbol, interval = '1', height = 500 }: SimpleChartP
           )}>
             {chartData.currentPrice.toLocaleString()}
           </span>
+          {/* Legend */}
+          <div className="flex items-center gap-2 ml-2">
+            <div className="flex items-center gap-0.5">
+              <div className="w-2 h-0.5 bg-yellow-500" />
+              <span className="text-[8px] text-muted-foreground">중심</span>
+            </div>
+            <div className="flex items-center gap-0.5">
+              <div className="w-2 h-0.5 bg-purple-500/60" />
+              <span className="text-[8px] text-muted-foreground">BB</span>
+            </div>
+            <div className="flex items-center gap-0.5">
+              <div className="w-2 h-0.5 bg-green-500/50" />
+              <span className="text-[8px] text-muted-foreground">지지</span>
+            </div>
+            <div className="flex items-center gap-0.5">
+              <div className="w-2 h-0.5 bg-red-500/50" />
+              <span className="text-[8px] text-muted-foreground">저항</span>
+            </div>
+          </div>
         </div>
         {/* Zoom controls */}
         <div className="flex items-center gap-1">
