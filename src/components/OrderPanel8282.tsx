@@ -26,11 +26,12 @@ interface OrderPanel8282Props {
   onPositionChange?: (position: Position | null) => void;
   onPnLChange?: (pnl: number) => void;
   onTradeClose?: (pnl: number) => void;
+  testnet?: boolean;
 }
 
-const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }: OrderPanel8282Props) => {
+const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose, testnet = false }: OrderPanel8282Props) => {
   const { toast } = useToast();
-  const { getBalances, loading: apiLoading } = useBinanceApi();
+  const { getBalances, loading: apiLoading } = useBinanceApi(testnet);
   const [orderBook, setOrderBook] = useState<OrderBook | null>(null);
   const [currentPrice, setCurrentPrice] = useState<number>(0);
   const [prevPrice, setPrevPrice] = useState<number>(0);

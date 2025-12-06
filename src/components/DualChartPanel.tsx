@@ -11,6 +11,7 @@ interface DualChartPanelProps {
   tradeCount?: number;
   winCount?: number;
   hasPosition?: boolean;
+  testnet?: boolean;
 }
 
 const INTERVALS = [
@@ -30,13 +31,14 @@ const DualChartPanel = ({
   realizedPnL = 0,
   tradeCount = 0,
   winCount = 0,
-  hasPosition = false
+  hasPosition = false,
+  testnet = false
 }: DualChartPanelProps) => {
   const [interval, setInterval] = useState('1');
   const [balanceUSD, setBalanceUSD] = useState<number>(0);
   const [balanceLoading, setBalanceLoading] = useState(false);
   const [krwRate, setKrwRate] = useState(1380);
-  const { getBalances } = useBinanceApi();
+  const { getBalances } = useBinanceApi(testnet);
 
   // Fetch real balance from Binance
   const fetchRealBalance = async () => {

@@ -8,7 +8,8 @@ import CoinHeader from '@/components/CoinHeader';
 import DualChartPanel from '@/components/DualChartPanel';
 import ApiKeySetup from '@/components/ApiKeySetup';
 import { Button } from '@/components/ui/button';
-import { LogOut, Settings } from 'lucide-react';
+import { LogOut, FlaskConical, Zap } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface TradeStats {
   realizedPnL: number;
@@ -34,6 +35,9 @@ const Index = () => {
   });
   const [hasApiKeys, setHasApiKeys] = useState<boolean | null>(null);
   const [checkingKeys, setCheckingKeys] = useState(true);
+  const [isTestnetMode, setIsTestnetMode] = useState(() => {
+    return localStorage.getItem('binance_testnet_mode') === 'true';
+  });
 
   const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
@@ -46,11 +50,12 @@ const Index = () => {
       try {
         const { data, error } = await supabase
           .from('user_api_keys')
-          .select('id')
-          .eq('user_id', user.id)
-          .single();
+          .select('id, is_testnet')
+          .eq('user_id', user.id);
         
-        setHasApiKeys(!!data && !error);
+        // Check if user has the appropriate keys for current mode
+        const hasKeys = data?.some(key => key.is_testnet === isTestnetMode);
+        setHasApiKeys(hasKeys ?? false);
       } catch (e) {
         setHasApiKeys(false);
       } finally {
@@ -61,7 +66,7 @@ const Index = () => {
     if (user) {
       checkApiKeys();
     }
-  }, [user]);
+  }, [user, isTestnetMode]);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -94,6 +99,19 @@ const Index = () => {
     setHasApiKeys(true);
   };
 
+  const toggleMode = () => {
+    const newMode = !isTestnetMode;
+    setIsTestnetMode(newMode);
+    localStorage.setItem('binance_testnet_mode', newMode.toString());
+    // Reset stats when switching modes
+    setTradeStats({ realizedPnL: 0, tradeCount: 0, winCount: 0 });
+    setCurrentPosition(null);
+    setCurrentPnL(0);
+    // Re-check API keys for new mode
+    setCheckingKeys(true);
+    setHasApiKeys(null);
+  };
+
   if (loading || checkingKeys) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -113,8 +131,16 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background p-2">
+      {/* Testnet Mode Indicator */}
+      {isTestnetMode && (
+        <div className="fixed top-0 left-0 right-0 bg-orange-600 text-white text-center py-1 text-xs font-bold z-50">
+          <FlaskConical className="inline h-3 w-3 mr-1" />
+          테스트넷 모드 (모의 거래)
+        </div>
+      )}
+      
       {/* Main Content */}
-      <div className="max-w-[1920px] mx-auto">
+      <div className={cn("max-w-[1920px] mx-auto", isTestnetMode && "mt-6")}>
         <div className="grid grid-cols-12 gap-2">
           {/* Left - Hot Coin List */}
           <div className="col-span-12 lg:col-span-3 xl:col-span-2">
@@ -137,6 +163,7 @@ const Index = () => {
                 tradeCount={tradeStats.tradeCount}
                 winCount={tradeStats.winCount}
                 hasPosition={!!currentPosition}
+                testnet={isTestnetMode}
               />
             </div>
           </div>
@@ -148,17 +175,43 @@ const Index = () => {
               onPositionChange={handlePositionChange}
               onPnLChange={handlePnLChange}
               onTradeClose={handleTradeClose}
+              testnet={isTestnetMode}
             />
-            {/* Logout Button */}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleSignOut}
-              className="text-muted-foreground hover:text-foreground w-full border border-border"
-            >
-              <LogOut className="h-4 w-4 mr-1" />
-              로그아웃
-            </Button>
+            
+            {/* Mode Toggle & Logout */}
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={toggleMode}
+                className={cn(
+                  "flex-1 border",
+                  isTestnetMode 
+                    ? "border-orange-500 text-orange-400 hover:bg-orange-500/10" 
+                    : "border-primary text-primary hover:bg-primary/10"
+                )}
+              >
+                {isTestnetMode ? (
+                  <>
+                    <Zap className="h-4 w-4 mr-1" />
+                    실거래로 전환
+                  </>
+                ) : (
+                  <>
+                    <FlaskConical className="h-4 w-4 mr-1" />
+                    테스트넷으로 전환
+                  </>
+                )}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleSignOut}
+                className="text-muted-foreground hover:text-foreground border border-border"
+              >
+                <LogOut className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         </div>
       </div>

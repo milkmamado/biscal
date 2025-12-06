@@ -7,7 +7,9 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Production and Testnet base URLs
 const BINANCE_FUTURES_BASE = 'https://fapi.binance.com';
+const BINANCE_TESTNET_BASE = 'https://testnet.binancefuture.com';
 
 // HMAC-SHA256 signature
 async function createSignature(queryString: string, secretKey: string): Promise<string> {
@@ -60,28 +62,37 @@ serve(async (req) => {
       );
     }
 
-    // Get user's API keys
+    // Parse request body
+    const body = await req.json();
+    const { action, params = {}, testnet = false } = body;
+
+    // Get user's API keys (based on testnet mode)
     const { data: apiKeys, error: keysError } = await supabase
       .from('user_api_keys')
       .select('api_key, api_secret')
       .eq('user_id', user.id)
+      .eq('is_testnet', testnet)
       .single();
 
     if (keysError || !apiKeys) {
-      console.log('No API keys found for user:', user.id);
+      console.log(`No ${testnet ? 'testnet' : 'mainnet'} API keys found for user:`, user.id);
       return new Response(
-        JSON.stringify({ error: 'API keys not configured', code: 'NO_API_KEYS' }),
+        JSON.stringify({ 
+          error: testnet 
+            ? 'Testnet API keys not configured. Please register testnet API keys first.' 
+            : 'API keys not configured', 
+          code: 'NO_API_KEYS' 
+        }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     const { api_key: apiKey, api_secret: apiSecret } = apiKeys;
 
-    // Parse request body
-    const body = await req.json();
-    const { action, params = {} } = body;
+    // Select base URL based on mode
+    const baseUrl = testnet ? BINANCE_TESTNET_BASE : BINANCE_FUTURES_BASE;
 
-    console.log(`Binance API action: ${action}`, JSON.stringify(params));
+    console.log(`Binance API action: ${action} (${testnet ? 'TESTNET' : 'MAINNET'})`, JSON.stringify(params));
 
     const timestamp = Date.now();
     let endpoint = '';
@@ -90,17 +101,14 @@ serve(async (req) => {
 
     switch (action) {
       case 'getAccountInfo':
-        // Get futures account info (balance, positions)
         endpoint = '/fapi/v2/account';
         break;
 
       case 'getBalance':
-        // Get specific asset balance
         endpoint = '/fapi/v2/balance';
         break;
 
       case 'getPositions':
-        // Get all positions
         endpoint = '/fapi/v2/positionRisk';
         if (params.symbol) {
           queryParams.symbol = params.symbol;
@@ -108,7 +116,6 @@ serve(async (req) => {
         break;
 
       case 'getOpenOrders':
-        // Get open orders
         endpoint = '/fapi/v1/openOrders';
         if (params.symbol) {
           queryParams.symbol = params.symbol;
@@ -116,14 +123,13 @@ serve(async (req) => {
         break;
 
       case 'placeOrder':
-        // Place a new order
         endpoint = '/fapi/v1/order';
         method = 'POST';
         queryParams = {
           ...queryParams,
           symbol: params.symbol,
-          side: params.side, // BUY or SELL
-          type: params.type || 'MARKET', // MARKET, LIMIT, etc.
+          side: params.side,
+          type: params.type || 'MARKET',
           quantity: params.quantity.toString(),
         };
         if (params.type === 'LIMIT') {
@@ -136,7 +142,6 @@ serve(async (req) => {
         break;
 
       case 'cancelOrder':
-        // Cancel an order
         endpoint = '/fapi/v1/order';
         method = 'DELETE';
         queryParams = {
@@ -147,7 +152,6 @@ serve(async (req) => {
         break;
 
       case 'cancelAllOrders':
-        // Cancel all open orders for a symbol
         endpoint = '/fapi/v1/allOpenOrders';
         method = 'DELETE';
         queryParams = {
@@ -157,7 +161,6 @@ serve(async (req) => {
         break;
 
       case 'setLeverage':
-        // Set leverage for a symbol
         endpoint = '/fapi/v1/leverage';
         method = 'POST';
         queryParams = {
@@ -168,13 +171,12 @@ serve(async (req) => {
         break;
 
       case 'setMarginType':
-        // Set margin type (ISOLATED or CROSSED)
         endpoint = '/fapi/v1/marginType';
         method = 'POST';
         queryParams = {
           ...queryParams,
           symbol: params.symbol,
-          marginType: params.marginType, // ISOLATED or CROSSED
+          marginType: params.marginType,
         };
         break;
 
@@ -191,8 +193,8 @@ serve(async (req) => {
     const signedQuery = `${queryString}&signature=${signature}`;
 
     // Make request to Binance
-    const url = `${BINANCE_FUTURES_BASE}${endpoint}?${signedQuery}`;
-    console.log(`Calling Binance: ${method} ${endpoint}`);
+    const url = `${baseUrl}${endpoint}?${signedQuery}`;
+    console.log(`Calling Binance: ${method} ${endpoint} (${testnet ? 'TESTNET' : 'MAINNET'})`);
 
     const response = await fetch(url, {
       method,
@@ -212,7 +214,7 @@ serve(async (req) => {
       );
     }
 
-    console.log(`Binance API success for ${action}`);
+    console.log(`Binance API success for ${action} (${testnet ? 'TESTNET' : 'MAINNET'})`);
     return new Response(
       JSON.stringify(data),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
