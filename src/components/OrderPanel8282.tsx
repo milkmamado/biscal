@@ -80,11 +80,7 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
   const [slAmount, setSlAmount] = useState<string>('30');
   const [enableTpSl, setEnableTpSl] = useState<boolean>(true);
   
-  // Trailing stop settings
-  const [enableTrailing, setEnableTrailing] = useState<boolean>(false);
-  const [trailingStep, setTrailingStep] = useState<number>(1.0); // 포인트 단위
-  const [trailingStopPrice, setTrailingStopPrice] = useState<number | null>(null);
-  const [highestProfit, setHighestProfit] = useState<number>(0);
+  // Balance for order calculation (in USD from Binance)
   
   // Balance for order calculation (in USD from Binance)
   const [balanceUSD, setBalanceUSD] = useState<number>(0);
@@ -427,92 +423,7 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
     setTechSignal(null);
     setPendingOrders([]);
     lastSignalFetch.current = 0;
-    setTrailingStopPrice(null);
-    setHighestProfit(0);
   }, [symbol]);
-  
-  // Reset trailing stop when position closes
-  useEffect(() => {
-    if (!position) {
-      setTrailingStopPrice(null);
-      setHighestProfit(0);
-    }
-  }, [position]);
-  
-  // Trailing stop logic - using percentage of entry price for step calculation
-  const trailingStopProcessing = useRef(false);
-  
-  useEffect(() => {
-    if (!position || !enableTrailing || currentPrice <= 0 || trailingStopProcessing.current) return;
-    
-    const direction = position.type === 'long' ? 1 : -1;
-    // Calculate profit as percentage of entry price to handle small-priced coins
-    const profitPercent = ((currentPrice - position.entryPrice) / position.entryPrice) * 100 * direction;
-    
-    // Convert step points to percentage (1pt = 1%)
-    const stepPercent = trailingStep;
-    
-    // Update highest profit and trailing stop
-    if (profitPercent > highestProfit) {
-      setHighestProfit(profitPercent);
-      const steps = Math.floor(profitPercent / stepPercent);
-      if (steps >= 1) {
-        // Move stop to (steps - 1) * stepPercent above entry
-        const stopOffsetPercent = (steps - 1) * stepPercent;
-        const newStopPrice = position.entryPrice * (1 + (stopOffsetPercent / 100) * direction);
-        setTrailingStopPrice(newStopPrice);
-      }
-    }
-    
-    // Check if trailing stop hit
-    if (trailingStopPrice !== null) {
-      const stopHit = position.type === 'long' 
-        ? currentPrice <= trailingStopPrice 
-        : currentPrice >= trailingStopPrice;
-      
-      if (stopHit) {
-        trailingStopProcessing.current = true;
-        
-        // Execute actual market close via Binance API
-        const executeTrailingClose = async () => {
-          try {
-            const side = position.type === 'long' ? 'SELL' : 'BUY';
-            await apiPlaceMarketOrder(symbol, side, position.quantity, true);
-            
-            const pnl = calculatePnL(position, currentPrice);
-            onTradeClose?.({
-              symbol,
-              side: position.type,
-              entryPrice: position.entryPrice,
-              exitPrice: currentPrice,
-              quantity: position.quantity,
-              leverage: position.leverage,
-              pnl,
-            });
-            toast({
-              title: '🎯 트레일링 스탑 청산',
-              description: `${symbol} @ $${formatPrice(currentPrice)} | 확정 손익: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}`,
-              duration: 3000,
-            });
-            
-            setTimeout(fetchBalanceAndPosition, 1000);
-          } catch (error: any) {
-            toast({
-              title: '트레일링 청산 실패',
-              description: error.message || '청산을 처리할 수 없습니다.',
-              variant: 'destructive',
-              duration: 3000,
-            });
-          } finally {
-            trailingStopProcessing.current = false;
-          }
-        };
-        
-        executeTrailingClose();
-      }
-    }
-  }, [currentPrice, position, enableTrailing, trailingStep, highestProfit, trailingStopPrice]);
-
   const calculatePnL = (pos: Position, price: number): number => {
     const direction = pos.type === 'long' ? 1 : -1;
     const priceDiff = (price - pos.entryPrice) * direction;
@@ -933,54 +844,6 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onTradeClose }:
               : '자동청산 비활성화됨'}
           </p>
           
-          {/* Trailing Stop Settings */}
-          <div className="flex items-center gap-2 pt-1 border-t border-border/50">
-            <button
-              onClick={() => setEnableTrailing(!enableTrailing)}
-              className={cn(
-                "px-2 py-0.5 text-[10px] rounded border transition-colors",
-                enableTrailing 
-                  ? "bg-orange-600 text-white border-orange-600" 
-                  : "bg-background border-border text-muted-foreground"
-              )}
-            >
-              트레일링
-            </button>
-            <span className="text-[10px] text-orange-400">스텝</span>
-            <div className="flex gap-1">
-              {[0.5, 1.0, 1.5, 2.0].map((step) => (
-                <button
-                  key={step}
-                  onClick={() => setTrailingStep(step)}
-                  disabled={!enableTrailing}
-                  className={cn(
-                    "px-1.5 py-0.5 text-[10px] rounded border transition-colors",
-                    trailingStep === step && enableTrailing
-                      ? "bg-orange-500 text-white border-orange-500" 
-                      : "bg-background border-border hover:bg-secondary",
-                    !enableTrailing && "opacity-50 cursor-not-allowed"
-                  )}
-                >
-                  {step}pt
-                </button>
-              ))}
-            </div>
-          </div>
-          {enableTrailing && (
-            <p className="text-[9px] text-orange-400/80">
-              ⚡ +{trailingStep}% 수익마다 손절선 자동 상향 (본전 보장 후 이익 추적)
-            </p>
-          )}
-          {position && trailingStopPrice !== null && (
-            <div className="bg-orange-900/30 border border-orange-600/50 rounded px-2 py-1">
-              <span className="text-[10px] text-orange-400">
-                🎯 현재 트레일링 손절선: <span className="font-mono font-bold">${formatPrice(trailingStopPrice)}</span>
-                <span className="text-muted-foreground ml-2">
-                  (최고수익: +{highestProfit.toFixed(2)}%)
-                </span>
-              </span>
-            </div>
-          )}
         </div>
       )}
 
