@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, memo } from 'react';
-import { createChart, CandlestickSeries, LineSeries, HistogramSeries } from 'lightweight-charts';
-import type { IChartApi, ISeriesApi, CandlestickData, LineData, Time } from 'lightweight-charts';
+import { createChart, ColorType, CrosshairMode, IChartApi, ISeriesApi, CandlestickData, LineData, Time, HistogramData } from 'lightweight-charts';
 import { fetchKlines, calculateBollingerBands } from '@/lib/binance';
 
 interface LightweightChartProps {
@@ -41,7 +40,7 @@ const LightweightChart = memo(({ symbol, interval = '1', height = 600 }: Lightwe
       width: containerRef.current.clientWidth,
       height: height,
       layout: {
-        background: { color: '#0a0a0a' },
+        background: { type: ColorType.Solid, color: '#0a0a0a' },
         textColor: '#9ca3af',
       },
       grid: {
@@ -49,7 +48,7 @@ const LightweightChart = memo(({ symbol, interval = '1', height = 600 }: Lightwe
         horzLines: { color: '#1f2937' },
       },
       crosshair: {
-        mode: 1,
+        mode: CrosshairMode.Normal,
         vertLine: { color: '#4b5563', width: 1, style: 2 },
         horzLine: { color: '#4b5563', width: 1, style: 2 },
       },
@@ -66,8 +65,8 @@ const LightweightChart = memo(({ symbol, interval = '1', height = 600 }: Lightwe
 
     chartRef.current = chart;
 
-    // Add candlestick series (v5 API)
-    const candleSeries = chart.addSeries(CandlestickSeries, {
+    // Add candlestick series
+    const candleSeries = chart.addCandlestickSeries({
       upColor: '#ef4444',
       downColor: '#3b82f6',
       borderUpColor: '#ef4444',
@@ -77,8 +76,8 @@ const LightweightChart = memo(({ symbol, interval = '1', height = 600 }: Lightwe
     });
     candleSeriesRef.current = candleSeries;
 
-    // Add volume series (v5 API)
-    const volumeSeries = chart.addSeries(HistogramSeries, {
+    // Add volume series
+    const volumeSeries = chart.addHistogramSeries({
       color: '#4b5563',
       priceFormat: { type: 'volume' },
       priceScaleId: 'volume',
@@ -88,8 +87,8 @@ const LightweightChart = memo(({ symbol, interval = '1', height = 600 }: Lightwe
     });
     volumeSeriesRef.current = volumeSeries;
 
-    // Add Bollinger Bands (v5 API)
-    const upperBand = chart.addSeries(LineSeries, {
+    // Add Bollinger Bands
+    const upperBand = chart.addLineSeries({
       color: '#f59e0b',
       lineWidth: 1,
       lineStyle: 0,
@@ -98,7 +97,7 @@ const LightweightChart = memo(({ symbol, interval = '1', height = 600 }: Lightwe
     });
     upperBandRef.current = upperBand;
 
-    const middleBand = chart.addSeries(LineSeries, {
+    const middleBand = chart.addLineSeries({
       color: '#8b5cf6',
       lineWidth: 1,
       lineStyle: 2,
@@ -107,7 +106,7 @@ const LightweightChart = memo(({ symbol, interval = '1', height = 600 }: Lightwe
     });
     middleBandRef.current = middleBand;
 
-    const lowerBand = chart.addSeries(LineSeries, {
+    const lowerBand = chart.addLineSeries({
       color: '#f59e0b',
       lineWidth: 1,
       lineStyle: 0,
@@ -154,7 +153,7 @@ const LightweightChart = memo(({ symbol, interval = '1', height = 600 }: Lightwe
           close: k.close,
         }));
 
-        const volumeData = klines.map(k => ({
+        const volumeData: HistogramData<Time>[] = klines.map(k => ({
           time: (k.openTime / 1000) as Time,
           value: k.volume,
           color: k.close >= k.open ? 'rgba(239, 68, 68, 0.3)' : 'rgba(59, 130, 246, 0.3)',
