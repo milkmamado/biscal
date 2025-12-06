@@ -141,6 +141,7 @@ const Index = () => {
                 tradeCount={dailyStats.tradeCount}
                 winCount={dailyStats.winCount}
                 hasPosition={!!currentPosition}
+                onSelectSymbol={setSelectedSymbol}
               />
             </div>
           </div>
