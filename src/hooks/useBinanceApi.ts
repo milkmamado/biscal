@@ -56,6 +56,16 @@ export const useBinanceApi = () => {
       }
 
       if (data?.error) {
+        // Handle specific error codes with friendly messages
+        if (data.code === -2022) {
+          throw new Error('청산할 포지션이 없습니다');
+        }
+        if (data.code === -2019) {
+          throw new Error('마진이 부족합니다');
+        }
+        if (data.code === -4061) {
+          throw new Error('주문 수량이 최소 단위보다 작습니다');
+        }
         // Check if it's an IP error
         if (data.code === -2015 && data.error?.includes('request ip:')) {
           const ipMatch = data.error.match(/request ip: ([\d.]+)/);
@@ -65,7 +75,7 @@ export const useBinanceApi = () => {
           // Retry automatically up to maxRetries times
           if (retryCount < maxRetries) {
             console.log(`IP error, retrying... (${retryCount + 1}/${maxRetries})`);
-            await new Promise(resolve => setTimeout(resolve, 500)); // Wait 500ms
+            await new Promise(resolve => setTimeout(resolve, 500));
             return callBinanceApi(action, params, retryCount + 1);
           }
           
