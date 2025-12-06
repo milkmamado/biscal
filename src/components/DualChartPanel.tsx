@@ -323,10 +323,11 @@ const DualChartPanel = ({
               {/* Take Profit Label */}
               {tpPrice && tpPrice > 0 && (
                 <div 
-                  className="absolute right-1 z-20 pointer-events-none"
+                  className="absolute right-1 z-20 pointer-events-none flex items-center gap-1"
                   style={{ top: getPriceYPosition(tpPrice) }}
                 >
-                  <div className="bg-emerald-600 text-white text-[9px] px-1.5 py-0.5 rounded font-bold shadow-lg -translate-y-1/2">
+                  <div className="w-6 h-px border-t-2 border-dashed border-emerald-500" />
+                  <div className="bg-emerald-600 text-white text-[9px] px-1.5 py-0.5 rounded font-bold shadow-lg -translate-y-px">
                     익절
                   </div>
                 </div>
@@ -335,10 +336,11 @@ const DualChartPanel = ({
               {/* Entry Price Label */}
               {entryPrice && entryPrice > 0 && (
                 <div 
-                  className="absolute right-1 z-20 pointer-events-none"
+                  className="absolute right-1 z-20 pointer-events-none flex items-center gap-1"
                   style={{ top: getPriceYPosition(entryPrice) }}
                 >
-                  <div className="bg-yellow-600 text-white text-[9px] px-1.5 py-0.5 rounded font-bold shadow-lg -translate-y-1/2">
+                  <div className="w-6 h-px border-t-2 border-dashed border-yellow-500" />
+                  <div className="bg-yellow-600 text-white text-[9px] px-1.5 py-0.5 rounded font-bold shadow-lg -translate-y-px">
                     진입
                   </div>
                 </div>
@@ -347,10 +349,11 @@ const DualChartPanel = ({
               {/* Stop Loss Label */}
               {slPrice && slPrice > 0 && (
                 <div 
-                  className="absolute right-1 z-20 pointer-events-none"
+                  className="absolute right-1 z-20 pointer-events-none flex items-center gap-1"
                   style={{ top: getPriceYPosition(slPrice) }}
                 >
-                  <div className="bg-red-600 text-white text-[9px] px-1.5 py-0.5 rounded font-bold shadow-lg -translate-y-1/2">
+                  <div className="w-6 h-px border-t-2 border-dashed border-red-500" />
+                  <div className="bg-red-600 text-white text-[9px] px-1.5 py-0.5 rounded font-bold shadow-lg -translate-y-px">
                     손절
                   </div>
                 </div>
@@ -360,11 +363,15 @@ const DualChartPanel = ({
               {openOrders.map((order) => (
                 <div 
                   key={order.orderId}
-                  className="absolute right-1 z-20 pointer-events-none"
+                  className="absolute right-1 z-20 pointer-events-none flex items-center gap-1"
                   style={{ top: getPriceYPosition(order.price) }}
                 >
                   <div className={cn(
-                    "text-white text-[9px] px-1.5 py-0.5 rounded font-bold shadow-lg -translate-y-1/2",
+                    "w-6 h-px border-t-2 border-dashed",
+                    order.side === 'BUY' ? "border-red-500" : "border-blue-500"
+                  )} />
+                  <div className={cn(
+                    "text-white text-[9px] px-1.5 py-0.5 rounded font-bold shadow-lg -translate-y-px",
                     order.side === 'BUY' ? "bg-red-600" : "bg-blue-600"
                   )}>
                     {order.side === 'BUY' ? '롱' : '숏'}
