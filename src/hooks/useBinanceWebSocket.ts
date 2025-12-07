@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { KlineData, OrderBook } from '@/lib/binance';
 
 const BINANCE_WS_URL = 'wss://fstream.binance.com/ws';
@@ -31,6 +31,10 @@ export const useBinanceWebSocket = ({
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const klinesRef = useRef<KlineData[]>([]);
+  const initialDataLoadedRef = useRef(false);
+  
+  // Memoize streams to prevent unnecessary reconnections
+  const streamsKey = useMemo(() => streams.sort().join(','), [streams]);
 
   // Initial data fetch for klines (need history)
   const fetchInitialKlines = useCallback(async () => {
@@ -142,8 +146,8 @@ export const useBinanceWebSocket = ({
           });
         }
         
-        // Handle kline updates
-        if (data.e === 'kline') {
+        // Handle kline updates - only process if initial data is loaded
+        if (data.e === 'kline' && initialDataLoadedRef.current) {
           const k = data.k;
           const newKline: KlineData = {
             openTime: k.t,
@@ -156,6 +160,8 @@ export const useBinanceWebSocket = ({
           };
 
           const currentKlines = klinesRef.current;
+          if (currentKlines.length === 0) return; // Skip if no initial data yet
+          
           const lastKline = currentKlines[currentKlines.length - 1];
           
           if (lastKline && lastKline.openTime === newKline.openTime) {
@@ -197,16 +203,23 @@ export const useBinanceWebSocket = ({
   }, [symbol, streams, klineInterval, depthLevel]);
 
   useEffect(() => {
-    // Fetch initial data
-    if (streams.includes('kline')) {
-      fetchInitialKlines();
-    }
-    if (streams.includes('depth')) {
-      fetchInitialOrderBook();
-    }
+    // Reset initial data flag on symbol/interval change
+    initialDataLoadedRef.current = false;
     
-    // Connect WebSocket
-    connect();
+    // Fetch initial data first, then connect WebSocket
+    const init = async () => {
+      if (streams.includes('kline')) {
+        await fetchInitialKlines();
+      }
+      if (streams.includes('depth')) {
+        await fetchInitialOrderBook();
+      }
+      initialDataLoadedRef.current = true;
+      // Connect WebSocket after initial data is loaded
+      connect();
+    };
+    
+    init();
 
     return () => {
       if (reconnectTimeoutRef.current) {
@@ -216,7 +229,7 @@ export const useBinanceWebSocket = ({
         wsRef.current.close();
       }
     };
-  }, [symbol, klineInterval, streams.join(',')]);
+  }, [symbol, klineInterval, streamsKey]);
 
   return { orderBook, klines, currentPrice, isConnected };
 };
