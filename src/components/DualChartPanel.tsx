@@ -405,21 +405,8 @@ const DualChartPanel = ({
           <SimpleChart symbol={symbol} interval={interval} height={500} onPriceRangeChange={handlePriceRangeChange} />
           
           {/* Price Labels Overlay - only show on 1m and 3m */}
-          {(interval === '1' || interval === '3') && (openOrders.length > 0 || entryPrice || tpPrice || slPrice) && priceRange.high > priceRange.low && (
+          {(interval === '1' || interval === '3') && (openOrders.length > 0 || entryPrice) && priceRange.high > priceRange.low && (
             <>
-              {/* Take Profit Label */}
-              {tpPrice && tpPrice > 0 && (
-                <div 
-                  className="absolute right-1 z-20 pointer-events-none flex items-center gap-1"
-                  style={{ top: getPriceYPosition(tpPrice) }}
-                >
-                  <div className="w-6 h-px border-t-2 border-dashed border-emerald-500" />
-                  <div className="bg-emerald-600 text-white text-[9px] px-1.5 py-0.5 rounded font-bold shadow-lg -translate-y-px">
-                    익절
-                  </div>
-                </div>
-              )}
-              
               {/* Entry Price Label */}
               {entryPrice && entryPrice > 0 && (
                 <div 
@@ -429,19 +416,6 @@ const DualChartPanel = ({
                   <div className="w-6 h-px border-t-2 border-dashed border-yellow-500" />
                   <div className="bg-yellow-600 text-white text-[9px] px-1.5 py-0.5 rounded font-bold shadow-lg -translate-y-px">
                     진입
-                  </div>
-                </div>
-              )}
-              
-              {/* Stop Loss Label */}
-              {slPrice && slPrice > 0 && (
-                <div 
-                  className="absolute right-1 z-20 pointer-events-none flex items-center gap-1"
-                  style={{ top: getPriceYPosition(slPrice) }}
-                >
-                  <div className="w-6 h-px border-t-2 border-dashed border-red-500" />
-                  <div className="bg-red-600 text-white text-[9px] px-1.5 py-0.5 rounded font-bold shadow-lg -translate-y-px">
-                    손절
                   </div>
                 </div>
               )}
