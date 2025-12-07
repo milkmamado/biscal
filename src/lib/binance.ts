@@ -149,36 +149,81 @@ export async function fetchKlines(symbol: string, interval: string = '5m', limit
   }));
 }
 
-// Fetch order book
+// Fetch order book with error handling
 export async function fetchOrderBook(symbol: string, limit: number = 20): Promise<OrderBook> {
-  const response = await fetch(`${BASE_URL}/fapi/v1/depth?symbol=${symbol}&limit=${limit}`);
-  const data = await response.json();
-  return {
-    bids: data.bids.map((b: string[]) => ({ price: parseFloat(b[0]), quantity: parseFloat(b[1]) })),
-    asks: data.asks.map((a: string[]) => ({ price: parseFloat(a[0]), quantity: parseFloat(a[1]) })),
-    lastUpdateId: data.lastUpdateId,
-  };
+  try {
+    const response = await fetch(`${BASE_URL}/fapi/v1/depth?symbol=${symbol}&limit=${limit}`);
+    if (!response.ok) {
+      console.warn(`OrderBook fetch failed: ${response.status}`);
+      return { bids: [], asks: [], lastUpdateId: 0 };
+    }
+    const data = await response.json();
+    if (!data.bids || !data.asks) {
+      return { bids: [], asks: [], lastUpdateId: 0 };
+    }
+    return {
+      bids: data.bids.map((b: string[]) => ({ price: parseFloat(b[0]), quantity: parseFloat(b[1]) })),
+      asks: data.asks.map((a: string[]) => ({ price: parseFloat(a[0]), quantity: parseFloat(a[1]) })),
+      lastUpdateId: data.lastUpdateId,
+    };
+  } catch (error) {
+    console.warn('OrderBook fetch error:', error);
+    return { bids: [], asks: [], lastUpdateId: 0 };
+  }
 }
 
-// Fetch 24h ticker
+// 24h ticker cache
+let tickerCache: Map<string, { data: SymbolInfo; time: number }> = new Map();
+const TICKER_CACHE_DURATION = 5000; // 5초 캐시
+
+// Fetch 24h ticker with caching
 export async function fetch24hTicker(symbol: string): Promise<SymbolInfo> {
-  const response = await fetch(`${BASE_URL}/fapi/v1/ticker/24hr?symbol=${symbol}`);
-  const data = await response.json();
-  const highPrice = parseFloat(data.highPrice);
-  const lowPrice = parseFloat(data.lowPrice);
-  const volatilityRange = lowPrice > 0 ? ((highPrice - lowPrice) / lowPrice) * 100 : 0;
+  const cached = tickerCache.get(symbol);
+  if (cached && Date.now() - cached.time < TICKER_CACHE_DURATION) {
+    return cached.data;
+  }
   
-  return {
-    symbol: data.symbol,
-    price: parseFloat(data.lastPrice),
-    priceChange: parseFloat(data.priceChange),
-    priceChangePercent: parseFloat(data.priceChangePercent),
-    volume: parseFloat(data.quoteVolume),
-    highPrice,
-    lowPrice,
-    volatilityRange,
-    hotScore: 0,
-  };
+  try {
+    const response = await fetch(`${BASE_URL}/fapi/v1/ticker/24hr?symbol=${symbol}`);
+    if (!response.ok) {
+      console.warn(`Ticker fetch failed: ${response.status}`);
+      if (cached) return cached.data; // 에러 시 캐시 반환
+      throw new Error('Ticker fetch failed');
+    }
+    const data = await response.json();
+    const highPrice = parseFloat(data.highPrice);
+    const lowPrice = parseFloat(data.lowPrice);
+    const volatilityRange = lowPrice > 0 ? ((highPrice - lowPrice) / lowPrice) * 100 : 0;
+    
+    const result: SymbolInfo = {
+      symbol: data.symbol,
+      price: parseFloat(data.lastPrice),
+      priceChange: parseFloat(data.priceChange),
+      priceChangePercent: parseFloat(data.priceChangePercent),
+      volume: parseFloat(data.quoteVolume),
+      highPrice,
+      lowPrice,
+      volatilityRange,
+      hotScore: 0,
+    };
+    
+    tickerCache.set(symbol, { data: result, time: Date.now() });
+    return result;
+  } catch (error) {
+    console.warn('Ticker fetch error:', error);
+    if (cached) return cached.data;
+    return {
+      symbol,
+      price: 0,
+      priceChange: 0,
+      priceChangePercent: 0,
+      volume: 0,
+      highPrice: 0,
+      lowPrice: 0,
+      volatilityRange: 0,
+      hotScore: 0,
+    };
+  }
 }
 
 // Fetch all 24h tickers (only actively trading symbols)
