@@ -1,6 +1,8 @@
 import { useEffect, useState, useMemo } from 'react';
-import { fetchOrderBook, OrderBook as OrderBookType, formatPrice, formatQuantity } from '@/lib/binance';
+import { OrderBook as OrderBookType, formatPrice, formatQuantity } from '@/lib/binance';
+import { useBinanceWebSocket } from '@/hooks/useBinanceWebSocket';
 import { cn } from '@/lib/utils';
+import { Wifi, WifiOff } from 'lucide-react';
 
 interface OrderBookProps {
   symbol: string;
@@ -8,25 +10,20 @@ interface OrderBookProps {
 }
 
 const OrderBook = ({ symbol, currentPrice }: OrderBookProps) => {
-  const [orderBook, setOrderBook] = useState<OrderBookType | null>(null);
+  // Use WebSocket for real-time orderbook data
+  const { orderBook, currentPrice: wsPrice, isConnected } = useBinanceWebSocket({
+    symbol,
+    streams: ['depth'],
+    depthLevel: 15,
+  });
+  
   const [loading, setLoading] = useState(true);
-
+  
   useEffect(() => {
-    const loadOrderBook = async () => {
-      try {
-        const data = await fetchOrderBook(symbol, 15);
-        setOrderBook(data);
-      } catch (error) {
-        console.error('Failed to fetch order book:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadOrderBook();
-    const interval = setInterval(loadOrderBook, 300); // 300ms 최고속
-    return () => clearInterval(interval);
-  }, [symbol]);
+    if (orderBook) {
+      setLoading(false);
+    }
+  }, [orderBook]);
 
   const maxQuantity = useMemo(() => {
     if (!orderBook) return 0;
@@ -52,9 +49,16 @@ const OrderBook = ({ symbol, currentPrice }: OrderBookProps) => {
   return (
     <div className="bg-card rounded-lg border border-border overflow-hidden">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-border">
-        <h3 className="text-sm font-semibold text-foreground">호가창</h3>
-        <p className="text-xs text-muted-foreground mt-0.5">{symbol}</p>
+      <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-foreground">호가창</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">{symbol}</p>
+        </div>
+        {isConnected ? (
+          <Wifi className="w-3 h-3 text-green-500" />
+        ) : (
+          <WifiOff className="w-3 h-3 text-red-500" />
+        )}
       </div>
 
       {/* Column Headers */}
@@ -93,7 +97,7 @@ const OrderBook = ({ symbol, currentPrice }: OrderBookProps) => {
       <div className="px-4 py-3 bg-secondary/50 border-y border-border">
         <div className="flex items-center justify-between">
           <span className="text-lg font-bold font-mono text-foreground">
-            {currentPrice ? formatPrice(currentPrice) : formatPrice(orderBook.asks[0]?.price || 0)}
+            {currentPrice ? formatPrice(currentPrice) : wsPrice ? formatPrice(wsPrice) : formatPrice(orderBook.asks[0]?.price || 0)}
           </span>
           <span className="text-xs text-muted-foreground">현재가</span>
         </div>

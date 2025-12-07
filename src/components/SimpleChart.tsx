@@ -1,7 +1,8 @@
 import { useEffect, useState, useMemo, memo, useRef } from 'react';
 import { fetchKlines, calculateBollingerBands, KlineData } from '@/lib/binance';
+import { useBinanceWebSocket } from '@/hooks/useBinanceWebSocket';
 import { cn } from '@/lib/utils';
-import { ZoomIn, ZoomOut } from 'lucide-react';
+import { ZoomIn, ZoomOut, Wifi, WifiOff } from 'lucide-react';
 
 interface SimpleChartProps {
   symbol: string;
@@ -102,36 +103,24 @@ const detectSupportResistance = (klines: KlineData[], avgVolume: number): Suppor
 const ZOOM_LEVELS = [30, 45, 60, 90, 120];
 
 const SimpleChart = memo(({ symbol, interval = '1', height = 500, onPriceRangeChange }: SimpleChartProps) => {
-  const [klines, setKlines] = useState<KlineData[]>([]);
   const [loading, setLoading] = useState(true);
   const [zoomIndex, setZoomIndex] = useState(2); // Default 60 candles
   const candleCount = ZOOM_LEVELS[zoomIndex];
+  
+  const binanceInterval = intervalMap[interval] || '1m';
+  
+  // Use WebSocket for real-time kline data
+  const { klines, currentPrice, isConnected } = useBinanceWebSocket({
+    symbol,
+    streams: ['kline'],
+    klineInterval: binanceInterval,
+  });
 
   useEffect(() => {
-    let mounted = true;
-
-    const loadKlines = async () => {
-      try {
-        const binanceInterval = intervalMap[interval] || '1m';
-        // Fetch max candles, we'll slice based on zoom
-        const data = await fetchKlines(symbol, binanceInterval, 120);
-        if (mounted) {
-          setKlines(data);
-          setLoading(false);
-        }
-      } catch (error) {
-        console.error('Failed to fetch klines:', error);
-      }
-    };
-
-    loadKlines();
-    const timer = setInterval(loadKlines, 500);
-
-    return () => {
-      mounted = false;
-      clearInterval(timer);
-    };
-  }, [symbol, interval]);
+    if (klines.length > 0) {
+      setLoading(false);
+    }
+  }, [klines.length]);
 
   const chartData = useMemo(() => {
     // Slice klines based on zoom level
@@ -218,6 +207,14 @@ const SimpleChart = memo(({ symbol, interval = '1', height = 500, onPriceRangeCh
               <div className="w-2 h-0.5 bg-red-500/50" />
               <span className="text-[8px] text-muted-foreground">저항</span>
             </div>
+          </div>
+          {/* WebSocket status */}
+          <div className="flex items-center gap-1 ml-2">
+            {isConnected ? (
+              <Wifi className="w-3 h-3 text-green-500" />
+            ) : (
+              <WifiOff className="w-3 h-3 text-red-500" />
+            )}
           </div>
         </div>
         {/* Zoom controls */}
