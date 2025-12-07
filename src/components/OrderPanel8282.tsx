@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils';
 import { Minus, Plus, TrendingUp, TrendingDown, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useBinanceApi } from '@/hooks/useBinanceApi';
+import { useAuth } from '@/hooks/useAuth';
 
 interface Position {
   type: 'long' | 'short';
@@ -54,6 +55,7 @@ interface OrderPanel8282Props {
 
 const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersChange, onTradeClose, onTpSlChange }: OrderPanel8282Props) => {
   const { toast } = useToast();
+  const { user } = useAuth();
   const { 
     getBalances, 
     getPositions,
@@ -209,6 +211,8 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
   };
   
   useEffect(() => {
+    if (!user) return; // Skip API calls if not logged in
+    
     fetchBalanceAndPosition();
     // 심볼 변경 시 레버리지 강제 설정
     const setInitialLeverage = async () => {
@@ -226,7 +230,7 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
     
     const interval = setInterval(fetchBalanceAndPosition, 10000);
     return () => clearInterval(interval);
-  }, [symbol]);
+  }, [symbol, user]);
   
   // Auto-set 100% quantity and recommended TP/SL when balance loads
   useEffect(() => {
