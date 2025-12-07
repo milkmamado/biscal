@@ -137,6 +137,9 @@ serve(async (req) => {
         endpoint = '/fapi/v1/marginType';
         method = 'POST';
         break;
+      case 'getIncomeHistory':
+        endpoint = '/fapi/v1/income';
+        break;
       default:
         return new Response(
           JSON.stringify({ error: `Unknown action: ${action}` }),

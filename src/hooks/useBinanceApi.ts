@@ -197,6 +197,14 @@ export const useBinanceApi = () => {
     return callBinanceApi('setMarginType', { symbol, marginType });
   }, [callBinanceApi]);
 
+  // Get income history since a specific timestamp
+  const getIncomeHistory = useCallback(async (startTime: number, endTime?: number, incomeType?: string) => {
+    const params: Record<string, any> = { startTime, limit: 1000 };
+    if (endTime) params.endTime = endTime;
+    if (incomeType) params.incomeType = incomeType;
+    return callBinanceApi('getIncomeHistory', params);
+  }, [callBinanceApi]);
+
   return {
     loading,
     error,
@@ -212,5 +220,6 @@ export const useBinanceApi = () => {
     cancelAllOrders,
     setLeverage,
     setMarginType,
+    getIncomeHistory,
   };
 };
