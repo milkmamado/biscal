@@ -58,7 +58,7 @@ const DualChartPanel = ({
   const [positions, setPositions] = useState<BinancePosition[]>([]);
   const [priceRange, setPriceRange] = useState<{ high: number; low: number }>({ high: 0, low: 0 });
   const [previousDayBalance, setPreviousDayBalance] = useState<number | null>(null);
-  const { getBalances, getPositions } = useBinanceApi();
+  const { getBalances, getPositions, getIncomeHistory } = useBinanceApi();
 
   // Handle price range updates from SimpleChart - memoized to prevent infinite loops
   const handlePriceRangeChange = useMemo(() => (range: { high: number; low: number }) => {
@@ -99,8 +99,10 @@ const DualChartPanel = ({
       if (usdtBalance) {
         const available = parseFloat(usdtBalance.availableBalance) || 0;
         setBalanceUSD(available);
-        // Save balance snapshot for daily tracking
-        fetchAndSaveBalance(available);
+        // Calculate previous day balance using income history
+        if (previousDayBalance === null) {
+          calculatePreviousDayBalance(available);
+        }
       }
     } catch (error) {
       console.error('Failed to fetch balance:', error);
@@ -125,6 +127,18 @@ const DualChartPanel = ({
     fetchRate();
   }, []);
 
+  // Get today's midnight timestamp in Korean timezone
+  const getTodayMidnightKST = () => {
+    const now = new Date();
+    const koreaOffset = 9 * 60; // UTC+9
+    const utcOffset = now.getTimezoneOffset();
+    const koreaTime = new Date(now.getTime() + (koreaOffset + utcOffset) * 60 * 1000);
+    // Set to midnight
+    koreaTime.setHours(0, 0, 0, 0);
+    // Convert back to UTC timestamp
+    return koreaTime.getTime() - (koreaOffset + utcOffset) * 60 * 1000;
+  };
+
   // Get today's date in YYYY-MM-DD format (Korean timezone)
   const getTodayDate = () => {
     const now = new Date();
@@ -134,50 +148,51 @@ const DualChartPanel = ({
     return koreaTime.toISOString().split('T')[0];
   };
 
-  // Get yesterday's date
-  const getYesterdayDate = () => {
-    const now = new Date();
-    const koreaOffset = 9 * 60;
-    const utcOffset = now.getTimezoneOffset();
-    const koreaTime = new Date(now.getTime() + (koreaOffset + utcOffset) * 60 * 1000);
-    koreaTime.setDate(koreaTime.getDate() - 1);
-    return koreaTime.toISOString().split('T')[0];
-  };
-
-  // Fetch previous day's closing balance and save today's balance
-  const fetchAndSaveBalance = async (currentBalance: number) => {
+  // Calculate previous day's closing balance using income history
+  const calculatePreviousDayBalance = async (currentBalance: number) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const yesterday = getYesterdayDate();
-      const today = getTodayDate();
-
-      // Fetch yesterday's closing balance
-      const { data: yesterdayData } = await supabase
-        .from('daily_balance_snapshots')
-        .select('closing_balance_usd')
-        .eq('user_id', user.id)
-        .eq('snapshot_date', yesterday)
-        .maybeSingle();
-
-      if (yesterdayData) {
-        setPreviousDayBalance(Number(yesterdayData.closing_balance_usd));
+      const todayMidnight = getTodayMidnightKST();
+      const now = Date.now();
+      
+      console.log(`Fetching income history from ${new Date(todayMidnight).toISOString()} to ${new Date(now).toISOString()}`);
+      
+      // Get all income since today's midnight
+      const incomeHistory = await getIncomeHistory(todayMidnight, now);
+      
+      if (!incomeHistory || !Array.isArray(incomeHistory)) {
+        console.log('No income history returned');
+        return;
       }
-
-      // Upsert today's balance (update if exists, insert if not)
-      await supabase
-        .from('daily_balance_snapshots')
-        .upsert({
-          user_id: user.id,
-          snapshot_date: today,
-          closing_balance_usd: currentBalance,
-        }, {
-          onConflict: 'user_id,snapshot_date'
-        });
-
+      
+      // Sum all income (realized PnL, funding fees, commissions, etc.)
+      const totalIncomeSinceMidnight = incomeHistory.reduce((sum: number, item: any) => {
+        return sum + parseFloat(item.income || 0);
+      }, 0);
+      
+      console.log(`Income since midnight: $${totalIncomeSinceMidnight.toFixed(4)} (${incomeHistory.length} transactions)`);
+      
+      // Previous day balance = current balance - all income since midnight
+      const calculatedPrevBalance = currentBalance - totalIncomeSinceMidnight;
+      console.log(`Calculated previous day balance: $${calculatedPrevBalance.toFixed(4)}`);
+      
+      setPreviousDayBalance(calculatedPrevBalance);
+      
+      // Save today's current balance for future reference
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const today = getTodayDate();
+        await supabase
+          .from('daily_balance_snapshots')
+          .upsert({
+            user_id: user.id,
+            snapshot_date: today,
+            closing_balance_usd: currentBalance,
+          }, {
+            onConflict: 'user_id,snapshot_date'
+          });
+      }
     } catch (error) {
-      console.error('Failed to fetch/save balance snapshot:', error);
+      console.error('Failed to calculate previous day balance:', error);
     }
   };
 
