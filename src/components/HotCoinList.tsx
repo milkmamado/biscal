@@ -10,22 +10,44 @@ interface HotCoinListProps {
   selectedSymbol: string;
 }
 
+// 캐시 - 컴포넌트 외부에 저장
+let cachedCoins: SymbolInfo[] = [];
+let lastFetchTime = 0;
+const CACHE_DURATION = 60000; // 60초 캐시
+
 const HotCoinList = ({ onSelectSymbol, selectedSymbol }: HotCoinListProps) => {
   const [coins, setCoins] = useState<SymbolInfo[]>([]);
-  const [allCoins, setAllCoins] = useState<SymbolInfo[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [allCoins, setAllCoins] = useState<SymbolInfo[]>(cachedCoins);
+  const [loading, setLoading] = useState(cachedCoins.length === 0);
   const [refreshing, setRefreshing] = useState(false);
   const [sortMode, setSortMode] = useState<SortMode>('hot');
   const [searchQuery, setSearchQuery] = useState('');
 
-  const loadCoins = useCallback(async (showRefreshing = false) => {
-    if (showRefreshing) setRefreshing(true);
+  const loadCoins = useCallback(async (force = false) => {
+    const now = Date.now();
+    
+    // 캐시가 유효하면 스킵 (강제 새로고침 제외)
+    if (!force && cachedCoins.length > 0 && now - lastFetchTime < CACHE_DURATION) {
+      setAllCoins(cachedCoins);
+      setLoading(false);
+      return;
+    }
+    
+    if (force) setRefreshing(true);
     
     try {
       const tickers = await fetchAll24hTickers();
-      setAllCoins(tickers);
+      if (tickers && tickers.length > 0) {
+        cachedCoins = tickers;
+        lastFetchTime = now;
+        setAllCoins(tickers);
+      }
     } catch (error) {
       console.error('Failed to load coins:', error);
+      // 에러 시 캐시된 데이터 사용
+      if (cachedCoins.length > 0) {
+        setAllCoins(cachedCoins);
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -35,11 +57,8 @@ const HotCoinList = ({ onSelectSymbol, selectedSymbol }: HotCoinListProps) => {
   // Sort and filter coins based on mode and search
   useEffect(() => {
     // 스캘핑 적합 코인 필터링 (해외 전문가 기준)
-    // 1. 가격 $0.1 이상 (소수점 코인 스프레드/틱사이즈 문제 회피)
-    // 2. 거래량 $50M 이상 (유동성 확보)
     let filtered = allCoins.filter(c => 
-      c.price >= 0.1 && // $0.1 이상 가격
-      c.volume >= 50_000_000 // $50M 이상 거래량
+      c.price >= 0.1 && c.volume >= 50_000_000
     );
     
     // Apply search filter
@@ -52,7 +71,6 @@ const HotCoinList = ({ onSelectSymbol, selectedSymbol }: HotCoinListProps) => {
     // Apply sorting
     switch (sortMode) {
       case 'hot':
-        // Hot = composite score (volume + volatility)
         filtered.sort((a, b) => b.hotScore - a.hotScore);
         break;
       case 'volume':
@@ -71,7 +89,7 @@ const HotCoinList = ({ onSelectSymbol, selectedSymbol }: HotCoinListProps) => {
 
   useEffect(() => {
     loadCoins();
-    const interval = setInterval(() => loadCoins(), 30000); // 30초마다 갱신
+    const interval = setInterval(() => loadCoins(), 90000); // 90초마다 갱신 (30초 → 90초)
     return () => clearInterval(interval);
   }, [loadCoins]);
 
