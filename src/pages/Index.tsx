@@ -9,9 +9,7 @@ import CoinHeader from '@/components/CoinHeader';
 import DualChartPanel from '@/components/DualChartPanel';
 import ApiKeySetup from '@/components/ApiKeySetup';
 import { Button } from '@/components/ui/button';
-import { LogOut, LogIn } from 'lucide-react';
-
-
+import { LogOut } from 'lucide-react';
 
 interface Position {
   type: 'long' | 'short';
@@ -139,9 +137,6 @@ const Index = () => {
     return <ApiKeySetup onComplete={handleApiKeyComplete} />;
   }
 
-  // Guest mode: not logged in, show view-only interface
-  const isGuest = !user;
-
   return (
     <div className="min-h-screen bg-background p-2">
       {/* Main Content */}
@@ -163,15 +158,15 @@ const Index = () => {
             <div className="mt-2 h-[calc(100vh-80px)]">
               <DualChartPanel 
                 symbol={selectedSymbol} 
-                unrealizedPnL={isGuest ? 0 : currentPnL}
-                realizedPnL={isGuest ? 0 : dailyStats.totalPnL}
-                tradeCount={isGuest ? 0 : dailyStats.tradeCount}
-                winCount={isGuest ? 0 : dailyStats.winCount}
-                hasPosition={isGuest ? false : !!currentPosition}
-                entryPrice={isGuest ? undefined : currentPosition?.entryPrice}
-                openOrders={isGuest ? [] : openOrders}
-                tpPrice={isGuest ? null : tpSlPrices.tpPrice}
-                slPrice={isGuest ? null : tpSlPrices.slPrice}
+                unrealizedPnL={currentPnL}
+                realizedPnL={dailyStats.totalPnL}
+                tradeCount={dailyStats.tradeCount}
+                winCount={dailyStats.winCount}
+                hasPosition={!!currentPosition}
+                entryPrice={currentPosition?.entryPrice}
+                openOrders={openOrders}
+                tpPrice={tpSlPrices.tpPrice}
+                slPrice={tpSlPrices.slPrice}
                 onSelectSymbol={setSelectedSymbol}
               />
             </div>
@@ -188,29 +183,17 @@ const Index = () => {
               onTpSlChange={handleTpSlChange}
             />
             
-            {/* Login/Logout */}
+            {/* Logout */}
             <div className="flex justify-end">
-              {isGuest ? (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => navigate('/auth')}
-                  className="text-muted-foreground hover:text-foreground border border-border"
-                >
-                  <LogIn className="h-4 w-4 mr-1" />
-                  로그인
-                </Button>
-              ) : (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleSignOut}
-                  className="text-muted-foreground hover:text-foreground border border-border"
-                >
-                  <LogOut className="h-4 w-4 mr-1" />
-                  로그아웃
-                </Button>
-              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleSignOut}
+                className="text-muted-foreground hover:text-foreground border border-border"
+              >
+                <LogOut className="h-4 w-4 mr-1" />
+                로그아웃
+              </Button>
             </div>
           </div>
         </div>
