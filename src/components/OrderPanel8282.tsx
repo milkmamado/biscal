@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { fetchOrderBook, fetch24hTicker, OrderBook, formatPrice, formatQuantity, calculateTechnicalSignal, TechnicalSignal } from '@/lib/binance';
+import { OrderBook, formatPrice, formatQuantity } from '@/lib/binance';
+import { useBinanceWebSocket } from '@/hooks/useBinanceWebSocket';
 import { cn } from '@/lib/utils';
-import { Minus, Plus, TrendingUp, TrendingDown, RefreshCw } from 'lucide-react';
+import { Minus, Plus, RefreshCw, Wifi, WifiOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useBinanceApi } from '@/hooks/useBinanceApi';
 import { useAuth } from '@/hooks/useAuth';
@@ -66,6 +67,13 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
     setLeverage: apiSetLeverage,
     loading: apiLoading 
   } = useBinanceApi();
+  // WebSocket for real-time order book and price
+  const { orderBook: wsOrderBook, currentPrice: wsCurrentPrice, isConnected } = useBinanceWebSocket({
+    symbol,
+    streams: ['depth'],
+    depthLevel: 10,
+  });
+  
   const [orderBook, setOrderBook] = useState<OrderBook | null>(null);
   const [currentPrice, setCurrentPrice] = useState<number>(0);
   const [prevPrice, setPrevPrice] = useState<number>(0);
@@ -75,6 +83,21 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
   const [loading, setLoading] = useState(true);
   const [clickOrderPercent, setClickOrderPercent] = useState<number>(100);
   const [autoTpSlInitialized, setAutoTpSlInitialized] = useState<boolean>(false);
+  
+  // Update from WebSocket data
+  useEffect(() => {
+    if (wsOrderBook && wsOrderBook.bids.length > 0) {
+      setOrderBook(wsOrderBook);
+      setLoading(false);
+    }
+  }, [wsOrderBook]);
+  
+  useEffect(() => {
+    if (wsCurrentPrice && wsCurrentPrice > 0) {
+      setPrevPrice(currentPrice);
+      setCurrentPrice(wsCurrentPrice);
+    }
+  }, [wsCurrentPrice]);
   
   
   // Position state
@@ -291,213 +314,169 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
     return () => clearInterval(interval);
   }, []);
   
-  // Technical signal state
-  const [techSignal, setTechSignal] = useState<TechnicalSignal | null>(null);
-  const lastSignalFetch = useRef<number>(0);
-  
   // Ref to prevent duplicate TP/SL execution
   const tpSlProcessing = useRef<boolean>(false);
   
   // Ref to prevent duplicate close operations
   const closingInProgress = useRef<boolean>(false);
 
+  // Check pending orders and TP/SL based on WebSocket price
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        const [book, ticker] = await Promise.all([
-          fetchOrderBook(symbol, 10),
-          fetch24hTicker(symbol)
-        ]);
-        setOrderBook(book);
-        setPrevPrice(currentPrice);
-        setCurrentPrice(ticker.price);
-        setPriceChangePercent(ticker.priceChangePercent);
+    if (!currentPrice || currentPrice <= 0) return;
+    
+    // Check pending orders for fill
+    if (pendingOrders.length > 0) {
+      const filledOrders: PendingOrder[] = [];
+      const remainingOrders: PendingOrder[] = [];
+      
+      pendingOrders.forEach(order => {
+        const shouldFill = order.type === 'long' 
+          ? currentPrice <= order.price 
+          : currentPrice >= order.price;
         
-        // Fetch technical signal every 15 seconds (reduced from 5s)
-        const now = Date.now();
-        if (now - lastSignalFetch.current > 15000) {
-          lastSignalFetch.current = now;
-          calculateTechnicalSignal(symbol).then(setTechSignal);
+        if (shouldFill) {
+          filledOrders.push(order);
+        } else {
+          remainingOrders.push(order);
         }
-        
-        // Check pending orders for fill
-        if (pendingOrders.length > 0 && ticker.price > 0) {
-          const filledOrders: PendingOrder[] = [];
-          const remainingOrders: PendingOrder[] = [];
-          
-          pendingOrders.forEach(order => {
-            // Long order fills when price drops to or below order price
-            // Short order fills when price rises to or above order price
-            const shouldFill = order.type === 'long' 
-              ? ticker.price <= order.price 
-              : ticker.price >= order.price;
-            
-            if (shouldFill) {
-              filledOrders.push(order);
-            } else {
-              remainingOrders.push(order);
-            }
-          });
-          
-          // Process filled orders
-          if (filledOrders.length > 0) {
-            filledOrders.forEach(order => {
-              if (position && position.type === order.type) {
-                // 추매
-                const totalQty = position.quantity + order.quantity;
-                const avgPrice = ((position.entryPrice * position.quantity) + (order.price * order.quantity)) / totalQty;
-                setPosition({
-                  type: order.type,
-                  entryPrice: avgPrice,
-                  quantity: totalQty,
-                  leverage: order.leverage
-                });
-                toast({
-                  title: order.type === 'long' ? '🟢 지정가 롱 체결 (추매)' : '🔴 지정가 숏 체결 (추매)',
-                  description: `${symbol} +${order.quantity}개 @ $${formatPrice(order.price)} 체결`,
-                });
-              } else if (position && position.type !== order.type) {
-                // 청산
-                const pnl = calculatePnL(position, order.price);
-                onTradeClose?.({
-                  symbol,
-                  side: position.type,
-                  entryPrice: position.entryPrice,
-                  exitPrice: order.price,
-                  quantity: position.quantity,
-                  leverage: position.leverage,
-                  pnl,
-                });
-                toast({
-                  title: pnl >= 0 ? '✅ 지정가 청산 체결' : '❌ 지정가 청산 체결',
-                  description: `${symbol} @ $${formatPrice(order.price)} | 손익: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}`,
-                });
-                setPosition(null);
-              } else {
-                // 신규 진입
-                setPosition({
-                  type: order.type,
-                  entryPrice: order.price,
-                  quantity: order.quantity,
-                  leverage: order.leverage
-                });
-                toast({
-                  title: order.type === 'long' ? '🟢 지정가 롱 체결' : '🔴 지정가 숏 체결',
-                  description: `${symbol} ${order.quantity}개 @ $${formatPrice(order.price)} 체결`,
-                });
-              }
+      });
+      
+      if (filledOrders.length > 0) {
+        filledOrders.forEach(order => {
+          if (position && position.type === order.type) {
+            const totalQty = position.quantity + order.quantity;
+            const avgPrice = ((position.entryPrice * position.quantity) + (order.price * order.quantity)) / totalQty;
+            setPosition({
+              type: order.type,
+              entryPrice: avgPrice,
+              quantity: totalQty,
+              leverage: order.leverage
             });
-            setPendingOrders(remainingOrders);
-          }
-        }
-        
-        // Check TP/SL auto close (use refs to prevent multiple executions)
-        if (position && enableTpSl && ticker.price > 0 && !tpSlProcessing.current && !closingInProgress.current) {
-          const pnl = calculatePnL(position, ticker.price);
-          const tp = parseFloat(tpAmount) || 0;
-          const sl = parseFloat(slAmount) || 0;
-          
-          if (tp > 0 && pnl >= tp) {
-            tpSlProcessing.current = true;
-            closingInProgress.current = true;
-            // Immediately clear position to prevent duplicate calls
-            const positionToClose = { ...position };
+            toast({
+              title: order.type === 'long' ? '🟢 지정가 롱 체결 (추매)' : '🔴 지정가 숏 체결 (추매)',
+              description: `${symbol} +${order.quantity}개 @ $${formatPrice(order.price)} 체결`,
+            });
+          } else if (position && position.type !== order.type) {
+            const pnl = calculatePnL(position, order.price);
+            onTradeClose?.({
+              symbol,
+              side: position.type,
+              entryPrice: position.entryPrice,
+              exitPrice: order.price,
+              quantity: position.quantity,
+              leverage: position.leverage,
+              pnl,
+            });
+            toast({
+              title: pnl >= 0 ? '✅ 지정가 청산 체결' : '❌ 지정가 청산 체결',
+              description: `${symbol} @ $${formatPrice(order.price)} | 손익: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}`,
+            });
             setPosition(null);
-            
-            // Execute TP close via API
-            const executeTpClose = async () => {
-              try {
-                const side = positionToClose.type === 'long' ? 'SELL' : 'BUY';
-                await apiPlaceMarketOrder(symbol, side, positionToClose.quantity, true);
-                toast({
-                  title: '✅ 익절 청산',
-                  description: `목표 수익 $${tp} 달성! 실현손익: $${pnl.toFixed(2)}`,
-                });
-                onTradeClose?.({
-                  symbol,
-                  side: positionToClose.type,
-                  entryPrice: positionToClose.entryPrice,
-                  exitPrice: ticker.price,
-                  quantity: positionToClose.quantity,
-                  leverage: positionToClose.leverage,
-                  pnl,
-                });
-                setTimeout(fetchBalanceAndPosition, 1500);
-              } catch (error: any) {
-                // Restore position if close failed
-                setPosition(positionToClose);
-                toast({
-                  title: '익절 청산 실패',
-                  description: '오류 발생. 다시 시도해주세요.',
-                  variant: 'destructive',
-                });
-              } finally {
-                tpSlProcessing.current = false;
-                setTimeout(() => { closingInProgress.current = false; }, 2000);
-              }
-            };
-            executeTpClose();
-          } else if (sl > 0 && pnl <= -sl) {
-            tpSlProcessing.current = true;
-            closingInProgress.current = true;
-            // Immediately clear position to prevent duplicate calls
-            const positionToClose = { ...position };
-            setPosition(null);
-            
-            // Execute SL close via API
-            const executeSlClose = async () => {
-              try {
-                const side = positionToClose.type === 'long' ? 'SELL' : 'BUY';
-                await apiPlaceMarketOrder(symbol, side, positionToClose.quantity, true);
-                toast({
-                  title: '🛑 손절 청산',
-                  description: `손절선 -$${sl} 도달! 실현손익: $${pnl.toFixed(2)}`,
-                });
-                onTradeClose?.({
-                  symbol,
-                  side: positionToClose.type,
-                  entryPrice: positionToClose.entryPrice,
-                  exitPrice: ticker.price,
-                  quantity: positionToClose.quantity,
-                  leverage: positionToClose.leverage,
-                  pnl,
-                });
-                setTimeout(fetchBalanceAndPosition, 1500);
-              } catch (error: any) {
-                // Restore position if close failed
-                setPosition(positionToClose);
-                toast({
-                  title: '손절 청산 실패',
-                  description: '오류 발생. 다시 시도해주세요.',
-                  variant: 'destructive',
-                });
-              } finally {
-                tpSlProcessing.current = false;
-                setTimeout(() => { closingInProgress.current = false; }, 2000);
-              }
-            };
-            executeSlClose();
+          } else {
+            setPosition({
+              type: order.type,
+              entryPrice: order.price,
+              quantity: order.quantity,
+              leverage: order.leverage
+            });
+            toast({
+              title: order.type === 'long' ? '🟢 지정가 롱 체결' : '🔴 지정가 숏 체결',
+              description: `${symbol} ${order.quantity}개 @ $${formatPrice(order.price)} 체결`,
+            });
           }
-        }
-      } catch (error) {
-        console.error('Failed to fetch data:', error);
-      } finally {
-        setLoading(false);
+        });
+        setPendingOrders(remainingOrders);
       }
-    };
+    }
+    
+    // Check TP/SL auto close
+    if (position && enableTpSl && !tpSlProcessing.current && !closingInProgress.current) {
+      const pnl = calculatePnL(position, currentPrice);
+      const tp = parseFloat(tpAmount) || 0;
+      const sl = parseFloat(slAmount) || 0;
+      
+      if (tp > 0 && pnl >= tp) {
+        tpSlProcessing.current = true;
+        closingInProgress.current = true;
+        const positionToClose = { ...position };
+        setPosition(null);
+        
+        const executeTpClose = async () => {
+          try {
+            const side = positionToClose.type === 'long' ? 'SELL' : 'BUY';
+            await apiPlaceMarketOrder(symbol, side, positionToClose.quantity, true);
+            toast({
+              title: '✅ 익절 청산',
+              description: `목표 수익 $${tp} 달성! 실현손익: $${pnl.toFixed(2)}`,
+            });
+            onTradeClose?.({
+              symbol,
+              side: positionToClose.type,
+              entryPrice: positionToClose.entryPrice,
+              exitPrice: currentPrice,
+              quantity: positionToClose.quantity,
+              leverage: positionToClose.leverage,
+              pnl,
+            });
+            setTimeout(fetchBalanceAndPosition, 1500);
+          } catch (error: any) {
+            setPosition(positionToClose);
+            toast({
+              title: '익절 청산 실패',
+              description: '오류 발생. 다시 시도해주세요.',
+              variant: 'destructive',
+            });
+          } finally {
+            tpSlProcessing.current = false;
+            setTimeout(() => { closingInProgress.current = false; }, 2000);
+          }
+        };
+        executeTpClose();
+      } else if (sl > 0 && pnl <= -sl) {
+        tpSlProcessing.current = true;
+        closingInProgress.current = true;
+        const positionToClose = { ...position };
+        setPosition(null);
+        
+        const executeSlClose = async () => {
+          try {
+            const side = positionToClose.type === 'long' ? 'SELL' : 'BUY';
+            await apiPlaceMarketOrder(symbol, side, positionToClose.quantity, true);
+            toast({
+              title: '🛑 손절 청산',
+              description: `손절선 -$${sl} 도달! 실현손익: $${pnl.toFixed(2)}`,
+            });
+            onTradeClose?.({
+              symbol,
+              side: positionToClose.type,
+              entryPrice: positionToClose.entryPrice,
+              exitPrice: currentPrice,
+              quantity: positionToClose.quantity,
+              leverage: positionToClose.leverage,
+              pnl,
+            });
+            setTimeout(fetchBalanceAndPosition, 1500);
+          } catch (error: any) {
+            setPosition(positionToClose);
+            toast({
+              title: '손절 청산 실패',
+              description: '오류 발생. 다시 시도해주세요.',
+              variant: 'destructive',
+            });
+          } finally {
+            tpSlProcessing.current = false;
+            setTimeout(() => { closingInProgress.current = false; }, 2000);
+          }
+        };
+        executeSlClose();
+      }
+    }
+  }, [currentPrice, pendingOrders, position, enableTpSl, tpAmount, slAmount]);
 
-    loadData();
-    // 3초마다 폴링 (500ms → 3000ms, WebSocket이 주 데이터 소스)
-    const interval = setInterval(loadData, 3000);
-    return () => clearInterval(interval);
-  }, [symbol, position, enableTpSl, tpAmount, slAmount, pendingOrders]);
-
-  // Reset position and signal when symbol changes
+  // Reset position when symbol changes
   useEffect(() => {
     setPosition(null);
-    setTechSignal(null);
     setPendingOrders([]);
-    lastSignalFetch.current = 0;
   }, [symbol]);
   const calculatePnL = (pos: Position, price: number): number => {
     const direction = pos.type === 'long' ? 1 : -1;
@@ -958,27 +937,7 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
         <div className="px-1 py-1 text-center text-red-400">B</div>
       </div>
       
-      {/* Bullish Probability Display */}
-      {techSignal && (
-        <div className="grid grid-cols-[32px_1fr_70px_1fr_32px] text-[10px] border-b border-border/50 bg-red-950/30">
-          <div className="px-1 py-1 border-r border-border/30" />
-          <div className="px-1 py-1 border-r border-border/30" />
-          <div className="px-1 py-1 text-center border-r border-border/30 text-muted-foreground text-[9px]">
-            RSI {techSignal.rsi}
-          </div>
-          <div className="px-1 py-1.5 border-r border-border/30 flex items-center justify-center gap-1">
-            <TrendingUp className="w-3 h-3 text-red-400" />
-            <span className={cn(
-              "font-bold font-mono",
-              techSignal.bullishProb > 55 ? "text-red-400" : "text-muted-foreground"
-            )}>
-              {techSignal.bullishProb}%
-            </span>
-            <span className="text-[8px] text-red-400/70">상승</span>
-          </div>
-          <div className="px-1 py-1" />
-        </div>
-      )}
+      
 
       {/* Order Book - Sell Side (Top) */}
       <div className="border-b border-border/50">
@@ -1109,27 +1068,7 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
         </div>
       )}
 
-      {/* Bearish Probability Display */}
-      {techSignal && (
-        <div className="grid grid-cols-[32px_1fr_70px_1fr_32px] text-[10px] border-b border-border/50 bg-blue-950/30">
-          <div className="px-1 py-1 border-r border-border/30" />
-          <div className="px-1 py-1.5 border-r border-border/30 flex items-center justify-center gap-1">
-            <TrendingDown className="w-3 h-3 text-blue-400" />
-            <span className={cn(
-              "font-bold font-mono",
-              techSignal.bearishProb > 55 ? "text-blue-400" : "text-muted-foreground"
-            )}>
-              {techSignal.bearishProb}%
-            </span>
-            <span className="text-[8px] text-blue-400/70">하락</span>
-          </div>
-          <div className="px-1 py-1 text-center border-r border-border/30 text-muted-foreground text-[9px]">
-            {techSignal.macdSignal === 'bullish' ? '▲' : techSignal.macdSignal === 'bearish' ? '▼' : '—'} MACD
-          </div>
-          <div className="px-1 py-1 border-r border-border/30" />
-          <div className="px-1 py-1" />
-        </div>
-      )}
+      
       
       {/* Order Book - Buy Side (Bottom) */}
       <div className="border-b border-border/50">
