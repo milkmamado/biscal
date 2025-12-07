@@ -1056,6 +1056,13 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
                 {currentPnL >= 0 ? '+' : ''}{currentPnL.toFixed(2)}$ ({currentPnLPercent >= 0 ? '+' : ''}{currentPnLPercent.toFixed(2)}%)
               </span>
               <div className="flex items-center gap-1">
+                <button
+                  onClick={() => handleCloseAtPrice(position.entryPrice)}
+                  className="px-1.5 py-0.5 bg-green-900/50 hover:bg-green-800/70 text-green-400 text-[9px] rounded font-medium"
+                  title="진입가에 지정가 청산"
+                >
+                  본절
+                </button>
                 {[25, 50, 75].map(p => (
                   <button
                     key={p}
