@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { useBinanceApi, BinancePosition } from '@/hooks/useBinanceApi';
+import { useAuth } from '@/hooks/useAuth';
 import { RefreshCw } from 'lucide-react';
 import SimpleChart from './SimpleChart';
 import TradingRecordModal from './TradingRecordModal';
@@ -58,6 +59,7 @@ const DualChartPanel = ({
   const [positions, setPositions] = useState<BinancePosition[]>([]);
   const [priceRange, setPriceRange] = useState<{ high: number; low: number }>({ high: 0, low: 0 });
   const [previousDayBalance, setPreviousDayBalance] = useState<number | null>(null);
+  const { user } = useAuth();
   const { getBalances, getPositions, getIncomeHistory } = useBinanceApi();
 
   // Handle price range updates from SimpleChart - memoized to prevent infinite loops
@@ -203,8 +205,10 @@ const DualChartPanel = ({
     }
   };
 
-  // Fetch balance and positions on mount and every 10 seconds
+  // Fetch balance and positions on mount and every 10 seconds (only if logged in)
   useEffect(() => {
+    if (!user) return; // Skip API calls if not logged in
+    
     fetchRealBalance();
     fetchPositions();
     const intervalId = window.setInterval(() => {
@@ -212,7 +216,7 @@ const DualChartPanel = ({
       fetchPositions();
     }, 10000);
     return () => window.clearInterval(intervalId);
-  }, []);
+  }, [user]);
 
   const formatKRW = (usd: number) => {
     const krw = usd * krwRate;
