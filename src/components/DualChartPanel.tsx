@@ -3,6 +3,7 @@ import { cn } from '@/lib/utils';
 import { useBinanceApi, BinancePosition } from '@/hooks/useBinanceApi';
 import { RefreshCw } from 'lucide-react';
 import SimpleChart from './SimpleChart';
+import TradingRecordModal from './TradingRecordModal';
 import { fetchKlines } from '@/lib/binance';
 
 interface OpenOrder {
@@ -258,6 +259,7 @@ const DualChartPanel = ({
           )}>
             승률 {winRate}%
           </span>
+          <TradingRecordModal krwRate={krwRate} />
         </div>
         
         {/* Active Positions */}
