@@ -297,8 +297,12 @@ export const useBinanceWebSocket = ({
       }
     };
 
-    // Initialize
+    // Initialize - fetch data and connect WebSocket separately
     const init = async () => {
+      // Start WebSocket connection immediately (don't wait for fetch)
+      connect();
+      
+      // Fetch initial data in parallel
       const fetchPromises: Promise<boolean>[] = [];
       
       if (streams.includes('kline')) {
@@ -312,15 +316,28 @@ export const useBinanceWebSocket = ({
       
       if (isCleaningUpRef.current || signal.aborted) return;
       
-      // Only connect if at least one fetch succeeded
-      if (results.some(r => r)) {
+      // Mark initial data as loaded if kline fetch succeeded
+      if (streams.includes('kline') && results[0]) {
         initialDataLoadedRef.current = true;
-        connect();
-      } else {
-        // Retry init after delay
+      } else if (!streams.includes('kline')) {
+        initialDataLoadedRef.current = true;
+      }
+      
+      // If all fetches failed, retry after delay
+      if (!results.some(r => r)) {
         reconnectTimeoutRef.current = setTimeout(() => {
           if (!isCleaningUpRef.current) {
-            init();
+            // Refetch only, WebSocket is already connected
+            const retryFetch = async () => {
+              if (streams.includes('kline')) {
+                const success = await fetchInitialKlines();
+                if (success) initialDataLoadedRef.current = true;
+              }
+              if (streams.includes('depth')) {
+                await fetchInitialOrderBook();
+              }
+            };
+            retryFetch();
           }
         }, 3000);
       }
