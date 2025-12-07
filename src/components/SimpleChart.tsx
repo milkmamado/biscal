@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, memo } from 'react';
+import { useEffect, useState, useMemo, memo, useRef } from 'react';
 import { fetchKlines, calculateBollingerBands, KlineData } from '@/lib/binance';
 import { cn } from '@/lib/utils';
 import { ZoomIn, ZoomOut } from 'lucide-react';
@@ -161,19 +161,19 @@ const SimpleChart = memo(({ symbol, interval = '1', height = 500, onPriceRangeCh
   }, [klines, candleCount]);
 
   // Notify parent of price range changes - use refs to avoid infinite loops
-  const lastRangeRef = { high: 0, low: 0 };
+  const lastRangeRef = useRef({ high: 0, low: 0 });
   useEffect(() => {
     if (chartData && onPriceRangeChange) {
       const newHigh = chartData.maxPrice;
       const newLow = chartData.minPrice;
       // Only call if values actually changed
-      if (lastRangeRef.high !== newHigh || lastRangeRef.low !== newLow) {
-        lastRangeRef.high = newHigh;
-        lastRangeRef.low = newLow;
+      if (lastRangeRef.current.high !== newHigh || lastRangeRef.current.low !== newLow) {
+        lastRangeRef.current.high = newHigh;
+        lastRangeRef.current.low = newLow;
         onPriceRangeChange({ high: newHigh, low: newLow });
       }
     }
-  }, [chartData?.maxPrice, chartData?.minPrice]); // Remove onPriceRangeChange from deps
+  }, [chartData?.maxPrice, chartData?.minPrice, onPriceRangeChange]);
 
   const getY = (price: number) => {
     if (!chartData) return 0;
