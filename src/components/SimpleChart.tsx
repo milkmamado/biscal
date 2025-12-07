@@ -116,6 +116,14 @@ const SimpleChart = memo(({ symbol, interval = '1', height = 500, onPriceRangeCh
     klineInterval: binanceInterval,
   });
 
+  // Store stable price range to prevent chart shaking
+  const stableRangeRef = useRef<{ minPrice: number; maxPrice: number; range: number } | null>(null);
+  
+  // Reset stable range when symbol or interval changes
+  useEffect(() => {
+    stableRangeRef.current = null;
+  }, [symbol, interval]);
+
   useEffect(() => {
     if (klines.length > 0) {
       setLoading(false);
@@ -131,19 +139,45 @@ const SimpleChart = memo(({ symbol, interval = '1', height = 500, onPriceRangeCh
     const srLevels = detectSupportResistance(displayKlines, avgVolume);
     
     const allPrices = displayKlines.flatMap(k => [k.low, k.high]);
-    const minPrice = Math.min(...allPrices);
-    const maxPrice = Math.max(...allPrices);
-    const range = maxPrice - minPrice;
-    const padding = range * 0.1;
+    const rawMinPrice = Math.min(...allPrices);
+    const rawMaxPrice = Math.max(...allPrices);
+    const rawRange = rawMaxPrice - rawMinPrice;
+    const padding = rawRange * 0.1;
+    
+    let minPrice = rawMinPrice - padding;
+    let maxPrice = rawMaxPrice + padding;
+    let range = rawRange + padding * 2;
+    
+    // Only update stable range if price breaks out of current range or on significant change
+    const currentClose = displayKlines[displayKlines.length - 1].close;
+    if (stableRangeRef.current) {
+      const { minPrice: stableMin, maxPrice: stableMax, range: stableRange } = stableRangeRef.current;
+      // Check if current price is within the stable range with some buffer
+      const buffer = stableRange * 0.05;
+      const priceInRange = currentClose > stableMin + buffer && currentClose < stableMax - buffer;
+      const rangeChangeSignificant = Math.abs(range - stableRange) / stableRange > 0.15;
+      
+      if (priceInRange && !rangeChangeSignificant) {
+        // Keep using stable range
+        minPrice = stableMin;
+        maxPrice = stableMax;
+        range = stableRange;
+      } else {
+        // Update stable range
+        stableRangeRef.current = { minPrice, maxPrice, range };
+      }
+    } else {
+      stableRangeRef.current = { minPrice, maxPrice, range };
+    }
 
     return {
       klines: displayKlines,
       srLevels,
       avgVolume,
-      minPrice: minPrice - padding,
-      maxPrice: maxPrice + padding,
-      range: range + padding * 2,
-      currentPrice: klines[klines.length - 1].close,
+      minPrice,
+      maxPrice,
+      range,
+      currentPrice: currentClose,
       isUp: displayKlines[displayKlines.length - 1].close >= displayKlines[displayKlines.length - 1].open,
       maxVolume: Math.max(...displayKlines.map(k => k.volume)),
     };
@@ -187,34 +221,35 @@ const SimpleChart = memo(({ symbol, interval = '1', height = 500, onPriceRangeCh
       <div className="flex items-center justify-between px-2 shrink-0" style={{ height: headerHeight }}>
         <div className="flex items-center gap-2">
           <span className="text-[10px] text-muted-foreground font-mono">{symbol}</span>
+          {/* Fixed width container for price to prevent layout shift */}
           <span className={cn(
-            "text-sm font-bold font-mono",
+            "text-sm font-bold font-mono min-w-[90px] text-right",
             chartData.isUp ? "text-red-400" : "text-blue-400"
           )}>
             {chartData.currentPrice.toLocaleString()}
           </span>
-          {/* Legend */}
-          <div className="flex items-center gap-2 ml-2">
-            <div className="flex items-center gap-0.5">
-              <div className="w-2 h-0.5 bg-yellow-500" />
+          {/* Legend - fixed positions */}
+          <div className="flex items-center gap-2 ml-2 shrink-0">
+            <div className="flex items-center gap-0.5 w-[42px]">
+              <div className="w-2 h-0.5 bg-yellow-500 shrink-0" />
               <span className="text-[8px] text-muted-foreground">현재가</span>
             </div>
-            <div className="flex items-center gap-0.5">
-              <div className="w-2 h-0.5 bg-green-500/50" />
+            <div className="flex items-center gap-0.5 w-[28px]">
+              <div className="w-2 h-0.5 bg-green-500/50 shrink-0" />
               <span className="text-[8px] text-muted-foreground">지지</span>
             </div>
-            <div className="flex items-center gap-0.5">
-              <div className="w-2 h-0.5 bg-red-500/50" />
+            <div className="flex items-center gap-0.5 w-[28px]">
+              <div className="w-2 h-0.5 bg-red-500/50 shrink-0" />
               <span className="text-[8px] text-muted-foreground">저항</span>
             </div>
-          </div>
-          {/* WebSocket status */}
-          <div className="flex items-center gap-1 ml-2">
-            {isConnected ? (
-              <Wifi className="w-3 h-3 text-green-500" />
-            ) : (
-              <WifiOff className="w-3 h-3 text-red-500" />
-            )}
+            {/* WebSocket status - fixed position */}
+            <div className="flex items-center gap-1 shrink-0">
+              {isConnected ? (
+                <Wifi className="w-3 h-3 text-green-500" />
+              ) : (
+                <WifiOff className="w-3 h-3 text-red-500" />
+              )}
+            </div>
           </div>
         </div>
         {/* Zoom controls */}
