@@ -229,7 +229,7 @@ export default function Auth() {
   const handleJoinCodeSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (joinCodeInput === JOIN_CODE) {
-      localStorage.setItem(JOIN_CODE_KEY, 'true');
+      sessionStorage.setItem(JOIN_CODE_KEY, 'true');
       toast({
         title: "접속 허용",
         description: "환영합니다!"

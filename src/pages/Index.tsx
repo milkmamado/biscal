@@ -45,8 +45,8 @@ const Index = () => {
   const navigate = useNavigate();
   const { dailyStats, logTrade } = useTradingLogs();
 
-  // Check if user has joined with code
-  const hasJoinCode = localStorage.getItem(JOIN_CODE_KEY) === 'true';
+  // Check if user has joined with code (session only - requires code each browser session)
+  const hasJoinCode = sessionStorage.getItem(JOIN_CODE_KEY) === 'true';
 
   // Redirect to auth if no join code
   useEffect(() => {
