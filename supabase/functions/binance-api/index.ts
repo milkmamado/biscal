@@ -9,6 +9,35 @@ const corsHeaders = {
 // VPS Proxy Server (Fixed IP: 158.247.211.233)
 const VPS_PROXY_URL = 'http://158.247.211.233:3000/api/binance';
 
+// Retry configuration
+const MAX_RETRIES = 3;
+const RETRY_DELAY_MS = 500;
+
+// Helper function to delay
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Fetch with retry logic
+async function fetchWithRetry(url: string, options: RequestInit, retries = MAX_RETRIES): Promise<Response> {
+  let lastError: Error | null = null;
+  
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const response = await fetch(url, options);
+      return response;
+    } catch (error) {
+      lastError = error as Error;
+      console.log(`VPS request attempt ${attempt}/${retries} failed: ${lastError.message}`);
+      
+      if (attempt < retries) {
+        console.log(`Retrying in ${RETRY_DELAY_MS}ms...`);
+        await delay(RETRY_DELAY_MS * attempt); // Exponential backoff
+      }
+    }
+  }
+  
+  throw lastError || new Error('All retry attempts failed');
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -120,10 +149,10 @@ serve(async (req) => {
       Object.entries(params).filter(([_, value]) => value !== null && value !== undefined)
     );
 
-    // Call VPS Proxy Server
+    // Call VPS Proxy Server with retry logic
     console.log(`Calling VPS Proxy: ${method} ${endpoint}`);
     
-    const proxyResponse = await fetch(VPS_PROXY_URL, {
+    const proxyResponse = await fetchWithRetry(VPS_PROXY_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
