@@ -30,6 +30,12 @@ interface DualChartPanelProps {
 const INTERVALS = [
   { label: '1분', value: '1' },
   { label: '3분', value: '3' },
+  { label: '5분', value: '5' },
+  { label: '15분', value: '15' },
+  { label: '30분', value: '30' },
+  { label: '1H', value: '60' },
+  { label: '4H', value: '240' },
+  { label: '일', value: 'D' },
 ];
 
 const DualChartPanel = ({ 
@@ -278,8 +284,8 @@ const DualChartPanel = ({
         <div className="flex-1 min-h-0 relative" style={{ minHeight: '400px' }}>
           <SimpleChart symbol={symbol} interval={interval} height={500} onPriceRangeChange={handlePriceRangeChange} />
           
-          {/* Price Labels Overlay (no lines) */}
-          {(openOrders.length > 0 || entryPrice || tpPrice || slPrice) && priceRange.high > priceRange.low && (
+          {/* Price Labels Overlay - only show on 1m and 3m */}
+          {(interval === '1' || interval === '3') && (openOrders.length > 0 || entryPrice || tpPrice || slPrice) && priceRange.high > priceRange.low && (
             <>
               {/* Take Profit Label */}
               {tpPrice && tpPrice > 0 && (
