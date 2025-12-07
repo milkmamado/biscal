@@ -14,6 +14,30 @@ export type Database = {
   }
   public: {
     Tables: {
+      daily_balance_snapshots: {
+        Row: {
+          closing_balance_usd: number
+          created_at: string
+          id: string
+          snapshot_date: string
+          user_id: string
+        }
+        Insert: {
+          closing_balance_usd: number
+          created_at?: string
+          id?: string
+          snapshot_date: string
+          user_id: string
+        }
+        Update: {
+          closing_balance_usd?: number
+          created_at?: string
+          id?: string
+          snapshot_date?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       daily_trading_logs: {
         Row: {
           created_at: string
