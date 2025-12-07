@@ -313,9 +313,9 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
         setCurrentPrice(ticker.price);
         setPriceChangePercent(ticker.priceChangePercent);
         
-        // Fetch technical signal every 5 seconds
+        // Fetch technical signal every 15 seconds (reduced from 5s)
         const now = Date.now();
-        if (now - lastSignalFetch.current > 5000) {
+        if (now - lastSignalFetch.current > 15000) {
           lastSignalFetch.current = now;
           calculateTechnicalSignal(symbol).then(setTechSignal);
         }
@@ -487,7 +487,8 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
     };
 
     loadData();
-    const interval = setInterval(loadData, 500);
+    // 3초마다 폴링 (500ms → 3000ms, WebSocket이 주 데이터 소스)
+    const interval = setInterval(loadData, 3000);
     return () => clearInterval(interval);
   }, [symbol, position, enableTpSl, tpAmount, slAmount, pendingOrders]);
 

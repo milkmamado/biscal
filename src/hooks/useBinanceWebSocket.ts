@@ -278,8 +278,8 @@ export const useBinanceWebSocket = ({
           console.log(`[WS] Disconnected: ${symbol} (code: ${event.code})`);
           setIsConnected(false);
           
-          // Reconnect with exponential backoff, max 5 seconds
-          const delay = Math.min(2000 + Math.random() * 1000, 5000);
+          // Reconnect with exponential backoff, 5-15 seconds (longer to avoid rate limit)
+          const delay = 5000 + Math.random() * 10000;
           reconnectTimeoutRef.current = setTimeout(() => {
             if (!isCleaningUpRef.current) {
               connect();
@@ -288,12 +288,12 @@ export const useBinanceWebSocket = ({
         };
       } catch (error) {
         console.error(`[WS ${symbol}] Failed to create WebSocket:`, error);
-        // Retry after delay
+        // Retry after longer delay
         reconnectTimeoutRef.current = setTimeout(() => {
           if (!isCleaningUpRef.current) {
             connect();
           }
-        }, 3000);
+        }, 10000);
       }
     };
 
