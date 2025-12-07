@@ -166,15 +166,15 @@ const Index = () => {
             <div className="mt-2 h-[calc(100vh-80px)]">
               <DualChartPanel 
                 symbol={selectedSymbol} 
-                unrealizedPnL={currentPnL}
-                realizedPnL={dailyStats.totalPnL}
-                tradeCount={dailyStats.tradeCount}
-                winCount={dailyStats.winCount}
-                hasPosition={!!currentPosition}
-                entryPrice={currentPosition?.entryPrice}
-                openOrders={openOrders}
-                tpPrice={tpSlPrices.tpPrice}
-                slPrice={tpSlPrices.slPrice}
+                unrealizedPnL={isGuest ? 0 : currentPnL}
+                realizedPnL={isGuest ? 0 : dailyStats.totalPnL}
+                tradeCount={isGuest ? 0 : dailyStats.tradeCount}
+                winCount={isGuest ? 0 : dailyStats.winCount}
+                hasPosition={isGuest ? false : !!currentPosition}
+                entryPrice={isGuest ? undefined : currentPosition?.entryPrice}
+                openOrders={isGuest ? [] : openOrders}
+                tpPrice={isGuest ? null : tpSlPrices.tpPrice}
+                slPrice={isGuest ? null : tpSlPrices.slPrice}
                 onSelectSymbol={setSelectedSymbol}
               />
             </div>
