@@ -424,7 +424,7 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
                 setPosition(positionToClose);
                 toast({
                   title: '익절 청산 실패',
-                  description: error.message || '청산을 처리할 수 없습니다.',
+                  description: '오류 발생. 다시 시도해주세요.',
                   variant: 'destructive',
                 });
               } finally {
@@ -464,7 +464,7 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
                 setPosition(positionToClose);
                 toast({
                   title: '손절 청산 실패',
-                  description: error.message || '청산을 처리할 수 없습니다.',
+                  description: '오류 발생. 다시 시도해주세요.',
                   variant: 'destructive',
                 });
               } finally {
@@ -564,7 +564,7 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
     } catch (error: any) {
       toast({
         title: '주문 실패',
-        description: error.message || '주문을 처리할 수 없습니다.',
+        description: '오류 발생. 다시 시도해주세요.',
         variant: 'destructive',
       });
     }
@@ -602,7 +602,7 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
     } catch (error: any) {
       toast({
         title: '주문 실패',
-        description: error.message || '주문을 처리할 수 없습니다.',
+        description: '오류 발생. 다시 시도해주세요.',
         variant: 'destructive',
       });
     }
@@ -660,7 +660,7 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
       setPosition(positionToClose);
       toast({
         title: '청산 실패',
-        description: error.message || '청산을 처리할 수 없습니다.',
+        description: '오류 발생. 다시 시도해주세요.',
         variant: 'destructive',
       });
     } finally {
@@ -687,7 +687,7 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
     } catch (error: any) {
       toast({
         title: '주문 실패',
-        description: error.message || '주문을 처리할 수 없습니다.',
+        description: '오류 발생. 다시 시도해주세요.',
         variant: 'destructive',
       });
     }
@@ -704,7 +704,7 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
     } catch (error: any) {
       toast({
         title: '취소 실패',
-        description: error.message || '주문 취소를 처리할 수 없습니다.',
+        description: '오류 발생. 다시 시도해주세요.',
         variant: 'destructive',
       });
     }
