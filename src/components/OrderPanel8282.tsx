@@ -512,8 +512,8 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
       return;
     }
     
-    // 100% 버튼과 동일: (balanceUSD × 0.70 × leverage × clickOrderPercent%) / price
-    const safeBalance = balanceUSD * 0.70;
+    // 100% 버튼과 동일: (balanceUSD × 0.95 × leverage × clickOrderPercent%) / price
+    const safeBalance = balanceUSD * 0.95;
     const buyingPower = safeBalance * leverage * (clickOrderPercent / 100);
     const qty = buyingPower / price;
     
@@ -711,9 +711,9 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
   };
 
   const handleQtyPreset = (percent: number) => {
-    // Calculate quantity based on: (balanceUSD × 0.70 × leverage × percent) / currentPrice
-    // 70%만 사용하여 수수료, 펀딩비, 마진 여유 확보
-    const safeBalance = balanceUSD * 0.70;
+    // Calculate quantity based on: (balanceUSD × 0.95 × leverage × percent) / currentPrice
+    // 95%만 사용하여 수수료, 펀딩비 여유 확보
+    const safeBalance = balanceUSD * 0.95;
     const buyingPower = safeBalance * leverage * (percent / 100);
     const qty = currentPrice > 0 ? buyingPower / currentPrice : 0;
     // Ensure minimum notional of $5
