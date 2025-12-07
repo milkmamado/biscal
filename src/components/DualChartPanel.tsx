@@ -68,13 +68,20 @@ const DualChartPanel = ({
     });
   }, []);
 
-  // Calculate Y position for a price (0% = top, 100% = bottom)
+  // Calculate Y position for a price within the price chart area
+  // SimpleChart uses: 5% header, 75% price chart, 20% volume
   const getPriceYPosition = (price: number): string => {
-    if (priceRange.high <= priceRange.low || !price) return '50%';
+    if (priceRange.high <= priceRange.low || !price) return '45%';
     const range = priceRange.high - priceRange.low;
-    const percent = ((priceRange.high - price) / range) * 100;
-    // Clamp between 5% and 95% to keep labels visible
-    return `${Math.max(5, Math.min(95, percent))}%`;
+    // Calculate position within the price range (0 = top, 1 = bottom)
+    const pricePercent = (priceRange.high - price) / range;
+    // Map to the price chart area (5% to 80% of container)
+    // Header is 5%, price chart is 75% (5% to 80%)
+    const HEADER_PCT = 5;
+    const PRICE_CHART_PCT = 75;
+    const actualTop = HEADER_PCT + (pricePercent * PRICE_CHART_PCT);
+    // Clamp to stay within price chart bounds
+    return `${Math.max(HEADER_PCT + 2, Math.min(HEADER_PCT + PRICE_CHART_PCT - 2, actualTop))}%`;
   };
 
   // Fetch positions
