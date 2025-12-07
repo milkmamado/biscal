@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { useBinanceApi, BinancePosition } from '@/hooks/useBinanceApi';
 import { RefreshCw } from 'lucide-react';
@@ -60,10 +60,13 @@ const DualChartPanel = ({
   const [previousDayBalance, setPreviousDayBalance] = useState<number | null>(null);
   const { getBalances, getPositions } = useBinanceApi();
 
-  // Handle price range updates from SimpleChart
-  const handlePriceRangeChange = (range: { high: number; low: number }) => {
-    setPriceRange(range);
-  };
+  // Handle price range updates from SimpleChart - memoized to prevent infinite loops
+  const handlePriceRangeChange = useMemo(() => (range: { high: number; low: number }) => {
+    setPriceRange(prev => {
+      if (prev.high === range.high && prev.low === range.low) return prev;
+      return range;
+    });
+  }, []);
 
   // Calculate Y position for a price (0% = top, 100% = bottom)
   const getPriceYPosition = (price: number): string => {
