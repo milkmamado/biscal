@@ -360,6 +360,10 @@ const SimpleChart = memo(({ symbol, interval = '1', height = 500, onPriceRangeCh
                 </div>
               );
             })}
+            {/* Empty space on the right (5 candle widths) */}
+            {[...Array(5)].map((_, i) => (
+              <div key={`empty-${i}`} className="flex-1 relative" />
+            ))}
           </div>
         </div>
       </div>
@@ -383,6 +387,10 @@ const SimpleChart = memo(({ symbol, interval = '1', height = 500, onPriceRangeCh
               </div>
             );
           })}
+          {/* Empty space on the right (5 slots to match candles) */}
+          {[...Array(5)].map((_, i) => (
+            <div key={`vol-empty-${i}`} className="flex-1" />
+          ))}
         </div>
         <span className="absolute right-1 top-0.5 text-[8px] text-muted-foreground">VOL</span>
       </div>
