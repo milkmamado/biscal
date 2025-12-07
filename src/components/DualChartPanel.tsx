@@ -4,7 +4,7 @@ import { useBinanceApi, BinancePosition } from '@/hooks/useBinanceApi';
 import { RefreshCw } from 'lucide-react';
 import SimpleChart from './SimpleChart';
 import TradingRecordModal from './TradingRecordModal';
-
+import { supabase } from '@/integrations/supabase/client';
 
 interface OpenOrder {
   orderId: number;
@@ -57,6 +57,7 @@ const DualChartPanel = ({
   const [krwRate, setKrwRate] = useState(1380);
   const [positions, setPositions] = useState<BinancePosition[]>([]);
   const [priceRange, setPriceRange] = useState<{ high: number; low: number }>({ high: 0, low: 0 });
+  const [previousDayBalance, setPreviousDayBalance] = useState<number | null>(null);
   const { getBalances, getPositions } = useBinanceApi();
 
   // Handle price range updates from SimpleChart
@@ -95,6 +96,8 @@ const DualChartPanel = ({
       if (usdtBalance) {
         const available = parseFloat(usdtBalance.availableBalance) || 0;
         setBalanceUSD(available);
+        // Save balance snapshot for daily tracking
+        fetchAndSaveBalance(available);
       }
     } catch (error) {
       console.error('Failed to fetch balance:', error);
@@ -119,6 +122,62 @@ const DualChartPanel = ({
     fetchRate();
   }, []);
 
+  // Get today's date in YYYY-MM-DD format (Korean timezone)
+  const getTodayDate = () => {
+    const now = new Date();
+    const koreaOffset = 9 * 60;
+    const utcOffset = now.getTimezoneOffset();
+    const koreaTime = new Date(now.getTime() + (koreaOffset + utcOffset) * 60 * 1000);
+    return koreaTime.toISOString().split('T')[0];
+  };
+
+  // Get yesterday's date
+  const getYesterdayDate = () => {
+    const now = new Date();
+    const koreaOffset = 9 * 60;
+    const utcOffset = now.getTimezoneOffset();
+    const koreaTime = new Date(now.getTime() + (koreaOffset + utcOffset) * 60 * 1000);
+    koreaTime.setDate(koreaTime.getDate() - 1);
+    return koreaTime.toISOString().split('T')[0];
+  };
+
+  // Fetch previous day's closing balance and save today's balance
+  const fetchAndSaveBalance = async (currentBalance: number) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const yesterday = getYesterdayDate();
+      const today = getTodayDate();
+
+      // Fetch yesterday's closing balance
+      const { data: yesterdayData } = await supabase
+        .from('daily_balance_snapshots')
+        .select('closing_balance_usd')
+        .eq('user_id', user.id)
+        .eq('snapshot_date', yesterday)
+        .maybeSingle();
+
+      if (yesterdayData) {
+        setPreviousDayBalance(Number(yesterdayData.closing_balance_usd));
+      }
+
+      // Upsert today's balance (update if exists, insert if not)
+      await supabase
+        .from('daily_balance_snapshots')
+        .upsert({
+          user_id: user.id,
+          snapshot_date: today,
+          closing_balance_usd: currentBalance,
+        }, {
+          onConflict: 'user_id,snapshot_date'
+        });
+
+    } catch (error) {
+      console.error('Failed to fetch/save balance snapshot:', error);
+    }
+  };
+
   // Fetch balance and positions on mount and every 10 seconds
   useEffect(() => {
     fetchRealBalance();
@@ -136,8 +195,14 @@ const DualChartPanel = ({
   };
 
   const winRate = tradeCount > 0 ? ((winCount / tradeCount) * 100).toFixed(1) : '0.0';
-  const totalPnL = unrealizedPnL + realizedPnL;
-  const totalPnLPercent = balanceUSD > 0 ? ((totalPnL / balanceUSD) * 100).toFixed(2) : '0.00';
+  
+  // Calculate daily P&L based on previous day's balance (real P&L)
+  const dailyPnL = previousDayBalance !== null 
+    ? balanceUSD - previousDayBalance + unrealizedPnL
+    : realizedPnL + unrealizedPnL; // Fallback to old method if no previous balance
+  const dailyPnLPercent = previousDayBalance !== null && previousDayBalance > 0
+    ? ((dailyPnL / previousDayBalance) * 100).toFixed(2)
+    : balanceUSD > 0 ? ((dailyPnL / balanceUSD) * 100).toFixed(2) : '0.00';
 
   return (
     <div className="flex flex-col gap-1 h-full">
@@ -188,19 +253,24 @@ const DualChartPanel = ({
           </div>
           
           <div className="flex flex-col items-end">
-            <span className="text-[10px] text-muted-foreground">당일 총손익</span>
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] text-muted-foreground">당일 총손익</span>
+              {previousDayBalance !== null && (
+                <span className="text-[8px] text-muted-foreground/70">(전일대비)</span>
+              )}
+            </div>
             <div className="flex items-baseline gap-1">
               <span className={cn(
                 "text-sm font-bold font-mono",
-                totalPnL >= 0 ? "text-red-400" : "text-blue-400"
+                dailyPnL >= 0 ? "text-red-400" : "text-blue-400"
               )}>
-                {totalPnL >= 0 ? '+' : ''}₩{formatKRW(totalPnL)}
+                {dailyPnL >= 0 ? '+' : ''}₩{formatKRW(dailyPnL)}
               </span>
               <span className={cn(
                 "text-[10px] font-bold font-mono",
-                totalPnL >= 0 ? "text-red-400" : "text-blue-400"
+                dailyPnL >= 0 ? "text-red-400" : "text-blue-400"
               )}>
-                ({totalPnL >= 0 ? '+' : ''}{totalPnLPercent}%)
+                ({dailyPnL >= 0 ? '+' : ''}{dailyPnLPercent}%)
               </span>
             </div>
           </div>
