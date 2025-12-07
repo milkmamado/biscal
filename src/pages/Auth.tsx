@@ -339,6 +339,7 @@ export default function Auth() {
                 </Button>
               </form>
               
+              {/* 회원가입 토글 - 나중에 오픈 시 주석 해제
               <div className="mt-4 text-center">
                 <button
                   type="button"
@@ -348,6 +349,7 @@ export default function Auth() {
                   {isLogin ? '계정이 없으신가요? 회원가입' : '이미 계정이 있으신가요? 로그인'}
                 </button>
               </div>
+              */}
             </>
           ) : (
             <div className="space-y-6">
