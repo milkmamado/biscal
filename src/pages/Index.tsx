@@ -11,7 +11,7 @@ import ApiKeySetup from '@/components/ApiKeySetup';
 import { Button } from '@/components/ui/button';
 import { LogOut, LogIn } from 'lucide-react';
 
-const JOIN_CODE_KEY = 'biscal_joined';
+
 
 interface Position {
   type: 'long' | 'short';
@@ -45,15 +45,12 @@ const Index = () => {
   const navigate = useNavigate();
   const { dailyStats, logTrade } = useTradingLogs();
 
-  // Check if user has joined with code (session only - requires code each browser session)
-  const hasJoinCode = sessionStorage.getItem(JOIN_CODE_KEY) === 'true';
-
-  // Redirect to auth if no join code
+  // Redirect to auth if not logged in
   useEffect(() => {
-    if (!hasJoinCode) {
+    if (!loading && !user) {
       navigate('/auth');
     }
-  }, [hasJoinCode, navigate]);
+  }, [loading, user, navigate]);
 
   // Check if user has API keys configured (only if logged in)
   useEffect(() => {

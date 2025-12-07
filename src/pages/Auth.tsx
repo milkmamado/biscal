@@ -9,31 +9,21 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { z } from 'zod';
-import { ArrowLeft, Mail, Shield, Lock } from 'lucide-react';
-
-const JOIN_CODE = '1266';
-const JOIN_CODE_KEY = 'biscal_joined';
+import { ArrowLeft, Mail, Shield } from 'lucide-react';
 
 const authSchema = z.object({
   email: z.string().trim().email({ message: "올바른 이메일 주소를 입력하세요" }),
   password: z.string().min(6, { message: "비밀번호는 최소 6자 이상이어야 합니다" })
 });
 
-type AuthStep = 'joinCode' | 'credentials' | 'otp';
+type AuthStep = 'credentials' | 'otp';
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [otpCode, setOtpCode] = useState('');
-  const [joinCodeInput, setJoinCodeInput] = useState('');
-  const [step, setStep] = useState<AuthStep>(() => {
-    // Check if already joined
-    if (localStorage.getItem(JOIN_CODE_KEY) === 'true') {
-      return 'credentials';
-    }
-    return 'joinCode';
-  });
+  const [step, setStep] = useState<AuthStep>('credentials');
   const [isLoading, setIsLoading] = useState(false);
   const [pendingOtp, setPendingOtp] = useState(false);
   const { signIn, signUp, user, loading } = useAuth();
@@ -226,24 +216,6 @@ export default function Auth() {
     setPendingOtp(false);
   };
 
-  const handleJoinCodeSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (joinCodeInput === JOIN_CODE) {
-      sessionStorage.setItem(JOIN_CODE_KEY, 'true');
-      toast({
-        title: "접속 허용",
-        description: "환영합니다!"
-      });
-      // 바로 거래화면으로 이동
-      navigate('/');
-    } else {
-      toast({
-        title: "접속 코드 오류",
-        description: "올바른 코드를 입력하세요",
-        variant: "destructive"
-      });
-    }
-  };
 
   if (loading) {
     return (
@@ -267,41 +239,7 @@ export default function Auth() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {step === 'joinCode' ? (
-            <form onSubmit={handleJoinCodeSubmit} className="space-y-4">
-              <div className="text-center space-y-2 mb-4">
-                <div className="flex justify-center">
-                  <div className="p-3 rounded-full bg-primary/10">
-                    <Lock className="h-8 w-8 text-primary" />
-                  </div>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  접속 코드를 입력하세요
-                </p>
-              </div>
-              <div className="flex justify-center">
-                <InputOTP
-                  maxLength={4}
-                  value={joinCodeInput}
-                  onChange={setJoinCodeInput}
-                >
-                  <InputOTPGroup>
-                    <InputOTPSlot index={0} />
-                    <InputOTPSlot index={1} />
-                    <InputOTPSlot index={2} />
-                    <InputOTPSlot index={3} />
-                  </InputOTPGroup>
-                </InputOTP>
-              </div>
-              <Button 
-                type="submit" 
-                className="w-full"
-                disabled={joinCodeInput.length !== 4}
-              >
-                접속
-              </Button>
-            </form>
-          ) : step === 'credentials' ? (
+          {step === 'credentials' ? (
             <>
               <form onSubmit={handleCredentialsSubmit} className="space-y-4">
                 <div className="space-y-2">
