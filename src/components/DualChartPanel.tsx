@@ -30,12 +30,6 @@ interface DualChartPanelProps {
 const INTERVALS = [
   { label: '1분', value: '1' },
   { label: '3분', value: '3' },
-  { label: '5분', value: '5' },
-  { label: '15분', value: '15' },
-  { label: '30분', value: '30' },
-  { label: '1H', value: '60' },
-  { label: '4H', value: '240' },
-  { label: '일', value: 'D' },
 ];
 
 const DualChartPanel = ({ 
