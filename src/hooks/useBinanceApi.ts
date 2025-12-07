@@ -48,6 +48,13 @@ export const useBinanceApi = () => {
       return null;
     }
     
+    // Get current session to ensure we have a valid token
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      console.log('No active session for API call');
+      return null;
+    }
+    
     setLoading(true);
     setError(null);
 
