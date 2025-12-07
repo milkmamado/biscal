@@ -9,7 +9,9 @@ import CoinHeader from '@/components/CoinHeader';
 import DualChartPanel from '@/components/DualChartPanel';
 import ApiKeySetup from '@/components/ApiKeySetup';
 import { Button } from '@/components/ui/button';
-import { LogOut } from 'lucide-react';
+import { LogOut, LogIn } from 'lucide-react';
+
+const JOIN_CODE_KEY = 'biscal_joined';
 
 interface Position {
   type: 'long' | 'short';
@@ -43,10 +45,24 @@ const Index = () => {
   const navigate = useNavigate();
   const { dailyStats, logTrade } = useTradingLogs();
 
-  // Check if user has API keys configured
+  // Check if user has joined with code
+  const hasJoinCode = localStorage.getItem(JOIN_CODE_KEY) === 'true';
+
+  // Redirect to auth if no join code
+  useEffect(() => {
+    if (!hasJoinCode) {
+      navigate('/auth');
+    }
+  }, [hasJoinCode, navigate]);
+
+  // Check if user has API keys configured (only if logged in)
   useEffect(() => {
     const checkApiKeys = async () => {
-      if (!user) return;
+      if (!user) {
+        setCheckingKeys(false);
+        setHasApiKeys(null);
+        return;
+      }
       
       try {
         const { data, error } = await supabase
@@ -63,16 +79,8 @@ const Index = () => {
       }
     };
 
-    if (user) {
-      checkApiKeys();
-    }
+    checkApiKeys();
   }, [user]);
-
-  useEffect(() => {
-    if (!loading && !user) {
-      navigate('/auth');
-    }
-  }, [user, loading, navigate]);
 
   const handlePositionChange = useCallback((position: Position | null) => {
     setCurrentPosition(position);
@@ -120,7 +128,8 @@ const Index = () => {
     setHasApiKeys(true);
   };
 
-  if (loading || checkingKeys) {
+  // Show loading only if checking keys for logged-in user
+  if (loading || (user && checkingKeys)) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-foreground">로딩중...</div>
@@ -128,14 +137,13 @@ const Index = () => {
     );
   }
 
-  if (!user) {
-    return null;
-  }
-
-  // Show API key setup if not configured
-  if (hasApiKeys === false) {
+  // If logged in but no API keys, show setup
+  if (user && hasApiKeys === false) {
     return <ApiKeySetup onComplete={handleApiKeyComplete} />;
   }
+
+  // Guest mode: not logged in, show view-only interface
+  const isGuest = !user;
 
   return (
     <div className="min-h-screen bg-background p-2">
@@ -172,29 +180,52 @@ const Index = () => {
             </div>
           </div>
 
-          {/* Right - Order Panel 8282 Style */}
+          {/* Right - Order Panel 8282 Style or Login Prompt */}
           <div className="col-span-12 lg:col-span-4 xl:col-span-4 flex flex-col gap-2">
-            <OrderPanel8282 
-              symbol={selectedSymbol} 
-              onPositionChange={handlePositionChange}
-              onPnLChange={handlePnLChange}
-              onOpenOrdersChange={handleOpenOrdersChange}
-              onTradeClose={handleTradeClose}
-              onTpSlChange={handleTpSlChange}
-            />
-            
-            {/* Logout */}
-            <div className="flex justify-end">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleSignOut}
-                className="text-muted-foreground hover:text-foreground border border-border"
-              >
-                <LogOut className="h-4 w-4 mr-1" />
-                로그아웃
-              </Button>
-            </div>
+            {isGuest ? (
+              // Guest mode - show login prompt
+              <div className="bg-card rounded-lg border border-border p-6 flex flex-col items-center justify-center min-h-[400px] gap-4">
+                <div className="text-center">
+                  <h3 className="text-lg font-semibold text-foreground mb-2">거래하려면 로그인하세요</h3>
+                  <p className="text-sm text-muted-foreground">
+                    차트와 호가창은 자유롭게 구경하세요.<br/>
+                    실제 거래를 하려면 로그인이 필요합니다.
+                  </p>
+                </div>
+                <Button
+                  onClick={() => navigate('/auth')}
+                  className="w-full max-w-xs"
+                >
+                  <LogIn className="h-4 w-4 mr-2" />
+                  로그인 / 회원가입
+                </Button>
+              </div>
+            ) : (
+              // Logged in - show order panel
+              <>
+                <OrderPanel8282 
+                  symbol={selectedSymbol} 
+                  onPositionChange={handlePositionChange}
+                  onPnLChange={handlePnLChange}
+                  onOpenOrdersChange={handleOpenOrdersChange}
+                  onTradeClose={handleTradeClose}
+                  onTpSlChange={handleTpSlChange}
+                />
+                
+                {/* Logout */}
+                <div className="flex justify-end">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleSignOut}
+                    className="text-muted-foreground hover:text-foreground border border-border"
+                  >
+                    <LogOut className="h-4 w-4 mr-1" />
+                    로그아웃
+                  </Button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>

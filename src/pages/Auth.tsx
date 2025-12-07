@@ -230,11 +230,12 @@ export default function Auth() {
     e.preventDefault();
     if (joinCodeInput === JOIN_CODE) {
       localStorage.setItem(JOIN_CODE_KEY, 'true');
-      setStep('credentials');
       toast({
         title: "접속 허용",
         description: "환영합니다!"
       });
+      // 바로 거래화면으로 이동
+      navigate('/');
     } else {
       toast({
         title: "접속 코드 오류",
