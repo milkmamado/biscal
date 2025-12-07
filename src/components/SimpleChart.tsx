@@ -7,6 +7,7 @@ interface SimpleChartProps {
   symbol: string;
   interval?: string;
   height?: number;
+  onPriceRangeChange?: (range: { high: number; low: number }) => void;
 }
 
 interface SupportResistanceLevel {
@@ -100,7 +101,7 @@ const detectSupportResistance = (klines: KlineData[], avgVolume: number): Suppor
 
 const ZOOM_LEVELS = [30, 45, 60, 90, 120];
 
-const SimpleChart = memo(({ symbol, interval = '1', height = 500 }: SimpleChartProps) => {
+const SimpleChart = memo(({ symbol, interval = '1', height = 500, onPriceRangeChange }: SimpleChartProps) => {
   const [klines, setKlines] = useState<KlineData[]>([]);
   const [loading, setLoading] = useState(true);
   const [zoomIndex, setZoomIndex] = useState(2); // Default 60 candles
@@ -158,6 +159,13 @@ const SimpleChart = memo(({ symbol, interval = '1', height = 500 }: SimpleChartP
       maxVolume: Math.max(...displayKlines.map(k => k.volume)),
     };
   }, [klines, candleCount]);
+
+  // Notify parent of price range changes
+  useEffect(() => {
+    if (chartData && onPriceRangeChange) {
+      onPriceRangeChange({ high: chartData.maxPrice, low: chartData.minPrice });
+    }
+  }, [chartData?.maxPrice, chartData?.minPrice, onPriceRangeChange]);
 
   const getY = (price: number) => {
     if (!chartData) return 0;

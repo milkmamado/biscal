@@ -4,7 +4,7 @@ import { useBinanceApi, BinancePosition } from '@/hooks/useBinanceApi';
 import { RefreshCw } from 'lucide-react';
 import SimpleChart from './SimpleChart';
 import TradingRecordModal from './TradingRecordModal';
-import { fetchKlines } from '@/lib/binance';
+
 
 interface OpenOrder {
   orderId: number;
@@ -59,45 +59,10 @@ const DualChartPanel = ({
   const [priceRange, setPriceRange] = useState<{ high: number; low: number }>({ high: 0, low: 0 });
   const { getBalances, getPositions } = useBinanceApi();
 
-  // Fetch price range for chart overlay positioning
-  const fetchPriceRange = async (currentInterval: string) => {
-    try {
-      // Map TradingView interval to Binance interval
-      const intervalMap: Record<string, string> = {
-        '1': '1m', '3': '3m', '5': '5m', '15': '15m', '30': '30m',
-        '60': '1h', '240': '4h', 'D': '1d'
-      };
-      const binanceInterval = intervalMap[currentInterval] || '1m';
-      const klines = await fetchKlines(symbol, binanceInterval, 100);
-      
-      if (klines.length > 0) {
-        const highs = klines.map(k => k.high);
-        const lows = klines.map(k => k.low);
-        const high = Math.max(...highs);
-        const low = Math.min(...lows);
-        // Add 10% padding for better visibility
-        const padding = (high - low) * 0.10;
-        setPriceRange({ high: high + padding, low: low - padding });
-      }
-    } catch (error) {
-      console.error('Failed to fetch price range:', error);
-    }
+  // Handle price range updates from SimpleChart
+  const handlePriceRangeChange = (range: { high: number; low: number }) => {
+    setPriceRange(range);
   };
-
-  // Fetch price range when symbol or interval changes
-  useEffect(() => {
-    // Reset price range immediately when interval changes
-    setPriceRange({ high: 0, low: 0 });
-    
-    // Fetch new price range
-    fetchPriceRange(interval);
-    
-    const intervalId = window.setInterval(() => {
-      fetchPriceRange(interval);
-    }, 5000);
-    
-    return () => window.clearInterval(intervalId);
-  }, [symbol, interval]);
 
   // Calculate Y position for a price (0% = top, 100% = bottom)
   const getPriceYPosition = (price: number): string => {
@@ -317,7 +282,7 @@ const DualChartPanel = ({
           ))}
         </div>
         <div className="flex-1 min-h-0 relative" style={{ minHeight: '400px' }}>
-          <SimpleChart symbol={symbol} interval={interval} height={500} />
+          <SimpleChart symbol={symbol} interval={interval} height={500} onPriceRangeChange={handlePriceRangeChange} />
           
           {/* Price Labels Overlay (no lines) */}
           {(openOrders.length > 0 || entryPrice || tpPrice || slPrice) && priceRange.high > priceRange.low && (
