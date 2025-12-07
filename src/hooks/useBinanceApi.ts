@@ -45,7 +45,6 @@ export const useBinanceApi = () => {
   const callBinanceApi = useCallback(async (action: string, params: Record<string, any> = {}, retryCount: number = 0): Promise<any> => {
     // Skip API call if user is not logged in
     if (!user) {
-      console.log('Skipping Binance API call - user not logged in');
       return null;
     }
     
