@@ -180,52 +180,41 @@ const Index = () => {
             </div>
           </div>
 
-          {/* Right - Order Panel 8282 Style or Login Prompt */}
+          {/* Right - Order Panel 8282 Style */}
           <div className="col-span-12 lg:col-span-4 xl:col-span-4 flex flex-col gap-2">
-            {isGuest ? (
-              // Guest mode - show login prompt
-              <div className="bg-card rounded-lg border border-border p-6 flex flex-col items-center justify-center min-h-[400px] gap-4">
-                <div className="text-center">
-                  <h3 className="text-lg font-semibold text-foreground mb-2">거래하려면 로그인하세요</h3>
-                  <p className="text-sm text-muted-foreground">
-                    차트와 호가창은 자유롭게 구경하세요.<br/>
-                    실제 거래를 하려면 로그인이 필요합니다.
-                  </p>
-                </div>
+            <OrderPanel8282 
+              symbol={selectedSymbol} 
+              onPositionChange={handlePositionChange}
+              onPnLChange={handlePnLChange}
+              onOpenOrdersChange={handleOpenOrdersChange}
+              onTradeClose={handleTradeClose}
+              onTpSlChange={handleTpSlChange}
+            />
+            
+            {/* Login/Logout */}
+            <div className="flex justify-end">
+              {isGuest ? (
                 <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={() => navigate('/auth')}
-                  className="w-full max-w-xs"
+                  className="text-muted-foreground hover:text-foreground border border-border"
                 >
-                  <LogIn className="h-4 w-4 mr-2" />
-                  로그인 / 회원가입
+                  <LogIn className="h-4 w-4 mr-1" />
+                  로그인
                 </Button>
-              </div>
-            ) : (
-              // Logged in - show order panel
-              <>
-                <OrderPanel8282 
-                  symbol={selectedSymbol} 
-                  onPositionChange={handlePositionChange}
-                  onPnLChange={handlePnLChange}
-                  onOpenOrdersChange={handleOpenOrdersChange}
-                  onTradeClose={handleTradeClose}
-                  onTpSlChange={handleTpSlChange}
-                />
-                
-                {/* Logout */}
-                <div className="flex justify-end">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleSignOut}
-                    className="text-muted-foreground hover:text-foreground border border-border"
-                  >
-                    <LogOut className="h-4 w-4 mr-1" />
-                    로그아웃
-                  </Button>
-                </div>
-              </>
-            )}
+              ) : (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleSignOut}
+                  className="text-muted-foreground hover:text-foreground border border-border"
+                >
+                  <LogOut className="h-4 w-4 mr-1" />
+                  로그아웃
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       </div>
