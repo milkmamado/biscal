@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { Key, Eye, EyeOff, CheckCircle, AlertCircle, ExternalLink } from 'lucide-react';
+import { Key, Eye, EyeOff, CheckCircle, AlertCircle, ExternalLink, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface ApiKeySetupProps {
@@ -21,8 +21,12 @@ const ApiKeySetup = ({ onComplete }: ApiKeySetupProps) => {
   const [isChecking, setIsChecking] = useState(true);
   const [hasKeys, setHasKeys] = useState(false);
   const [showSetupForm, setShowSetupForm] = useState(false);
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const { toast } = useToast();
+
+  const handleLogout = async () => {
+    await signOut();
+  };
 
   // Check if user already has API keys
   useEffect(() => {
@@ -238,6 +242,16 @@ const ApiKeySetup = ({ onComplete }: ApiKeySetupProps) => {
               <ExternalLink className="h-3 w-3" />
               바이낸스 API 관리 페이지 열기
             </a>
+
+            {/* Logout Button */}
+            <Button 
+              variant="ghost" 
+              onClick={handleLogout}
+              className="w-full text-muted-foreground hover:text-foreground"
+            >
+              <LogOut className="h-4 w-4 mr-2" />
+              다른 계정으로 로그인
+            </Button>
           </CardContent>
         </Card>
       </div>
