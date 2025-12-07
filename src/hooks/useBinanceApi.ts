@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { fetchSymbolPrecision, roundQuantity, roundPrice } from '@/lib/binance';
+import { useAuth } from '@/hooks/useAuth';
 
 export interface BinanceBalance {
   asset: string;
@@ -39,8 +40,15 @@ export const useBinanceApi = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ipError, setIpError] = useState<string | null>(null);
+  const { user } = useAuth();
 
   const callBinanceApi = useCallback(async (action: string, params: Record<string, any> = {}, retryCount: number = 0): Promise<any> => {
+    // Skip API call if user is not logged in
+    if (!user) {
+      console.log('Skipping Binance API call - user not logged in');
+      return null;
+    }
+    
     setLoading(true);
     setError(null);
 
@@ -95,7 +103,7 @@ export const useBinanceApi = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user]);
 
   const getAccountInfo = useCallback(async (): Promise<BinanceAccountInfo> => {
     return callBinanceApi('getAccountInfo');
