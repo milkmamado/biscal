@@ -200,9 +200,14 @@ const DualChartPanel = ({
   const dailyPnL = previousDayBalance !== null 
     ? balanceUSD - previousDayBalance + unrealizedPnL
     : realizedPnL + unrealizedPnL; // Fallback to old method if no previous balance
-  const dailyPnLPercent = previousDayBalance !== null && previousDayBalance > 0
-    ? ((dailyPnL / previousDayBalance) * 100).toFixed(2)
-    : balanceUSD > 0 ? ((dailyPnL / balanceUSD) * 100).toFixed(2) : '0.00';
+  const baseBalance = previousDayBalance !== null ? previousDayBalance : balanceUSD;
+  const dailyPnLPercent = baseBalance > 0 ? (dailyPnL / baseBalance) * 100 : 0;
+  const dailyPnLPercentStr = dailyPnLPercent.toFixed(2);
+  
+  // Daily target achievement (3% target)
+  const DAILY_TARGET_PERCENT = 3;
+  const achievementRate = DAILY_TARGET_PERCENT > 0 ? (dailyPnLPercent / DAILY_TARGET_PERCENT) * 100 : 0;
+  const achievementRateStr = achievementRate.toFixed(0);
 
   return (
     <div className="flex flex-col gap-1 h-full">
@@ -252,6 +257,22 @@ const DualChartPanel = ({
             </span>
           </div>
           
+          {/* Daily Achievement Rate (3% target) */}
+          <div className="flex flex-col items-center">
+            <span className="text-[10px] text-muted-foreground">달성률</span>
+            <div className="flex items-baseline gap-0.5">
+              <span className={cn(
+                "text-sm font-bold font-mono",
+                achievementRate >= 100 ? "text-green-400" : 
+                achievementRate >= 50 ? "text-yellow-400" : 
+                achievementRate >= 0 ? "text-orange-400" : "text-blue-400"
+              )}>
+                {achievementRateStr}%
+              </span>
+              <span className="text-[8px] text-muted-foreground">/3%</span>
+            </div>
+          </div>
+          
           <div className="flex flex-col items-end">
             <div className="flex items-center gap-1">
               <span className="text-[10px] text-muted-foreground">당일 총손익</span>
@@ -270,7 +291,7 @@ const DualChartPanel = ({
                 "text-[10px] font-bold font-mono",
                 dailyPnL >= 0 ? "text-red-400" : "text-blue-400"
               )}>
-                ({dailyPnL >= 0 ? '+' : ''}{dailyPnLPercent}%)
+                ({dailyPnL >= 0 ? '+' : ''}{dailyPnLPercentStr}%)
               </span>
             </div>
           </div>
