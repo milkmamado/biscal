@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { OrderBook, formatPrice, formatQuantity } from '@/lib/binance';
-import { useBinanceWebSocket } from '@/hooks/useBinanceWebSocket';
+import { useOrderBookWebSocket } from '@/hooks/useOrderBookWebSocket';
+import { useTickerWebSocket } from '@/hooks/useTickerWebSocket';
 import { cn } from '@/lib/utils';
 import { Minus, Plus, RefreshCw, Wifi, WifiOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -67,12 +68,17 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
     setLeverage: apiSetLeverage,
     loading: apiLoading 
   } = useBinanceApi();
-  // WebSocket for real-time order book and price
-  const { orderBook: wsOrderBook, currentPrice: wsCurrentPrice, isConnected } = useBinanceWebSocket({
-    symbol,
-    streams: ['depth'],
-    depthLevel: 10,
-  });
+  // WebSocket for real-time order book (shared connection pool)
+  const { orderBook: wsOrderBook, isConnected } = useOrderBookWebSocket(symbol, 10);
+  
+  // Get current price and change from global ticker
+  const { tickers } = useTickerWebSocket();
+  const tickerData = useMemo(() => 
+    tickers.find(t => t.symbol === symbol),
+    [tickers, symbol]
+  );
+  const wsCurrentPrice = tickerData?.price || 0;
+  const tickerPriceChangePercent = tickerData?.priceChangePercent || 0;
   
   const [orderBook, setOrderBook] = useState<OrderBook | null>(null);
   const [currentPrice, setCurrentPrice] = useState<number>(0);
@@ -111,8 +117,9 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
         setPrevPrice(prev);
         return wsCurrentPrice;
       });
+      setPriceChangePercent(tickerPriceChangePercent);
     }
-  }, [wsCurrentPrice, isTransitioning]);
+  }, [wsCurrentPrice, tickerPriceChangePercent, isTransitioning]);
   
   
   // Position state
