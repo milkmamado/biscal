@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { cn } from '@/lib/utils';
+import { ZoomIn, ZoomOut } from 'lucide-react';
 
 interface Candle {
   time: number;
@@ -24,8 +25,9 @@ interface TickChartProps {
   interval?: number; // 봉 간격 (초)
 }
 
-const MAX_CANDLES = 100;
+const MAX_CANDLES = 200;
 const CANVAS_PADDING = 40;
+const VOLUME_HEIGHT_RATIO = 0.15; // 거래량 영역 비율
 
 // Binance interval string 변환
 const getIntervalString = (seconds: number): string => {
@@ -44,8 +46,37 @@ const TickChart = ({ symbol, orderBook, isConnected, height = 400, interval = 60
   const containerRef = useRef<HTMLDivElement>(null);
   const [candles, setCandles] = useState<Candle[]>([]);
   const [loading, setLoading] = useState(true);
+  const [visibleCount, setVisibleCount] = useState(50); // 화면에 표시할 봉 개수
   const lastCandleTimeRef = useRef<number>(0);
   const currentCandleRef = useRef<Candle | null>(null);
+  
+  // 줌 인/아웃
+  const handleZoomIn = useCallback(() => {
+    setVisibleCount(prev => Math.max(20, prev - 10));
+  }, []);
+  
+  const handleZoomOut = useCallback(() => {
+    setVisibleCount(prev => Math.min(MAX_CANDLES, prev + 10));
+  }, []);
+  
+  // 마우스 휠로 줌
+  const handleWheel = useCallback((e: WheelEvent) => {
+    e.preventDefault();
+    if (e.deltaY < 0) {
+      handleZoomIn();
+    } else {
+      handleZoomOut();
+    }
+  }, [handleZoomIn, handleZoomOut]);
+  
+  // 휠 이벤트 등록
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    
+    container.addEventListener('wheel', handleWheel, { passive: false });
+    return () => container.removeEventListener('wheel', handleWheel);
+  }, [handleWheel]);
   
   // Binance에서 히스토리컬 klines 가져오기
   useEffect(() => {
@@ -131,6 +162,8 @@ const TickChart = ({ symbol, orderBook, isConnected, height = 400, interval = 60
     
     const width = rect.width;
     const chartHeight = height;
+    const volumeHeight = chartHeight * VOLUME_HEIGHT_RATIO;
+    const priceChartHeight = chartHeight - volumeHeight - CANVAS_PADDING;
     
     // 배경
     ctx.fillStyle = '#0a0a0a';
@@ -149,7 +182,10 @@ const TickChart = ({ symbol, orderBook, isConnected, height = 400, interval = 60
       ? [...candles.slice(0, -1), currentCandleRef.current]
       : candles;
     
-    if (allCandles.length < 2) {
+    // 표시할 봉만 선택 (최근 N개)
+    const displayCandles = allCandles.slice(-visibleCount);
+    
+    if (displayCandles.length < 2) {
       ctx.fillStyle = 'rgba(255,255,255,0.5)';
       ctx.font = '12px sans-serif';
       ctx.textAlign = 'center';
@@ -160,9 +196,11 @@ const TickChart = ({ symbol, orderBook, isConnected, height = 400, interval = 60
     // 가격 범위 계산
     let minPrice = Infinity;
     let maxPrice = -Infinity;
-    allCandles.forEach(c => {
+    let maxVolume = 0;
+    displayCandles.forEach(c => {
       minPrice = Math.min(minPrice, c.low);
       maxPrice = Math.max(maxPrice, c.high);
+      maxVolume = Math.max(maxVolume, c.volume);
     });
     
     const priceRange = maxPrice - minPrice || 1;
@@ -179,7 +217,7 @@ const TickChart = ({ symbol, orderBook, isConnected, height = 400, interval = 60
     
     const gridLines = 5;
     for (let i = 0; i <= gridLines; i++) {
-      const y = CANVAS_PADDING + ((chartHeight - CANVAS_PADDING * 2) * i / gridLines);
+      const y = CANVAS_PADDING / 2 + ((priceChartHeight) * i / gridLines);
       const price = adjustedMax - (adjustedRange * i / gridLines);
       
       ctx.beginPath();
@@ -190,13 +228,20 @@ const TickChart = ({ symbol, orderBook, isConnected, height = 400, interval = 60
       ctx.fillText(formatPrice(price), width - 2, y + 3);
     }
     
-    // 봉차트 그리기
-    const chartWidth = width - CANVAS_PADDING - 50;
-    const chartAreaHeight = chartHeight - CANVAS_PADDING * 2;
-    const candleWidth = Math.max(2, Math.floor(chartWidth / allCandles.length) - 2);
-    const candleSpacing = chartWidth / allCandles.length;
+    // 거래량/가격 구분선
+    const volumeStartY = priceChartHeight + CANVAS_PADDING / 2;
+    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+    ctx.beginPath();
+    ctx.moveTo(CANVAS_PADDING, volumeStartY);
+    ctx.lineTo(width - 10, volumeStartY);
+    ctx.stroke();
     
-    allCandles.forEach((candle, index) => {
+    // 봉차트와 거래량 그리기
+    const chartWidth = width - CANVAS_PADDING - 50;
+    const candleWidth = Math.max(2, Math.floor(chartWidth / displayCandles.length) - 2);
+    const candleSpacing = chartWidth / displayCandles.length;
+    
+    displayCandles.forEach((candle, index) => {
       const x = CANVAS_PADDING + (index * candleSpacing) + (candleSpacing / 2);
       const isUp = candle.close >= candle.open;
       
@@ -205,11 +250,11 @@ const TickChart = ({ symbol, orderBook, isConnected, height = 400, interval = 60
       const bearColor = '#3b82f6'; // 하락 = 파란색
       const color = isUp ? bullColor : bearColor;
       
-      // Y 좌표 계산
-      const openY = CANVAS_PADDING + ((adjustedMax - candle.open) / adjustedRange) * chartAreaHeight;
-      const closeY = CANVAS_PADDING + ((adjustedMax - candle.close) / adjustedRange) * chartAreaHeight;
-      const highY = CANVAS_PADDING + ((adjustedMax - candle.high) / adjustedRange) * chartAreaHeight;
-      const lowY = CANVAS_PADDING + ((adjustedMax - candle.low) / adjustedRange) * chartAreaHeight;
+      // === 가격 봉 ===
+      const openY = CANVAS_PADDING / 2 + ((adjustedMax - candle.open) / adjustedRange) * priceChartHeight;
+      const closeY = CANVAS_PADDING / 2 + ((adjustedMax - candle.close) / adjustedRange) * priceChartHeight;
+      const highY = CANVAS_PADDING / 2 + ((adjustedMax - candle.high) / adjustedRange) * priceChartHeight;
+      const lowY = CANVAS_PADDING / 2 + ((adjustedMax - candle.low) / adjustedRange) * priceChartHeight;
       
       // 심지 그리기
       ctx.strokeStyle = color;
@@ -222,15 +267,22 @@ const TickChart = ({ symbol, orderBook, isConnected, height = 400, interval = 60
       // 몸통 그리기
       const bodyTop = Math.min(openY, closeY);
       const bodyHeight = Math.max(1, Math.abs(closeY - openY));
-      
       ctx.fillStyle = color;
       ctx.fillRect(x - candleWidth / 2, bodyTop, candleWidth, bodyHeight);
+      
+      // === 거래량 바 ===
+      if (maxVolume > 0) {
+        const volumeBarHeight = (candle.volume / maxVolume) * (volumeHeight - 10);
+        const volumeY = chartHeight - volumeBarHeight - 5;
+        ctx.fillStyle = isUp ? 'rgba(239, 68, 68, 0.5)' : 'rgba(59, 130, 246, 0.5)';
+        ctx.fillRect(x - candleWidth / 2, volumeY, candleWidth, volumeBarHeight);
+      }
     });
     
     // 현재가 표시
-    if (allCandles.length > 0) {
-      const currentCandle = allCandles[allCandles.length - 1];
-      const currentY = CANVAS_PADDING + ((adjustedMax - currentCandle.close) / adjustedRange) * chartAreaHeight;
+    if (displayCandles.length > 0) {
+      const currentCandle = displayCandles[displayCandles.length - 1];
+      const currentY = CANVAS_PADDING / 2 + ((adjustedMax - currentCandle.close) / adjustedRange) * priceChartHeight;
       const isUp = currentCandle.close >= currentCandle.open;
       
       // 현재가 라인
@@ -251,7 +303,7 @@ const TickChart = ({ symbol, orderBook, isConnected, height = 400, interval = 60
       ctx.fillText(formatPrice(currentCandle.close), width - 4, currentY + 3);
     }
     
-  }, [candles, height, isConnected, loading]);
+  }, [candles, height, isConnected, loading, visibleCount]);
   
   // 가격 포맷팅
   const formatPrice = (price: number): string => {
@@ -283,8 +335,26 @@ const TickChart = ({ symbol, orderBook, isConnected, height = 400, interval = 60
           {isConnected ? 'LIVE' : 'OFFLINE'}
         </span>
         <span className="text-[10px] text-muted-foreground">
-          {getIntervalString(interval)} | {candles.length}봉
+          {getIntervalString(interval)} | {visibleCount}봉
         </span>
+      </div>
+      
+      {/* 줌 컨트롤 */}
+      <div className="absolute top-2 left-1/2 -translate-x-1/2 flex items-center gap-1">
+        <button
+          onClick={handleZoomIn}
+          className="p-1 bg-secondary/80 hover:bg-secondary rounded text-muted-foreground hover:text-foreground transition-colors"
+          title="확대 (스크롤 업)"
+        >
+          <ZoomIn className="w-3.5 h-3.5" />
+        </button>
+        <button
+          onClick={handleZoomOut}
+          className="p-1 bg-secondary/80 hover:bg-secondary rounded text-muted-foreground hover:text-foreground transition-colors"
+          title="축소 (스크롤 다운)"
+        >
+          <ZoomOut className="w-3.5 h-3.5" />
+        </button>
       </div>
       
       {/* 현재가 표시 */}
