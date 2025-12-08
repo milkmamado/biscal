@@ -335,10 +335,10 @@ const TickChart = ({ symbol, orderBook, isConnected, height = 400, interval = 60
       <div className="absolute top-2 left-2 flex items-center gap-2">
         <div className={cn(
           "w-2 h-2 rounded-full",
-          isConnected ? "bg-green-500" : "bg-red-500"
+          orderBook && orderBook.bids.length > 0 ? "bg-green-500" : "bg-red-500"
         )} />
         <span className="text-[10px] text-muted-foreground">
-          {isConnected ? 'LIVE' : 'OFFLINE'}
+          {orderBook && orderBook.bids.length > 0 ? 'LIVE' : 'OFFLINE'}
         </span>
         <span className="text-[10px] text-muted-foreground">
           {getIntervalString(interval)} | {visibleCount}봉
