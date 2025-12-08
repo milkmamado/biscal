@@ -54,49 +54,39 @@ export const useBinanceWebSocket = ({
   }, [symbol, klineInterval, streams]);
 
   useEffect(() => {
-    // Cleanup function for immediate execution
-    const cleanup = () => {
-      isCleaningUpRef.current = true;
-      
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-        abortControllerRef.current = null;
-      }
-      
-      if (initDelayRef.current) {
-        clearTimeout(initDelayRef.current);
-        initDelayRef.current = null;
-      }
-      
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-        reconnectTimeoutRef.current = null;
-      }
-      
-      if (updateIntervalRef.current) {
-        clearInterval(updateIntervalRef.current);
-        updateIntervalRef.current = null;
-      }
-      
-      if (wsRef.current) {
-        wsRef.current.onclose = null;
-        wsRef.current.onerror = null;
-        wsRef.current.onmessage = null;
-        wsRef.current.onopen = null;
-        wsRef.current.close();
-        wsRef.current = null;
-      }
-    };
-    
-    // Run cleanup first for any previous connection
-    cleanup();
-    
     // Reset cleanup flag for new connection
     isCleaningUpRef.current = false;
     
-    // Create new abort controller
+    // Abort any previous fetch requests
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
     abortControllerRef.current = new AbortController();
     const signal = abortControllerRef.current.signal;
+    
+    // Clear previous timeouts/intervals
+    if (initDelayRef.current) {
+      clearTimeout(initDelayRef.current);
+      initDelayRef.current = null;
+    }
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+    if (updateIntervalRef.current) {
+      clearInterval(updateIntervalRef.current);
+      updateIntervalRef.current = null;
+    }
+    
+    // Close existing WebSocket
+    if (wsRef.current) {
+      wsRef.current.onclose = null;
+      wsRef.current.onerror = null;
+      wsRef.current.onmessage = null;
+      wsRef.current.onopen = null;
+      wsRef.current.close();
+      wsRef.current = null;
+    }
     
     // Reset all refs
     initialDataLoadedRef.current = false;
@@ -106,12 +96,6 @@ export const useBinanceWebSocket = ({
     pendingOrderBookRef.current = null;
     pendingPriceRef.current = null;
     hasPendingUpdatesRef.current = false;
-    
-    // Reset React state immediately for clean transition
-    setOrderBook(null);
-    setKlines([]);
-    setCurrentPrice(null);
-    setIsConnected(false);
     
     // Define all functions
     const fetchInitialKlines = async (): Promise<boolean> => {
@@ -404,14 +388,42 @@ export const useBinanceWebSocket = ({
       }
     };
     
-    // Small delay before starting new connection for clean handoff
-    initDelayRef.current = setTimeout(() => {
-      if (!isCleaningUpRef.current) {
-        init();
-      }
-    }, 30);
+    // Start initialization
+    init();
 
-    return cleanup;
+    // Cleanup function
+    return () => {
+      isCleaningUpRef.current = true;
+      
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+      
+      if (initDelayRef.current) {
+        clearTimeout(initDelayRef.current);
+        initDelayRef.current = null;
+      }
+      
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
+      
+      if (updateIntervalRef.current) {
+        clearInterval(updateIntervalRef.current);
+        updateIntervalRef.current = null;
+      }
+      
+      if (wsRef.current) {
+        wsRef.current.onclose = null;
+        wsRef.current.onerror = null;
+        wsRef.current.onmessage = null;
+        wsRef.current.onopen = null;
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+    };
   }, [connectionKey, symbol, klineInterval, streams, depthLevel]);
 
   return { orderBook, klines, currentPrice, isConnected };
