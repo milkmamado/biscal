@@ -236,6 +236,9 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
         } else {
           setPosition(null);
         }
+      } else {
+        // No position for this symbol
+        setPosition(null);
       }
       
       // Fetch open orders for this symbol
