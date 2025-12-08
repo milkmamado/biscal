@@ -746,16 +746,21 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
   const handleQtyPreset = (percent: number) => {
     // Calculate quantity based on: (balanceUSD × 0.95 × leverage × percent) / currentPrice
     // 95%만 사용하여 수수료, 펀딩비 여유 확보
-    if (currentPrice <= 0) {
+    if (balanceUSD <= 0 || currentPrice <= 0) {
+      toast({
+        title: '계산 불가',
+        description: '잔고 또는 가격 정보가 없습니다.',
+      });
       setOrderQty('0');
       return;
     }
     const safeBalance = balanceUSD * 0.95;
     const buyingPower = safeBalance * leverage * (percent / 100);
     const qty = buyingPower / currentPrice;
-    // Ensure minimum notional of $5
+    // Ensure minimum notional of $5.5
     const minQty = 5.5 / currentPrice;
-    setOrderQty(Math.max(qty, minQty).toFixed(3));
+    const finalQty = Math.max(qty, minQty);
+    setOrderQty(finalQty.toFixed(3));
   };
 
   const adjustQty = (delta: number) => {
