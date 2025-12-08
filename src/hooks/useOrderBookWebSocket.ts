@@ -323,9 +323,10 @@ function connectWebSocket(
         const data = JSON.parse(event.data);
         if (data.e === 'depthUpdate') {
           // Calculate latency from event time (E) to now
+          // Use absolute value since clock sync differences can cause negative values
           const eventTime = data.E; // Binance server time in ms
           const now = Date.now();
-          const calculatedLatency = now - eventTime;
+          const calculatedLatency = Math.abs(now - eventTime);
           const p = connectionPool.get(symbol);
           if (p) {
             p.latency = calculatedLatency;
