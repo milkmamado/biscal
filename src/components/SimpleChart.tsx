@@ -230,10 +230,6 @@ const SimpleChart = memo(({ symbol, interval = '1', height = 500, onPriceRangeCh
           </span>
           {/* Legend - fixed positions */}
           <div className="flex items-center gap-2 ml-2 shrink-0">
-            <div className="flex items-center gap-0.5 w-[42px]">
-              <div className="w-2 h-0.5 bg-yellow-500 shrink-0" />
-              <span className="text-[8px] text-muted-foreground">현재가</span>
-            </div>
             <div className="flex items-center gap-0.5 w-[28px]">
               <div className="w-2 h-0.5 bg-green-500/50 shrink-0" />
               <span className="text-[8px] text-muted-foreground">지지</span>
@@ -315,11 +311,6 @@ const SimpleChart = memo(({ symbol, interval = '1', height = 500, onPriceRangeCh
             );
           })}
 
-          {/* Current price line */}
-          <div
-            className="absolute left-0 right-0 h-0.5 bg-yellow-400 z-10"
-            style={{ top: `${getY(chartData.currentPrice)}%` }}
-          />
 
           {/* Candlesticks */}
           <div className="absolute inset-0 flex">
