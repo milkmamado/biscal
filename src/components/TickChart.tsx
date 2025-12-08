@@ -294,13 +294,6 @@ const TickChart = ({ symbol, orderBook, isConnected, height = 400, interval = 60
       ctx.stroke();
       ctx.setLineDash([]);
       
-      // 현재가 라벨
-      ctx.fillStyle = isUp ? '#ef4444' : '#3b82f6';
-      ctx.fillRect(width - 48, currentY - 8, 46, 16);
-      ctx.fillStyle = '#000';
-      ctx.font = 'bold 10px monospace';
-      ctx.textAlign = 'right';
-      ctx.fillText(formatPrice(currentCandle.close), width - 4, currentY + 3);
     }
     
   }, [candles, height, isConnected, loading, visibleCount]);
