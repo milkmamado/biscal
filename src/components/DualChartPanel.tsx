@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils';
 import { useBinanceApi, BinancePosition } from '@/hooks/useBinanceApi';
 import { useAuth } from '@/hooks/useAuth';
 import { RefreshCw } from 'lucide-react';
-import TradingViewWidget from './TradingViewWidget';
+import TickChart from './TickChart';
 import TradingRecordModal from './TradingRecordModal';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -374,7 +374,7 @@ const DualChartPanel = ({
           ))}
         </div>
         <div className="flex-1 min-h-0 relative" style={{ minHeight: '400px' }}>
-          <TradingViewWidget symbol={symbol} interval={interval} height={500} />
+          <TickChart symbol={symbol} height={450} />
         </div>
       </div>
     </div>
