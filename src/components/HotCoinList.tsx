@@ -13,7 +13,7 @@ interface HotCoinListProps {
 // 캐시 - 컴포넌트 외부에 저장
 let cachedCoins: SymbolInfo[] = [];
 let lastFetchTime = 0;
-const CACHE_DURATION = 60000; // 60초 캐시
+const CACHE_DURATION = 120000; // 120초 캐시 (429 방지)
 
 const HotCoinList = ({ onSelectSymbol, selectedSymbol }: HotCoinListProps) => {
   const [coins, setCoins] = useState<SymbolInfo[]>([]);
