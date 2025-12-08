@@ -3,6 +3,10 @@ import { KlineData, OrderBook } from '@/lib/binance';
 
 const BINANCE_WS_URL = 'wss://fstream.binance.com/ws';
 
+// Throttling intervals (ms) - similar to Binance app smoothness
+const PRICE_THROTTLE_MS = 200;  // Price updates every 200ms
+const DEPTH_THROTTLE_MS = 300;  // Order book updates every 300ms
+
 interface UseBinanceWebSocketOptions {
   symbol: string;
   streams: ('depth' | 'kline')[];
@@ -16,13 +20,6 @@ interface WebSocketData {
   currentPrice: number | null;
   isConnected: boolean;
 }
-
-// Global connection manager to prevent duplicate connections
-const connectionManager = new Map<string, {
-  ws: WebSocket | null;
-  subscribers: Set<string>;
-  reconnectTimeout: NodeJS.Timeout | null;
-}>();
 
 export const useBinanceWebSocket = ({
   symbol,
@@ -42,6 +39,14 @@ export const useBinanceWebSocket = ({
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isCleaningUpRef = useRef(false);
+  
+  // Throttling refs
+  const lastPriceUpdateRef = useRef<number>(0);
+  const lastDepthUpdateRef = useRef<number>(0);
+  const pendingPriceRef = useRef<number | null>(null);
+  const pendingDepthRef = useRef<OrderBook | null>(null);
+  const priceThrottleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const depthThrottleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   // Stable key for this connection
   const connectionKey = useMemo(() => {
@@ -153,7 +158,8 @@ export const useBinanceWebSocket = ({
       const lowerSymbol = symbol.toLowerCase();
       
       if (streams.includes('depth')) {
-        streamNames.push(`${lowerSymbol}@depth@100ms`);
+        // Use 500ms depth updates instead of 100ms for smoother UI
+        streamNames.push(`${lowerSymbol}@depth@500ms`);
       }
       if (streams.includes('kline')) {
         streamNames.push(`${lowerSymbol}@kline_${klineInterval}`);
@@ -189,10 +195,11 @@ export const useBinanceWebSocket = ({
           
           try {
             const data = JSON.parse(event.data);
+            const now = Date.now();
             
-            // Handle depth updates
+            // Handle depth updates with throttling
             if (data.e === 'depthUpdate') {
-              setOrderBook(prev => {
+              const updateOrderBook = (prev: OrderBook | null): OrderBook | null => {
                 if (!prev) return prev;
                 
                 const updateLevel = (levels: { price: number; quantity: number }[], updates: [string, string][]) => {
@@ -218,10 +225,34 @@ export const useBinanceWebSocket = ({
                   asks: updateLevel(prev.asks, data.a).sort((a, b) => a.price - b.price).slice(0, depthLevel),
                   lastUpdateId: data.u,
                 };
-              });
+              };
+              
+              // Throttle depth updates
+              const timeSinceLastDepth = now - lastDepthUpdateRef.current;
+              if (timeSinceLastDepth >= DEPTH_THROTTLE_MS) {
+                lastDepthUpdateRef.current = now;
+                setOrderBook(updateOrderBook);
+              } else {
+                // Store pending and schedule update
+                setOrderBook(prev => {
+                  pendingDepthRef.current = updateOrderBook(prev);
+                  return prev; // Don't update yet
+                });
+                
+                if (!depthThrottleTimeoutRef.current) {
+                  depthThrottleTimeoutRef.current = setTimeout(() => {
+                    if (!isCleaningUpRef.current && pendingDepthRef.current) {
+                      lastDepthUpdateRef.current = Date.now();
+                      setOrderBook(pendingDepthRef.current);
+                      pendingDepthRef.current = null;
+                    }
+                    depthThrottleTimeoutRef.current = null;
+                  }, DEPTH_THROTTLE_MS - timeSinceLastDepth);
+                }
+              }
             }
             
-            // Handle kline updates
+            // Handle kline updates (no throttling needed - already slow)
             if (data.e === 'kline') {
               if (!initialDataLoadedRef.current || klinesRef.current.length === 0) {
                 return;
@@ -252,12 +283,37 @@ export const useBinanceWebSocket = ({
                 setKlines(updated);
               }
               
-              setCurrentPrice(newKline.close);
+              // Throttle price update from kline
+              const timeSinceLastPrice = now - lastPriceUpdateRef.current;
+              if (timeSinceLastPrice >= PRICE_THROTTLE_MS) {
+                lastPriceUpdateRef.current = now;
+                setCurrentPrice(newKline.close);
+              }
             }
             
-            // Handle aggTrade for real-time price
+            // Handle aggTrade with throttling for smooth price updates
             if (data.e === 'aggTrade') {
-              setCurrentPrice(parseFloat(data.p));
+              const price = parseFloat(data.p);
+              const timeSinceLastPrice = now - lastPriceUpdateRef.current;
+              
+              if (timeSinceLastPrice >= PRICE_THROTTLE_MS) {
+                lastPriceUpdateRef.current = now;
+                setCurrentPrice(price);
+              } else {
+                // Store pending price and schedule update
+                pendingPriceRef.current = price;
+                
+                if (!priceThrottleTimeoutRef.current) {
+                  priceThrottleTimeoutRef.current = setTimeout(() => {
+                    if (!isCleaningUpRef.current && pendingPriceRef.current !== null) {
+                      lastPriceUpdateRef.current = Date.now();
+                      setCurrentPrice(pendingPriceRef.current);
+                      pendingPriceRef.current = null;
+                    }
+                    priceThrottleTimeoutRef.current = null;
+                  }, PRICE_THROTTLE_MS - timeSinceLastPrice);
+                }
+              }
             }
           } catch (error) {
             // Silently ignore parse errors
@@ -355,6 +411,16 @@ export const useBinanceWebSocket = ({
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
         reconnectTimeoutRef.current = null;
+      }
+      
+      if (priceThrottleTimeoutRef.current) {
+        clearTimeout(priceThrottleTimeoutRef.current);
+        priceThrottleTimeoutRef.current = null;
+      }
+      
+      if (depthThrottleTimeoutRef.current) {
+        clearTimeout(depthThrottleTimeoutRef.current);
+        depthThrottleTimeoutRef.current = null;
       }
       
       if (wsRef.current) {
