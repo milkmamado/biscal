@@ -228,19 +228,28 @@ export async function fetch24hTicker(symbol: string): Promise<SymbolInfo> {
 
 // All tickers cache
 let allTickersCache: { data: SymbolInfo[]; time: number } | null = null;
-const ALL_TICKERS_CACHE_DURATION = 60000; // 60초 캐시
+const ALL_TICKERS_CACHE_DURATION = 120000; // 120초 캐시 (429 방지)
+let allTickersFetchInProgress = false;
 
-// Fetch all 24h tickers with caching
+// Fetch all 24h tickers with caching and rate limit protection
 export async function fetchAll24hTickers(): Promise<SymbolInfo[]> {
   // Return cached data if valid
   if (allTickersCache && Date.now() - allTickersCache.time < ALL_TICKERS_CACHE_DURATION) {
     return allTickersCache.data;
   }
   
+  // 이미 fetch 진행 중이면 캐시 반환
+  if (allTickersFetchInProgress && allTickersCache) {
+    return allTickersCache.data;
+  }
+  
+  allTickersFetchInProgress = true;
+  
   try {
     const response = await fetch(`${BASE_URL}/fapi/v1/ticker/24hr`);
     if (!response.ok) {
       console.warn('All tickers fetch failed:', response.status);
+      // 429 또는 다른 에러시 캐시 반환
       if (allTickersCache) return allTickersCache.data;
       return [];
     }
@@ -287,10 +296,12 @@ export async function fetchAll24hTickers(): Promise<SymbolInfo[]> {
     
     // Cache the result
     allTickersCache = { data: tickers, time: Date.now() };
+    allTickersFetchInProgress = false;
     
     return tickers;
   } catch (error) {
     console.warn('All tickers fetch error:', error);
+    allTickersFetchInProgress = false;
     if (allTickersCache) return allTickersCache.data;
     return [];
   }
