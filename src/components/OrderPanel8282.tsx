@@ -449,11 +449,11 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
       }
     }
     
-    // Check TP/SL auto close - ALWAYS prioritize API's realUnrealizedPnL
+    // Check TP/SL auto close - use WebSocket calculated PnL for real-time detection
     if (position && enableTpSl && !tpSlProcessing.current && !closingInProgress.current) {
       const calculatedPnl = currentPrice > 0 ? calculatePnL(position, currentPrice) : 0;
-      // Use API PnL if available (non-zero), otherwise use calculated
-      const pnl = realUnrealizedPnL !== 0 ? realUnrealizedPnL : calculatedPnl;
+      // Use calculated PnL if we have price data (real-time), otherwise use API PnL
+      const pnl = currentPrice > 0 ? calculatedPnl : realUnrealizedPnL;
       const tp = parseFloat(tpAmount) || 0;
       const sl = parseFloat(slAmount) || 0;
       
@@ -789,20 +789,20 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
   }, [orderBook]);
 
   // Calculate current PnL and percentage
-  // ALWAYS prioritize API's unRealizedProfit as it's the most accurate
-  // Only use calculated PnL for real-time display between API updates
+  // PRIORITIZE WebSocket calculated PnL for real-time display (updates every ~200ms)
+  // Fall back to API PnL only when no price data available
   const calculatedPnL = position && currentPrice > 0 ? calculatePnL(position, currentPrice) : 0;
-  // Use API PnL if available (non-zero), otherwise use calculated
-  const currentPnL = position ? (realUnrealizedPnL !== 0 ? realUnrealizedPnL : calculatedPnL) : 0;
+  // Use calculated PnL if we have price data (real-time), otherwise use API PnL
+  const currentPnL = position ? (currentPrice > 0 ? calculatedPnL : realUnrealizedPnL) : 0;
   const currentPnLPercent = position 
     ? ((currentPnL / (position.entryPrice * position.quantity)) * 100 * position.leverage)
     : 0;
 
-  // Notify parent of PnL changes - always use API PnL when available
+  // Notify parent of PnL changes - use calculated for real-time, API as fallback
   useEffect(() => {
-    const pnlToReport = position ? (realUnrealizedPnL !== 0 ? realUnrealizedPnL : calculatedPnL) : 0;
+    const pnlToReport = position ? (currentPrice > 0 ? calculatedPnL : realUnrealizedPnL) : 0;
     onPnLChange?.(pnlToReport);
-  }, [realUnrealizedPnL, calculatedPnL, position, onPnLChange]);
+  }, [calculatedPnL, realUnrealizedPnL, currentPrice, position, onPnLChange]);
 
   if (loading || !orderBook) {
     return (
