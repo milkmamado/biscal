@@ -4,16 +4,21 @@ import { OrderBook } from '@/lib/binance';
 const BINANCE_WS_URL = 'wss://fstream.binance.com/ws';
 const BINANCE_REST_URL = 'https://fapi.binance.com';
 
-// Render throttle - 100ms for smooth updates
-const RENDER_INTERVAL_MS = 100;
+// Render throttle - 150ms for smoother updates
+const RENDER_INTERVAL_MS = 150;
+
+// Minimum time between re-initializations (5 seconds)
+const REINIT_COOLDOWN_MS = 5000;
 
 // Global connection pool per symbol
 const connectionPool = new Map<string, {
   ws: WebSocket | null;
-  subscribers: Set<(data: OrderBook) => void>;
+  subscribers: Set<() => void>;
   state: OrderBookState | null;
   isInitialized: boolean;
   eventBuffer: DepthUpdate[];
+  lastReinitTime: number;
+  pendingRender: boolean;
 }>();
 
 interface DepthUpdate {
@@ -37,35 +42,7 @@ export const useOrderBookWebSocket = (symbol: string, depthLevel: number = 15) =
   const [orderBook, setOrderBook] = useState<OrderBook | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const mountedRef = useRef(true);
-  const renderTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const lastRenderRef = useRef(0);
-
-  // Throttled render function
-  const scheduleRender = useCallback((state: OrderBookState) => {
-    const now = Date.now();
-    const elapsed = now - lastRenderRef.current;
-    
-    if (elapsed >= RENDER_INTERVAL_MS) {
-      // Render immediately
-      lastRenderRef.current = now;
-      const rendered = stateToOrderBook(state, depthLevel);
-      if (mountedRef.current) {
-        setOrderBook(rendered);
-      }
-    } else {
-      // Schedule render
-      if (renderTimeoutRef.current) return; // Already scheduled
-      renderTimeoutRef.current = setTimeout(() => {
-        renderTimeoutRef.current = null;
-        lastRenderRef.current = Date.now();
-        const pool = connectionPool.get(symbol);
-        if (pool?.state && mountedRef.current) {
-          const rendered = stateToOrderBook(pool.state, depthLevel);
-          setOrderBook(rendered);
-        }
-      }, RENDER_INTERVAL_MS - elapsed);
-    }
-  }, [symbol, depthLevel]);
+  const renderIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -79,17 +56,21 @@ export const useOrderBookWebSocket = (symbol: string, depthLevel: number = 15) =
         state: null,
         isInitialized: false,
         eventBuffer: [],
+        lastReinitTime: 0,
+        pendingRender: false,
       };
       connectionPool.set(symbol, pool);
     }
     
-    // Subscribe
-    const subscriber = (data: OrderBook) => {
-      if (mountedRef.current) {
-        setOrderBook(data);
+    // Subscribe for updates
+    const notifyUpdate = () => {
+      const p = connectionPool.get(symbol);
+      if (p?.state && mountedRef.current) {
+        const rendered = stateToOrderBook(p.state, depthLevel);
+        setOrderBook(rendered);
       }
     };
-    pool.subscribers.add(subscriber);
+    pool.subscribers.add(notifyUpdate);
     
     // If already has data, use it immediately
     if (pool.state) {
@@ -99,21 +80,31 @@ export const useOrderBookWebSocket = (symbol: string, depthLevel: number = 15) =
     
     // If no active connection, create one
     if (!pool.ws || pool.ws.readyState === WebSocket.CLOSED) {
-      connectWebSocket(symbol, depthLevel, scheduleRender, setIsConnected);
+      connectWebSocket(symbol, setIsConnected);
     } else if (pool.ws.readyState === WebSocket.OPEN) {
       setIsConnected(true);
     }
     
+    // Set up render interval
+    renderIntervalRef.current = setInterval(() => {
+      const p = connectionPool.get(symbol);
+      if (p?.pendingRender && p.state && mountedRef.current) {
+        p.pendingRender = false;
+        const rendered = stateToOrderBook(p.state, depthLevel);
+        setOrderBook(rendered);
+      }
+    }, RENDER_INTERVAL_MS);
+    
     return () => {
       mountedRef.current = false;
       
-      if (renderTimeoutRef.current) {
-        clearTimeout(renderTimeoutRef.current);
+      if (renderIntervalRef.current) {
+        clearInterval(renderIntervalRef.current);
       }
       
       const p = connectionPool.get(symbol);
       if (p) {
-        p.subscribers.delete(subscriber);
+        p.subscribers.delete(notifyUpdate);
         
         // If no more subscribers, close connection after delay
         if (p.subscribers.size === 0) {
@@ -127,7 +118,7 @@ export const useOrderBookWebSocket = (symbol: string, depthLevel: number = 15) =
         }
       }
     };
-  }, [symbol, depthLevel, scheduleRender]);
+  }, [symbol, depthLevel]);
 
   return { orderBook, isConnected };
 };
@@ -182,22 +173,28 @@ function applyDepthUpdate(state: OrderBookState, update: DepthUpdate): OrderBook
 }
 
 // Connect WebSocket for a symbol
-async function connectWebSocket(
+function connectWebSocket(
   symbol: string,
-  depthLevel: number,
-  onUpdate: (state: OrderBookState) => void,
   setConnected: (v: boolean) => void
 ) {
   const pool = connectionPool.get(symbol);
   if (!pool) return;
   
+  let snapshotInProgress = false;
+  
   // Fetch initial snapshot
   const fetchSnapshot = async (): Promise<boolean> => {
+    if (snapshotInProgress) return false;
+    snapshotInProgress = true;
+    
     try {
       const response = await fetch(
-        `${BINANCE_REST_URL}/fapi/v1/depth?symbol=${symbol}&limit=100`
+        `${BINANCE_REST_URL}/fapi/v1/depth?symbol=${symbol}&limit=50`
       );
-      if (!response.ok) return false;
+      if (!response.ok) {
+        snapshotInProgress = false;
+        return false;
+      }
       const data = await response.json();
       
       const bidsMap = new Map<number, number>();
@@ -219,15 +216,16 @@ async function connectWebSocket(
       // Process buffered events
       processBuffer(symbol, data.lastUpdateId);
       pool.isInitialized = true;
+      pool.pendingRender = true;
       
-      // Notify subscribers
-      if (pool.state) {
-        onUpdate(pool.state);
-      }
+      // Notify all subscribers
+      pool.subscribers.forEach(fn => fn());
       
+      snapshotInProgress = false;
       return true;
     } catch (error) {
       console.error('[OrderBook] Snapshot fetch error:', error);
+      snapshotInProgress = false;
       return false;
     }
   };
@@ -247,18 +245,12 @@ async function connectWebSocket(
     
     validEvents.sort((a, b) => a.U - b.U);
     
-    const firstValidIdx = validEvents.findIndex(
-      e => e.U <= snapshotLastUpdateId + 1 && e.u >= snapshotLastUpdateId + 1
-    );
-    
-    if (firstValidIdx === -1) {
-      p.eventBuffer = validEvents;
-      return;
-    }
-    
+    // Apply all valid events without strict continuity check
     let state = p.state;
-    for (let i = firstValidIdx; i < validEvents.length; i++) {
-      state = applyDepthUpdate(state, validEvents[i]);
+    for (const event of validEvents) {
+      if (event.U <= state.lastUpdateId + 1) {
+        state = applyDepthUpdate(state, event);
+      }
     }
     
     p.state = state;
@@ -271,33 +263,41 @@ async function connectWebSocket(
     if (!p) return;
     
     if (!p.isInitialized) {
-      p.eventBuffer.push(data);
+      // Buffer events until snapshot is ready (max 100)
+      if (p.eventBuffer.length < 100) {
+        p.eventBuffer.push(data);
+      }
       return;
     }
     
     if (!p.state) return;
     
-    // Relaxed continuity check - allow small gaps
+    const now = Date.now();
     const expectedPu = p.state.lastUpdateId;
     const actualPu = data.pu;
     
-    // If gap is too large (more than 100 updates), re-initialize
-    if (actualPu > expectedPu + 100 || actualPu < expectedPu - 100) {
-      console.warn(`[OrderBook] Large gap detected: expected ~${expectedPu}, got pu=${actualPu}. Re-initializing...`);
-      p.isInitialized = false;
-      p.eventBuffer = [data];
-      fetchSnapshot();
+    // Check for large gap that requires re-initialization
+    // Only reinitialize if cooldown period has passed
+    if (Math.abs(actualPu - expectedPu) > 1000) {
+      if (now - p.lastReinitTime > REINIT_COOLDOWN_MS) {
+        console.warn(`[OrderBook] Large gap: expected ${expectedPu}, got pu=${actualPu}. Re-initializing...`);
+        p.isInitialized = false;
+        p.eventBuffer = [data];
+        p.lastReinitTime = now;
+        fetchSnapshot();
+      }
       return;
     }
     
-    // Apply update even with small gaps
+    // Apply update regardless of small gaps
+    // The orderbook will self-correct over time
     p.state = applyDepthUpdate(p.state, data);
-    onUpdate(p.state);
+    p.pendingRender = true;
   };
   
-  // Create WebSocket connection
+  // Create WebSocket connection - use 500ms for less frequent updates
   const lowerSymbol = symbol.toLowerCase();
-  const wsUrl = `${BINANCE_WS_URL}/${lowerSymbol}@depth@100ms`;
+  const wsUrl = `${BINANCE_WS_URL}/${lowerSymbol}@depth@500ms`;
   
   try {
     const ws = new WebSocket(wsUrl);
@@ -330,15 +330,15 @@ async function connectWebSocket(
       
       const p = connectionPool.get(symbol);
       if (p && p.subscribers.size > 0) {
-        // Reconnect after delay
+        // Reconnect after delay with jitter
         setTimeout(() => {
           const current = connectionPool.get(symbol);
           if (current && current.subscribers.size > 0) {
             current.isInitialized = false;
             current.eventBuffer = [];
-            connectWebSocket(symbol, depthLevel, onUpdate, setConnected);
+            connectWebSocket(symbol, setConnected);
           }
-        }, 2000 + Math.random() * 2000);
+        }, 2000 + Math.random() * 3000);
       }
     };
   } catch (error) {
