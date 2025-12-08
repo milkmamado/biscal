@@ -74,20 +74,10 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
   // Get current price and change from global ticker
   const { tickers } = useTickerWebSocket();
   const tickerData = useMemo(() => {
-    const found = tickers.find(t => t.symbol === symbol);
-    return found;
+    return tickers.find(t => t.symbol === symbol);
   }, [tickers, symbol]);
   const wsCurrentPrice = tickerData?.price || 0;
   const tickerPriceChangePercent = tickerData?.priceChangePercent || 0;
-  
-  // Debug: log when ticker data changes
-  useEffect(() => {
-    if (tickerData) {
-      console.log(`[OrderPanel] Ticker update: ${symbol} price=${tickerData.price} change=${tickerData.priceChangePercent}%`);
-    } else {
-      console.log(`[OrderPanel] No ticker data for ${symbol}, available: ${tickers.length} symbols`);
-    }
-  }, [tickerData, symbol, tickers.length]);
   
   const [orderBook, setOrderBook] = useState<OrderBook | null>(null);
   const [currentPrice, setCurrentPrice] = useState<number>(0);
@@ -1102,21 +1092,21 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
       ) : (
         <div className="bg-yellow-500/20 border-y-2 border-yellow-500 px-2 py-1.5">
           <div className="flex items-center justify-center gap-2">
-            <span className={cn(
-              "text-lg font-bold font-mono",
-              priceChange >= 0 ? "text-red-400" : "text-blue-400"
-            )}>
-              {formatPrice(currentPrice)}
-            </span>
-            <span className="bg-yellow-500 text-yellow-950 px-1.5 py-0.5 text-[10px] font-bold rounded">
-              현재
-            </span>
-            <span className={cn(
-              "text-[11px] font-mono",
-              priceChangePercent >= 0 ? "text-red-400" : "text-blue-400"
-            )}>
-              {priceChangePercent >= 0 ? '▲' : '▼'} {Math.abs(priceChangePercent).toFixed(2)}%
-            </span>
+            <span className="text-[10px] text-muted-foreground">수량</span>
+            {[100, 50, 25, 10].map((p) => (
+              <button
+                key={p}
+                onClick={() => setClickOrderPercent(p)}
+                className={cn(
+                  "px-2 py-0.5 text-[10px] font-bold rounded transition-colors",
+                  clickOrderPercent === p
+                    ? "bg-yellow-500 text-yellow-950"
+                    : "bg-yellow-900/50 hover:bg-yellow-800/70 text-yellow-400"
+                )}
+              >
+                {p}%
+              </button>
+            ))}
           </div>
         </div>
       )}
