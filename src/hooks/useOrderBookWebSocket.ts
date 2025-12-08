@@ -19,6 +19,7 @@ const connectionPool = new Map<string, {
   eventBuffer: DepthUpdate[];
   lastReinitTime: number;
   pendingRender: boolean;
+  latency: number;
 }>();
 
 interface DepthUpdate {
@@ -41,6 +42,7 @@ interface OrderBookState {
 export const useOrderBookWebSocket = (symbol: string, depthLevel: number = 15) => {
   const [orderBook, setOrderBook] = useState<OrderBook | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [latency, setLatency] = useState<number>(0);
   const mountedRef = useRef(true);
   const renderIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -58,6 +60,7 @@ export const useOrderBookWebSocket = (symbol: string, depthLevel: number = 15) =
         eventBuffer: [],
         lastReinitTime: 0,
         pendingRender: false,
+        latency: 0,
       };
       connectionPool.set(symbol, pool);
     }
@@ -88,10 +91,16 @@ export const useOrderBookWebSocket = (symbol: string, depthLevel: number = 15) =
     // Set up render interval
     renderIntervalRef.current = setInterval(() => {
       const p = connectionPool.get(symbol);
-      if (p?.pendingRender && p.state && mountedRef.current) {
-        p.pendingRender = false;
-        const rendered = stateToOrderBook(p.state, depthLevel);
-        setOrderBook(rendered);
+      if (p && mountedRef.current) {
+        if (p.pendingRender && p.state) {
+          p.pendingRender = false;
+          const rendered = stateToOrderBook(p.state, depthLevel);
+          setOrderBook(rendered);
+        }
+        // Update latency
+        if (p.latency !== latency) {
+          setLatency(p.latency);
+        }
       }
     }, RENDER_INTERVAL_MS);
     
@@ -120,7 +129,7 @@ export const useOrderBookWebSocket = (symbol: string, depthLevel: number = 15) =
     };
   }, [symbol, depthLevel]);
 
-  return { orderBook, isConnected };
+  return { orderBook, isConnected, latency };
 };
 
 // Convert internal state to OrderBook format
@@ -313,6 +322,14 @@ function connectWebSocket(
       try {
         const data = JSON.parse(event.data);
         if (data.e === 'depthUpdate') {
+          // Calculate latency from event time (E) to now
+          const eventTime = data.E; // Binance server time in ms
+          const now = Date.now();
+          const calculatedLatency = now - eventTime;
+          const p = connectionPool.get(symbol);
+          if (p) {
+            p.latency = calculatedLatency;
+          }
           handleDepthUpdate(data as DepthUpdate);
         }
       } catch (e) {

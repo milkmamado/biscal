@@ -70,7 +70,7 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
     loading: apiLoading 
   } = useBinanceApi();
   // WebSocket for real-time order book (shared connection pool)
-  const { orderBook: wsOrderBook, isConnected } = useOrderBookWebSocket(symbol, 10);
+  const { orderBook: wsOrderBook, isConnected, latency } = useOrderBookWebSocket(symbol, 10);
   
   // Get current price and change from global ticker
   const { tickers } = useTickerWebSocket();
@@ -1230,6 +1230,16 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
         <div className="flex items-center gap-1">
           <span className="font-mono text-red-400">{formatQuantity(totalBuyQty)}</span>
           <span className="text-red-400 font-medium">총매수</span>
+        </div>
+        {/* Latency indicator */}
+        <div className={cn(
+          "ml-2 px-1.5 py-0.5 rounded font-mono text-[9px]",
+          latency < 100 ? "bg-green-500/20 text-green-400" :
+          latency < 300 ? "bg-yellow-500/20 text-yellow-400" :
+          latency < 500 ? "bg-orange-500/20 text-orange-400" :
+          "bg-red-500/20 text-red-400"
+        )}>
+          {latency}ms
         </div>
       </div>
 
