@@ -28,10 +28,14 @@ interface DualChartPanelProps {
 }
 
 const INTERVALS = [
-  { label: '5초', value: 5 },
-  { label: '10초', value: 10 },
-  { label: '30초', value: 30 },
   { label: '1분', value: 60 },
+  { label: '3분', value: 180 },
+  { label: '5분', value: 300 },
+  { label: '15분', value: 900 },
+  { label: '30분', value: 1800 },
+  { label: '1H', value: 3600 },
+  { label: '4H', value: 14400 },
+  { label: '일', value: 86400 },
 ];
 
 const DualChartPanel = ({ 
@@ -45,7 +49,7 @@ const DualChartPanel = ({
   openOrders = [],
   onSelectSymbol
 }: DualChartPanelProps) => {
-  const [interval, setInterval] = useState(5);
+  const [interval, setInterval] = useState(60);
   const [balanceUSD, setBalanceUSD] = useState<number>(0);
   const [balanceLoading, setBalanceLoading] = useState(false);
   const [krwRate, setKrwRate] = useState(1380);
