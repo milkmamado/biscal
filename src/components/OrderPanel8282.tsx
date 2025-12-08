@@ -134,6 +134,9 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
   // Position state
   const [position, setPosition] = useState<Position | null>(null);
   
+  // Real unrealized PnL from Binance API (more accurate than calculated)
+  const [realUnrealizedPnL, setRealUnrealizedPnL] = useState<number>(0);
+  
   // Pending orders state (local simulation)
   const [pendingOrders, setPendingOrders] = useState<PendingOrder[]>([]);
   
@@ -225,6 +228,8 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
       const symbolPosition = positions?.find((p: any) => p.symbol === symbol);
       if (symbolPosition) {
         const positionAmt = parseFloat(symbolPosition.positionAmt);
+        const unrealizedProfit = parseFloat(symbolPosition.unRealizedProfit) || 0;
+        
         if (Math.abs(positionAmt) > 0.00001) {
           setPosition({
             type: positionAmt > 0 ? 'long' : 'short',
@@ -233,12 +238,15 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
             leverage: parseInt(symbolPosition.leverage) || 10
           });
           setLeverage(parseInt(symbolPosition.leverage) || 10);
+          setRealUnrealizedPnL(unrealizedProfit);
         } else {
           setPosition(null);
+          setRealUnrealizedPnL(0);
         }
       } else {
         // No position for this symbol
         setPosition(null);
+        setRealUnrealizedPnL(0);
       }
       
       // Fetch open orders for this symbol
@@ -303,7 +311,7 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
     };
     setInitialLeverage();
     
-    const interval = setInterval(fetchBalanceAndPosition, 10000);
+    const interval = setInterval(fetchBalanceAndPosition, 3000);
     return () => clearInterval(interval);
   }, [symbol, user]);
   
@@ -779,15 +787,19 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
   }, [orderBook]);
 
   // Calculate current PnL and percentage
-  const currentPnL = position ? calculatePnL(position, currentPrice) : 0;
+  // Use real-time calculated PnL if price is available, otherwise use API PnL
+  const calculatedPnL = position && currentPrice > 0 ? calculatePnL(position, currentPrice) : 0;
+  const currentPnL = position ? (currentPrice > 0 ? calculatedPnL : realUnrealizedPnL) : 0;
   const currentPnLPercent = position 
     ? ((currentPnL / (position.entryPrice * position.quantity)) * 100 * position.leverage)
     : 0;
 
-  // Notify parent of PnL changes
+  // Notify parent of PnL changes - use the best available PnL
+  // Prioritize real-time calculated PnL, fallback to API PnL
+  const pnlToReport = position ? (currentPrice > 0 ? calculatedPnL : realUnrealizedPnL) : 0;
   useEffect(() => {
-    onPnLChange?.(currentPnL);
-  }, [currentPnL, onPnLChange]);
+    onPnLChange?.(pnlToReport);
+  }, [pnlToReport, onPnLChange]);
 
   if (loading || !orderBook) {
     return (
