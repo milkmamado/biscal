@@ -40,6 +40,7 @@ export const useBinanceWebSocket = ({
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isCleaningUpRef = useRef(false);
   const updateIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const initDelayRef = useRef<NodeJS.Timeout | null>(null);
   
   // Pending updates (accumulate between render cycles)
   const pendingOrderBookRef = useRef<OrderBook | null>(null);
@@ -53,42 +54,66 @@ export const useBinanceWebSocket = ({
   }, [symbol, klineInterval, streams]);
 
   useEffect(() => {
+    // Cleanup function for immediate execution
+    const cleanup = () => {
+      isCleaningUpRef.current = true;
+      
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+      
+      if (initDelayRef.current) {
+        clearTimeout(initDelayRef.current);
+        initDelayRef.current = null;
+      }
+      
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
+      
+      if (updateIntervalRef.current) {
+        clearInterval(updateIntervalRef.current);
+        updateIntervalRef.current = null;
+      }
+      
+      if (wsRef.current) {
+        wsRef.current.onclose = null;
+        wsRef.current.onerror = null;
+        wsRef.current.onmessage = null;
+        wsRef.current.onopen = null;
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+    };
+    
+    // Run cleanup first for any previous connection
+    cleanup();
+    
+    // Reset cleanup flag for new connection
     isCleaningUpRef.current = false;
     
-    // Abort any previous fetch requests
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
+    // Create new abort controller
     abortControllerRef.current = new AbortController();
     const signal = abortControllerRef.current.signal;
     
-    // Reset state when connection key changes
+    // Reset all refs
     initialDataLoadedRef.current = false;
     klinesRef.current = [];
     orderBookRef.current = null;
     currentPriceRef.current = null;
     pendingOrderBookRef.current = null;
     pendingPriceRef.current = null;
+    hasPendingUpdatesRef.current = false;
     
-    // Set up periodic state updates (batched rendering)
-    const flushUpdates = () => {
-      if (isCleaningUpRef.current) return;
-      
-      if (hasPendingUpdatesRef.current) {
-        if (pendingOrderBookRef.current) {
-          setOrderBook(pendingOrderBookRef.current);
-          orderBookRef.current = pendingOrderBookRef.current;
-        }
-        if (pendingPriceRef.current !== null) {
-          setCurrentPrice(pendingPriceRef.current);
-          currentPriceRef.current = pendingPriceRef.current;
-        }
-        hasPendingUpdatesRef.current = false;
-      }
-    };
+    // Reset React state immediately for clean transition
+    setOrderBook(null);
+    setKlines([]);
+    setCurrentPrice(null);
+    setIsConnected(false);
     
-    updateIntervalRef.current = setInterval(flushUpdates, UPDATE_INTERVAL_MS);
-    
+    // Define all functions
     const fetchInitialKlines = async (): Promise<boolean> => {
       try {
         const response = await fetch(
@@ -96,9 +121,7 @@ export const useBinanceWebSocket = ({
           { signal }
         );
         
-        if (!response.ok) {
-          return false;
-        }
+        if (!response.ok) return false;
         
         const data = await response.json();
         
@@ -135,9 +158,7 @@ export const useBinanceWebSocket = ({
           { signal }
         );
         
-        if (!response.ok) {
-          return false;
-        }
+        if (!response.ok) return false;
         
         const data = await response.json();
         
@@ -177,13 +198,11 @@ export const useBinanceWebSocket = ({
       const lowerSymbol = symbol.toLowerCase();
       
       if (streams.includes('depth')) {
-        // Use 500ms depth stream for smoother updates
         streamNames.push(`${lowerSymbol}@depth@500ms`);
       }
       if (streams.includes('kline')) {
         streamNames.push(`${lowerSymbol}@kline_${klineInterval}`);
       }
-      // Use bookTicker for instant price (more efficient than aggTrade)
       streamNames.push(`${lowerSymbol}@bookTicker`);
 
       const wsUrl = `${BINANCE_WS_URL}/${streamNames.join('/')}`;
@@ -215,11 +234,10 @@ export const useBinanceWebSocket = ({
           try {
             const data = JSON.parse(event.data);
             
-            // Handle depth updates - accumulate without triggering render
+            // Handle depth updates
             if (data.e === 'depthUpdate') {
               const prev = pendingOrderBookRef.current || orderBookRef.current;
               
-              // If no initial orderbook yet, create from depth update
               if (!prev) {
                 const newBook: OrderBook = {
                   bids: data.b.map(([p, q]: [string, string]) => ({ 
@@ -293,7 +311,7 @@ export const useBinanceWebSocket = ({
               }
             }
             
-            // Handle bookTicker for price (best bid/ask - more efficient)
+            // Handle bookTicker for price
             if (data.e === 'bookTicker' || (data.b && data.a && !data.e)) {
               const bestBid = parseFloat(data.b);
               const bestAsk = parseFloat(data.a);
@@ -338,23 +356,42 @@ export const useBinanceWebSocket = ({
       }
     };
 
-    // Initialize
+    const fetchWithRetry = async (fetchFn: () => Promise<boolean>, maxRetries = 2) => {
+      for (let i = 0; i < maxRetries; i++) {
+        if (isCleaningUpRef.current || signal.aborted) return false;
+        const success = await fetchFn();
+        if (success) return true;
+        await new Promise(r => setTimeout(r, 500 * Math.pow(2, i)));
+      }
+      return false;
+    };
+
     const init = async () => {
+      if (isCleaningUpRef.current) return;
+      
+      // Set up periodic state updates (batched rendering)
+      const flushUpdates = () => {
+        if (isCleaningUpRef.current) return;
+        
+        if (hasPendingUpdatesRef.current) {
+          if (pendingOrderBookRef.current) {
+            setOrderBook(pendingOrderBookRef.current);
+            orderBookRef.current = pendingOrderBookRef.current;
+          }
+          if (pendingPriceRef.current !== null) {
+            setCurrentPrice(pendingPriceRef.current);
+            currentPriceRef.current = pendingPriceRef.current;
+          }
+          hasPendingUpdatesRef.current = false;
+        }
+      };
+      
+      updateIntervalRef.current = setInterval(flushUpdates, UPDATE_INTERVAL_MS);
+      
       // Connect WebSocket first (most important for real-time)
       connect();
       
-      // Fetch initial data (retry silently if fails)
-      const fetchWithRetry = async (fetchFn: () => Promise<boolean>, maxRetries = 3) => {
-        for (let i = 0; i < maxRetries; i++) {
-          if (isCleaningUpRef.current || signal.aborted) return false;
-          const success = await fetchFn();
-          if (success) return true;
-          // Wait before retry with exponential backoff
-          await new Promise(r => setTimeout(r, 1000 * Math.pow(2, i)));
-        }
-        return false;
-      };
-      
+      // Fetch initial data
       if (streams.includes('kline')) {
         const success = await fetchWithRetry(fetchInitialKlines);
         if (success) initialDataLoadedRef.current = true;
@@ -367,31 +404,14 @@ export const useBinanceWebSocket = ({
       }
     };
     
-    init();
+    // Small delay before starting new connection for clean handoff
+    initDelayRef.current = setTimeout(() => {
+      if (!isCleaningUpRef.current) {
+        init();
+      }
+    }, 30);
 
-    return () => {
-      isCleaningUpRef.current = true;
-      
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-      
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-        reconnectTimeoutRef.current = null;
-      }
-      
-      if (updateIntervalRef.current) {
-        clearInterval(updateIntervalRef.current);
-        updateIntervalRef.current = null;
-      }
-      
-      if (wsRef.current) {
-        wsRef.current.onclose = null;
-        wsRef.current.close();
-        wsRef.current = null;
-      }
-    };
+    return cleanup;
   }, [connectionKey, symbol, klineInterval, streams, depthLevel]);
 
   return { orderBook, klines, currentPrice, isConnected };

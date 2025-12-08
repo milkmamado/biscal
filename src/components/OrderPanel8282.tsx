@@ -83,23 +83,36 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
   const [loading, setLoading] = useState(true);
   const [clickOrderPercent, setClickOrderPercent] = useState<number>(100);
   const [autoTpSlInitialized, setAutoTpSlInitialized] = useState<boolean>(false);
+  const [isTransitioning, setIsTransitioning] = useState(false);
   
-  // Update from WebSocket data
+  // Symbol change transition - reset state cleanly
   useEffect(() => {
+    setIsTransitioning(true);
+    setOrderBook(null);
+    setLoading(true);
+    // Allow brief transition period for smooth visual handoff
+    const timer = setTimeout(() => setIsTransitioning(false), 100);
+    return () => clearTimeout(timer);
+  }, [symbol]);
+  
+  // Update from WebSocket data - only when not transitioning
+  useEffect(() => {
+    if (isTransitioning) return;
     if (wsOrderBook && wsOrderBook.bids.length > 0) {
       setOrderBook(wsOrderBook);
       setLoading(false);
     }
-  }, [wsOrderBook]);
+  }, [wsOrderBook, isTransitioning]);
   
   useEffect(() => {
+    if (isTransitioning) return;
     if (wsCurrentPrice && wsCurrentPrice > 0) {
       setCurrentPrice(prev => {
         setPrevPrice(prev);
         return wsCurrentPrice;
       });
     }
-  }, [wsCurrentPrice]);
+  }, [wsCurrentPrice, isTransitioning]);
   
   
   // Position state
