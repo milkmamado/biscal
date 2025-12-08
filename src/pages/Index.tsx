@@ -165,8 +165,6 @@ const Index = () => {
                 hasPosition={!!currentPosition}
                 entryPrice={currentPosition?.entryPrice}
                 openOrders={openOrders}
-                tpPrice={tpSlPrices.tpPrice}
-                slPrice={tpSlPrices.slPrice}
                 onSelectSymbol={setSelectedSymbol}
               />
             </div>
