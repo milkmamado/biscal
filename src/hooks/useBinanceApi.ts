@@ -83,6 +83,14 @@ export const useBinanceApi = () => {
         if (data.code === -4164) {
           throw new Error('최소 주문 금액은 $5 이상이어야 합니다');
         }
+        // -4028 = leverage not valid - pass through with code for caller to handle
+        if (data.code === -4028) {
+          throw new Error(`LEVERAGE_NOT_VALID:-4028`);
+        }
+        // -4046 = no need to change leverage (already set) - not an error
+        if (data.code === -4046) {
+          return { success: true, alreadySet: true };
+        }
         // Check if it's an IP error
         if (data.code === -2015 && data.error?.includes('request ip:')) {
           const ipMatch = data.error.match(/request ip: ([\d.]+)/);
