@@ -1,11 +1,10 @@
-import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { KlineData, OrderBook } from '@/lib/binance';
 
 const BINANCE_WS_URL = 'wss://fstream.binance.com/ws';
 
-// Throttling intervals (ms) - similar to Binance app smoothness
-const PRICE_THROTTLE_MS = 200;  // Price updates every 200ms
-const DEPTH_THROTTLE_MS = 300;  // Order book updates every 300ms
+// Update intervals (ms) - smoother like Binance app
+const UPDATE_INTERVAL_MS = 250; // Single unified update interval
 
 interface UseBinanceWebSocketOptions {
   symbol: string;
@@ -33,20 +32,19 @@ export const useBinanceWebSocket = ({
   const [isConnected, setIsConnected] = useState(false);
   
   const klinesRef = useRef<KlineData[]>([]);
+  const orderBookRef = useRef<OrderBook | null>(null);
+  const currentPriceRef = useRef<number | null>(null);
   const initialDataLoadedRef = useRef(false);
-  const instanceIdRef = useRef(`${Date.now()}-${Math.random()}`);
   const abortControllerRef = useRef<AbortController | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isCleaningUpRef = useRef(false);
+  const updateIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
-  // Throttling refs
-  const lastPriceUpdateRef = useRef<number>(0);
-  const lastDepthUpdateRef = useRef<number>(0);
+  // Pending updates (accumulate between render cycles)
+  const pendingOrderBookRef = useRef<OrderBook | null>(null);
   const pendingPriceRef = useRef<number | null>(null);
-  const pendingDepthRef = useRef<OrderBook | null>(null);
-  const priceThrottleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const depthThrottleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const hasPendingUpdatesRef = useRef(false);
   
   // Stable key for this connection
   const connectionKey = useMemo(() => {
@@ -55,7 +53,6 @@ export const useBinanceWebSocket = ({
   }, [symbol, klineInterval, streams]);
 
   useEffect(() => {
-    const instanceId = instanceIdRef.current;
     isCleaningUpRef.current = false;
     
     // Abort any previous fetch requests
@@ -68,6 +65,29 @@ export const useBinanceWebSocket = ({
     // Reset state when connection key changes
     initialDataLoadedRef.current = false;
     klinesRef.current = [];
+    orderBookRef.current = null;
+    currentPriceRef.current = null;
+    pendingOrderBookRef.current = null;
+    pendingPriceRef.current = null;
+    
+    // Set up periodic state updates (batched rendering)
+    const flushUpdates = () => {
+      if (isCleaningUpRef.current) return;
+      
+      if (hasPendingUpdatesRef.current) {
+        if (pendingOrderBookRef.current) {
+          setOrderBook(pendingOrderBookRef.current);
+          orderBookRef.current = pendingOrderBookRef.current;
+        }
+        if (pendingPriceRef.current !== null) {
+          setCurrentPrice(pendingPriceRef.current);
+          currentPriceRef.current = pendingPriceRef.current;
+        }
+        hasPendingUpdatesRef.current = false;
+      }
+    };
+    
+    updateIntervalRef.current = setInterval(flushUpdates, UPDATE_INTERVAL_MS);
     
     const fetchInitialKlines = async (): Promise<boolean> => {
       try {
@@ -77,7 +97,6 @@ export const useBinanceWebSocket = ({
         );
         
         if (!response.ok) {
-          console.error(`[WS ${symbol}] Kline fetch failed: ${response.status}`);
           return false;
         }
         
@@ -98,12 +117,13 @@ export const useBinanceWebSocket = ({
         klinesRef.current = parsed;
         setKlines(parsed);
         if (parsed.length > 0) {
-          setCurrentPrice(parsed[parsed.length - 1].close);
+          const price = parsed[parsed.length - 1].close;
+          setCurrentPrice(price);
+          currentPriceRef.current = price;
         }
         return true;
       } catch (error: any) {
         if (error.name === 'AbortError') return false;
-        console.error(`[WS ${symbol}] Failed to fetch klines:`, error);
         return false;
       }
     };
@@ -116,7 +136,6 @@ export const useBinanceWebSocket = ({
         );
         
         if (!response.ok) {
-          console.error(`[WS ${symbol}] Depth fetch failed: ${response.status}`);
           return false;
         }
         
@@ -136,10 +155,10 @@ export const useBinanceWebSocket = ({
           lastUpdateId: data.lastUpdateId,
         };
         setOrderBook(parsed);
+        orderBookRef.current = parsed;
         return true;
       } catch (error: any) {
         if (error.name === 'AbortError') return false;
-        console.error(`[WS ${symbol}] Failed to fetch orderbook:`, error);
         return false;
       }
     };
@@ -149,7 +168,7 @@ export const useBinanceWebSocket = ({
       
       // Close any existing connection
       if (wsRef.current) {
-        wsRef.current.onclose = null; // Prevent reconnect trigger
+        wsRef.current.onclose = null;
         wsRef.current.close();
         wsRef.current = null;
       }
@@ -158,13 +177,14 @@ export const useBinanceWebSocket = ({
       const lowerSymbol = symbol.toLowerCase();
       
       if (streams.includes('depth')) {
-        // Use 500ms depth updates instead of 100ms for smoother UI
+        // Use 500ms depth stream for smoother updates
         streamNames.push(`${lowerSymbol}@depth@500ms`);
       }
       if (streams.includes('kline')) {
         streamNames.push(`${lowerSymbol}@kline_${klineInterval}`);
       }
-      streamNames.push(`${lowerSymbol}@aggTrade`);
+      // Use bookTicker for instant price (more efficient than aggTrade)
+      streamNames.push(`${lowerSymbol}@bookTicker`);
 
       const wsUrl = `${BINANCE_WS_URL}/${streamNames.join('/')}`;
       
@@ -182,7 +202,6 @@ export const useBinanceWebSocket = ({
           console.log(`[WS] Connected: ${symbol}`);
           setIsConnected(true);
           
-          // Send periodic pong to keep connection alive
           pingInterval = setInterval(() => {
             if (ws.readyState === WebSocket.OPEN) {
               ws.send(JSON.stringify({ pong: Date.now() }));
@@ -195,64 +214,54 @@ export const useBinanceWebSocket = ({
           
           try {
             const data = JSON.parse(event.data);
-            const now = Date.now();
             
-            // Handle depth updates with throttling
+            // Handle depth updates - accumulate without triggering render
             if (data.e === 'depthUpdate') {
-              const updateOrderBook = (prev: OrderBook | null): OrderBook | null => {
-                if (!prev) return prev;
-                
-                const updateLevel = (levels: { price: number; quantity: number }[], updates: [string, string][]) => {
-                  const updated = [...levels];
-                  updates.forEach(([priceStr, qtyStr]) => {
-                    const price = parseFloat(priceStr);
-                    const quantity = parseFloat(qtyStr);
-                    const idx = updated.findIndex(l => l.price === price);
-                    
-                    if (quantity === 0) {
-                      if (idx >= 0) updated.splice(idx, 1);
-                    } else if (idx >= 0) {
-                      updated[idx].quantity = quantity;
-                    } else {
-                      updated.push({ price, quantity });
-                    }
-                  });
-                  return updated;
-                };
-
-                return {
-                  bids: updateLevel(prev.bids, data.b).sort((a, b) => b.price - a.price).slice(0, depthLevel),
-                  asks: updateLevel(prev.asks, data.a).sort((a, b) => a.price - b.price).slice(0, depthLevel),
+              const prev = pendingOrderBookRef.current || orderBookRef.current;
+              
+              // If no initial orderbook yet, create from depth update
+              if (!prev) {
+                const newBook: OrderBook = {
+                  bids: data.b.map(([p, q]: [string, string]) => ({ 
+                    price: parseFloat(p), 
+                    quantity: parseFloat(q) 
+                  })).filter((l: any) => l.quantity > 0).sort((a: any, b: any) => b.price - a.price).slice(0, depthLevel),
+                  asks: data.a.map(([p, q]: [string, string]) => ({ 
+                    price: parseFloat(p), 
+                    quantity: parseFloat(q) 
+                  })).filter((l: any) => l.quantity > 0).sort((a: any, b: any) => a.price - b.price).slice(0, depthLevel),
                   lastUpdateId: data.u,
                 };
+                pendingOrderBookRef.current = newBook;
+                hasPendingUpdatesRef.current = true;
+                return;
+              }
+              
+              const updateLevel = (levels: { price: number; quantity: number }[], updates: [string, string][]) => {
+                const levelMap = new Map(levels.map(l => [l.price, l.quantity]));
+                updates.forEach(([priceStr, qtyStr]) => {
+                  const price = parseFloat(priceStr);
+                  const quantity = parseFloat(qtyStr);
+                  if (quantity === 0) {
+                    levelMap.delete(price);
+                  } else {
+                    levelMap.set(price, quantity);
+                  }
+                });
+                return Array.from(levelMap.entries()).map(([price, quantity]) => ({ price, quantity }));
+              };
+
+              const newBook: OrderBook = {
+                bids: updateLevel(prev.bids, data.b).sort((a, b) => b.price - a.price).slice(0, depthLevel),
+                asks: updateLevel(prev.asks, data.a).sort((a, b) => a.price - b.price).slice(0, depthLevel),
+                lastUpdateId: data.u,
               };
               
-              // Throttle depth updates
-              const timeSinceLastDepth = now - lastDepthUpdateRef.current;
-              if (timeSinceLastDepth >= DEPTH_THROTTLE_MS) {
-                lastDepthUpdateRef.current = now;
-                setOrderBook(updateOrderBook);
-              } else {
-                // Store pending and schedule update
-                setOrderBook(prev => {
-                  pendingDepthRef.current = updateOrderBook(prev);
-                  return prev; // Don't update yet
-                });
-                
-                if (!depthThrottleTimeoutRef.current) {
-                  depthThrottleTimeoutRef.current = setTimeout(() => {
-                    if (!isCleaningUpRef.current && pendingDepthRef.current) {
-                      lastDepthUpdateRef.current = Date.now();
-                      setOrderBook(pendingDepthRef.current);
-                      pendingDepthRef.current = null;
-                    }
-                    depthThrottleTimeoutRef.current = null;
-                  }, DEPTH_THROTTLE_MS - timeSinceLastDepth);
-                }
-              }
+              pendingOrderBookRef.current = newBook;
+              hasPendingUpdatesRef.current = true;
             }
             
-            // Handle kline updates (no throttling needed - already slow)
+            // Handle kline updates
             if (data.e === 'kline') {
               if (!initialDataLoadedRef.current || klinesRef.current.length === 0) {
                 return;
@@ -282,38 +291,16 @@ export const useBinanceWebSocket = ({
                 klinesRef.current = updated;
                 setKlines(updated);
               }
-              
-              // Throttle price update from kline
-              const timeSinceLastPrice = now - lastPriceUpdateRef.current;
-              if (timeSinceLastPrice >= PRICE_THROTTLE_MS) {
-                lastPriceUpdateRef.current = now;
-                setCurrentPrice(newKline.close);
-              }
             }
             
-            // Handle aggTrade with throttling for smooth price updates
-            if (data.e === 'aggTrade') {
-              const price = parseFloat(data.p);
-              const timeSinceLastPrice = now - lastPriceUpdateRef.current;
+            // Handle bookTicker for price (best bid/ask - more efficient)
+            if (data.e === 'bookTicker' || (data.b && data.a && !data.e)) {
+              const bestBid = parseFloat(data.b);
+              const bestAsk = parseFloat(data.a);
+              const midPrice = (bestBid + bestAsk) / 2;
               
-              if (timeSinceLastPrice >= PRICE_THROTTLE_MS) {
-                lastPriceUpdateRef.current = now;
-                setCurrentPrice(price);
-              } else {
-                // Store pending price and schedule update
-                pendingPriceRef.current = price;
-                
-                if (!priceThrottleTimeoutRef.current) {
-                  priceThrottleTimeoutRef.current = setTimeout(() => {
-                    if (!isCleaningUpRef.current && pendingPriceRef.current !== null) {
-                      lastPriceUpdateRef.current = Date.now();
-                      setCurrentPrice(pendingPriceRef.current);
-                      pendingPriceRef.current = null;
-                    }
-                    priceThrottleTimeoutRef.current = null;
-                  }, PRICE_THROTTLE_MS - timeSinceLastPrice);
-                }
-              }
+              pendingPriceRef.current = midPrice;
+              hasPendingUpdatesRef.current = true;
             }
           } catch (error) {
             // Silently ignore parse errors
@@ -334,8 +321,8 @@ export const useBinanceWebSocket = ({
           console.log(`[WS] Disconnected: ${symbol} (code: ${event.code})`);
           setIsConnected(false);
           
-          // Reconnect with exponential backoff, 5-15 seconds (longer to avoid rate limit)
-          const delay = 5000 + Math.random() * 10000;
+          // Reconnect with delay
+          const delay = 3000 + Math.random() * 2000;
           reconnectTimeoutRef.current = setTimeout(() => {
             if (!isCleaningUpRef.current) {
               connect();
@@ -343,59 +330,40 @@ export const useBinanceWebSocket = ({
           }, delay);
         };
       } catch (error) {
-        console.error(`[WS ${symbol}] Failed to create WebSocket:`, error);
-        // Retry after longer delay
         reconnectTimeoutRef.current = setTimeout(() => {
           if (!isCleaningUpRef.current) {
             connect();
           }
-        }, 10000);
+        }, 5000);
       }
     };
 
-    // Initialize - fetch data and connect WebSocket separately
+    // Initialize
     const init = async () => {
-      // Start WebSocket connection immediately (don't wait for fetch)
+      // Connect WebSocket first (most important for real-time)
       connect();
       
-      // Fetch initial data in parallel
-      const fetchPromises: Promise<boolean>[] = [];
+      // Fetch initial data (retry silently if fails)
+      const fetchWithRetry = async (fetchFn: () => Promise<boolean>, maxRetries = 3) => {
+        for (let i = 0; i < maxRetries; i++) {
+          if (isCleaningUpRef.current || signal.aborted) return false;
+          const success = await fetchFn();
+          if (success) return true;
+          // Wait before retry with exponential backoff
+          await new Promise(r => setTimeout(r, 1000 * Math.pow(2, i)));
+        }
+        return false;
+      };
       
       if (streams.includes('kline')) {
-        fetchPromises.push(fetchInitialKlines());
+        const success = await fetchWithRetry(fetchInitialKlines);
+        if (success) initialDataLoadedRef.current = true;
+      } else {
+        initialDataLoadedRef.current = true;
       }
+      
       if (streams.includes('depth')) {
-        fetchPromises.push(fetchInitialOrderBook());
-      }
-      
-      const results = await Promise.all(fetchPromises);
-      
-      if (isCleaningUpRef.current || signal.aborted) return;
-      
-      // Mark initial data as loaded if kline fetch succeeded
-      if (streams.includes('kline') && results[0]) {
-        initialDataLoadedRef.current = true;
-      } else if (!streams.includes('kline')) {
-        initialDataLoadedRef.current = true;
-      }
-      
-      // If all fetches failed, retry after delay
-      if (!results.some(r => r)) {
-        reconnectTimeoutRef.current = setTimeout(() => {
-          if (!isCleaningUpRef.current) {
-            // Refetch only, WebSocket is already connected
-            const retryFetch = async () => {
-              if (streams.includes('kline')) {
-                const success = await fetchInitialKlines();
-                if (success) initialDataLoadedRef.current = true;
-              }
-              if (streams.includes('depth')) {
-                await fetchInitialOrderBook();
-              }
-            };
-            retryFetch();
-          }
-        }, 3000);
+        await fetchWithRetry(fetchInitialOrderBook);
       }
     };
     
@@ -413,18 +381,13 @@ export const useBinanceWebSocket = ({
         reconnectTimeoutRef.current = null;
       }
       
-      if (priceThrottleTimeoutRef.current) {
-        clearTimeout(priceThrottleTimeoutRef.current);
-        priceThrottleTimeoutRef.current = null;
-      }
-      
-      if (depthThrottleTimeoutRef.current) {
-        clearTimeout(depthThrottleTimeoutRef.current);
-        depthThrottleTimeoutRef.current = null;
+      if (updateIntervalRef.current) {
+        clearInterval(updateIntervalRef.current);
+        updateIntervalRef.current = null;
       }
       
       if (wsRef.current) {
-        wsRef.current.onclose = null; // Prevent reconnect on intentional close
+        wsRef.current.onclose = null;
         wsRef.current.close();
         wsRef.current = null;
       }

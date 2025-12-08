@@ -94,8 +94,10 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
   
   useEffect(() => {
     if (wsCurrentPrice && wsCurrentPrice > 0) {
-      setPrevPrice(currentPrice);
-      setCurrentPrice(wsCurrentPrice);
+      setCurrentPrice(prev => {
+        setPrevPrice(prev);
+        return wsCurrentPrice;
+      });
     }
   }, [wsCurrentPrice]);
   
