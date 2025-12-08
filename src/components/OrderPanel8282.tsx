@@ -110,16 +110,20 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
     }
   }, [wsOrderBook, isTransitioning]);
   
+  // Update price from ticker WebSocket - use direct values for faster updates
   useEffect(() => {
     if (isTransitioning) return;
-    if (wsCurrentPrice && wsCurrentPrice > 0) {
-      setCurrentPrice(prev => {
-        setPrevPrice(prev);
-        return wsCurrentPrice;
-      });
-      setPriceChangePercent(tickerPriceChangePercent);
+    if (wsCurrentPrice > 0) {
+      setPrevPrice(currentPrice);
+      setCurrentPrice(wsCurrentPrice);
     }
-  }, [wsCurrentPrice, tickerPriceChangePercent, isTransitioning]);
+  }, [wsCurrentPrice, isTransitioning]);
+  
+  // Update price change percent separately 
+  useEffect(() => {
+    if (isTransitioning) return;
+    setPriceChangePercent(tickerPriceChangePercent);
+  }, [tickerPriceChangePercent, isTransitioning]);
   
   
   // Position state
