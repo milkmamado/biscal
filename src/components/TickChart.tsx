@@ -339,8 +339,8 @@ const TickChart = ({ symbol, orderBook, isConnected, height = 400, interval = 60
         </span>
       </div>
       
-      {/* 줌 컨트롤 */}
-      <div className="absolute top-2 left-1/2 -translate-x-1/2 flex items-center gap-1">
+      {/* 줌 컨트롤 + 현재가 */}
+      <div className="absolute top-2 left-1/2 -translate-x-1/2 flex items-center gap-2">
         <button
           onClick={handleZoomIn}
           className="p-1 bg-secondary/80 hover:bg-secondary rounded text-muted-foreground hover:text-foreground transition-colors"
@@ -355,25 +355,15 @@ const TickChart = ({ symbol, orderBook, isConnected, height = 400, interval = 60
         >
           <ZoomOut className="w-3.5 h-3.5" />
         </button>
+        {currentPrice > 0 && (
+          <span className={cn(
+            "text-xs font-bold font-mono ml-1",
+            isUp ? "text-red-400" : "text-blue-400"
+          )}>
+            {formatPrice(currentPrice)} {isUp ? '▲' : '▼'}
+          </span>
+        )}
       </div>
-      
-      {/* 현재가 표시 */}
-      {currentPrice > 0 && (
-        <div className="absolute top-2 right-2 flex items-center gap-2">
-          <span className={cn(
-            "text-lg font-bold font-mono",
-            isUp ? "text-red-400" : "text-blue-400"
-          )}>
-            {formatPrice(currentPrice)}
-          </span>
-          <span className={cn(
-            "text-xs font-mono",
-            isUp ? "text-red-400" : "text-blue-400"
-          )}>
-            {isUp ? '▲' : '▼'}
-          </span>
-        </div>
-      )}
     </div>
   );
 };
