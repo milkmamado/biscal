@@ -107,10 +107,13 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
     if (wsOrderBook && wsOrderBook.bids.length > 0) {
       setOrderBook(wsOrderBook);
       setLoading(false);
-      // 차트에 orderBook 데이터 전달
-      onOrderBookChange?.(wsOrderBook, isConnected);
     }
-  }, [wsOrderBook, isTransitioning, isConnected, onOrderBookChange]);
+  }, [wsOrderBook, isTransitioning]);
+  
+  // 차트에 orderBook 데이터와 연결 상태 전달 (별도 useEffect)
+  useEffect(() => {
+    onOrderBookChange?.(orderBook, isConnected);
+  }, [orderBook, isConnected, onOrderBookChange]);
   
   // Update price from ticker WebSocket - use direct values for faster updates
   useEffect(() => {
