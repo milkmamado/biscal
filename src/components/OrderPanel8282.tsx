@@ -115,23 +115,24 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
     onOrderBookChange?.(orderBook, isConnected);
   }, [orderBook, isConnected, onOrderBookChange]);
   
-  // Update price from ticker WebSocket - use direct values for faster updates
-  // Fallback to orderBook mid-price if ticker doesn't have this symbol
+  // Update price from ticker WebSocket OR orderBook mid-price (real-time)
+  // Use orderBook mid-price as primary source since wsCurrentPrice often returns 0
   useEffect(() => {
     if (isTransitioning) return;
     
-    if (wsCurrentPrice > 0) {
-      setPrevPrice(currentPrice);
-      setCurrentPrice(wsCurrentPrice);
-    } else if (wsOrderBook && wsOrderBook.bids.length > 0 && wsOrderBook.asks.length > 0) {
-      // Use orderBook mid-price as fallback for real-time price
-      const midPrice = (wsOrderBook.bids[0].price + wsOrderBook.asks[0].price) / 2;
-      if (midPrice > 0) {
+    // First try orderBook mid-price (most reliable real-time source)
+    if (orderBook && orderBook.bids.length > 0 && orderBook.asks.length > 0) {
+      const midPrice = (orderBook.bids[0].price + orderBook.asks[0].price) / 2;
+      if (midPrice > 0 && midPrice !== currentPrice) {
         setPrevPrice(currentPrice);
         setCurrentPrice(midPrice);
       }
+    } else if (wsCurrentPrice > 0 && wsCurrentPrice !== currentPrice) {
+      // Fallback to ticker WebSocket if available
+      setPrevPrice(currentPrice);
+      setCurrentPrice(wsCurrentPrice);
     }
-  }, [wsCurrentPrice, wsOrderBook, isTransitioning]);
+  }, [wsCurrentPrice, orderBook, isTransitioning]);
   
   // Update price change percent separately 
   useEffect(() => {
