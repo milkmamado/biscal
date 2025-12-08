@@ -2,11 +2,16 @@ import { useState, useEffect, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { useBinanceApi, BinancePosition } from '@/hooks/useBinanceApi';
 import { useAuth } from '@/hooks/useAuth';
-import { useOrderBookWebSocket } from '@/hooks/useOrderBookWebSocket';
 import { RefreshCw } from 'lucide-react';
 import TickChart from './TickChart';
 import TradingRecordModal from './TradingRecordModal';
 import { supabase } from '@/integrations/supabase/client';
+
+interface OrderBook {
+  bids: { price: number; quantity: number }[];
+  asks: { price: number; quantity: number }[];
+  lastUpdateId: number;
+}
 
 interface OpenOrder {
   orderId: number;
@@ -25,6 +30,8 @@ interface DualChartPanelProps {
   entryPrice?: number;
   openOrders?: OpenOrder[];
   onSelectSymbol?: (symbol: string) => void;
+  orderBook?: OrderBook | null;
+  orderBookConnected?: boolean;
 }
 
 const INTERVALS = [
@@ -47,7 +54,9 @@ const DualChartPanel = ({
   hasPosition = false,
   entryPrice,
   openOrders = [],
-  onSelectSymbol
+  onSelectSymbol,
+  orderBook = null,
+  orderBookConnected = false,
 }: DualChartPanelProps) => {
   const [interval, setInterval] = useState(60);
   const [balanceUSD, setBalanceUSD] = useState<number>(0);
@@ -57,9 +66,6 @@ const DualChartPanel = ({
   const [previousDayBalance, setPreviousDayBalance] = useState<number | null>(null);
   const { user } = useAuth();
   const { getBalances, getPositions, getIncomeHistory } = useBinanceApi();
-
-  // 차트용 orderBook 데이터 - OrderPanel8282가 이미 같은 symbol로 연결하므로 풀링됨
-  const { orderBook, isConnected } = useOrderBookWebSocket(symbol, 5);
 
   // Fetch positions
   const fetchPositions = async () => {
@@ -379,7 +385,7 @@ const DualChartPanel = ({
         <div className="flex-1 min-h-0 relative" style={{ minHeight: '400px' }}>
           <TickChart 
             orderBook={orderBook} 
-            isConnected={isConnected} 
+            isConnected={orderBookConnected} 
             height={450} 
             interval={interval}
           />

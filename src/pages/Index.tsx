@@ -30,6 +30,12 @@ interface TpSlPrices {
   slPrice: number | null;
 }
 
+interface OrderBook {
+  bids: { price: number; quantity: number }[];
+  asks: { price: number; quantity: number }[];
+  lastUpdateId: number;
+}
+
 const Index = () => {
   const [selectedSymbol, setSelectedSymbol] = useState('BTCUSDT');
   const [currentPosition, setCurrentPosition] = useState<Position | null>(null);
@@ -38,6 +44,8 @@ const Index = () => {
   const [tpSlPrices, setTpSlPrices] = useState<TpSlPrices>({ tpPrice: null, slPrice: null });
   const [hasApiKeys, setHasApiKeys] = useState<boolean | null>(null);
   const [checkingKeys, setCheckingKeys] = useState(true);
+  const [orderBook, setOrderBook] = useState<OrderBook | null>(null);
+  const [orderBookConnected, setOrderBookConnected] = useState(false);
 
   const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
@@ -91,6 +99,11 @@ const Index = () => {
 
   const handleTpSlChange = useCallback((tpsl: TpSlPrices) => {
     setTpSlPrices(tpsl);
+  }, []);
+
+  const handleOrderBookChange = useCallback((ob: OrderBook | null, connected: boolean) => {
+    setOrderBook(ob);
+    setOrderBookConnected(connected);
   }, []);
 
   const handleTradeClose = useCallback((trade: {
@@ -166,6 +179,8 @@ const Index = () => {
                 entryPrice={currentPosition?.entryPrice}
                 openOrders={openOrders}
                 onSelectSymbol={setSelectedSymbol}
+                orderBook={orderBook}
+                orderBookConnected={orderBookConnected}
               />
             </div>
           </div>
@@ -179,6 +194,7 @@ const Index = () => {
               onOpenOrdersChange={handleOpenOrdersChange}
               onTradeClose={handleTradeClose}
               onTpSlChange={handleTpSlChange}
+              onOrderBookChange={handleOrderBookChange}
             />
             
             {/* Logout */}

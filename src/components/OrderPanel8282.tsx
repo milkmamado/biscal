@@ -53,9 +53,10 @@ interface OrderPanel8282Props {
   onOpenOrdersChange?: (orders: OpenOrderData[]) => void;
   onTradeClose?: (trade: TradeCloseData) => void;
   onTpSlChange?: (tpsl: TpSlPrices) => void;
+  onOrderBookChange?: (orderBook: OrderBook | null, isConnected: boolean) => void;
 }
 
-const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersChange, onTradeClose, onTpSlChange }: OrderPanel8282Props) => {
+const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersChange, onTradeClose, onTpSlChange, onOrderBookChange }: OrderPanel8282Props) => {
   const { toast } = useToast();
   const { user } = useAuth();
   const { 
@@ -106,8 +107,10 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
     if (wsOrderBook && wsOrderBook.bids.length > 0) {
       setOrderBook(wsOrderBook);
       setLoading(false);
+      // 차트에 orderBook 데이터 전달
+      onOrderBookChange?.(wsOrderBook, isConnected);
     }
-  }, [wsOrderBook, isTransitioning]);
+  }, [wsOrderBook, isTransitioning, isConnected, onOrderBookChange]);
   
   // Update price from ticker WebSocket - use direct values for faster updates
   useEffect(() => {
