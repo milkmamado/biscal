@@ -199,8 +199,6 @@ const LightweightChart = memo(({ symbol, interval = '1', height = 500 }: Lightwe
             strokeWidth={2}
           />
           
-          {/* Current price line */}
-          <ReferenceLine y={currentPrice} stroke="#fbbf24" strokeDasharray="3 3" />
         </ComposedChart>
       </ResponsiveContainer>
       

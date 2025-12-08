@@ -233,8 +233,6 @@ const RealtimeChart = memo(({ symbol, interval = '1', height = 500 }: RealtimeCh
             isAnimationActive={false}
           />
 
-          {/* Current price reference */}
-          <ReferenceLine y={currentPrice} stroke="#fbbf24" strokeDasharray="2 2" strokeWidth={1} />
         </ComposedChart>
       </ResponsiveContainer>
 
