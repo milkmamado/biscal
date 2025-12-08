@@ -66,20 +66,23 @@ export const useTickerWebSocket = () => {
   const connect = useCallback(() => {
     // 이미 연결이 있으면 재사용
     if (activeConnection && activeConnection.readyState === WebSocket.OPEN) {
+      console.log('[Ticker WS] Reusing existing connection');
       setIsConnected(true);
       return;
     }
     
     if (activeConnection && activeConnection.readyState === WebSocket.CONNECTING) {
+      console.log('[Ticker WS] Connection in progress...');
       return;
     }
 
     try {
+      console.log('[Ticker WS] Connecting to', WS_URL);
       const ws = new WebSocket(WS_URL);
       activeConnection = ws;
       
       ws.onopen = () => {
-        console.log('[Ticker WS] Connected');
+        console.log('[Ticker WS] Connected successfully');
         if (mountedRef.current) {
           setIsConnected(true);
         }
@@ -92,21 +95,22 @@ export const useTickerWebSocket = () => {
             processTickers(data);
           }
         } catch (e) {
-          // ignore parse errors
+          console.error('[Ticker WS] Parse error:', e);
         }
       };
       
-      ws.onerror = () => {
-        console.warn('[Ticker WS] Error');
+      ws.onerror = (e) => {
+        console.error('[Ticker WS] Error:', e);
       };
       
-      ws.onclose = () => {
-        console.log('[Ticker WS] Closed');
+      ws.onclose = (e) => {
+        console.log('[Ticker WS] Closed, code:', e.code, 'reason:', e.reason);
         activeConnection = null;
         if (mountedRef.current) {
           setIsConnected(false);
           // 재연결
           if (connectionRefCount > 0) {
+            console.log('[Ticker WS] Scheduling reconnect in 3s...');
             reconnectTimeoutRef.current = setTimeout(connect, 3000);
           }
         }
