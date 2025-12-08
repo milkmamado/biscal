@@ -389,6 +389,7 @@ const DualChartPanel = ({
             isConnected={orderBookConnected} 
             height={450} 
             interval={interval}
+            entryPrice={hasPosition ? entryPrice : undefined}
           />
         </div>
       </div>
