@@ -29,6 +29,38 @@ interface TickChartProps {
 const MAX_CANDLES = 200;
 const CANVAS_PADDING = 40;
 const VOLUME_HEIGHT_RATIO = 0.15; // 거래량 영역 비율
+const BB_PERIOD = 20; // 볼린저 밴드 기간
+const BB_STD_DEV = 2; // 표준편차 배수
+
+// 볼린저 밴드 계산
+interface BollingerBand {
+  middle: number;
+  upper: number;
+  lower: number;
+}
+
+const calculateBollingerBands = (candles: Candle[], period: number = BB_PERIOD, stdDev: number = BB_STD_DEV): (BollingerBand | null)[] => {
+  return candles.map((_, index) => {
+    if (index < period - 1) return null;
+    
+    // 최근 period개 종가
+    const closes = candles.slice(index - period + 1, index + 1).map(c => c.close);
+    
+    // SMA 계산
+    const sma = closes.reduce((sum, c) => sum + c, 0) / period;
+    
+    // 표준편차 계산
+    const squaredDiffs = closes.map(c => Math.pow(c - sma, 2));
+    const variance = squaredDiffs.reduce((sum, d) => sum + d, 0) / period;
+    const std = Math.sqrt(variance);
+    
+    return {
+      middle: sma,
+      upper: sma + stdDev * std,
+      lower: sma - stdDev * std,
+    };
+  });
+};
 
 // Binance interval string 변환
 const getIntervalString = (seconds: number): string => {
@@ -194,14 +226,24 @@ const TickChart = ({ symbol, orderBook, isConnected, height = 400, interval = 60
       return;
     }
     
-    // 가격 범위 계산
+    // 볼린저 밴드 계산
+    const bbData = calculateBollingerBands(displayCandles);
+    
+    // 가격 범위 계산 (볼린저 밴드 포함)
     let minPrice = Infinity;
     let maxPrice = -Infinity;
     let maxVolume = 0;
-    displayCandles.forEach(c => {
+    displayCandles.forEach((c, i) => {
       minPrice = Math.min(minPrice, c.low);
       maxPrice = Math.max(maxPrice, c.high);
       maxVolume = Math.max(maxVolume, c.volume);
+      
+      // 볼린저 밴드도 범위에 포함
+      const bb = bbData[i];
+      if (bb) {
+        minPrice = Math.min(minPrice, bb.lower);
+        maxPrice = Math.max(maxPrice, bb.upper);
+      }
     });
     
     const priceRange = maxPrice - minPrice || 1;
@@ -242,6 +284,61 @@ const TickChart = ({ symbol, orderBook, isConnected, height = 400, interval = 60
     const candleWidth = Math.max(2, Math.floor(chartWidth / displayCandles.length) - 2);
     const candleSpacing = chartWidth / displayCandles.length;
     
+    // === 볼린저 밴드 그리기 (봉차트 뒤에 먼저 그림) ===
+    const getY = (price: number) => CANVAS_PADDING / 2 + ((adjustedMax - price) / adjustedRange) * priceChartHeight;
+    
+    // 상단 밴드
+    ctx.strokeStyle = 'rgba(156, 163, 175, 0.6)'; // gray-400
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    let started = false;
+    bbData.forEach((bb, index) => {
+      if (!bb) return;
+      const x = CANVAS_PADDING + (index * candleSpacing) + (candleSpacing / 2);
+      if (!started) {
+        ctx.moveTo(x, getY(bb.upper));
+        started = true;
+      } else {
+        ctx.lineTo(x, getY(bb.upper));
+      }
+    });
+    ctx.stroke();
+    
+    // 중간선 (SMA)
+    ctx.strokeStyle = 'rgba(251, 191, 36, 0.7)'; // amber-400
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    started = false;
+    bbData.forEach((bb, index) => {
+      if (!bb) return;
+      const x = CANVAS_PADDING + (index * candleSpacing) + (candleSpacing / 2);
+      if (!started) {
+        ctx.moveTo(x, getY(bb.middle));
+        started = true;
+      } else {
+        ctx.lineTo(x, getY(bb.middle));
+      }
+    });
+    ctx.stroke();
+    
+    // 하단 밴드
+    ctx.strokeStyle = 'rgba(156, 163, 175, 0.6)'; // gray-400
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    started = false;
+    bbData.forEach((bb, index) => {
+      if (!bb) return;
+      const x = CANVAS_PADDING + (index * candleSpacing) + (candleSpacing / 2);
+      if (!started) {
+        ctx.moveTo(x, getY(bb.lower));
+        started = true;
+      } else {
+        ctx.lineTo(x, getY(bb.lower));
+      }
+    });
+    ctx.stroke();
+    
+    // === 봉차트 그리기 ===
     displayCandles.forEach((candle, index) => {
       const x = CANVAS_PADDING + (index * candleSpacing) + (candleSpacing / 2);
       const isUp = candle.close >= candle.open;
