@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { useBinanceApi, BinancePosition } from '@/hooks/useBinanceApi';
 import { useAuth } from '@/hooks/useAuth';
+import { useOrderBookWebSocket } from '@/hooks/useOrderBookWebSocket';
 import { RefreshCw } from 'lucide-react';
 import TickChart from './TickChart';
 import TradingRecordModal from './TradingRecordModal';
@@ -27,14 +28,10 @@ interface DualChartPanelProps {
 }
 
 const INTERVALS = [
-  { label: '1분', value: '1' },
-  { label: '3분', value: '3' },
-  { label: '5분', value: '5' },
-  { label: '15분', value: '15' },
-  { label: '30분', value: '30' },
-  { label: '1H', value: '60' },
-  { label: '4H', value: '240' },
-  { label: '일', value: 'D' },
+  { label: '5초', value: 5 },
+  { label: '10초', value: 10 },
+  { label: '30초', value: 30 },
+  { label: '1분', value: 60 },
 ];
 
 const DualChartPanel = ({ 
@@ -48,7 +45,7 @@ const DualChartPanel = ({
   openOrders = [],
   onSelectSymbol
 }: DualChartPanelProps) => {
-  const [interval, setInterval] = useState('1');
+  const [interval, setInterval] = useState(5);
   const [balanceUSD, setBalanceUSD] = useState<number>(0);
   const [balanceLoading, setBalanceLoading] = useState(false);
   const [krwRate, setKrwRate] = useState(1380);
@@ -57,6 +54,8 @@ const DualChartPanel = ({
   const { user } = useAuth();
   const { getBalances, getPositions, getIncomeHistory } = useBinanceApi();
 
+  // 차트용 orderBook 데이터 - OrderPanel8282가 이미 같은 symbol로 연결하므로 풀링됨
+  const { orderBook, isConnected } = useOrderBookWebSocket(symbol, 5);
 
   // Fetch positions
   const fetchPositions = async () => {
@@ -374,7 +373,12 @@ const DualChartPanel = ({
           ))}
         </div>
         <div className="flex-1 min-h-0 relative" style={{ minHeight: '400px' }}>
-          <TickChart symbol={symbol} height={450} />
+          <TickChart 
+            orderBook={orderBook} 
+            isConnected={isConnected} 
+            height={450} 
+            interval={interval}
+          />
         </div>
       </div>
     </div>

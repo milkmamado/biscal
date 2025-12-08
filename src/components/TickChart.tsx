@@ -1,32 +1,38 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
-import { useOrderBookWebSocket } from '@/hooks/useOrderBookWebSocket';
 import { cn } from '@/lib/utils';
 
-interface TickData {
+interface Candle {
   time: number;
-  price: number;
-  type: 'bid' | 'ask' | 'mid';
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+}
+
+interface OrderBook {
+  bids: { price: number; quantity: number }[];
+  asks: { price: number; quantity: number }[];
+  lastUpdateId: number;
 }
 
 interface TickChartProps {
-  symbol: string;
+  orderBook: OrderBook | null;
+  isConnected: boolean;
   height?: number;
+  interval?: number; // 봉 간격 (초)
 }
 
-const MAX_TICKS = 300; // 최대 틱 수
+const MAX_CANDLES = 100;
 const CANVAS_PADDING = 40;
 
-const TickChart = ({ symbol, height = 400 }: TickChartProps) => {
+const TickChart = ({ orderBook, isConnected, height = 400, interval = 5 }: TickChartProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [ticks, setTicks] = useState<TickData[]>([]);
-  const lastPriceRef = useRef<number>(0);
-  const animationFrameRef = useRef<number | null>(null);
+  const [candles, setCandles] = useState<Candle[]>([]);
+  const lastCandleTimeRef = useRef<number>(0);
+  const currentCandleRef = useRef<Candle | null>(null);
   
-  // 호가창 WebSocket에서 데이터 받기 (이미 연결된 것 재사용)
-  const { orderBook, isConnected } = useOrderBookWebSocket(symbol, 5);
-  
-  // 호가창 데이터에서 가격 추출
+  // orderBook에서 mid price 추출해서 봉차트 생성
   useEffect(() => {
     if (!orderBook || orderBook.bids.length === 0 || orderBook.asks.length === 0) return;
     
@@ -34,38 +40,51 @@ const TickChart = ({ symbol, height = 400 }: TickChartProps) => {
     const bestAsk = orderBook.asks[0].price;
     const midPrice = (bestBid + bestAsk) / 2;
     
-    // 가격 변화가 있을 때만 틱 추가
-    if (Math.abs(midPrice - lastPriceRef.current) > 0.00001) {
-      lastPriceRef.current = midPrice;
+    const now = Date.now();
+    const candleTime = Math.floor(now / (interval * 1000)) * (interval * 1000);
+    
+    if (candleTime !== lastCandleTimeRef.current) {
+      // 새 봉 시작
+      if (currentCandleRef.current) {
+        setCandles(prev => {
+          const updated = [...prev, currentCandleRef.current!];
+          if (updated.length > MAX_CANDLES) {
+            return updated.slice(-MAX_CANDLES);
+          }
+          return updated;
+        });
+      }
       
-      const newTick: TickData = {
-        time: Date.now(),
-        price: midPrice,
-        type: 'mid',
+      currentCandleRef.current = {
+        time: candleTime,
+        open: midPrice,
+        high: midPrice,
+        low: midPrice,
+        close: midPrice,
       };
-      
-      setTicks(prev => {
-        const updated = [...prev, newTick];
-        // 최대 개수 유지
-        if (updated.length > MAX_TICKS) {
-          return updated.slice(-MAX_TICKS);
-        }
-        return updated;
-      });
+      lastCandleTimeRef.current = candleTime;
+    } else if (currentCandleRef.current) {
+      // 현재 봉 업데이트
+      currentCandleRef.current.high = Math.max(currentCandleRef.current.high, midPrice);
+      currentCandleRef.current.low = Math.min(currentCandleRef.current.low, midPrice);
+      currentCandleRef.current.close = midPrice;
     }
-  }, [orderBook]);
+  }, [orderBook, interval]);
   
-  // 심볼 변경 시 초기화
+  // 심볼 변경 감지를 위해 orderBook.lastUpdateId 모니터링
   useEffect(() => {
-    setTicks([]);
-    lastPriceRef.current = 0;
-  }, [symbol]);
+    if (!orderBook) {
+      setCandles([]);
+      currentCandleRef.current = null;
+      lastCandleTimeRef.current = 0;
+    }
+  }, [orderBook?.lastUpdateId === 0]);
   
-  // 캔버스에 차트 그리기
+  // 캔버스에 봉차트 그리기
   useEffect(() => {
     const canvas = canvasRef.current;
     const container = containerRef.current;
-    if (!canvas || !container || ticks.length < 2) return;
+    if (!canvas || !container) return;
     
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
@@ -86,10 +105,28 @@ const TickChart = ({ symbol, height = 400 }: TickChartProps) => {
     ctx.fillStyle = '#0a0a0a';
     ctx.fillRect(0, 0, width, chartHeight);
     
+    // 현재 봉 포함한 전체 봉
+    const allCandles = currentCandleRef.current 
+      ? [...candles, currentCandleRef.current]
+      : candles;
+    
+    if (allCandles.length < 2) {
+      // 데이터 없음 메시지
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      ctx.font = '12px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(isConnected ? '데이터 수집 중...' : '연결 중...', width / 2, chartHeight / 2);
+      return;
+    }
+    
     // 가격 범위 계산
-    const prices = ticks.map(t => t.price);
-    const minPrice = Math.min(...prices);
-    const maxPrice = Math.max(...prices);
+    let minPrice = Infinity;
+    let maxPrice = -Infinity;
+    allCandles.forEach(c => {
+      minPrice = Math.min(minPrice, c.low);
+      maxPrice = Math.max(maxPrice, c.high);
+    });
+    
     const priceRange = maxPrice - minPrice || 1;
     const pricePadding = priceRange * 0.1;
     const adjustedMin = minPrice - pricePadding;
@@ -115,40 +152,48 @@ const TickChart = ({ symbol, height = 400 }: TickChartProps) => {
       ctx.fillText(formatPrice(price), width - 2, y + 3);
     }
     
-    // 가격 라인 그리기
+    // 봉차트 그리기
     const chartWidth = width - CANVAS_PADDING - 50;
     const chartAreaHeight = chartHeight - CANVAS_PADDING * 2;
+    const candleWidth = Math.max(2, Math.floor(chartWidth / allCandles.length) - 2);
+    const candleSpacing = chartWidth / allCandles.length;
     
-    ctx.beginPath();
-    ctx.strokeStyle = '#ef4444'; // 빨간색 (상승 기본)
-    ctx.lineWidth = 1.5;
-    
-    let prevY = 0;
-    ticks.forEach((tick, index) => {
-      const x = CANVAS_PADDING + (index / (ticks.length - 1)) * chartWidth;
-      const y = CANVAS_PADDING + ((adjustedMax - tick.price) / adjustedRange) * chartAreaHeight;
+    allCandles.forEach((candle, index) => {
+      const x = CANVAS_PADDING + (index * candleSpacing) + (candleSpacing / 2);
+      const isUp = candle.close >= candle.open;
       
-      if (index === 0) {
-        ctx.moveTo(x, y);
-      } else {
-        // 가격 방향에 따라 색상 변경
-        if (y < prevY) {
-          ctx.strokeStyle = '#ef4444'; // 상승 = 빨간색
-        } else if (y > prevY) {
-          ctx.strokeStyle = '#3b82f6'; // 하락 = 파란색
-        }
-        ctx.lineTo(x, y);
-      }
-      prevY = y;
+      // 색상
+      const bullColor = '#ef4444'; // 상승 = 빨간색
+      const bearColor = '#3b82f6'; // 하락 = 파란색
+      const color = isUp ? bullColor : bearColor;
+      
+      // Y 좌표 계산
+      const openY = CANVAS_PADDING + ((adjustedMax - candle.open) / adjustedRange) * chartAreaHeight;
+      const closeY = CANVAS_PADDING + ((adjustedMax - candle.close) / adjustedRange) * chartAreaHeight;
+      const highY = CANVAS_PADDING + ((adjustedMax - candle.high) / adjustedRange) * chartAreaHeight;
+      const lowY = CANVAS_PADDING + ((adjustedMax - candle.low) / adjustedRange) * chartAreaHeight;
+      
+      // 심지 그리기
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x, highY);
+      ctx.lineTo(x, lowY);
+      ctx.stroke();
+      
+      // 몸통 그리기
+      const bodyTop = Math.min(openY, closeY);
+      const bodyHeight = Math.max(1, Math.abs(closeY - openY));
+      
+      ctx.fillStyle = color;
+      ctx.fillRect(x - candleWidth / 2, bodyTop, candleWidth, bodyHeight);
     });
-    ctx.stroke();
     
     // 현재가 표시
-    if (ticks.length > 0) {
-      const currentTick = ticks[ticks.length - 1];
-      const currentY = CANVAS_PADDING + ((adjustedMax - currentTick.price) / adjustedRange) * chartAreaHeight;
-      const prevTick = ticks.length > 1 ? ticks[ticks.length - 2] : currentTick;
-      const isUp = currentTick.price >= prevTick.price;
+    if (allCandles.length > 0) {
+      const currentCandle = allCandles[allCandles.length - 1];
+      const currentY = CANVAS_PADDING + ((adjustedMax - currentCandle.close) / adjustedRange) * chartAreaHeight;
+      const isUp = currentCandle.close >= currentCandle.open;
       
       // 현재가 라인
       ctx.strokeStyle = isUp ? 'rgba(239, 68, 68, 0.5)' : 'rgba(59, 130, 246, 0.5)';
@@ -165,10 +210,10 @@ const TickChart = ({ symbol, height = 400 }: TickChartProps) => {
       ctx.fillStyle = '#000';
       ctx.font = 'bold 10px monospace';
       ctx.textAlign = 'right';
-      ctx.fillText(formatPrice(currentTick.price), width - 4, currentY + 3);
+      ctx.fillText(formatPrice(currentCandle.close), width - 4, currentY + 3);
     }
     
-  }, [ticks, height]);
+  }, [candles, height, isConnected]);
   
   // 가격 포맷팅
   const formatPrice = (price: number): string => {
@@ -178,10 +223,9 @@ const TickChart = ({ symbol, height = 400 }: TickChartProps) => {
   };
   
   // 현재가 정보
-  const currentPrice = ticks.length > 0 ? ticks[ticks.length - 1].price : 0;
-  const prevPrice = ticks.length > 1 ? ticks[ticks.length - 2].price : currentPrice;
-  const priceChange = currentPrice - prevPrice;
-  const isUp = priceChange >= 0;
+  const currentPrice = currentCandleRef.current?.close || (candles.length > 0 ? candles[candles.length - 1].close : 0);
+  const prevClose = candles.length > 0 ? candles[candles.length - 1].close : currentPrice;
+  const isUp = currentPrice >= prevClose;
   
   return (
     <div ref={containerRef} className="w-full h-full relative">
@@ -201,7 +245,7 @@ const TickChart = ({ symbol, height = 400 }: TickChartProps) => {
           {isConnected ? 'LIVE' : 'OFFLINE'}
         </span>
         <span className="text-[10px] text-muted-foreground">
-          틱: {ticks.length}
+          봉: {candles.length + (currentCandleRef.current ? 1 : 0)}
         </span>
       </div>
       
@@ -219,15 +263,6 @@ const TickChart = ({ symbol, height = 400 }: TickChartProps) => {
             isUp ? "text-red-400" : "text-blue-400"
           )}>
             {isUp ? '▲' : '▼'}
-          </span>
-        </div>
-      )}
-      
-      {/* 데이터 없음 */}
-      {ticks.length < 2 && (
-        <div className="absolute inset-0 flex items-center justify-center">
-          <span className="text-muted-foreground text-sm">
-            {isConnected ? '데이터 수집 중...' : '연결 중...'}
           </span>
         </div>
       )}
