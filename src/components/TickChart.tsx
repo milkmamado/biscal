@@ -178,11 +178,12 @@ const TickChart = ({ symbol, orderBook, isConnected, height = 400, interval = 60
     ctx.fillStyle = '#0a0a0a';
     ctx.fillRect(0, 0, width, chartHeight);
     
-    if (loading) {
-      ctx.fillStyle = 'rgba(255,255,255,0.5)';
-      ctx.font = '12px sans-serif';
+    // 로딩 중이거나 데이터가 없으면 로딩 표시
+    if (loading || candles.length === 0) {
+      ctx.fillStyle = 'rgba(255,255,255,0.7)';
+      ctx.font = '14px sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('로딩 중...', width / 2, chartHeight / 2);
+      ctx.fillText('차트 로딩 중...', width / 2, chartHeight / 2);
       return;
     }
     
