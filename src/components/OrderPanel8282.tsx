@@ -818,43 +818,62 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
   return (
     <div className="bg-card border border-border rounded text-[11px]">
 
-      {/* Row 1: Leverage + TP/SL + Auto Toggle */}
-      <div className="px-2 py-1.5 border-b border-border bg-secondary/30 flex items-center gap-2">
-        <select 
-          value={leverage} 
-          onChange={async (e) => {
-            const newLeverage = Number(e.target.value);
-            setLeverage(newLeverage);
-            try {
-              await apiSetLeverage(symbol, newLeverage);
-              toast({
-                title: '레버리지 변경',
-                description: `${symbol} 레버리지가 ${newLeverage}x로 설정되었습니다.`,
-              });
-            } catch (error: any) {
-              console.error('Failed to set leverage:', error);
-              if (!error.message?.includes('-4046')) {
+      {/* Row 1: Leverage + Balance */}
+      <div className="px-2 py-1 border-b border-border bg-secondary/30 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-[9px] text-muted-foreground">레버리지</span>
+          <select 
+            value={leverage} 
+            onChange={async (e) => {
+              const newLeverage = Number(e.target.value);
+              setLeverage(newLeverage);
+              try {
+                await apiSetLeverage(symbol, newLeverage);
                 toast({
-                  title: '레버리지 설정 실패',
-                  description: error.message || '레버리지 설정 중 오류가 발생했습니다.',
-                  variant: 'destructive',
+                  title: '레버리지 변경',
+                  description: `${symbol} 레버리지가 ${newLeverage}x로 설정되었습니다.`,
                 });
+              } catch (error: any) {
+                console.error('Failed to set leverage:', error);
+                if (!error.message?.includes('-4046')) {
+                  toast({
+                    title: '레버리지 설정 실패',
+                    description: error.message || '레버리지 설정 중 오류가 발생했습니다.',
+                    variant: 'destructive',
+                  });
+                }
               }
-            }
-          }}
-          className="bg-background border border-border px-1.5 py-0.5 text-[10px] rounded font-bold"
-        >
-          {[5, 10, 20].map(l => (
-            <option key={l} value={l}>{l}x</option>
-          ))}
-        </select>
+            }}
+            className="bg-background border border-border px-2 py-0.5 text-[11px] rounded font-bold"
+          >
+            {[5, 10, 20].map(l => (
+              <option key={l} value={l}>{l}x</option>
+            ))}
+          </select>
+        </div>
         
-        <div className="border-l border-border/50 h-4" />
-        
+        <div className="flex items-center gap-3">
+          <div className="text-[10px]">
+            <span className="text-muted-foreground">잔고 </span>
+            <span className="text-yellow-400 font-mono font-bold">${balanceUSD.toFixed(2)}</span>
+          </div>
+          {currentPrice > 0 && (
+            <div className="text-[10px]">
+              <span className="text-muted-foreground">필요마진 </span>
+              <span className="text-orange-400 font-mono font-bold">
+                ${((parseFloat(orderQty) || 0) * currentPrice / leverage).toFixed(2)}
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+      
+      {/* Row 2: Auto TP/SL */}
+      <div className="px-2 py-1 border-b border-border bg-secondary/30 flex items-center gap-2">
         <button
           onClick={() => setEnableTpSl(!enableTpSl)}
           className={cn(
-            "px-1.5 py-0.5 text-[9px] rounded border transition-colors whitespace-nowrap",
+            "px-2 py-0.5 text-[10px] rounded border transition-colors whitespace-nowrap font-bold",
             enableTpSl 
               ? "bg-green-600 text-white border-green-600" 
               : "bg-background border-border text-muted-foreground"
@@ -862,40 +881,28 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
         >
           자동청산
         </button>
-        <div className="flex items-center gap-0.5">
-          <span className="text-[9px] text-green-400">익절+$</span>
+        
+        <div className="flex items-center gap-1">
+          <span className="text-[10px] text-green-400">익절 +$</span>
           <input
             type="number"
             value={tpAmount}
             onChange={(e) => setTpAmount(e.target.value)}
-            className="w-12 bg-background border border-green-600/50 px-1 py-0.5 text-[9px] rounded text-center text-green-400"
+            className="w-14 bg-background border border-green-600/50 px-1.5 py-0.5 text-[10px] rounded text-center text-green-400 font-mono"
             disabled={!enableTpSl}
           />
         </div>
-        <div className="flex items-center gap-0.5">
-          <span className="text-[9px] text-red-400">손절-$</span>
+        
+        <div className="flex items-center gap-1">
+          <span className="text-[10px] text-red-400">손절 -$</span>
           <input
             type="number"
             value={slAmount}
             onChange={(e) => setSlAmount(e.target.value)}
-            className="w-12 bg-background border border-red-600/50 px-1 py-0.5 text-[9px] rounded text-center text-red-400"
+            className="w-14 bg-background border border-red-600/50 px-1.5 py-0.5 text-[10px] rounded text-center text-red-400 font-mono"
             disabled={!enableTpSl}
           />
         </div>
-        
-        <div className="flex-1" />
-        
-        {/* 디버그: 마진 정보 */}
-        <span className="text-[9px] text-muted-foreground">
-          잔고 <span className="text-yellow-400 font-mono">${balanceUSD.toFixed(2)}</span>
-          {currentPrice > 0 && (
-            <>
-              {' | '}필요마진 <span className="text-orange-400 font-mono">
-                ${((parseFloat(orderQty) || 0) * currentPrice / leverage).toFixed(2)}
-              </span>
-            </>
-          )}
-        </span>
       </div>
       
 
