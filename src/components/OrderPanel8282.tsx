@@ -898,39 +898,6 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
         </span>
       </div>
       
-      {/* Row 2: Quantity Controls */}
-      <div className="px-2 py-1.5 border-b border-border bg-secondary/30 flex items-center gap-1.5">
-        <button
-          onClick={() => adjustQty(-1)} 
-          className="w-5 h-5 bg-secondary border border-border rounded flex items-center justify-center hover:bg-secondary/80"
-        >
-          <Minus className="w-3 h-3" />
-        </button>
-        <input
-          type="text"
-          value={orderQty}
-          onChange={(e) => setOrderQty(e.target.value)}
-          className="w-16 bg-background border border-border px-1 py-0.5 text-center font-mono text-[10px] rounded"
-        />
-        <button 
-          onClick={() => adjustQty(1)} 
-          className="w-5 h-5 bg-secondary border border-border rounded flex items-center justify-center hover:bg-secondary/80"
-        >
-          <Plus className="w-3 h-3" />
-        </button>
-        
-        <div className="flex-1" />
-        
-        {[100, 50, 25, 10].map((p) => (
-          <button 
-            key={p} 
-            onClick={() => handleQtyPreset(p)} 
-            className="px-2 py-0.5 bg-secondary border border-border text-[9px] rounded hover:bg-secondary/80"
-          >
-            {p}%
-          </button>
-        ))}
-      </div>
 
       {/* Market Order Buttons */}
       <div className="grid grid-cols-4 border-b border-border">
@@ -1092,11 +1059,31 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
       ) : (
         <div className="bg-yellow-500/20 border-y-2 border-yellow-500 px-2 py-1.5">
           <div className="flex items-center justify-center gap-2">
-            <span className="text-[10px] text-muted-foreground">수량</span>
+            <button
+              onClick={() => adjustQty(-1)} 
+              className="w-5 h-5 bg-yellow-900/50 border border-yellow-600/50 rounded flex items-center justify-center hover:bg-yellow-800/70"
+            >
+              <Minus className="w-3 h-3 text-yellow-400" />
+            </button>
+            <input
+              type="text"
+              value={orderQty}
+              onChange={(e) => setOrderQty(e.target.value)}
+              className="w-16 bg-background border border-yellow-600/50 px-1 py-0.5 text-center font-mono text-[11px] rounded text-yellow-400"
+            />
+            <button 
+              onClick={() => adjustQty(1)} 
+              className="w-5 h-5 bg-yellow-900/50 border border-yellow-600/50 rounded flex items-center justify-center hover:bg-yellow-800/70"
+            >
+              <Plus className="w-3 h-3 text-yellow-400" />
+            </button>
+            
+            <div className="border-l border-yellow-600/50 h-4 mx-1" />
+            
             {[100, 50, 25, 10].map((p) => (
               <button
                 key={p}
-                onClick={() => setClickOrderPercent(p)}
+                onClick={() => handleQtyPreset(p)}
                 className={cn(
                   "px-2 py-0.5 text-[10px] font-bold rounded transition-colors",
                   clickOrderPercent === p
