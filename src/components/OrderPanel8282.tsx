@@ -73,12 +73,21 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
   
   // Get current price and change from global ticker
   const { tickers } = useTickerWebSocket();
-  const tickerData = useMemo(() => 
-    tickers.find(t => t.symbol === symbol),
-    [tickers, symbol]
-  );
+  const tickerData = useMemo(() => {
+    const found = tickers.find(t => t.symbol === symbol);
+    return found;
+  }, [tickers, symbol]);
   const wsCurrentPrice = tickerData?.price || 0;
   const tickerPriceChangePercent = tickerData?.priceChangePercent || 0;
+  
+  // Debug: log when ticker data changes
+  useEffect(() => {
+    if (tickerData) {
+      console.log(`[OrderPanel] Ticker update: ${symbol} price=${tickerData.price} change=${tickerData.priceChangePercent}%`);
+    } else {
+      console.log(`[OrderPanel] No ticker data for ${symbol}, available: ${tickers.length} symbols`);
+    }
+  }, [tickerData, symbol, tickers.length]);
   
   const [orderBook, setOrderBook] = useState<OrderBook | null>(null);
   const [currentPrice, setCurrentPrice] = useState<number>(0);
