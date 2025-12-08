@@ -384,6 +384,7 @@ const DualChartPanel = ({
         </div>
         <div className="flex-1 min-h-0 relative" style={{ minHeight: '400px' }}>
           <TickChart 
+            symbol={symbol}
             orderBook={orderBook} 
             isConnected={orderBookConnected} 
             height={450} 

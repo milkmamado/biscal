@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useMemo } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 
 interface Candle {
@@ -7,6 +7,7 @@ interface Candle {
   high: number;
   low: number;
   close: number;
+  volume: number;
 }
 
 interface OrderBook {
@@ -16,6 +17,7 @@ interface OrderBook {
 }
 
 interface TickChartProps {
+  symbol: string;
   orderBook: OrderBook | null;
   isConnected: boolean;
   height?: number;
@@ -25,60 +27,89 @@ interface TickChartProps {
 const MAX_CANDLES = 100;
 const CANVAS_PADDING = 40;
 
-const TickChart = ({ orderBook, isConnected, height = 400, interval = 5 }: TickChartProps) => {
+// Binance interval string 변환
+const getIntervalString = (seconds: number): string => {
+  if (seconds <= 60) return '1m';
+  if (seconds <= 180) return '3m';
+  if (seconds <= 300) return '5m';
+  if (seconds <= 900) return '15m';
+  if (seconds <= 1800) return '30m';
+  if (seconds <= 3600) return '1h';
+  if (seconds <= 14400) return '4h';
+  return '1d';
+};
+
+const TickChart = ({ symbol, orderBook, isConnected, height = 400, interval = 60 }: TickChartProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [candles, setCandles] = useState<Candle[]>([]);
+  const [loading, setLoading] = useState(true);
   const lastCandleTimeRef = useRef<number>(0);
   const currentCandleRef = useRef<Candle | null>(null);
   
-  // orderBook에서 mid price 추출해서 봉차트 생성
+  // Binance에서 히스토리컬 klines 가져오기
+  useEffect(() => {
+    const fetchKlines = async () => {
+      setLoading(true);
+      try {
+        const intervalStr = getIntervalString(interval);
+        const res = await fetch(
+          `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${intervalStr}&limit=${MAX_CANDLES}`
+        );
+        const data = await res.json();
+        
+        if (Array.isArray(data)) {
+          const historicalCandles: Candle[] = data.map((k: any[]) => ({
+            time: k[0],
+            open: parseFloat(k[1]),
+            high: parseFloat(k[2]),
+            low: parseFloat(k[3]),
+            close: parseFloat(k[4]),
+            volume: parseFloat(k[5]),
+          }));
+          
+          setCandles(historicalCandles);
+          
+          // 마지막 봉을 현재 봉으로 설정
+          if (historicalCandles.length > 0) {
+            const lastCandle = historicalCandles[historicalCandles.length - 1];
+            currentCandleRef.current = { ...lastCandle };
+            lastCandleTimeRef.current = lastCandle.time;
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch klines:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchKlines();
+    
+    // 봉 간격마다 데이터 갱신
+    const refreshInterval = Math.min(interval * 1000, 60000); // 최대 1분마다
+    const intervalId = setInterval(fetchKlines, refreshInterval);
+    
+    return () => clearInterval(intervalId);
+  }, [symbol, interval]);
+  
+  // orderBook에서 현재가로 현재 봉 업데이트
   useEffect(() => {
     if (!orderBook || orderBook.bids.length === 0 || orderBook.asks.length === 0) return;
+    if (!currentCandleRef.current) return;
     
     const bestBid = orderBook.bids[0].price;
     const bestAsk = orderBook.asks[0].price;
     const midPrice = (bestBid + bestAsk) / 2;
     
-    const now = Date.now();
-    const candleTime = Math.floor(now / (interval * 1000)) * (interval * 1000);
+    // 현재 봉 업데이트
+    currentCandleRef.current.high = Math.max(currentCandleRef.current.high, midPrice);
+    currentCandleRef.current.low = Math.min(currentCandleRef.current.low, midPrice);
+    currentCandleRef.current.close = midPrice;
     
-    if (candleTime !== lastCandleTimeRef.current) {
-      // 새 봉 시작
-      if (currentCandleRef.current) {
-        setCandles(prev => {
-          const updated = [...prev, currentCandleRef.current!];
-          if (updated.length > MAX_CANDLES) {
-            return updated.slice(-MAX_CANDLES);
-          }
-          return updated;
-        });
-      }
-      
-      currentCandleRef.current = {
-        time: candleTime,
-        open: midPrice,
-        high: midPrice,
-        low: midPrice,
-        close: midPrice,
-      };
-      lastCandleTimeRef.current = candleTime;
-    } else if (currentCandleRef.current) {
-      // 현재 봉 업데이트
-      currentCandleRef.current.high = Math.max(currentCandleRef.current.high, midPrice);
-      currentCandleRef.current.low = Math.min(currentCandleRef.current.low, midPrice);
-      currentCandleRef.current.close = midPrice;
-    }
-  }, [orderBook, interval]);
-  
-  // 심볼 변경 감지를 위해 orderBook.lastUpdateId 모니터링
-  useEffect(() => {
-    if (!orderBook) {
-      setCandles([]);
-      currentCandleRef.current = null;
-      lastCandleTimeRef.current = 0;
-    }
-  }, [orderBook?.lastUpdateId === 0]);
+    // 캔버스 다시 그리기 트리거
+    setCandles(prev => [...prev]);
+  }, [orderBook]);
   
   // 캔버스에 봉차트 그리기
   useEffect(() => {
@@ -105,13 +136,20 @@ const TickChart = ({ orderBook, isConnected, height = 400, interval = 5 }: TickC
     ctx.fillStyle = '#0a0a0a';
     ctx.fillRect(0, 0, width, chartHeight);
     
-    // 현재 봉 포함한 전체 봉
-    const allCandles = currentCandleRef.current 
-      ? [...candles, currentCandleRef.current]
+    if (loading) {
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      ctx.font = '12px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('로딩 중...', width / 2, chartHeight / 2);
+      return;
+    }
+    
+    // 현재 봉 포함한 전체 봉 (마지막 봉을 현재 봉으로 대체)
+    const allCandles = candles.length > 0 && currentCandleRef.current
+      ? [...candles.slice(0, -1), currentCandleRef.current]
       : candles;
     
     if (allCandles.length < 2) {
-      // 데이터 없음 메시지
       ctx.fillStyle = 'rgba(255,255,255,0.5)';
       ctx.font = '12px sans-serif';
       ctx.textAlign = 'center';
@@ -213,7 +251,7 @@ const TickChart = ({ orderBook, isConnected, height = 400, interval = 5 }: TickC
       ctx.fillText(formatPrice(currentCandle.close), width - 4, currentY + 3);
     }
     
-  }, [candles, height, isConnected]);
+  }, [candles, height, isConnected, loading]);
   
   // 가격 포맷팅
   const formatPrice = (price: number): string => {
@@ -223,8 +261,8 @@ const TickChart = ({ orderBook, isConnected, height = 400, interval = 5 }: TickC
   };
   
   // 현재가 정보
-  const currentPrice = currentCandleRef.current?.close || (candles.length > 0 ? candles[candles.length - 1].close : 0);
-  const prevClose = candles.length > 0 ? candles[candles.length - 1].close : currentPrice;
+  const currentPrice = currentCandleRef.current?.close || 0;
+  const prevClose = candles.length > 1 ? candles[candles.length - 2].close : currentPrice;
   const isUp = currentPrice >= prevClose;
   
   return (
@@ -245,7 +283,7 @@ const TickChart = ({ orderBook, isConnected, height = 400, interval = 5 }: TickC
           {isConnected ? 'LIVE' : 'OFFLINE'}
         </span>
         <span className="text-[10px] text-muted-foreground">
-          봉: {candles.length + (currentCandleRef.current ? 1 : 0)}
+          {getIntervalString(interval)} | {candles.length}봉
         </span>
       </div>
       
