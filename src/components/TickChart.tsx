@@ -79,14 +79,6 @@ const TickChart = ({ symbol, orderBook, isConnected, height = 400, interval = 60
     return () => container.removeEventListener('wheel', handleWheel);
   }, [handleWheel]);
   
-  // 심볼/인터벌 변경 시 상태 초기화
-  useEffect(() => {
-    setCandles([]);
-    setLoading(true);
-    currentCandleRef.current = null;
-    lastCandleTimeRef.current = 0;
-  }, [symbol, interval]);
-
   // Binance에서 히스토리컬 klines 가져오기
   useEffect(() => {
     const fetchKlines = async () => {
@@ -133,9 +125,7 @@ const TickChart = ({ symbol, orderBook, isConnected, height = 400, interval = 60
     return () => clearInterval(intervalId);
   }, [symbol, interval]);
   
-  // orderBook에서 현재가로 현재 봉 업데이트 (throttled)
-  const lastRenderRef = useRef<number>(0);
-  
+  // orderBook에서 현재가로 현재 봉 업데이트
   useEffect(() => {
     if (!orderBook || orderBook.bids.length === 0 || orderBook.asks.length === 0) return;
     if (!currentCandleRef.current) return;
@@ -144,17 +134,13 @@ const TickChart = ({ symbol, orderBook, isConnected, height = 400, interval = 60
     const bestAsk = orderBook.asks[0].price;
     const midPrice = (bestBid + bestAsk) / 2;
     
-    // 현재 봉 업데이트 (ref만 업데이트, 상태 변경 없음)
+    // 현재 봉 업데이트
     currentCandleRef.current.high = Math.max(currentCandleRef.current.high, midPrice);
     currentCandleRef.current.low = Math.min(currentCandleRef.current.low, midPrice);
     currentCandleRef.current.close = midPrice;
     
-    // 200ms throttle로 캔버스 다시 그리기
-    const now = Date.now();
-    if (now - lastRenderRef.current > 200) {
-      lastRenderRef.current = now;
-      setCandles(prev => [...prev]);
-    }
+    // 캔버스 다시 그리기 트리거
+    setCandles(prev => [...prev]);
   }, [orderBook]);
   
   // 캔버스에 봉차트 그리기
@@ -184,12 +170,11 @@ const TickChart = ({ symbol, orderBook, isConnected, height = 400, interval = 60
     ctx.fillStyle = '#0a0a0a';
     ctx.fillRect(0, 0, width, chartHeight);
     
-    // 로딩 중이거나 데이터가 없으면 로딩 표시
-    if (loading || candles.length === 0) {
-      ctx.fillStyle = 'rgba(255,255,255,0.7)';
-      ctx.font = '14px sans-serif';
+    if (loading) {
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      ctx.font = '12px sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('차트 로딩 중...', width / 2, chartHeight / 2);
+      ctx.fillText('로딩 중...', width / 2, chartHeight / 2);
       return;
     }
     
