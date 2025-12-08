@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
-import { fetchAll24hTickers, SymbolInfo, formatPrice, formatVolume } from '@/lib/binance';
+import { SymbolInfo, formatPrice, formatVolume } from '@/lib/binance';
+import { useTickerWebSocket } from '@/hooks/useTickerWebSocket';
 import { cn } from '@/lib/utils';
-import { Flame, RefreshCw, TrendingUp, TrendingDown, BarChart3, ArrowUpCircle, ArrowDownCircle, Search } from 'lucide-react';
+import { Flame, RefreshCw, TrendingUp, TrendingDown, BarChart3, ArrowUpCircle, ArrowDownCircle, Search, Wifi, WifiOff } from 'lucide-react';
 
 type SortMode = 'hot' | 'volume' | 'gainers' | 'losers';
 
@@ -10,54 +11,16 @@ interface HotCoinListProps {
   selectedSymbol: string;
 }
 
-// 캐시 - 컴포넌트 외부에 저장
-let cachedCoins: SymbolInfo[] = [];
-let lastFetchTime = 0;
-const CACHE_DURATION = 120000; // 120초 캐시 (429 방지)
-
 const HotCoinList = ({ onSelectSymbol, selectedSymbol }: HotCoinListProps) => {
+  const { tickers, isConnected } = useTickerWebSocket();
   const [coins, setCoins] = useState<SymbolInfo[]>([]);
-  const [allCoins, setAllCoins] = useState<SymbolInfo[]>(cachedCoins);
-  const [loading, setLoading] = useState(cachedCoins.length === 0);
-  const [refreshing, setRefreshing] = useState(false);
   const [sortMode, setSortMode] = useState<SortMode>('hot');
   const [searchQuery, setSearchQuery] = useState('');
-
-  const loadCoins = useCallback(async (force = false) => {
-    const now = Date.now();
-    
-    // 캐시가 유효하면 스킵 (강제 새로고침 제외)
-    if (!force && cachedCoins.length > 0 && now - lastFetchTime < CACHE_DURATION) {
-      setAllCoins(cachedCoins);
-      setLoading(false);
-      return;
-    }
-    
-    if (force) setRefreshing(true);
-    
-    try {
-      const tickers = await fetchAll24hTickers();
-      if (tickers && tickers.length > 0) {
-        cachedCoins = tickers;
-        lastFetchTime = now;
-        setAllCoins(tickers);
-      }
-    } catch (error) {
-      console.error('Failed to load coins:', error);
-      // 에러 시 캐시된 데이터 사용
-      if (cachedCoins.length > 0) {
-        setAllCoins(cachedCoins);
-      }
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
 
   // Sort and filter coins based on mode and search
   useEffect(() => {
     // 스캘핑 적합 코인 필터링 (해외 전문가 기준)
-    let filtered = allCoins.filter(c => 
+    let filtered = tickers.filter(c => 
       c.price >= 0.1 && c.volume >= 50_000_000
     );
     
@@ -85,13 +48,7 @@ const HotCoinList = ({ onSelectSymbol, selectedSymbol }: HotCoinListProps) => {
     }
     
     setCoins(filtered.slice(0, 15));
-  }, [allCoins, sortMode, searchQuery]);
-
-  useEffect(() => {
-    loadCoins();
-    const interval = setInterval(() => loadCoins(), 90000); // 90초마다 갱신 (30초 → 90초)
-    return () => clearInterval(interval);
-  }, [loadCoins]);
+  }, [tickers, sortMode, searchQuery]);
 
   const tabs: { mode: SortMode; label: string; icon: React.ReactNode }[] = [
     { mode: 'hot', label: '변동', icon: <Flame className="w-3 h-3" /> },
@@ -100,7 +57,7 @@ const HotCoinList = ({ onSelectSymbol, selectedSymbol }: HotCoinListProps) => {
     { mode: 'losers', label: '하락', icon: <ArrowDownCircle className="w-3 h-3" /> },
   ];
 
-  if (loading) {
+  if (tickers.length === 0) {
     return (
       <div className="bg-card rounded-lg border border-border">
         <div className="px-4 py-3 border-b border-border flex items-center gap-2">
@@ -124,13 +81,13 @@ const HotCoinList = ({ onSelectSymbol, selectedSymbol }: HotCoinListProps) => {
           <Flame className="w-4 h-4 text-orange-500" />
           <h3 className="text-sm font-semibold">선물 목록</h3>
         </div>
-        <button
-          onClick={() => loadCoins(true)}
-          disabled={refreshing}
-          className="p-1.5 hover:bg-secondary rounded-md transition-colors"
-        >
-          <RefreshCw className={cn("w-3.5 h-3.5 text-muted-foreground", refreshing && "animate-spin")} />
-        </button>
+        <div className="flex items-center gap-1">
+          {isConnected ? (
+            <Wifi className="w-3 h-3 text-green-500" />
+          ) : (
+            <WifiOff className="w-3 h-3 text-red-500" />
+          )}
+        </div>
       </div>
 
       {/* Search */}
@@ -228,7 +185,7 @@ const HotCoinList = ({ onSelectSymbol, selectedSymbol }: HotCoinListProps) => {
       {/* Note */}
       <div className="px-3 py-1.5 bg-secondary/30 border-t border-border">
         <p className="text-[10px] text-muted-foreground text-center">
-          스캘핑 적합 {allCoins.filter(c => c.price >= 0.1 && c.volume >= 50_000_000).length}개 · $0.1↑ · $50M↑
+          스캘핑 적합 {tickers.filter(c => c.price >= 0.1 && c.volume >= 50_000_000).length}개 · $0.1↑ · $50M↑
         </p>
       </div>
 
