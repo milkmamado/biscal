@@ -51,14 +51,6 @@ const TradingViewWidget = memo(({ symbol, interval = '1', height = 500 }: Tradin
       hide_volume: false,
       support_host: 'https://www.tradingview.com',
       studies: ['BB@tv-basicstudies'],
-      overrides: {
-        'mainSeriesProperties.candleStyle.upColor': '#ef4444',
-        'mainSeriesProperties.candleStyle.downColor': '#3b82f6',
-        'mainSeriesProperties.candleStyle.borderUpColor': '#ef4444',
-        'mainSeriesProperties.candleStyle.borderDownColor': '#3b82f6',
-        'mainSeriesProperties.candleStyle.wickUpColor': '#ef4444',
-        'mainSeriesProperties.candleStyle.wickDownColor': '#3b82f6',
-      },
     });
 
     containerRef.current.appendChild(script);
