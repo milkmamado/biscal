@@ -23,6 +23,7 @@ interface TickChartProps {
   isConnected: boolean;
   height?: number;
   interval?: number; // 봉 간격 (초)
+  entryPrice?: number; // 포지션 진입가
 }
 
 const MAX_CANDLES = 200;
@@ -41,7 +42,7 @@ const getIntervalString = (seconds: number): string => {
   return '1d';
 };
 
-const TickChart = ({ symbol, orderBook, isConnected, height = 400, interval = 60 }: TickChartProps) => {
+const TickChart = ({ symbol, orderBook, isConnected, height = 400, interval = 60, entryPrice }: TickChartProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [candles, setCandles] = useState<Candle[]>([]);
@@ -279,6 +280,19 @@ const TickChart = ({ symbol, orderBook, isConnected, height = 400, interval = 60
       }
     });
     
+    // 진입가 표시 (녹색 점선)
+    if (entryPrice && entryPrice >= adjustedMin && entryPrice <= adjustedMax) {
+      const entryY = CANVAS_PADDING / 2 + ((adjustedMax - entryPrice) / adjustedRange) * priceChartHeight;
+      
+      ctx.strokeStyle = 'rgba(34, 197, 94, 0.7)'; // green-500
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      ctx.moveTo(CANVAS_PADDING, entryY);
+      ctx.lineTo(width - 50, entryY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    
     // 현재가 표시
     if (displayCandles.length > 0) {
       const currentCandle = displayCandles[displayCandles.length - 1];
@@ -293,10 +307,9 @@ const TickChart = ({ symbol, orderBook, isConnected, height = 400, interval = 60
       ctx.lineTo(width - 50, currentY);
       ctx.stroke();
       ctx.setLineDash([]);
-      
     }
     
-  }, [candles, height, isConnected, loading, visibleCount]);
+  }, [candles, height, isConnected, loading, visibleCount, entryPrice]);
   
   // 가격 포맷팅
   const formatPrice = (price: number): string => {
