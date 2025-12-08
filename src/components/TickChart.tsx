@@ -133,7 +133,9 @@ const TickChart = ({ symbol, orderBook, isConnected, height = 400, interval = 60
     return () => clearInterval(intervalId);
   }, [symbol, interval]);
   
-  // orderBook에서 현재가로 현재 봉 업데이트
+  // orderBook에서 현재가로 현재 봉 업데이트 (throttled)
+  const lastRenderRef = useRef<number>(0);
+  
   useEffect(() => {
     if (!orderBook || orderBook.bids.length === 0 || orderBook.asks.length === 0) return;
     if (!currentCandleRef.current) return;
@@ -142,13 +144,17 @@ const TickChart = ({ symbol, orderBook, isConnected, height = 400, interval = 60
     const bestAsk = orderBook.asks[0].price;
     const midPrice = (bestBid + bestAsk) / 2;
     
-    // 현재 봉 업데이트
+    // 현재 봉 업데이트 (ref만 업데이트, 상태 변경 없음)
     currentCandleRef.current.high = Math.max(currentCandleRef.current.high, midPrice);
     currentCandleRef.current.low = Math.min(currentCandleRef.current.low, midPrice);
     currentCandleRef.current.close = midPrice;
     
-    // 캔버스 다시 그리기 트리거
-    setCandles(prev => [...prev]);
+    // 200ms throttle로 캔버스 다시 그리기
+    const now = Date.now();
+    if (now - lastRenderRef.current > 200) {
+      lastRenderRef.current = now;
+      setCandles(prev => [...prev]);
+    }
   }, [orderBook]);
   
   // 캔버스에 봉차트 그리기
