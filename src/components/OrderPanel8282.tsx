@@ -449,10 +449,11 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
       }
     }
     
-    // Check TP/SL auto close - use best available PnL (calculated or from API)
+    // Check TP/SL auto close - ALWAYS prioritize API's realUnrealizedPnL
     if (position && enableTpSl && !tpSlProcessing.current && !closingInProgress.current) {
       const calculatedPnl = currentPrice > 0 ? calculatePnL(position, currentPrice) : 0;
-      const pnl = currentPrice > 0 ? calculatedPnl : realUnrealizedPnL;
+      // Use API PnL if available (non-zero), otherwise use calculated
+      const pnl = realUnrealizedPnL !== 0 ? realUnrealizedPnL : calculatedPnl;
       const tp = parseFloat(tpAmount) || 0;
       const sl = parseFloat(slAmount) || 0;
       
@@ -532,7 +533,7 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
         executeSlClose();
       }
     }
-  }, [currentPrice, pendingOrders, position, enableTpSl, tpAmount, slAmount]);
+  }, [currentPrice, pendingOrders, position, enableTpSl, tpAmount, slAmount, realUnrealizedPnL]);
 
   // Reset position when symbol changes
   useEffect(() => {
@@ -788,19 +789,20 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
   }, [orderBook]);
 
   // Calculate current PnL and percentage
-  // Use real-time calculated PnL if price is available, otherwise use API PnL
+  // ALWAYS prioritize API's unRealizedProfit as it's the most accurate
+  // Only use calculated PnL for real-time display between API updates
   const calculatedPnL = position && currentPrice > 0 ? calculatePnL(position, currentPrice) : 0;
-  const currentPnL = position ? (currentPrice > 0 ? calculatedPnL : realUnrealizedPnL) : 0;
+  // Use API PnL if available (non-zero), otherwise use calculated
+  const currentPnL = position ? (realUnrealizedPnL !== 0 ? realUnrealizedPnL : calculatedPnL) : 0;
   const currentPnLPercent = position 
     ? ((currentPnL / (position.entryPrice * position.quantity)) * 100 * position.leverage)
     : 0;
 
-  // Notify parent of PnL changes - use the best available PnL
-  // Prioritize real-time calculated PnL, fallback to API PnL
-  const pnlToReport = position ? (currentPrice > 0 ? calculatedPnL : realUnrealizedPnL) : 0;
+  // Notify parent of PnL changes - always use API PnL when available
   useEffect(() => {
+    const pnlToReport = position ? (realUnrealizedPnL !== 0 ? realUnrealizedPnL : calculatedPnL) : 0;
     onPnLChange?.(pnlToReport);
-  }, [pnlToReport, onPnLChange]);
+  }, [realUnrealizedPnL, calculatedPnL, position, onPnLChange]);
 
   if (loading || !orderBook) {
     return (
