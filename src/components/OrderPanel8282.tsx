@@ -449,9 +449,10 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
       }
     }
     
-    // Check TP/SL auto close
+    // Check TP/SL auto close - use best available PnL (calculated or from API)
     if (position && enableTpSl && !tpSlProcessing.current && !closingInProgress.current) {
-      const pnl = calculatePnL(position, currentPrice);
+      const calculatedPnl = currentPrice > 0 ? calculatePnL(position, currentPrice) : 0;
+      const pnl = currentPrice > 0 ? calculatedPnl : realUnrealizedPnL;
       const tp = parseFloat(tpAmount) || 0;
       const sl = parseFloat(slAmount) || 0;
       
@@ -876,7 +877,7 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
             }}
             className="bg-background border border-border px-2 py-0.5 text-[11px] rounded font-bold"
           >
-            {[5, 10, 20].map(l => (
+            {[1, 5, 10, 20].map(l => (
               <option key={l} value={l}>{l}x</option>
             ))}
           </select>
