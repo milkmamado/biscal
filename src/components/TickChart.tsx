@@ -79,6 +79,14 @@ const TickChart = ({ symbol, orderBook, isConnected, height = 400, interval = 60
     return () => container.removeEventListener('wheel', handleWheel);
   }, [handleWheel]);
   
+  // 심볼/인터벌 변경 시 상태 초기화
+  useEffect(() => {
+    setCandles([]);
+    setLoading(true);
+    currentCandleRef.current = null;
+    lastCandleTimeRef.current = 0;
+  }, [symbol, interval]);
+
   // Binance에서 히스토리컬 klines 가져오기
   useEffect(() => {
     const fetchKlines = async () => {
