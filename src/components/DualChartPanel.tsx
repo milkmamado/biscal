@@ -1,9 +1,9 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { useBinanceApi, BinancePosition } from '@/hooks/useBinanceApi';
 import { useAuth } from '@/hooks/useAuth';
 import { RefreshCw } from 'lucide-react';
-import SimpleChart from './SimpleChart';
+import TradingViewWidget from './TradingViewWidget';
 import TradingRecordModal from './TradingRecordModal';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -23,8 +23,6 @@ interface DualChartPanelProps {
   hasPosition?: boolean;
   entryPrice?: number;
   openOrders?: OpenOrder[];
-  tpPrice?: number | null;
-  slPrice?: number | null;
   onSelectSymbol?: (symbol: string) => void;
 }
 
@@ -48,8 +46,6 @@ const DualChartPanel = ({
   hasPosition = false,
   entryPrice,
   openOrders = [],
-  tpPrice,
-  slPrice,
   onSelectSymbol
 }: DualChartPanelProps) => {
   const [interval, setInterval] = useState('1');
@@ -57,34 +53,10 @@ const DualChartPanel = ({
   const [balanceLoading, setBalanceLoading] = useState(false);
   const [krwRate, setKrwRate] = useState(1380);
   const [positions, setPositions] = useState<BinancePosition[]>([]);
-  const [priceRange, setPriceRange] = useState<{ high: number; low: number }>({ high: 0, low: 0 });
   const [previousDayBalance, setPreviousDayBalance] = useState<number | null>(null);
   const { user } = useAuth();
   const { getBalances, getPositions, getIncomeHistory } = useBinanceApi();
 
-  // Handle price range updates from SimpleChart - memoized to prevent infinite loops
-  const handlePriceRangeChange = useMemo(() => (range: { high: number; low: number }) => {
-    setPriceRange(prev => {
-      if (prev.high === range.high && prev.low === range.low) return prev;
-      return range;
-    });
-  }, []);
-
-  // Calculate Y position for a price within the price chart area
-  // SimpleChart uses: 5% header, 75% price chart, 20% volume
-  const getPriceYPosition = (price: number): string => {
-    if (priceRange.high <= priceRange.low || !price) return '45%';
-    const range = priceRange.high - priceRange.low;
-    // Calculate position within the price range (0 = top, 1 = bottom)
-    const pricePercent = (priceRange.high - price) / range;
-    // Map to the price chart area (5% to 80% of container)
-    // Header is 5%, price chart is 75% (5% to 80%)
-    const HEADER_PCT = 5;
-    const PRICE_CHART_PCT = 75;
-    const actualTop = HEADER_PCT + (pricePercent * PRICE_CHART_PCT);
-    // Clamp to stay within price chart bounds
-    return `${Math.max(HEADER_PCT + 2, Math.min(HEADER_PCT + PRICE_CHART_PCT - 2, actualTop))}%`;
-  };
 
   // Fetch positions
   const fetchPositions = async () => {
@@ -402,45 +374,7 @@ const DualChartPanel = ({
           ))}
         </div>
         <div className="flex-1 min-h-0 relative" style={{ minHeight: '400px' }}>
-          <SimpleChart symbol={symbol} interval={interval} height={500} onPriceRangeChange={handlePriceRangeChange} />
-          
-          {/* Price Labels Overlay - only show on 1m and 3m */}
-          {(interval === '1' || interval === '3') && (openOrders.length > 0 || entryPrice) && priceRange.high > priceRange.low && (
-            <>
-              {/* Entry Price Label */}
-              {entryPrice && entryPrice > 0 && (
-                <div 
-                  className="absolute right-1 z-20 pointer-events-none flex items-center gap-1"
-                  style={{ top: getPriceYPosition(entryPrice) }}
-                >
-                  <div className="w-6 h-px border-t-2 border-dashed border-yellow-500" />
-                  <div className="bg-yellow-600 text-white text-[9px] px-1.5 py-0.5 rounded font-bold shadow-lg -translate-y-px">
-                    진입
-                  </div>
-                </div>
-              )}
-              
-              {/* Pending Order Labels */}
-              {openOrders.map((order) => (
-                <div 
-                  key={order.orderId}
-                  className="absolute right-1 z-20 pointer-events-none flex items-center gap-1"
-                  style={{ top: getPriceYPosition(order.price) }}
-                >
-                  <div className={cn(
-                    "w-6 h-px border-t-2 border-dashed",
-                    order.side === 'BUY' ? "border-red-500" : "border-blue-500"
-                  )} />
-                  <div className={cn(
-                    "text-white text-[9px] px-1.5 py-0.5 rounded font-bold shadow-lg -translate-y-px",
-                    order.side === 'BUY' ? "bg-red-600" : "bg-blue-600"
-                  )}>
-                    {order.side === 'BUY' ? '롱' : '숏'}
-                  </div>
-                </div>
-              ))}
-            </>
-          )}
+          <TradingViewWidget symbol={symbol} interval={interval} height={500} />
         </div>
       </div>
     </div>

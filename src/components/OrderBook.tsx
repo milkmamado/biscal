@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
-import { OrderBook as OrderBookType, formatPrice, formatQuantity } from '@/lib/binance';
-import { useBinanceWebSocket } from '@/hooks/useBinanceWebSocket';
+import { formatPrice, formatQuantity } from '@/lib/binance';
+import { useOrderBookWebSocket } from '@/hooks/useOrderBookWebSocket';
+import { useTickerWebSocket } from '@/hooks/useTickerWebSocket';
 import { cn } from '@/lib/utils';
 import { Wifi, WifiOff } from 'lucide-react';
 
@@ -10,12 +11,18 @@ interface OrderBookProps {
 }
 
 const OrderBook = ({ symbol, currentPrice }: OrderBookProps) => {
-  // Use WebSocket for real-time orderbook data
-  const { orderBook, currentPrice: wsPrice, isConnected } = useBinanceWebSocket({
-    symbol,
-    streams: ['depth'],
-    depthLevel: 15,
-  });
+  // Separate WebSocket for order book only (no chart interference)
+  const { orderBook, isConnected } = useOrderBookWebSocket(symbol, 15);
+  
+  // Get current price and change from global ticker
+  const { tickers } = useTickerWebSocket();
+  const tickerData = useMemo(() => 
+    tickers.find(t => t.symbol === symbol),
+    [tickers, symbol]
+  );
+  
+  const displayPrice = currentPrice || tickerData?.price || orderBook?.asks[0]?.price || 0;
+  const priceChangePercent = tickerData?.priceChangePercent || 0;
   
   const [loading, setLoading] = useState(true);
   
@@ -93,12 +100,20 @@ const OrderBook = ({ symbol, currentPrice }: OrderBookProps) => {
         })}
       </div>
 
-      {/* Current Price */}
+      {/* Current Price with Change Percent */}
       <div className="px-4 py-3 bg-secondary/50 border-y border-border">
         <div className="flex items-center justify-between">
-          <span className="text-lg font-bold font-mono text-foreground">
-            {currentPrice ? formatPrice(currentPrice) : wsPrice ? formatPrice(wsPrice) : formatPrice(orderBook.asks[0]?.price || 0)}
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-lg font-bold font-mono text-foreground">
+              {formatPrice(displayPrice)}
+            </span>
+            <span className={cn(
+              "text-sm font-bold font-mono",
+              priceChangePercent >= 0 ? "text-red-400" : "text-blue-400"
+            )}>
+              {priceChangePercent >= 0 ? '+' : ''}{priceChangePercent.toFixed(2)}%
+            </span>
+          </div>
           <span className="text-xs text-muted-foreground">현재가</span>
         </div>
       </div>
