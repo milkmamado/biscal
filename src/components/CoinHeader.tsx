@@ -12,9 +12,12 @@ const CoinHeader = ({ symbol }: CoinHeaderProps) => {
   const [priceDirection, setPriceDirection] = useState<'up' | 'down' | null>(null);
 
   useEffect(() => {
+    let mounted = true;
+    
     const loadTicker = async () => {
       try {
         const data = await fetch24hTicker(symbol);
+        if (!mounted) return;
         
         if (ticker && data.price !== ticker.price) {
           setPriceDirection(data.price > ticker.price ? 'up' : 'down');
@@ -24,13 +27,17 @@ const CoinHeader = ({ symbol }: CoinHeaderProps) => {
         
         setTicker(data);
       } catch (error) {
-        console.error('Failed to fetch ticker:', error);
+        // Silently fail - will use cached data
       }
     };
 
     loadTicker();
-    const interval = setInterval(loadTicker, 1000);
-    return () => clearInterval(interval);
+    // 60초마다만 갱신 (429 에러 방지)
+    const interval = setInterval(loadTicker, 60000);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
   }, [symbol]);
 
   if (!ticker) {

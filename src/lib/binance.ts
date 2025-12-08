@@ -226,53 +226,74 @@ export async function fetch24hTicker(symbol: string): Promise<SymbolInfo> {
   }
 }
 
-// Fetch all 24h tickers (only actively trading symbols)
+// All tickers cache
+let allTickersCache: { data: SymbolInfo[]; time: number } | null = null;
+const ALL_TICKERS_CACHE_DURATION = 60000; // 60초 캐시
+
+// Fetch all 24h tickers with caching
 export async function fetchAll24hTickers(): Promise<SymbolInfo[]> {
-  // First fetch active symbols from exchange info
-  const activeSymbols = await fetchFuturesSymbols();
-  
-  const response = await fetch(`${BASE_URL}/fapi/v1/ticker/24hr`);
-  const data = await response.json();
-  
-  const tickers = data
-    .filter((t: any) => t.symbol.endsWith('USDT') && activeSymbols.has(t.symbol))
-    .map((t: any) => {
-      const highPrice = parseFloat(t.highPrice);
-      const lowPrice = parseFloat(t.lowPrice);
-      const volume = parseFloat(t.quoteVolume);
-      const priceChangePercent = parseFloat(t.priceChangePercent);
-      
-      // Calculate volatility range: (high - low) / low * 100
-      const volatilityRange = lowPrice > 0 ? ((highPrice - lowPrice) / lowPrice) * 100 : 0;
-      
-      return {
-        symbol: t.symbol,
-        price: parseFloat(t.lastPrice),
-        priceChange: parseFloat(t.priceChange),
-        priceChangePercent,
-        volume,
-        highPrice,
-        lowPrice,
-        volatilityRange,
-        hotScore: 0, // Will be calculated after normalization
-      };
-    });
-  
-  // Calculate hot score using normalized values
-  if (tickers.length > 0) {
-    const maxVolume = Math.max(...tickers.map((t: SymbolInfo) => t.volume));
-    const maxVolatility = Math.max(...tickers.map((t: SymbolInfo) => t.volatilityRange));
-    
-    tickers.forEach((t: SymbolInfo) => {
-      const normalizedVolume = maxVolume > 0 ? t.volume / maxVolume : 0;
-      const normalizedVolatility = maxVolatility > 0 ? t.volatilityRange / maxVolatility : 0;
-      
-      // Composite score: 50% volume + 50% volatility
-      t.hotScore = (normalizedVolume * 50) + (normalizedVolatility * 50);
-    });
+  // Return cached data if valid
+  if (allTickersCache && Date.now() - allTickersCache.time < ALL_TICKERS_CACHE_DURATION) {
+    return allTickersCache.data;
   }
   
-  return tickers;
+  try {
+    const response = await fetch(`${BASE_URL}/fapi/v1/ticker/24hr`);
+    if (!response.ok) {
+      console.warn('All tickers fetch failed:', response.status);
+      if (allTickersCache) return allTickersCache.data;
+      return [];
+    }
+    
+    const data = await response.json();
+    
+    const tickers = data
+      .filter((t: any) => t.symbol.endsWith('USDT'))
+      .map((t: any) => {
+        const highPrice = parseFloat(t.highPrice);
+        const lowPrice = parseFloat(t.lowPrice);
+        const volume = parseFloat(t.quoteVolume);
+        const priceChangePercent = parseFloat(t.priceChangePercent);
+        
+        // Calculate volatility range: (high - low) / low * 100
+        const volatilityRange = lowPrice > 0 ? ((highPrice - lowPrice) / lowPrice) * 100 : 0;
+        
+        return {
+          symbol: t.symbol,
+          price: parseFloat(t.lastPrice),
+          priceChange: parseFloat(t.priceChange),
+          priceChangePercent,
+          volume,
+          highPrice,
+          lowPrice,
+          volatilityRange,
+          hotScore: 0, // Will be calculated after normalization
+        };
+      });
+    
+    // Calculate hot score using normalized values
+    if (tickers.length > 0) {
+      const maxVolume = Math.max(...tickers.map((t: SymbolInfo) => t.volume));
+      const maxVolatility = Math.max(...tickers.map((t: SymbolInfo) => t.volatilityRange));
+      
+      tickers.forEach((t: SymbolInfo) => {
+        const normalizedVolume = maxVolume > 0 ? t.volume / maxVolume : 0;
+        const normalizedVolatility = maxVolatility > 0 ? t.volatilityRange / maxVolatility : 0;
+        
+        // Composite score: 50% volume + 50% volatility
+        t.hotScore = (normalizedVolume * 50) + (normalizedVolatility * 50);
+      });
+    }
+    
+    // Cache the result
+    allTickersCache = { data: tickers, time: Date.now() };
+    
+    return tickers;
+  } catch (error) {
+    console.warn('All tickers fetch error:', error);
+    if (allTickersCache) return allTickersCache.data;
+    return [];
+  }
 }
 
 // Fetch Open Interest for all symbols
