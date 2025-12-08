@@ -254,13 +254,31 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
     fetchBalanceAndPosition();
     // 심볼 변경 시 레버리지 강제 설정
     const setInitialLeverage = async () => {
-      try {
-        await apiSetLeverage(symbol, leverage);
-        console.log(`Leverage set to ${leverage}x for ${symbol}`);
-      } catch (error: any) {
-        // -4046 = no need to change leverage (already set)
-        if (!error.message?.includes('-4046')) {
-          console.error('Failed to set initial leverage:', error);
+      let targetLeverage = leverage;
+      const tryLeverage = async (lev: number): Promise<boolean> => {
+        try {
+          await apiSetLeverage(symbol, lev);
+          console.log(`Leverage set to ${lev}x for ${symbol}`);
+          return true;
+        } catch (error: any) {
+          // -4046 = no need to change leverage (already set)
+          if (error.message?.includes('-4046')) {
+            return true;
+          }
+          // -4028 = leverage not valid for this symbol
+          if (error.message?.includes('-4028')) {
+            return false;
+          }
+          console.error('Failed to set leverage:', error);
+          return false;
+        }
+      };
+      
+      // Try current leverage first, then fallback to 5x
+      if (!(await tryLeverage(targetLeverage))) {
+        if (targetLeverage !== 5) {
+          setLeverage(5);
+          await tryLeverage(5);
         }
       }
     };
