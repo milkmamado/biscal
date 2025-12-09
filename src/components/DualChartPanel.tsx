@@ -60,10 +60,12 @@ const DualChartPanel = ({
 }: DualChartPanelProps) => {
   const [interval, setInterval] = useState(60);
   const [balanceUSD, setBalanceUSD] = useState<number>(0);
+  const [totalBalanceUSD, setTotalBalanceUSD] = useState<number>(0);
   const [balanceLoading, setBalanceLoading] = useState(false);
   const [krwRate, setKrwRate] = useState(1380);
   const [positions, setPositions] = useState<BinancePosition[]>([]);
   const [previousDayBalance, setPreviousDayBalance] = useState<number | null>(null);
+  const [todayRealizedPnL, setTodayRealizedPnL] = useState<number>(0);
   const { user } = useAuth();
   const { getBalances, getPositions, getIncomeHistory } = useBinanceApi();
 
@@ -140,7 +142,7 @@ const DualChartPanel = ({
     return koreaTime.toISOString().split('T')[0];
   };
 
-  // Calculate previous day's closing balance using income history
+  // Calculate previous day's closing balance and today's realized PnL using income history
   const calculatePreviousDayBalance = async (currentBalance: number) => {
     try {
       const todayMidnight = getTodayMidnightKST();
@@ -161,7 +163,16 @@ const DualChartPanel = ({
         return sum + parseFloat(item.income || 0);
       }, 0);
       
+      // Calculate realized PnL only (excluding funding fees and commissions for display)
+      const realizedPnLOnly = incomeHistory
+        .filter((item: any) => item.incomeType === 'REALIZED_PNL')
+        .reduce((sum: number, item: any) => sum + parseFloat(item.income || 0), 0);
+      
       console.log(`Income since midnight: $${totalIncomeSinceMidnight.toFixed(4)} (${incomeHistory.length} transactions)`);
+      console.log(`Realized PnL only: $${realizedPnLOnly.toFixed(4)}`);
+      
+      // Set today's realized PnL from Binance
+      setTodayRealizedPnL(realizedPnLOnly);
       
       // Previous day balance = current balance - all income since midnight
       const calculatedPrevBalance = currentBalance - totalIncomeSinceMidnight;
@@ -263,9 +274,9 @@ const DualChartPanel = ({
             <span className="text-[10px] text-muted-foreground">실현손익</span>
             <span className={cn(
               "text-sm font-bold font-mono",
-              realizedPnL >= 0 ? "text-red-400" : "text-blue-400"
+              todayRealizedPnL >= 0 ? "text-red-400" : "text-blue-400"
             )}>
-              {realizedPnL >= 0 ? '+' : ''}₩{formatKRW(realizedPnL)}
+              {todayRealizedPnL >= 0 ? '+' : ''}₩{formatKRW(todayRealizedPnL)}
             </span>
           </div>
           
