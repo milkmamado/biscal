@@ -180,7 +180,7 @@ const DualChartPanel = ({
       
       setPreviousDayBalance(calculatedPrevBalance);
       
-      // Save today's current balance and daily income for future reference
+      // Save today's current balance and realized PnL for future reference
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         const today = getTodayDate();
@@ -190,7 +190,7 @@ const DualChartPanel = ({
             user_id: user.id,
             snapshot_date: today,
             closing_balance_usd: currentBalance,
-            daily_income_usd: totalIncomeSinceMidnight, // Actual trading income (excludes deposits)
+            daily_income_usd: realizedPnLOnly, // REALIZED_PNL only (순수 거래 손익)
           }, {
             onConflict: 'user_id,snapshot_date'
           });
@@ -220,10 +220,8 @@ const DualChartPanel = ({
 
   const winRate = tradeCount > 0 ? ((winCount / tradeCount) * 100).toFixed(1) : '0.0';
   
-  // Calculate daily P&L based on previous day's balance (real P&L)
-  const dailyPnL = previousDayBalance !== null 
-    ? balanceUSD - previousDayBalance + unrealizedPnL
-    : realizedPnL + unrealizedPnL; // Fallback to old method if no previous balance
+  // Calculate daily P&L based on realized PnL from Binance (순수 거래 손익 + 미실현손익)
+  const dailyPnL = todayRealizedPnL + unrealizedPnL;
   const baseBalance = previousDayBalance !== null ? previousDayBalance : balanceUSD;
   const dailyPnLPercent = baseBalance > 0 ? (dailyPnL / baseBalance) * 100 : 0;
   const dailyPnLPercentStr = dailyPnLPercent.toFixed(2);
