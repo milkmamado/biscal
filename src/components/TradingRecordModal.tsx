@@ -7,15 +7,14 @@ import { cn } from '@/lib/utils';
 
 interface DailyRecord {
   date: string;
-  totalPnL: number;
-  tradeCount: number;
-  winCount: number;
+  closingBalance: number;
+  dailyPnL: number;
 }
 
 interface MonthlyStats {
   totalPnL: number;
-  totalTrades: number;
-  totalWins: number;
+  startBalance: number;
+  endBalance: number;
   dailyRecords: DailyRecord[];
 }
 
@@ -28,7 +27,7 @@ const TradingRecordModal = ({ krwRate }: TradingRecordModalProps) => {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [monthlyStats, setMonthlyStats] = useState<MonthlyStats | null>(null);
-  const [cumulativeStats, setCumulativeStats] = useState({ totalPnL: 0, totalTrades: 0, totalWins: 0 });
+  const [cumulativeStats, setCumulativeStats] = useState({ totalPnL: 0, firstBalance: 0, latestBalance: 0 });
   const [loading, setLoading] = useState(false);
 
   const fetchMonthlyRecords = async () => {
@@ -43,52 +42,61 @@ const TradingRecordModal = ({ krwRate }: TradingRecordModalProps) => {
         ? `${selectedYear + 1}-01-01`
         : `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-01`;
 
+      // Fetch balance snapshots for the month
       const { data, error } = await supabase
-        .from('daily_trading_logs')
+        .from('daily_balance_snapshots')
         .select('*')
         .eq('user_id', user.id)
-        .gte('trade_date', startDate)
-        .lt('trade_date', endDate)
-        .order('trade_date', { ascending: false });
+        .gte('snapshot_date', startDate)
+        .lt('snapshot_date', endDate)
+        .order('snapshot_date', { ascending: true });
 
       if (error) {
         console.error('Failed to fetch records:', error);
         return;
       }
 
-      if (data) {
-        // Group by date
-        const grouped: Record<string, { pnl: number; count: number; wins: number }> = {};
-        
-        data.forEach(log => {
-          const date = log.trade_date;
-          if (!grouped[date]) {
-            grouped[date] = { pnl: 0, count: 0, wins: 0 };
-          }
-          grouped[date].pnl += Number(log.pnl_usd);
-          grouped[date].count += 1;
-          if (Number(log.pnl_usd) > 0) {
-            grouped[date].wins += 1;
-          }
+      // Also get the last day of previous month to calculate first day's PnL
+      const prevMonthEnd = new Date(selectedYear, selectedMonth - 1, 0);
+      const prevMonthEndDate = prevMonthEnd.toISOString().split('T')[0];
+      
+      const { data: prevData } = await supabase
+        .from('daily_balance_snapshots')
+        .select('closing_balance_usd')
+        .eq('user_id', user.id)
+        .eq('snapshot_date', prevMonthEndDate)
+        .maybeSingle();
+
+      if (data && data.length > 0) {
+        const dailyRecords: DailyRecord[] = [];
+        let previousBalance = prevData?.closing_balance_usd || data[0].closing_balance_usd;
+
+        data.forEach((snapshot, index) => {
+          const dailyPnL = index === 0 && prevData 
+            ? snapshot.closing_balance_usd - prevData.closing_balance_usd
+            : index === 0 
+              ? 0 
+              : snapshot.closing_balance_usd - data[index - 1].closing_balance_usd;
+
+          dailyRecords.push({
+            date: snapshot.snapshot_date,
+            closingBalance: snapshot.closing_balance_usd,
+            dailyPnL,
+          });
         });
 
-        const dailyRecords: DailyRecord[] = Object.entries(grouped).map(([date, stats]) => ({
-          date,
-          totalPnL: stats.pnl,
-          tradeCount: stats.count,
-          winCount: stats.wins,
-        }));
-
-        const totalPnL = dailyRecords.reduce((sum, r) => sum + r.totalPnL, 0);
-        const totalTrades = dailyRecords.reduce((sum, r) => sum + r.tradeCount, 0);
-        const totalWins = dailyRecords.reduce((sum, r) => sum + r.winCount, 0);
+        const startBalance = prevData?.closing_balance_usd || data[0].closing_balance_usd;
+        const endBalance = data[data.length - 1].closing_balance_usd;
+        const totalPnL = endBalance - startBalance;
 
         setMonthlyStats({
           totalPnL,
-          totalTrades,
-          totalWins,
-          dailyRecords,
+          startBalance,
+          endBalance,
+          dailyRecords: dailyRecords.reverse(), // Show newest first
         });
+      } else {
+        setMonthlyStats(null);
       }
     } catch (error) {
       console.error('Error fetching monthly records:', error);
@@ -102,22 +110,24 @@ const TradingRecordModal = ({ krwRate }: TradingRecordModalProps) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      // Get all balance snapshots ordered by date
       const { data, error } = await supabase
-        .from('daily_trading_logs')
-        .select('pnl_usd')
-        .eq('user_id', user.id);
+        .from('daily_balance_snapshots')
+        .select('snapshot_date, closing_balance_usd')
+        .eq('user_id', user.id)
+        .order('snapshot_date', { ascending: true });
 
       if (error) {
         console.error('Failed to fetch cumulative stats:', error);
         return;
       }
 
-      if (data) {
-        const totalPnL = data.reduce((sum, log) => sum + Number(log.pnl_usd), 0);
-        const totalTrades = data.length;
-        const totalWins = data.filter(log => Number(log.pnl_usd) > 0).length;
+      if (data && data.length > 0) {
+        const firstBalance = data[0].closing_balance_usd;
+        const latestBalance = data[data.length - 1].closing_balance_usd;
+        const totalPnL = latestBalance - firstBalance;
 
-        setCumulativeStats({ totalPnL, totalTrades, totalWins });
+        setCumulativeStats({ totalPnL, firstBalance, latestBalance });
       }
     } catch (error) {
       console.error('Error fetching cumulative stats:', error);
@@ -167,13 +177,13 @@ const TradingRecordModal = ({ krwRate }: TradingRecordModalProps) => {
     return `${date.getMonth() + 1}/${date.getDate()}`;
   };
 
-  const winRate = monthlyStats && monthlyStats.totalTrades > 0 
-    ? ((monthlyStats.totalWins / monthlyStats.totalTrades) * 100).toFixed(1) 
-    : '0.0';
+  const profitPercent = monthlyStats && monthlyStats.startBalance > 0
+    ? ((monthlyStats.totalPnL / monthlyStats.startBalance) * 100).toFixed(2)
+    : '0.00';
 
-  const cumulativeWinRate = cumulativeStats.totalTrades > 0 
-    ? ((cumulativeStats.totalWins / cumulativeStats.totalTrades) * 100).toFixed(1) 
-    : '0.0';
+  const cumulativeProfitPercent = cumulativeStats.firstBalance > 0
+    ? ((cumulativeStats.totalPnL / cumulativeStats.firstBalance) * 100).toFixed(2)
+    : '0.00';
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -222,7 +232,7 @@ const TradingRecordModal = ({ krwRate }: TradingRecordModalProps) => {
               <div className="text-[10px] text-muted-foreground mb-1">월간 요약</div>
               <div className="grid grid-cols-3 gap-2 text-center">
                 <div>
-                  <div className="text-[10px] text-muted-foreground">손익</div>
+                  <div className="text-[10px] text-muted-foreground">월 손익</div>
                   <div className={cn(
                     "text-sm font-bold font-mono",
                     monthlyStats.totalPnL >= 0 ? "text-red-400" : "text-blue-400"
@@ -233,25 +243,19 @@ const TradingRecordModal = ({ krwRate }: TradingRecordModalProps) => {
                     "text-[10px] font-mono",
                     monthlyStats.totalPnL >= 0 ? "text-red-400" : "text-blue-400"
                   )}>
-                    (${monthlyStats.totalPnL.toFixed(2)})
+                    ({monthlyStats.totalPnL >= 0 ? '+' : ''}{profitPercent}%)
                   </div>
                 </div>
                 <div>
-                  <div className="text-[10px] text-muted-foreground">거래</div>
+                  <div className="text-[10px] text-muted-foreground">시작 잔고</div>
                   <div className="text-sm font-bold font-mono text-foreground">
-                    {monthlyStats.totalTrades}회
-                  </div>
-                  <div className="text-[10px] text-muted-foreground">
-                    승{monthlyStats.totalWins}/패{monthlyStats.totalTrades - monthlyStats.totalWins}
+                    ${monthlyStats.startBalance.toFixed(0)}
                   </div>
                 </div>
                 <div>
-                  <div className="text-[10px] text-muted-foreground">승률</div>
-                  <div className={cn(
-                    "text-sm font-bold font-mono",
-                    parseFloat(winRate) >= 50 ? "text-red-400" : "text-blue-400"
-                  )}>
-                    {winRate}%
+                  <div className="text-[10px] text-muted-foreground">현재 잔고</div>
+                  <div className="text-sm font-bold font-mono text-foreground">
+                    ${monthlyStats.endBalance.toFixed(0)}
                   </div>
                 </div>
               </div>
@@ -261,7 +265,7 @@ const TradingRecordModal = ({ krwRate }: TradingRecordModalProps) => {
           {/* Daily Records */}
           <div className="bg-card border border-border rounded-lg overflow-hidden">
             <div className="px-3 py-2 bg-secondary/50 border-b border-border">
-              <span className="text-[10px] text-muted-foreground">일별 기록</span>
+              <span className="text-[10px] text-muted-foreground">일별 기록 (잔고 기준)</span>
             </div>
             <div className="max-h-48 overflow-y-auto">
               {loading ? (
@@ -272,34 +276,24 @@ const TradingRecordModal = ({ krwRate }: TradingRecordModalProps) => {
                     <tr>
                       <th className="text-left px-3 py-1.5 text-muted-foreground font-normal">날짜</th>
                       <th className="text-right px-3 py-1.5 text-muted-foreground font-normal">손익</th>
-                      <th className="text-right px-3 py-1.5 text-muted-foreground font-normal">거래</th>
-                      <th className="text-right px-3 py-1.5 text-muted-foreground font-normal">승률</th>
+                      <th className="text-right px-3 py-1.5 text-muted-foreground font-normal">잔고</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {monthlyStats.dailyRecords.map((record) => {
-                      const dayWinRate = record.tradeCount > 0 
-                        ? ((record.winCount / record.tradeCount) * 100).toFixed(0) 
-                        : '0';
-                      return (
-                        <tr key={record.date} className="border-t border-border/50 hover:bg-secondary/20">
-                          <td className="px-3 py-1.5 font-mono">{formatDate(record.date)}</td>
-                          <td className={cn(
-                            "px-3 py-1.5 text-right font-mono font-bold",
-                            record.totalPnL >= 0 ? "text-red-400" : "text-blue-400"
-                          )}>
-                            {record.totalPnL >= 0 ? '+' : ''}₩{formatKRW(record.totalPnL)}
-                          </td>
-                          <td className="px-3 py-1.5 text-right font-mono">{record.tradeCount}회</td>
-                          <td className={cn(
-                            "px-3 py-1.5 text-right font-mono",
-                            parseFloat(dayWinRate) >= 50 ? "text-red-400" : "text-blue-400"
-                          )}>
-                            {dayWinRate}%
-                          </td>
-                        </tr>
-                      );
-                    })}
+                    {monthlyStats.dailyRecords.map((record) => (
+                      <tr key={record.date} className="border-t border-border/50 hover:bg-secondary/20">
+                        <td className="px-3 py-1.5 font-mono">{formatDate(record.date)}</td>
+                        <td className={cn(
+                          "px-3 py-1.5 text-right font-mono font-bold",
+                          record.dailyPnL >= 0 ? "text-red-400" : "text-blue-400"
+                        )}>
+                          {record.dailyPnL >= 0 ? '+' : ''}₩{formatKRW(record.dailyPnL)}
+                        </td>
+                        <td className="px-3 py-1.5 text-right font-mono text-muted-foreground">
+                          ${record.closingBalance.toFixed(0)}
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               ) : (
@@ -322,20 +316,23 @@ const TradingRecordModal = ({ krwRate }: TradingRecordModalProps) => {
                 )}>
                   {cumulativeStats.totalPnL >= 0 ? '+' : ''}₩{formatKRW(cumulativeStats.totalPnL)}
                 </div>
-              </div>
-              <div>
-                <div className="text-[10px] text-muted-foreground">총 거래</div>
-                <div className="text-sm font-bold font-mono text-foreground">
-                  {cumulativeStats.totalTrades}회
+                <div className={cn(
+                  "text-[10px] font-mono",
+                  cumulativeStats.totalPnL >= 0 ? "text-red-400" : "text-blue-400"
+                )}>
+                  ({cumulativeStats.totalPnL >= 0 ? '+' : ''}{cumulativeProfitPercent}%)
                 </div>
               </div>
               <div>
-                <div className="text-[10px] text-muted-foreground">총 승률</div>
-                <div className={cn(
-                  "text-sm font-bold font-mono",
-                  parseFloat(cumulativeWinRate) >= 50 ? "text-red-400" : "text-blue-400"
-                )}>
-                  {cumulativeWinRate}%
+                <div className="text-[10px] text-muted-foreground">최초 잔고</div>
+                <div className="text-sm font-bold font-mono text-foreground">
+                  ${cumulativeStats.firstBalance.toFixed(0)}
+                </div>
+              </div>
+              <div>
+                <div className="text-[10px] text-muted-foreground">현재 잔고</div>
+                <div className="text-sm font-bold font-mono text-foreground">
+                  ${cumulativeStats.latestBalance.toFixed(0)}
                 </div>
               </div>
             </div>
