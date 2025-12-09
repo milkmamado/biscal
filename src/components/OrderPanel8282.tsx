@@ -921,7 +921,16 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
       {/* Row 2: Auto TP/SL */}
       <div className="px-2 py-1 border-b border-border bg-secondary/30 flex items-center gap-2">
         <button
-          onClick={() => setEnableTpSl(!enableTpSl)}
+          onClick={() => {
+            const newEnabled = !enableTpSl;
+            setEnableTpSl(newEnabled);
+            // 자동청산 활성화 시 원금의 5%로 TP/SL 자동 설정
+            if (newEnabled && balanceUSD > 0) {
+              const autoAmount = parseFloat((balanceUSD * 0.05).toFixed(1));
+              setTpAmount(autoAmount.toString());
+              setSlAmount(autoAmount.toString());
+            }
+          }}
           className={cn(
             "px-2 py-0.5 text-[10px] rounded border transition-colors whitespace-nowrap font-bold",
             enableTpSl 
