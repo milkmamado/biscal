@@ -6,8 +6,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// VPS Proxy Server (Fixed IP: 158.247.211.233)
-const VPS_PROXY_URL = 'http://158.247.211.233:3000/api/direct';
+// VPS Proxy Server with SSL
+const VPS_PROXY_URL = 'https://api.biscal.me/api/direct';
 
 // Retry configuration
 const MAX_RETRIES = 3;
