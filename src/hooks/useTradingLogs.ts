@@ -33,14 +33,16 @@ export const useTradingLogs = () => {
   });
   const [loading, setLoading] = useState(false);
 
-  // Get today's date in YYYY-MM-DD format (Korean timezone)
+  // Get today's date in YYYY-MM-DD format (Korean timezone KST, UTC+9)
   const getTodayDate = () => {
     const now = new Date();
-    // Adjust for Korean timezone (UTC+9)
-    const koreaOffset = 9 * 60;
+    const koreaOffset = 9 * 60; // UTC+9
     const utcOffset = now.getTimezoneOffset();
     const koreaTime = new Date(now.getTime() + (koreaOffset + utcOffset) * 60 * 1000);
-    return koreaTime.toISOString().split('T')[0];
+    const year = koreaTime.getFullYear();
+    const month = String(koreaTime.getMonth() + 1).padStart(2, '0');
+    const day = String(koreaTime.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   };
 
   // Fetch today's trading logs
