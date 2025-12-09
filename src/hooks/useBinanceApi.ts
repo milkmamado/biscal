@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { fetchSymbolPrecision, roundQuantity, roundPrice } from '@/lib/binance';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -43,6 +43,8 @@ export const useBinanceApi = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ipError, setIpError] = useState<string | null>(null);
+  const [apiLatency, setApiLatency] = useState<number>(0);
+  const latencyHistoryRef = useRef<number[]>([]);
   const { user } = useAuth();
 
   // VPS 직접 호출 (Edge Function 우회)
@@ -60,6 +62,16 @@ export const useBinanceApi = () => {
     
     const latency = Math.round(performance.now() - startTime);
     console.log(`[VPS Direct] ${action}: ${latency}ms`);
+    
+    // 최근 10개 레이턴시의 평균 계산
+    latencyHistoryRef.current.push(latency);
+    if (latencyHistoryRef.current.length > 10) {
+      latencyHistoryRef.current.shift();
+    }
+    const avgLatency = Math.round(
+      latencyHistoryRef.current.reduce((a, b) => a + b, 0) / latencyHistoryRef.current.length
+    );
+    setApiLatency(avgLatency);
     
     if (!response.ok) {
       throw new Error(`VPS 호출 실패: ${response.status}`);
@@ -241,6 +253,7 @@ export const useBinanceApi = () => {
     loading,
     error,
     ipError,
+    apiLatency,
     callBinanceApi,
     getAccountInfo,
     getBalances,
