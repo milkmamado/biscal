@@ -45,22 +45,17 @@ export const useBinanceApi = () => {
   const [ipError, setIpError] = useState<string | null>(null);
   const { user } = useAuth();
 
-  // VPS 프록시 직접 호출 (Edge Function 우회) - 빠른 속도!
+  // Edge Function을 통해 VPS 프록시 호출 (HTTPS→HTTP 브릿지)
   const callVpsProxy = useCallback(async (action: string, params: Record<string, any> = {}): Promise<any> => {
-    const response = await fetch(`${VPS_PROXY_URL}/api/direct`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ action, params }),
+    const response = await supabase.functions.invoke('binance-api', {
+      body: { action, params },
     });
     
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || `HTTP ${response.status}`);
+    if (response.error) {
+      throw new Error(response.error.message || 'API 호출 실패');
     }
     
-    return response.json();
+    return response.data;
   }, []);
 
   const callBinanceApi = useCallback(async (action: string, params: Record<string, any> = {}, retryCount: number = 0): Promise<any> => {
