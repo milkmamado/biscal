@@ -3,6 +3,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { fetchSymbolPrecision, roundQuantity, roundPrice } from '@/lib/binance';
 import { useAuth } from '@/hooks/useAuth';
 
+// VPS 프록시 직접 호출 URL (Lovable Edge Function 우회)
+const VPS_PROXY_URL = 'http://158.247.211.233:3000';
+
 export interface BinanceBalance {
   asset: string;
   balance: string;
@@ -42,16 +45,27 @@ export const useBinanceApi = () => {
   const [ipError, setIpError] = useState<string | null>(null);
   const { user } = useAuth();
 
+  // VPS 프록시 직접 호출 (Edge Function 우회)
+  const callVpsProxy = useCallback(async (action: string, params: Record<string, any> = {}): Promise<any> => {
+    const response = await fetch(`${VPS_PROXY_URL}/api/binance`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ action, params }),
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `HTTP ${response.status}`);
+    }
+    
+    return response.json();
+  }, []);
+
   const callBinanceApi = useCallback(async (action: string, params: Record<string, any> = {}, retryCount: number = 0): Promise<any> => {
     // Skip API call if user is not logged in
     if (!user) {
-      return null;
-    }
-    
-    // Get current session to ensure we have a valid token
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
-      console.log('No active session for API call');
       return null;
     }
     
@@ -61,13 +75,8 @@ export const useBinanceApi = () => {
     const maxRetries = 3;
 
     try {
-      const { data, error: fnError } = await supabase.functions.invoke('binance-api', {
-        body: { action, params }
-      });
-
-      if (fnError) {
-        throw new Error(fnError.message);
-      }
+      // VPS 프록시 직접 호출 (빠른 속도)
+      const data = await callVpsProxy(action, params);
 
       if (data?.error) {
         // Handle specific error codes with friendly messages
@@ -83,21 +92,17 @@ export const useBinanceApi = () => {
         if (data.code === -4164) {
           throw new Error('최소 주문 금액은 $5 이상이어야 합니다');
         }
-        // -4028 = leverage not valid - pass through with code for caller to handle
         if (data.code === -4028) {
           throw new Error(`LEVERAGE_NOT_VALID:-4028`);
         }
-        // -4046 = no need to change leverage (already set) - not an error
         if (data.code === -4046) {
           return { success: true, alreadySet: true };
         }
-        // Check if it's an IP error
         if (data.code === -2015 && data.error?.includes('request ip:')) {
           const ipMatch = data.error.match(/request ip: ([\d.]+)/);
           const blockedIp = ipMatch ? ipMatch[1] : 'unknown';
           setIpError(blockedIp);
           
-          // Retry automatically up to maxRetries times
           if (retryCount < maxRetries) {
             console.log(`IP error, retrying... (${retryCount + 1}/${maxRetries})`);
             await new Promise(resolve => setTimeout(resolve, 500));
@@ -109,7 +114,7 @@ export const useBinanceApi = () => {
         throw new Error(data.error);
       }
 
-      setIpError(null); // Clear IP error on success
+      setIpError(null);
       return data;
     } catch (err: any) {
       setError(err.message);
@@ -117,7 +122,7 @@ export const useBinanceApi = () => {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, callVpsProxy]);
 
   const getAccountInfo = useCallback(async (): Promise<BinanceAccountInfo> => {
     return callBinanceApi('getAccountInfo');
