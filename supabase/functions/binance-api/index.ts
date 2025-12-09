@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 // VPS Proxy Server (Fixed IP: 158.247.211.233)
-const VPS_PROXY_URL = 'http://158.247.211.233:3000/api/binance';
+const VPS_PROXY_URL = 'http://158.247.211.233:3000/api/direct';
 
 // Retry configuration
 const MAX_RETRIES = 3;
@@ -75,85 +75,17 @@ serve(async (req) => {
     const body = await req.json();
     const { action, params = {}, testnet = false } = body;
 
-    // Get user's API keys (based on testnet mode)
-    const { data: apiKeys, error: keysError } = await supabase
-      .from('user_api_keys')
-      .select('api_key, api_secret')
-      .eq('user_id', user.id)
-      .eq('is_testnet', testnet)
-      .single();
-
-    if (keysError || !apiKeys) {
-      console.log(`No ${testnet ? 'testnet' : 'mainnet'} API keys found for user:`, user.id);
-      return new Response(
-        JSON.stringify({ 
-          error: testnet 
-            ? 'Testnet API keys not configured. Please register testnet API keys first.' 
-            : 'API keys not configured', 
-          code: 'NO_API_KEYS' 
-        }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const { api_key: apiKey, api_secret: apiSecret } = apiKeys;
+    // VPS uses environment variables for API keys, so we just verify user is authenticated
 
     console.log(`Binance API action: ${action} (${testnet ? 'TESTNET' : 'MAINNET'}) via VPS Proxy`, JSON.stringify(params));
-
-    // Map action to endpoint
-    let endpoint = '';
-    let method = 'GET';
-
-    switch (action) {
-      case 'getAccountInfo':
-        endpoint = '/fapi/v2/account';
-        break;
-      case 'getBalance':
-        endpoint = '/fapi/v2/balance';
-        break;
-      case 'getPositions':
-        endpoint = '/fapi/v2/positionRisk';
-        break;
-      case 'getOpenOrders':
-        endpoint = '/fapi/v1/openOrders';
-        break;
-      case 'placeOrder':
-        endpoint = '/fapi/v1/order';
-        method = 'POST';
-        break;
-      case 'cancelOrder':
-        endpoint = '/fapi/v1/order';
-        method = 'DELETE';
-        break;
-      case 'cancelAllOrders':
-        endpoint = '/fapi/v1/allOpenOrders';
-        method = 'DELETE';
-        break;
-      case 'setLeverage':
-        endpoint = '/fapi/v1/leverage';
-        method = 'POST';
-        break;
-      case 'setMarginType':
-        endpoint = '/fapi/v1/marginType';
-        method = 'POST';
-        break;
-      case 'getIncomeHistory':
-        endpoint = '/fapi/v1/income';
-        break;
-      default:
-        return new Response(
-          JSON.stringify({ error: `Unknown action: ${action}` }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-    }
 
     // Filter out null/undefined params to prevent Binance API errors
     const filteredParams = Object.fromEntries(
       Object.entries(params).filter(([_, value]) => value !== null && value !== undefined)
     );
 
-    // Call VPS Proxy Server with retry logic
-    console.log(`Calling VPS Proxy: ${method} ${endpoint}`);
+    // Call VPS Proxy Server with retry logic - VPS uses env API keys
+    console.log(`Calling VPS Proxy: ${action}`);
     
     const proxyResponse = await fetchWithRetry(VPS_PROXY_URL, {
       method: 'POST',
@@ -161,12 +93,8 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        apiKey,
-        apiSecret,
-        endpoint,
-        method,
+        action,
         params: filteredParams,
-        testnet,
       }),
     });
 
