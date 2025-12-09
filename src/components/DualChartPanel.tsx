@@ -143,7 +143,10 @@ const DualChartPanel = ({
     const koreaOffset = 9 * 60;
     const utcOffset = now.getTimezoneOffset();
     const koreaTime = new Date(now.getTime() + (koreaOffset + utcOffset) * 60 * 1000);
-    return koreaTime.toISOString().split('T')[0];
+    const year = koreaTime.getFullYear();
+    const month = String(koreaTime.getMonth() + 1).padStart(2, '0');
+    const day = String(koreaTime.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   };
 
   // Calculate previous day's closing balance using income history (한번만)
