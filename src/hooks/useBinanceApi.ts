@@ -1,10 +1,10 @@
 import { useState, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { fetchSymbolPrecision, roundQuantity, roundPrice } from '@/lib/binance';
 import { useAuth } from '@/hooks/useAuth';
 
-// VPS 프록시 직접 호출 URL (Lovable Edge Function 우회)
-const VPS_PROXY_URL = 'http://158.247.211.233:3000';
+// VPS 직접 호출 (Edge Function 우회로 ~300ms 단축)
+const VPS_DIRECT_URL = 'https://api.biscal.me/api/direct';
+const VPS_AUTH_TOKEN = 'biscal2024secure';
 
 export interface BinanceBalance {
   asset: string;
@@ -45,17 +45,27 @@ export const useBinanceApi = () => {
   const [ipError, setIpError] = useState<string | null>(null);
   const { user } = useAuth();
 
-  // Edge Function을 통해 VPS 프록시 호출 (HTTPS→HTTP 브릿지)
-  const callVpsProxy = useCallback(async (action: string, params: Record<string, any> = {}): Promise<any> => {
-    const response = await supabase.functions.invoke('binance-api', {
-      body: { action, params },
+  // VPS 직접 호출 (Edge Function 우회)
+  const callVpsDirect = useCallback(async (action: string, params: Record<string, any> = {}): Promise<any> => {
+    const startTime = performance.now();
+    
+    const response = await fetch(VPS_DIRECT_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${VPS_AUTH_TOKEN}`,
+      },
+      body: JSON.stringify({ action, params }),
     });
     
-    if (response.error) {
-      throw new Error(response.error.message || 'API 호출 실패');
+    const latency = Math.round(performance.now() - startTime);
+    console.log(`[VPS Direct] ${action}: ${latency}ms`);
+    
+    if (!response.ok) {
+      throw new Error(`VPS 호출 실패: ${response.status}`);
     }
     
-    return response.data;
+    return response.json();
   }, []);
 
   const callBinanceApi = useCallback(async (action: string, params: Record<string, any> = {}, retryCount: number = 0): Promise<any> => {
@@ -70,8 +80,8 @@ export const useBinanceApi = () => {
     const maxRetries = 3;
 
     try {
-      // VPS 프록시 직접 호출 (빠른 속도)
-      const data = await callVpsProxy(action, params);
+      // VPS 직접 호출 (Edge Function 우회로 빠른 속도)
+      const data = await callVpsDirect(action, params);
 
       if (data?.error) {
         // Handle specific error codes with friendly messages
@@ -117,7 +127,7 @@ export const useBinanceApi = () => {
     } finally {
       setLoading(false);
     }
-  }, [user, callVpsProxy]);
+  }, [user, callVpsDirect]);
 
   const getAccountInfo = useCallback(async (): Promise<BinanceAccountInfo> => {
     return callBinanceApi('getAccountInfo');
