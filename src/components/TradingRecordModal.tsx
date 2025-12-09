@@ -81,7 +81,10 @@ const TradingRecordModal = ({ krwRate }: TradingRecordModalProps) => {
 
         // Total PnL is sum of all daily income (not balance difference)
         const totalPnL = dailyRecords.reduce((sum, r) => sum + r.dailyPnL, 0);
-        const startBalance = prevData?.closing_balance_usd || data[0].closing_balance_usd;
+        
+        // Start balance = first day closing balance - first day income (시작 잔고)
+        const firstDayIncome = data[0].daily_income_usd || 0;
+        const startBalance = prevData?.closing_balance_usd || (data[0].closing_balance_usd - firstDayIncome);
         const endBalance = data[data.length - 1].closing_balance_usd;
 
         setMonthlyStats({
@@ -118,7 +121,9 @@ const TradingRecordModal = ({ krwRate }: TradingRecordModalProps) => {
       }
 
       if (data && data.length > 0) {
-        const firstBalance = data[0].closing_balance_usd;
+        // First balance = first day closing balance - first day income (시작 잔고)
+        const firstDayIncome = data[0].daily_income_usd || 0;
+        const firstBalance = data[0].closing_balance_usd - firstDayIncome;
         const latestBalance = data[data.length - 1].closing_balance_usd;
         // Total PnL is sum of all daily income (excludes deposits/withdrawals)
         const totalPnL = data.reduce((sum: number, snapshot: any) => 
