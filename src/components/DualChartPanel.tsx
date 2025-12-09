@@ -93,10 +93,14 @@ const DualChartPanel = ({
         // 총 잔고 사용 (포지션 마진 포함) - 전일대비 계산용
         const totalBalance = parseFloat(usdtBalance.balance) || parseFloat(usdtBalance.crossWalletBalance) || available;
         setBalanceUSD(available);
-        // Calculate previous day balance using income history (총 잔고 기준)
+        
+        // Calculate previous day balance only once (전일 기준 잔고)
         if (previousDayBalance === null) {
           calculatePreviousDayBalance(totalBalance);
         }
+        
+        // Always fetch today's realized PnL (매번 업데이트)
+        fetchTodayRealizedPnL(totalBalance);
       }
     } catch (error) {
       console.error('Failed to fetch balance:', error);
@@ -142,19 +146,16 @@ const DualChartPanel = ({
     return koreaTime.toISOString().split('T')[0];
   };
 
-  // Calculate previous day's closing balance and today's realized PnL using income history
+  // Calculate previous day's closing balance using income history (한번만)
   const calculatePreviousDayBalance = async (currentBalance: number) => {
     try {
       const todayMidnight = getTodayMidnightKST();
       const now = Date.now();
       
-      console.log(`Fetching income history from ${new Date(todayMidnight).toISOString()} to ${new Date(now).toISOString()}`);
-      
       // Get all income since today's midnight
       const incomeHistory = await getIncomeHistory(todayMidnight, now);
       
       if (!incomeHistory || !Array.isArray(incomeHistory)) {
-        console.log('No income history returned');
         return;
       }
       
@@ -163,22 +164,32 @@ const DualChartPanel = ({
         return sum + parseFloat(item.income || 0);
       }, 0);
       
-      // Calculate realized PnL only (excluding funding fees and commissions for display)
+      // Previous day balance = current balance - all income since midnight
+      const calculatedPrevBalance = currentBalance - totalIncomeSinceMidnight;
+      setPreviousDayBalance(calculatedPrevBalance);
+    } catch (error) {
+      console.error('Failed to calculate previous day balance:', error);
+    }
+  };
+
+  // Fetch today's realized PnL from Binance (매 폴링마다 업데이트)
+  const fetchTodayRealizedPnL = async (currentBalance: number) => {
+    try {
+      const todayMidnight = getTodayMidnightKST();
+      const now = Date.now();
+      
+      const incomeHistory = await getIncomeHistory(todayMidnight, now);
+      
+      if (!incomeHistory || !Array.isArray(incomeHistory)) {
+        return;
+      }
+      
+      // Calculate realized PnL only (excluding funding fees and commissions)
       const realizedPnLOnly = incomeHistory
         .filter((item: any) => item.incomeType === 'REALIZED_PNL')
         .reduce((sum: number, item: any) => sum + parseFloat(item.income || 0), 0);
       
-      console.log(`Income since midnight: $${totalIncomeSinceMidnight.toFixed(4)} (${incomeHistory.length} transactions)`);
-      console.log(`Realized PnL only: $${realizedPnLOnly.toFixed(4)}`);
-      
-      // Set today's realized PnL from Binance
       setTodayRealizedPnL(realizedPnLOnly);
-      
-      // Previous day balance = current balance - all income since midnight
-      const calculatedPrevBalance = currentBalance - totalIncomeSinceMidnight;
-      console.log(`Calculated previous day balance: $${calculatedPrevBalance.toFixed(4)}`);
-      
-      setPreviousDayBalance(calculatedPrevBalance);
       
       // Save today's current balance and realized PnL for future reference
       const { data: { user } } = await supabase.auth.getUser();
@@ -190,13 +201,13 @@ const DualChartPanel = ({
             user_id: user.id,
             snapshot_date: today,
             closing_balance_usd: currentBalance,
-            daily_income_usd: realizedPnLOnly, // REALIZED_PNL only (순수 거래 손익)
+            daily_income_usd: realizedPnLOnly,
           }, {
             onConflict: 'user_id,snapshot_date'
           });
       }
     } catch (error) {
-      console.error('Failed to calculate previous day balance:', error);
+      console.error('Failed to fetch realized PnL:', error);
     }
   };
 
