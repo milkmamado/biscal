@@ -47,17 +47,10 @@ export const useBinanceApi = () => {
 
   // VPS 프록시 직접 호출 (Edge Function 우회) - 빠른 속도!
   const callVpsProxy = useCallback(async (action: string, params: Record<string, any> = {}): Promise<any> => {
-    // Supabase 세션에서 JWT 토큰 가져오기
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) {
-      throw new Error('No session token');
-    }
-    
     const response = await fetch(`${VPS_PROXY_URL}/api/direct`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session.access_token}`,
       },
       body: JSON.stringify({ action, params }),
     });
