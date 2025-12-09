@@ -180,7 +180,7 @@ const DualChartPanel = ({
       
       setPreviousDayBalance(calculatedPrevBalance);
       
-      // Save today's current balance for future reference
+      // Save today's current balance and daily income for future reference
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         const today = getTodayDate();
@@ -190,6 +190,7 @@ const DualChartPanel = ({
             user_id: user.id,
             snapshot_date: today,
             closing_balance_usd: currentBalance,
+            daily_income_usd: totalIncomeSinceMidnight, // Actual trading income (excludes deposits)
           }, {
             onConflict: 'user_id,snapshot_date'
           });

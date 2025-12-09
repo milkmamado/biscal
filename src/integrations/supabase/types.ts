@@ -18,6 +18,7 @@ export type Database = {
         Row: {
           closing_balance_usd: number
           created_at: string
+          daily_income_usd: number | null
           id: string
           snapshot_date: string
           user_id: string
@@ -25,6 +26,7 @@ export type Database = {
         Insert: {
           closing_balance_usd: number
           created_at?: string
+          daily_income_usd?: number | null
           id?: string
           snapshot_date: string
           user_id: string
@@ -32,6 +34,7 @@ export type Database = {
         Update: {
           closing_balance_usd?: number
           created_at?: string
+          daily_income_usd?: number | null
           id?: string
           snapshot_date?: string
           user_id?: string

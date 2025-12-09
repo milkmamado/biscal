@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 interface DailyRecord {
   date: string;
   closingBalance: number;
-  dailyPnL: number;
+  dailyPnL: number; // From daily_income_usd (actual trading income)
 }
 
 interface MonthlyStats {
@@ -69,25 +69,20 @@ const TradingRecordModal = ({ krwRate }: TradingRecordModalProps) => {
 
       if (data && data.length > 0) {
         const dailyRecords: DailyRecord[] = [];
-        let previousBalance = prevData?.closing_balance_usd || data[0].closing_balance_usd;
 
-        data.forEach((snapshot, index) => {
-          const dailyPnL = index === 0 && prevData 
-            ? snapshot.closing_balance_usd - prevData.closing_balance_usd
-            : index === 0 
-              ? 0 
-              : snapshot.closing_balance_usd - data[index - 1].closing_balance_usd;
-
+        // Use daily_income_usd for actual trading PnL (excludes deposits/withdrawals)
+        data.forEach((snapshot: any) => {
           dailyRecords.push({
             date: snapshot.snapshot_date,
             closingBalance: snapshot.closing_balance_usd,
-            dailyPnL,
+            dailyPnL: snapshot.daily_income_usd || 0, // Actual trading income
           });
         });
 
+        // Total PnL is sum of all daily income (not balance difference)
+        const totalPnL = dailyRecords.reduce((sum, r) => sum + r.dailyPnL, 0);
         const startBalance = prevData?.closing_balance_usd || data[0].closing_balance_usd;
         const endBalance = data[data.length - 1].closing_balance_usd;
-        const totalPnL = endBalance - startBalance;
 
         setMonthlyStats({
           totalPnL,
@@ -113,7 +108,7 @@ const TradingRecordModal = ({ krwRate }: TradingRecordModalProps) => {
       // Get all balance snapshots ordered by date
       const { data, error } = await supabase
         .from('daily_balance_snapshots')
-        .select('snapshot_date, closing_balance_usd')
+        .select('snapshot_date, closing_balance_usd, daily_income_usd')
         .eq('user_id', user.id)
         .order('snapshot_date', { ascending: true });
 
@@ -125,7 +120,9 @@ const TradingRecordModal = ({ krwRate }: TradingRecordModalProps) => {
       if (data && data.length > 0) {
         const firstBalance = data[0].closing_balance_usd;
         const latestBalance = data[data.length - 1].closing_balance_usd;
-        const totalPnL = latestBalance - firstBalance;
+        // Total PnL is sum of all daily income (excludes deposits/withdrawals)
+        const totalPnL = data.reduce((sum: number, snapshot: any) => 
+          sum + (snapshot.daily_income_usd || 0), 0);
 
         setCumulativeStats({ totalPnL, firstBalance, latestBalance });
       }
