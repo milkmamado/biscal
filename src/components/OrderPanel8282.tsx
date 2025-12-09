@@ -67,10 +67,11 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
     placeLimitOrder: apiPlaceLimitOrder,
     cancelAllOrders: apiCancelAllOrders,
     setLeverage: apiSetLeverage,
-    loading: apiLoading 
+    loading: apiLoading,
+    apiLatency
   } = useBinanceApi();
   // WebSocket for real-time order book (shared connection pool)
-  const { orderBook: wsOrderBook, isConnected, latency } = useOrderBookWebSocket(symbol, 10);
+  const { orderBook: wsOrderBook, isConnected } = useOrderBookWebSocket(symbol, 10);
   
   // Get current price and change from global ticker
   const { tickers } = useTickerWebSocket();
@@ -1234,12 +1235,12 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
         {/* Latency indicator */}
         <div className={cn(
           "ml-2 px-1.5 py-0.5 rounded font-mono text-[9px]",
-          latency < 100 ? "bg-green-500/20 text-green-400" :
-          latency < 300 ? "bg-yellow-500/20 text-yellow-400" :
-          latency < 500 ? "bg-orange-500/20 text-orange-400" :
+          apiLatency < 100 ? "bg-green-500/20 text-green-400" :
+          apiLatency < 200 ? "bg-yellow-500/20 text-yellow-400" :
+          apiLatency < 300 ? "bg-orange-500/20 text-orange-400" :
           "bg-red-500/20 text-red-400"
         )}>
-          {latency}ms
+          {apiLatency}ms
         </div>
       </div>
 
