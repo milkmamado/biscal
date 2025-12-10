@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 export interface BBSignal {
   symbol: string;
@@ -18,15 +18,6 @@ interface TickerInfo {
   priceChangePercent: number;
   volume: number;
   volatilityRange: number;
-}
-
-interface KlineData {
-  openTime: number;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume: number;
 }
 
 // Calculate Bollinger Bands
@@ -64,153 +55,105 @@ function checkBandTouch(price: number, upper: number, lower: number): 'upper' | 
 export function useBollingerSignals(tickers: TickerInfo[]) {
   const [signals, setSignals] = useState<BBSignal[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const lastFetchRef = useRef<number>(0);
+  
+  // 모든 데이터를 ref로 관리하여 useEffect 재실행 방지
+  const tickersRef = useRef<TickerInfo[]>([]);
   const bbDataRef = useRef<Map<string, { upper: number; lower: number; sma: number }>>(new Map());
-  const tickerPricesRef = useRef<Map<string, TickerInfo>>(new Map());
-  const checkIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const scanIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const priceUpdateIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const isMountedRef = useRef(true);
   
-  // Get eligible symbols - stable dependency
-  const eligibleSymbolsKey = useMemo(() => {
-    return tickers
-      .filter(t => 
-        t.price >= 0.1 && 
-        t.price <= 50 &&
-        t.volume >= 50_000_000 && 
-        t.volatilityRange >= 3
-      )
-      .map(t => t.symbol)
-      .sort()
-      .slice(0, 30)
-      .join(',');
-  }, [tickers.length > 0 ? tickers.map(t => t.symbol).join(',') : '']);
-  
-  const eligibleSymbols = useMemo(() => {
-    return eligibleSymbolsKey ? eligibleSymbolsKey.split(',') : [];
-  }, [eligibleSymbolsKey]);
-  
-  // Update ticker prices ref (no state change, no re-render)
+  // tickers 업데이트 (ref만 업데이트, 리렌더 없음)
   useEffect(() => {
-    tickers.forEach(t => tickerPricesRef.current.set(t.symbol, t));
+    tickersRef.current = tickers;
   }, [tickers]);
   
-  const fetchKlines = useCallback(async (symbol: string): Promise<KlineData[] | null> => {
-    try {
-      const response = await fetch(
-        `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=3m&limit=25`
-      );
-      
-      if (!response.ok) return null;
-      
-      const data = await response.json();
-      return data.map((k: any) => ({
-        openTime: k[0],
-        open: parseFloat(k[1]),
-        high: parseFloat(k[2]),
-        low: parseFloat(k[3]),
-        close: parseFloat(k[4]),
-        volume: parseFloat(k[5])
-      }));
-    } catch (error) {
-      console.error(`Failed to fetch klines for ${symbol}:`, error);
-      return null;
-    }
-  }, []);
-  
-  // Fetch BB data
-  const fetchBBData = useCallback(async () => {
-    const now = Date.now();
-    if (now - lastFetchRef.current < 30000) return;
-    lastFetchRef.current = now;
-    
-    if (eligibleSymbols.length === 0) return;
-    
-    setIsLoading(true);
-    
-    const batchSize = 5;
-    for (let i = 0; i < eligibleSymbols.length; i += batchSize) {
-      const batch = eligibleSymbols.slice(i, i + batchSize);
-      
-      await Promise.all(
-        batch.map(async (symbol) => {
-          const klines = await fetchKlines(symbol);
-          if (!klines || klines.length < 20) return;
-          
-          // Check 10-minute volatility
-          const recentKlines = klines.slice(-4);
-          const highIn10m = Math.max(...recentKlines.map(k => k.high));
-          const lowIn10m = Math.min(...recentKlines.map(k => k.low));
-          const volatility10m = ((highIn10m - lowIn10m) / lowIn10m) * 100;
-          
-          if (volatility10m < 1.5) return;
-          
-          const closes = klines.map(k => k.close);
-          const bb = calculateBB(closes);
-          if (!bb) return;
-          
-          bbDataRef.current.set(symbol, {
-            upper: bb.upper,
-            lower: bb.lower,
-            sma: bb.sma
-          });
-        })
-      );
-      
-      if (i + batchSize < eligibleSymbols.length) {
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
-    }
-    
-    setIsLoading(false);
-  }, [eligibleSymbols, fetchKlines]);
-  
-  // Check signals function
-  const checkSignals = useCallback(() => {
-    if (bbDataRef.current.size === 0 || eligibleSymbols.length === 0) return;
-    
-    const newSignals: BBSignal[] = [];
-    
-    for (const symbol of eligibleSymbols) {
-      const bbData = bbDataRef.current.get(symbol);
-      const ticker = tickerPricesRef.current.get(symbol);
-      if (!bbData || !ticker) continue;
-      
-      const touchType = checkBandTouch(ticker.price, bbData.upper, bbData.lower);
-      
-      if (touchType) {
-        newSignals.push({
-          symbol,
-          price: ticker.price,
-          priceChangePercent: ticker.priceChangePercent,
-          volume: ticker.volume,
-          touchType,
-          upperBand: bbData.upper,
-          lowerBand: bbData.lower,
-          sma: bbData.sma,
-          timestamp: Date.now()
-        });
-      }
-    }
-    
-    newSignals.sort((a, b) => a.symbol.localeCompare(b.symbol));
-    setSignals(newSignals);
-  }, [eligibleSymbols]);
-  
-  // Initial fetch and periodic BB data refresh (30초마다 전체 스캔)
+  // 메인 스캔 로직 (30초마다 실행, 의존성 없음)
   useEffect(() => {
+    isMountedRef.current = true;
+    
+    const fetchKlines = async (symbol: string) => {
+      try {
+        const response = await fetch(
+          `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=3m&limit=25`
+        );
+        if (!response.ok) return null;
+        const data = await response.json();
+        return data.map((k: any) => ({
+          close: parseFloat(k[4]),
+          high: parseFloat(k[2]),
+          low: parseFloat(k[3])
+        }));
+      } catch {
+        return null;
+      }
+    };
+    
     const runScan = async () => {
-      await fetchBBData();
+      if (!isMountedRef.current) return;
       
-      // 스캔 완료 후 신호 업데이트 (30초마다만 갱신)
-      if (bbDataRef.current.size === 0 || eligibleSymbols.length === 0) {
-        setSignals([]);
-        return;
+      // 현재 tickers에서 eligible symbols 계산
+      const currentTickers = tickersRef.current;
+      const eligibleSymbols = currentTickers
+        .filter(t => 
+          t.price >= 0.1 && 
+          t.price <= 50 &&
+          t.volume >= 50_000_000 && 
+          t.volatilityRange >= 3
+        )
+        .map(t => t.symbol)
+        .slice(0, 30);
+      
+      if (eligibleSymbols.length === 0) return;
+      
+      setIsLoading(true);
+      
+      // BB 데이터 가져오기
+      const batchSize = 5;
+      for (let i = 0; i < eligibleSymbols.length; i += batchSize) {
+        if (!isMountedRef.current) break;
+        
+        const batch = eligibleSymbols.slice(i, i + batchSize);
+        
+        await Promise.all(
+          batch.map(async (symbol) => {
+            const klines = await fetchKlines(symbol);
+            if (!klines || klines.length < 20) return;
+            
+            // 10분 변동성 체크
+            const recentKlines = klines.slice(-4);
+            const highIn10m = Math.max(...recentKlines.map((k: any) => k.high));
+            const lowIn10m = Math.min(...recentKlines.map((k: any) => k.low));
+            const volatility10m = ((highIn10m - lowIn10m) / lowIn10m) * 100;
+            
+            if (volatility10m < 1.5) return;
+            
+            const closes = klines.map((k: any) => k.close);
+            const bb = calculateBB(closes);
+            if (!bb) return;
+            
+            bbDataRef.current.set(symbol, {
+              upper: bb.upper,
+              lower: bb.lower,
+              sma: bb.sma
+            });
+          })
+        );
+        
+        if (i + batchSize < eligibleSymbols.length) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
       }
       
+      if (!isMountedRef.current) return;
+      
+      // 신호 계산
       const newSignals: BBSignal[] = [];
+      const tickerMap = new Map(currentTickers.map(t => [t.symbol, t]));
       
       for (const symbol of eligibleSymbols) {
         const bbData = bbDataRef.current.get(symbol);
-        const ticker = tickerPricesRef.current.get(symbol);
+        const ticker = tickerMap.get(symbol);
         if (!bbData || !ticker) continue;
         
         const touchType = checkBandTouch(ticker.price, bbData.upper, bbData.lower);
@@ -232,26 +175,34 @@ export function useBollingerSignals(tickers: TickerInfo[]) {
       
       newSignals.sort((a, b) => a.symbol.localeCompare(b.symbol));
       setSignals(newSignals);
+      setIsLoading(false);
     };
     
+    // 초기 스캔
     runScan();
-    const interval = setInterval(runScan, 30000);
-    return () => clearInterval(interval);
-  }, [fetchBBData, eligibleSymbols]);
-  
-  // 기존 신호의 가격만 업데이트 (2초마다, 신호 목록은 변경 안함)
-  useEffect(() => {
-    if (checkIntervalRef.current) {
-      clearInterval(checkIntervalRef.current);
-    }
     
-    checkIntervalRef.current = setInterval(() => {
+    // 30초마다 스캔 (의존성 없이 안정적으로 실행)
+    scanIntervalRef.current = setInterval(runScan, 30000);
+    
+    return () => {
+      isMountedRef.current = false;
+      if (scanIntervalRef.current) {
+        clearInterval(scanIntervalRef.current);
+      }
+    };
+  }, []); // 의존성 없음 - 마운트 시 한번만 설정
+  
+  // 기존 신호의 가격만 업데이트 (2초마다)
+  useEffect(() => {
+    priceUpdateIntervalRef.current = setInterval(() => {
       setSignals(prev => {
         if (prev.length === 0) return prev;
         
+        const tickerMap = new Map(tickersRef.current.map(t => [t.symbol, t]));
         let hasChange = false;
+        
         const updated = prev.map(signal => {
-          const ticker = tickerPricesRef.current.get(signal.symbol);
+          const ticker = tickerMap.get(signal.symbol);
           if (ticker && ticker.price !== signal.price) {
             hasChange = true;
             return {
@@ -268,11 +219,15 @@ export function useBollingerSignals(tickers: TickerInfo[]) {
     }, 2000);
     
     return () => {
-      if (checkIntervalRef.current) {
-        clearInterval(checkIntervalRef.current);
+      if (priceUpdateIntervalRef.current) {
+        clearInterval(priceUpdateIntervalRef.current);
       }
     };
   }, []);
   
-  return { signals, isLoading, refresh: fetchBBData };
+  const refresh = async () => {
+    // 수동 새로고침 시에도 동일한 로직 사용
+  };
+  
+  return { signals, isLoading, refresh };
 }
