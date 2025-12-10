@@ -1,11 +1,9 @@
-import { useEffect, useState, useCallback } from 'react';
-import { SymbolInfo, formatPrice, formatVolume } from '@/lib/binance';
+import { useEffect, useState } from 'react';
+import { formatPrice } from '@/lib/binance';
 import { useTickerWebSocket } from '@/hooks/useTickerWebSocket';
 import { useBollingerSignals, BBSignal } from '@/hooks/useBollingerSignals';
 import { cn } from '@/lib/utils';
-import { Flame, RefreshCw, TrendingUp, TrendingDown, BarChart3, ArrowUpCircle, ArrowDownCircle, Search, Wifi, WifiOff, Activity } from 'lucide-react';
-
-type SortMode = 'hot' | 'volume' | 'gainers' | 'losers' | 'bb';
+import { Flame, RefreshCw, TrendingUp, TrendingDown, Search, Wifi, WifiOff, Activity } from 'lucide-react';
 
 interface HotCoinListProps {
   onSelectSymbol: (symbol: string) => void;
@@ -14,8 +12,6 @@ interface HotCoinListProps {
 
 const HotCoinList = ({ onSelectSymbol, selectedSymbol }: HotCoinListProps) => {
   const { tickers, isConnected } = useTickerWebSocket();
-  const [coins, setCoins] = useState<SymbolInfo[]>([]);
-  const [sortMode, setSortMode] = useState<SortMode>('hot');
   const [searchQuery, setSearchQuery] = useState('');
   
   // Get tickers for BB scanning (filtered by criteria)
@@ -32,49 +28,11 @@ const HotCoinList = ({ onSelectSymbol, selectedSymbol }: HotCoinListProps) => {
     }));
   
   const { signals: bbSignals, isLoading: bbLoading } = useBollingerSignals(tickersForBB);
-
-  // Sort and filter coins based on mode and search
-  useEffect(() => {
-    // 스캘핑 적합 코인 필터링 (해외 전문가 기준)
-    let filtered = tickers.filter(c => 
-      c.price >= 0.1 && c.volume >= 50_000_000
-    );
-    
-    // Apply search filter
-    if (searchQuery) {
-      filtered = filtered.filter(c => 
-        c.symbol.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-    }
-    
-    // Apply sorting
-    switch (sortMode) {
-      case 'hot':
-        filtered.sort((a, b) => b.hotScore - a.hotScore);
-        break;
-      case 'volume':
-        filtered.sort((a, b) => b.volume - a.volume);
-        break;
-      case 'gainers':
-        filtered.sort((a, b) => b.priceChangePercent - a.priceChangePercent);
-        break;
-      case 'losers':
-        filtered.sort((a, b) => a.priceChangePercent - b.priceChangePercent);
-        break;
-      case 'bb':
-        // BB mode uses separate signal list
-        break;
-    }
-    
-    setCoins(filtered.slice(0, 15));
-  }, [tickers, sortMode, searchQuery]);
-
-  const tabs: { mode: SortMode; label: string; icon: React.ReactNode }[] = [
-    { mode: 'hot', label: '변동', icon: <Flame className="w-3 h-3" /> },
-    { mode: 'volume', label: '거래량', icon: <BarChart3 className="w-3 h-3" /> },
-    { mode: 'gainers', label: '상승', icon: <ArrowUpCircle className="w-3 h-3" /> },
-    { mode: 'bb', label: 'BB', icon: <Activity className="w-3 h-3" /> },
-  ];
+  
+  // Filter signals by search query
+  const filteredSignals = searchQuery 
+    ? bbSignals.filter(s => s.symbol.toLowerCase().includes(searchQuery.toLowerCase()))
+    : bbSignals;
 
   if (tickers.length === 0) {
     return (
@@ -97,8 +55,8 @@ const HotCoinList = ({ onSelectSymbol, selectedSymbol }: HotCoinListProps) => {
       {/* Header */}
       <div className="px-3 py-2 border-b border-border flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Flame className="w-4 h-4 text-orange-500" />
-          <h3 className="text-sm font-semibold">선물 목록</h3>
+          <Activity className="w-4 h-4 text-primary" />
+          <h3 className="text-sm font-semibold">BB 신호</h3>
         </div>
         <div className="flex items-center gap-1">
           {isConnected ? (
@@ -123,170 +81,84 @@ const HotCoinList = ({ onSelectSymbol, selectedSymbol }: HotCoinListProps) => {
         </div>
       </div>
 
-      {/* Sort Tabs */}
-      <div className="px-2 py-1.5 border-b border-border bg-secondary/20 flex gap-1">
-        {tabs.map((tab) => (
-          <button
-            key={tab.mode}
-            onClick={() => setSortMode(tab.mode)}
-            className={cn(
-              "flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded text-xs font-medium transition-colors",
-              sortMode === tab.mode
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:bg-secondary"
-            )}
-          >
-            {tab.icon}
-            <span>{tab.label}</span>
-          </button>
-        ))}
-      </div>
-
-      {/* Coin List */}
-      <div className={cn(
-        "divide-y divide-border/50 overflow-y-auto",
-        sortMode === 'bb' ? "h-[400px]" : "max-h-[calc(100vh-350px)]" // Fixed height for BB tab
-      )}>
-        {sortMode === 'bb' ? (
-          // BB Signal List - Fixed height container
-          bbLoading ? (
-            <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
-              <div className="text-center">
-                <RefreshCw className="w-4 h-4 animate-spin mx-auto mb-2" />
-                BB 신호 스캔 중...
-              </div>
+      {/* BB Signal List */}
+      <div className="h-[400px] divide-y divide-border/50 overflow-y-auto">
+        {bbLoading ? (
+          <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
+            <div className="text-center">
+              <RefreshCw className="w-4 h-4 animate-spin mx-auto mb-2" />
+              BB 신호 스캔 중...
             </div>
-          ) : bbSignals.length === 0 ? (
-            <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
-              BB 터치 신호 없음
-            </div>
-          ) : (
-            bbSignals.map((signal, index) => {
-              const isSelected = signal.symbol === selectedSymbol;
-              const isUpper = signal.touchType === 'upper';
-              
-              return (
-                <button
-                  key={signal.symbol}
-                  onClick={() => onSelectSymbol(signal.symbol)}
-                  className={cn(
-                    "w-full px-3 py-2 text-left transition-all hover:bg-secondary/50 flex items-center gap-2",
-                    isSelected && "bg-primary/10 border-l-2 border-l-primary"
-                  )}
-                >
-                  {/* Touch Type Indicator */}
-                  <div className={cn(
-                    "w-6 h-6 rounded flex items-center justify-center text-xs font-bold",
-                    isUpper 
-                      ? "bg-red-500/20 text-red-400" 
-                      : "bg-green-500/20 text-green-400"
-                  )}>
-                    {isUpper ? '▲' : '▼'}
-                  </div>
-
-                  {/* Symbol & Band Info */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1">
-                      <span className="font-semibold text-xs truncate">
-                        {signal.symbol.replace('USDT', '')}
-                      </span>
-                      <span className={cn(
-                        "text-[9px] px-1 rounded",
-                        isUpper ? "bg-red-500/20 text-red-400" : "bg-green-500/20 text-green-400"
-                      )}>
-                        {isUpper ? '상단' : '하단'}
-                      </span>
-                    </div>
-                    <p className="text-[10px] text-muted-foreground truncate">
-                      3분봉 BB {isUpper ? '저항' : '지지'}
-                    </p>
-                  </div>
-
-                  {/* Price & Change */}
-                  <div className="text-right">
-                    <p className="font-mono text-xs font-medium">
-                      ${formatPrice(signal.price)}
-                    </p>
-                    <div className={cn(
-                      "flex items-center justify-end gap-0.5 text-[10px] font-medium",
-                      signal.priceChangePercent >= 0 ? "text-positive" : "text-negative"
-                    )}>
-                      {signal.priceChangePercent >= 0 ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingDown className="w-2.5 h-2.5" />}
-                      <span>{signal.priceChangePercent >= 0 ? '+' : ''}{signal.priceChangePercent.toFixed(2)}%</span>
-                    </div>
-                  </div>
-                </button>
-              );
-            })
-          )
+          </div>
+        ) : filteredSignals.length === 0 ? (
+          <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
+            {searchQuery ? '검색 결과 없음' : 'BB 터치 신호 없음'}
+          </div>
         ) : (
-          // Regular Coin List
-          coins.length === 0 ? (
-            <div className="py-8 text-center text-sm text-muted-foreground">
-              검색 결과가 없습니다
-            </div>
-          ) : (
-            coins.map((coin, index) => {
-              const isSelected = coin.symbol === selectedSymbol;
-              const isPositive = coin.priceChangePercent >= 0;
-              
-              return (
-                <button
-                  key={coin.symbol}
-                  onClick={() => onSelectSymbol(coin.symbol)}
-                  className={cn(
-                    "w-full px-3 py-2 text-left transition-all hover:bg-secondary/50 flex items-center gap-2",
-                    isSelected && "bg-primary/10 border-l-2 border-l-primary"
-                  )}
-                >
-                  {/* Rank */}
-                  <div className={cn(
-                    "w-5 h-5 rounded flex items-center justify-center text-[10px] font-bold",
-                    index < 3 ? "bg-orange-500/20 text-orange-500" : "bg-secondary text-muted-foreground"
-                  )}>
-                    {index + 1}
-                  </div>
+          filteredSignals.map((signal) => {
+            const isSelected = signal.symbol === selectedSymbol;
+            const isUpper = signal.touchType === 'upper';
+            
+            return (
+              <button
+                key={signal.symbol}
+                onClick={() => onSelectSymbol(signal.symbol)}
+                className={cn(
+                  "w-full px-3 py-2 text-left transition-all hover:bg-secondary/50 flex items-center gap-2",
+                  isSelected && "bg-primary/10 border-l-2 border-l-primary"
+                )}
+              >
+                {/* Touch Type Indicator */}
+                <div className={cn(
+                  "w-6 h-6 rounded flex items-center justify-center text-xs font-bold",
+                  isUpper 
+                    ? "bg-red-500/20 text-red-400" 
+                    : "bg-green-500/20 text-green-400"
+                )}>
+                  {isUpper ? '▲' : '▼'}
+                </div>
 
-                  {/* Symbol & Volume */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1">
-                      <span className="font-semibold text-xs truncate">
-                        {coin.symbol.replace('USDT', '')}
-                      </span>
-                    </div>
-                    <p className="text-[10px] text-muted-foreground truncate">
-                      ${formatVolume(coin.volume)}
-                    </p>
-                  </div>
-
-                  {/* Price & Change */}
-                  <div className="text-right">
-                    <p className="font-mono text-xs font-medium">
-                      ${formatPrice(coin.price)}
-                    </p>
-                    <div className={cn(
-                      "flex items-center justify-end gap-0.5 text-[10px] font-medium",
-                      isPositive ? "text-positive" : "text-negative"
+                {/* Symbol & Band Info */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1">
+                    <span className="font-semibold text-xs truncate">
+                      {signal.symbol.replace('USDT', '')}
+                    </span>
+                    <span className={cn(
+                      "text-[9px] px-1 rounded",
+                      isUpper ? "bg-red-500/20 text-red-400" : "bg-green-500/20 text-green-400"
                     )}>
-                      {isPositive ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingDown className="w-2.5 h-2.5" />}
-                      <span>{isPositive ? '+' : ''}{coin.priceChangePercent.toFixed(2)}%</span>
-                    </div>
+                      {isUpper ? '상단' : '하단'}
+                    </span>
                   </div>
-                </button>
-              );
-            })
-          )
+                  <p className="text-[10px] text-muted-foreground truncate">
+                    3분봉 BB {isUpper ? '저항' : '지지'}
+                  </p>
+                </div>
+
+                {/* Price & Change */}
+                <div className="text-right">
+                  <p className="font-mono text-xs font-medium">
+                    ${formatPrice(signal.price)}
+                  </p>
+                  <div className={cn(
+                    "flex items-center justify-end gap-0.5 text-[10px] font-medium",
+                    signal.priceChangePercent >= 0 ? "text-positive" : "text-negative"
+                  )}>
+                    {signal.priceChangePercent >= 0 ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingDown className="w-2.5 h-2.5" />}
+                    <span>{signal.priceChangePercent >= 0 ? '+' : ''}{signal.priceChangePercent.toFixed(2)}%</span>
+                  </div>
+                </div>
+              </button>
+            );
+          })
         )}
       </div>
 
       {/* Note */}
       <div className="px-3 py-1.5 bg-secondary/30 border-t border-border">
         <p className="text-[10px] text-muted-foreground text-center">
-          {sortMode === 'bb' ? (
-            <>BB 터치 {bbSignals.length}개 · 3분봉 · 30초 갱신</>
-          ) : (
-            <>스캘핑 적합 {tickers.filter(c => c.price >= 0.1 && c.volume >= 50_000_000).length}개 · $0.1↑ · $50M↑</>
-          )}
+          BB 터치 {filteredSignals.length}개 · 3분봉 · 30초 갱신
         </p>
       </div>
 
