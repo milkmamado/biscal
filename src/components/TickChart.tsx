@@ -113,8 +113,13 @@ const TickChart = ({ symbol, orderBook, isConnected, height = 400, interval = 60
   
   // Binance에서 히스토리컬 klines 가져오기
   useEffect(() => {
+    // 심볼 변경 시 즉시 초기화
+    currentCandleRef.current = null;
+    lastCandleTimeRef.current = 0;
+    setCandles([]);
+    setLoading(true);
+    
     const fetchKlines = async () => {
-      setLoading(true);
       try {
         const intervalStr = getIntervalString(interval);
         const res = await fetch(

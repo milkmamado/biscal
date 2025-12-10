@@ -68,11 +68,12 @@ export function useBollingerSignals(tickers: TickerInfo[]) {
   const lastFetchRef = useRef<number>(0);
   const bbDataRef = useRef<Map<string, { upper: number; lower: number; sma: number }>>(new Map());
   
-  // Create a map for quick ticker lookup
-  const tickerMap = useMemo(() => {
-    const map = new Map<string, TickerInfo>();
-    tickers.forEach(t => map.set(t.symbol, t));
-    return map;
+  // Create a stable reference for ticker prices
+  const tickerPricesRef = useRef<Map<string, TickerInfo>>(new Map());
+  
+  // Update ticker prices without causing re-renders
+  useEffect(() => {
+    tickers.forEach(t => tickerPricesRef.current.set(t.symbol, t));
   }, [tickers]);
   
   // Get eligible symbols
@@ -158,56 +159,44 @@ export function useBollingerSignals(tickers: TickerInfo[]) {
     setIsLoading(false);
   }, [eligibleSymbols, fetchKlines]);
   
-  // Add signals when BB touch detected, keep them until next scan cycle
+  // Check for BB touch periodically (not on every ticker update)
   useEffect(() => {
-    if (bbDataRef.current.size === 0) return;
+    if (bbDataRef.current.size === 0 || eligibleSymbols.length === 0) return;
     
-    setSignals(prev => {
-      const existingSymbols = new Set(prev.map(s => s.symbol));
-      const newSignals = [...prev];
+    const checkSignals = () => {
+      const newSignals: BBSignal[] = [];
       
       for (const symbol of eligibleSymbols) {
         const bbData = bbDataRef.current.get(symbol);
-        const ticker = tickerMap.get(symbol);
+        const ticker = tickerPricesRef.current.get(symbol);
         if (!bbData || !ticker) continue;
         
-        // Check if touching BB band
         const touchType = checkBandTouch(ticker.price, bbData.upper, bbData.lower);
         
         if (touchType) {
-          if (existingSymbols.has(symbol)) {
-            // Update existing signal with latest price
-            const idx = newSignals.findIndex(s => s.symbol === symbol);
-            if (idx !== -1) {
-              newSignals[idx] = {
-                ...newSignals[idx],
-                price: ticker.price,
-                priceChangePercent: ticker.priceChangePercent,
-                touchType
-              };
-            }
-          } else {
-            // Add new signal
-            newSignals.push({
-              symbol,
-              price: ticker.price,
-              priceChangePercent: ticker.priceChangePercent,
-              volume: ticker.volume,
-              touchType,
-              upperBand: bbData.upper,
-              lowerBand: bbData.lower,
-              sma: bbData.sma,
-              timestamp: Date.now()
-            });
-          }
+          newSignals.push({
+            symbol,
+            price: ticker.price,
+            priceChangePercent: ticker.priceChangePercent,
+            volume: ticker.volume,
+            touchType,
+            upperBand: bbData.upper,
+            lowerBand: bbData.lower,
+            sma: bbData.sma,
+            timestamp: Date.now()
+          });
         }
       }
       
-      // Sort alphabetically for stable positioning
       newSignals.sort((a, b) => a.symbol.localeCompare(b.symbol));
-      return newSignals;
-    });
-  }, [tickerMap, eligibleSymbols]);
+      setSignals(newSignals);
+    };
+    
+    // Check immediately and then every 2 seconds
+    checkSignals();
+    const interval = setInterval(checkSignals, 2000);
+    return () => clearInterval(interval);
+  }, [eligibleSymbols]);
   
   // Initial fetch and periodic refresh - clear signals on each new scan
   useEffect(() => {
