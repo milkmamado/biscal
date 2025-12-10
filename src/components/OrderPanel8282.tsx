@@ -87,6 +87,17 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
   const [priceChangePercent, setPriceChangePercent] = useState<number>(0);
   const [orderQty, setOrderQty] = useState<string>('100');
   const [leverage, setLeverage] = useState<number>(10);
+  
+  // 매매 허용 시간 체크 (한국시간 21:00 ~ 01:00) - 하드코딩
+  const isTradingAllowed = (): boolean => {
+    const now = new Date();
+    const koreaOffset = 9 * 60; // UTC+9
+    const utcOffset = now.getTimezoneOffset();
+    const koreaTime = new Date(now.getTime() + (koreaOffset + utcOffset) * 60 * 1000);
+    const hour = koreaTime.getHours();
+    // 21:00 ~ 23:59 또는 00:00 ~ 00:59 (새벽 1시 전까지)
+    return (hour >= 21 && hour <= 23) || (hour >= 0 && hour < 1);
+  };
   const [loading, setLoading] = useState(true);
   const [clickOrderPercent, setClickOrderPercent] = useState<number>(100);
   const [autoTpSlInitialized, setAutoTpSlInitialized] = useState<boolean>(false);
@@ -587,6 +598,16 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
   };
 
   const handleQuickOrder = async (type: 'long' | 'short', price: number) => {
+    // 매매 시간 제한 (21:00 ~ 01:00 KST)
+    if (!isTradingAllowed()) {
+      toast({
+        title: '⏰ 거래 시간 외',
+        description: '매매는 밤 9시 ~ 새벽 1시만 가능합니다.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
     if (balanceUSD <= 0) {
       toast({
         title: '잔고 부족',
@@ -628,6 +649,16 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
   };
 
   const handleMarketOrder = async (type: 'long' | 'short') => {
+    // 매매 시간 제한 (21:00 ~ 01:00 KST)
+    if (!isTradingAllowed()) {
+      toast({
+        title: '⏰ 거래 시간 외',
+        description: '매매는 밤 9시 ~ 새벽 1시만 가능합니다.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
     const qty = parseFloat(orderQty) || 0.001;
     
     if (balanceUSD <= 0) {
@@ -896,7 +927,7 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
             }}
             className="bg-background border border-border px-2 py-0.5 text-[11px] rounded font-bold"
           >
-            {[1, 5, 10, 20].map(l => (
+            {[5, 10].map(l => (
               <option key={l} value={l}>{l}x</option>
             ))}
           </select>
