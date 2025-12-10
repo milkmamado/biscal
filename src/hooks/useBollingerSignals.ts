@@ -195,33 +195,84 @@ export function useBollingerSignals(tickers: TickerInfo[]) {
     setSignals(newSignals);
   }, [eligibleSymbols]);
   
-  // Initial fetch and periodic BB data refresh
+  // Initial fetch and periodic BB data refresh (30초마다 전체 스캔)
   useEffect(() => {
     const runScan = async () => {
-      // 신호를 먼저 지우지 않고 데이터 가져온 후 업데이트
       await fetchBBData();
-      checkSignals();
+      
+      // 스캔 완료 후 신호 업데이트 (30초마다만 갱신)
+      if (bbDataRef.current.size === 0 || eligibleSymbols.length === 0) {
+        setSignals([]);
+        return;
+      }
+      
+      const newSignals: BBSignal[] = [];
+      
+      for (const symbol of eligibleSymbols) {
+        const bbData = bbDataRef.current.get(symbol);
+        const ticker = tickerPricesRef.current.get(symbol);
+        if (!bbData || !ticker) continue;
+        
+        const touchType = checkBandTouch(ticker.price, bbData.upper, bbData.lower);
+        
+        if (touchType) {
+          newSignals.push({
+            symbol,
+            price: ticker.price,
+            priceChangePercent: ticker.priceChangePercent,
+            volume: ticker.volume,
+            touchType,
+            upperBand: bbData.upper,
+            lowerBand: bbData.lower,
+            sma: bbData.sma,
+            timestamp: Date.now()
+          });
+        }
+      }
+      
+      newSignals.sort((a, b) => a.symbol.localeCompare(b.symbol));
+      setSignals(newSignals);
     };
     
     runScan();
     const interval = setInterval(runScan, 30000);
     return () => clearInterval(interval);
-  }, [fetchBBData, checkSignals]);
+  }, [fetchBBData, eligibleSymbols]);
   
-  // Periodic signal check (every 2 seconds)
+  // 기존 신호의 가격만 업데이트 (2초마다, 신호 목록은 변경 안함)
   useEffect(() => {
     if (checkIntervalRef.current) {
       clearInterval(checkIntervalRef.current);
     }
     
-    checkIntervalRef.current = setInterval(checkSignals, 2000);
+    checkIntervalRef.current = setInterval(() => {
+      setSignals(prev => {
+        if (prev.length === 0) return prev;
+        
+        let hasChange = false;
+        const updated = prev.map(signal => {
+          const ticker = tickerPricesRef.current.get(signal.symbol);
+          if (ticker && ticker.price !== signal.price) {
+            hasChange = true;
+            return {
+              ...signal,
+              price: ticker.price,
+              priceChangePercent: ticker.priceChangePercent
+            };
+          }
+          return signal;
+        });
+        
+        return hasChange ? updated : prev;
+      });
+    }, 2000);
     
     return () => {
       if (checkIntervalRef.current) {
         clearInterval(checkIntervalRef.current);
       }
     };
-  }, [checkSignals]);
+  }, []);
   
   return { signals, isLoading, refresh: fetchBBData };
 }
