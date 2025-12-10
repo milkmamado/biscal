@@ -17,6 +17,7 @@ interface TickerInfo {
   price: number;
   priceChangePercent: number;
   volume: number;
+  volatilityRange: number; // (high - low) / low * 100
 }
 
 interface KlineData {
@@ -66,9 +67,13 @@ export function useBollingerSignals(tickers: TickerInfo[]) {
   const lastFetchRef = useRef<number>(0);
   const bbDataRef = useRef<Map<string, { upper: number; lower: number; sma: number; timestamp: number }>>(new Map());
   
-  // Filter symbols: $50M+ volume, $0.1+ price
+  // Filter symbols: $50M+ volume, $0.1+ price, 3%+ volatility (execution speed)
   const eligibleSymbols = tickers
-    .filter(t => t.price >= 0.1 && t.volume >= 50_000_000)
+    .filter(t => 
+      t.price >= 0.1 && 
+      t.volume >= 50_000_000 && 
+      t.volatilityRange >= 3 // 최소 3% 일일 변동폭 (체결속도 필터)
+    )
     .sort((a, b) => b.volume - a.volume)
     .slice(0, 30);
   
