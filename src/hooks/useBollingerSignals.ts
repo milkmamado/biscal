@@ -12,6 +12,13 @@ export interface BBSignal {
   timestamp: number;
 }
 
+interface TickerInfo {
+  symbol: string;
+  price: number;
+  priceChangePercent: number;
+  volume: number;
+}
+
 interface KlineData {
   openTime: number;
   open: number;
@@ -53,19 +60,19 @@ function checkBandTouch(price: number, upper: number, lower: number): 'upper' | 
   return null;
 }
 
-export function useBollingerSignals(symbols: string[]) {
+export function useBollingerSignals(tickers: TickerInfo[]) {
   const [signals, setSignals] = useState<BBSignal[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const lastFetchRef = useRef<number>(0);
-  const cacheRef = useRef<Map<string, { data: KlineData[]; timestamp: number }>>(new Map());
+  const bbDataRef = useRef<Map<string, { upper: number; lower: number; sma: number; timestamp: number }>>(new Map());
+  
+  // Filter symbols: $50M+ volume, $0.1+ price
+  const eligibleSymbols = tickers
+    .filter(t => t.price >= 0.1 && t.volume >= 50_000_000)
+    .sort((a, b) => b.volume - a.volume)
+    .slice(0, 30);
   
   const fetchKlines = useCallback(async (symbol: string): Promise<KlineData[] | null> => {
-    // Check cache (valid for 30 seconds)
-    const cached = cacheRef.current.get(symbol);
-    if (cached && Date.now() - cached.timestamp < 30000) {
-      return cached.data;
-    }
-    
     try {
       const response = await fetch(
         `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=3m&limit=25`
@@ -83,9 +90,6 @@ export function useBollingerSignals(symbols: string[]) {
         volume: parseFloat(k[5])
       }));
       
-      // Cache the result
-      cacheRef.current.set(symbol, { data: klines, timestamp: Date.now() });
-      
       return klines;
     } catch (error) {
       console.error(`Failed to fetch klines for ${symbol}:`, error);
@@ -93,83 +97,87 @@ export function useBollingerSignals(symbols: string[]) {
     }
   }, []);
   
-  const scanForSignals = useCallback(async () => {
-    if (symbols.length === 0) return;
-    
-    // Throttle: minimum 10 seconds between scans
+  // Fetch BB data periodically (every 30 seconds)
+  const fetchBBData = useCallback(async () => {
     const now = Date.now();
-    if (now - lastFetchRef.current < 10000) return;
+    if (now - lastFetchRef.current < 30000) return;
     lastFetchRef.current = now;
     
     setIsLoading(true);
     
-    const newSignals: BBSignal[] = [];
-    
-    // Process in batches of 5 to avoid rate limiting
     const batchSize = 5;
-    for (let i = 0; i < symbols.length; i += batchSize) {
-      const batch = symbols.slice(i, i + batchSize);
+    for (let i = 0; i < eligibleSymbols.length; i += batchSize) {
+      const batch = eligibleSymbols.slice(i, i + batchSize);
       
-      const results = await Promise.all(
-        batch.map(async (symbol) => {
-          const klines = await fetchKlines(symbol);
-          if (!klines || klines.length < 20) return null;
+      await Promise.all(
+        batch.map(async (ticker) => {
+          const klines = await fetchKlines(ticker.symbol);
+          if (!klines || klines.length < 20) return;
           
           const closes = klines.map(k => k.close);
           const bb = calculateBB(closes);
-          if (!bb) return null;
+          if (!bb) return;
           
-          const currentPrice = closes[closes.length - 1];
-          const touchType = checkBandTouch(currentPrice, bb.upper, bb.lower);
-          
-          if (touchType) {
-            // Get price change from first and last kline
-            const firstClose = klines[0].close;
-            const priceChangePercent = ((currentPrice - firstClose) / firstClose) * 100;
-            const totalVolume = klines.reduce((sum, k) => sum + k.volume * k.close, 0);
-            
-            return {
-              symbol,
-              price: currentPrice,
-              priceChangePercent,
-              volume: totalVolume,
-              touchType,
-              upperBand: bb.upper,
-              lowerBand: bb.lower,
-              sma: bb.sma,
-              timestamp: Date.now()
-            } as BBSignal;
-          }
-          
-          return null;
+          bbDataRef.current.set(ticker.symbol, {
+            upper: bb.upper,
+            lower: bb.lower,
+            sma: bb.sma,
+            timestamp: now
+          });
         })
       );
       
-      results.forEach(r => {
-        if (r) newSignals.push(r);
-      });
-      
-      // Small delay between batches
-      if (i + batchSize < symbols.length) {
+      if (i + batchSize < eligibleSymbols.length) {
         await new Promise(resolve => setTimeout(resolve, 100));
       }
     }
     
-    // Sort by timestamp (most recent first), then by touch type
-    newSignals.sort((a, b) => b.timestamp - a.timestamp);
+    setIsLoading(false);
+  }, [eligibleSymbols, fetchKlines]);
+  
+  // Check current prices against BB bands (real-time)
+  useEffect(() => {
+    const newSignals: BBSignal[] = [];
+    
+    for (const ticker of eligibleSymbols) {
+      const bbData = bbDataRef.current.get(ticker.symbol);
+      if (!bbData) continue;
+      
+      // Check CURRENT price against BB bands
+      const touchType = checkBandTouch(ticker.price, bbData.upper, bbData.lower);
+      
+      if (touchType) {
+        newSignals.push({
+          symbol: ticker.symbol,
+          price: ticker.price,
+          priceChangePercent: ticker.priceChangePercent,
+          volume: ticker.volume,
+          touchType,
+          upperBand: bbData.upper,
+          lowerBand: bbData.lower,
+          sma: bbData.sma,
+          timestamp: Date.now()
+        });
+      }
+    }
+    
+    // Sort: upper touches first, then lower
+    newSignals.sort((a, b) => {
+      if (a.touchType !== b.touchType) {
+        return a.touchType === 'upper' ? -1 : 1;
+      }
+      return b.volume - a.volume;
+    });
     
     setSignals(newSignals);
-    setIsLoading(false);
-  }, [symbols, fetchKlines]);
+  }, [eligibleSymbols]);
   
-  // Initial scan and periodic refresh
+  // Initial fetch and periodic refresh of BB data
   useEffect(() => {
-    scanForSignals();
-    
-    const interval = setInterval(scanForSignals, 30000); // Refresh every 30 seconds
-    
+    fetchBBData();
+    const interval = setInterval(fetchBBData, 30000);
     return () => clearInterval(interval);
-  }, [scanForSignals]);
+  }, [fetchBBData]);
   
-  return { signals, isLoading, refresh: scanForSignals };
+  return { signals, isLoading, refresh: fetchBBData };
 }
