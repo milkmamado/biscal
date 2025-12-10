@@ -48,15 +48,16 @@ function calculateBB(closes: number[], period: number = 20, multiplier: number =
   };
 }
 
-// Check if price touches band (within 0.3% tolerance)
+// Check if price touches band (within 0.2% tolerance - tighter for accuracy)
 function checkBandTouch(price: number, upper: number, lower: number): 'upper' | 'lower' | null {
-  const tolerance = 0.003;
+  const tolerance = 0.002; // 0.2% - tighter tolerance
   
   const upperDiff = Math.abs(price - upper) / upper;
   const lowerDiff = Math.abs(price - lower) / lower;
   
-  if (upperDiff <= tolerance || price >= upper) return 'upper';
-  if (lowerDiff <= tolerance || price <= lower) return 'lower';
+  // Must be AT or BEYOND the band, or very close
+  if (price >= upper || upperDiff <= tolerance) return 'upper';
+  if (price <= lower || lowerDiff <= tolerance) return 'lower';
   
   return null;
 }
@@ -66,7 +67,6 @@ export function useBollingerSignals(tickers: TickerInfo[]) {
   const [isLoading, setIsLoading] = useState(false);
   const lastFetchRef = useRef<number>(0);
   const bbDataRef = useRef<Map<string, { upper: number; lower: number; sma: number }>>(new Map());
-  const signalSymbolsRef = useRef<string[]>([]); // Track stable symbol order
   
   // Create a map for quick ticker lookup
   const tickerMap = useMemo(() => {
@@ -75,7 +75,7 @@ export function useBollingerSignals(tickers: TickerInfo[]) {
     return map;
   }, [tickers]);
   
-  // Get eligible symbols (memoized, only changes when ticker list changes significantly)
+  // Get eligible symbols
   const eligibleSymbols = useMemo(() => {
     return tickers
       .filter(t => 
@@ -84,10 +84,10 @@ export function useBollingerSignals(tickers: TickerInfo[]) {
         t.volume >= 50_000_000 && 
         t.volatilityRange >= 3
       )
-      .sort((a, b) => a.symbol.localeCompare(b.symbol)) // Alphabetical for stability
+      .sort((a, b) => a.symbol.localeCompare(b.symbol))
       .slice(0, 30)
       .map(t => t.symbol);
-  }, [tickers.length]); // Only recalculate when ticker count changes
+  }, [tickers.length]);
   
   const fetchKlines = useCallback(async (symbol: string): Promise<KlineData[] | null> => {
     try {
@@ -112,7 +112,7 @@ export function useBollingerSignals(tickers: TickerInfo[]) {
     }
   }, []);
   
-  // Fetch BB data and update signals (every 30 seconds)
+  // Fetch BB data periodically (every 30 seconds)
   const fetchBBData = useCallback(async () => {
     const now = Date.now();
     if (now - lastFetchRef.current < 30000) return;
@@ -146,19 +146,25 @@ export function useBollingerSignals(tickers: TickerInfo[]) {
       }
     }
     
-    // Calculate signals ONCE after fetching BB data
+    setIsLoading(false);
+  }, [eligibleSymbols, fetchKlines]);
+  
+  // Real-time check: Update signals based on CURRENT price touching BB bands
+  useEffect(() => {
+    if (bbDataRef.current.size === 0) return;
+    
     const newSignals: BBSignal[] = [];
-    const newSymbolOrder: string[] = [];
     
     for (const symbol of eligibleSymbols) {
       const bbData = bbDataRef.current.get(symbol);
       const ticker = tickerMap.get(symbol);
       if (!bbData || !ticker) continue;
       
+      // Check if CURRENT price is touching BB band RIGHT NOW
       const touchType = checkBandTouch(ticker.price, bbData.upper, bbData.lower);
       
+      // Only add if currently touching
       if (touchType) {
-        newSymbolOrder.push(symbol);
         newSignals.push({
           symbol,
           price: ticker.price,
@@ -168,38 +174,16 @@ export function useBollingerSignals(tickers: TickerInfo[]) {
           upperBand: bbData.upper,
           lowerBand: bbData.lower,
           sma: bbData.sma,
-          timestamp: now
+          timestamp: Date.now()
         });
       }
     }
     
-    // Sort alphabetically and store the order
+    // Sort alphabetically for stable positioning
     newSignals.sort((a, b) => a.symbol.localeCompare(b.symbol));
-    signalSymbolsRef.current = newSignals.map(s => s.symbol);
     
     setSignals(newSignals);
-    setIsLoading(false);
-  }, [eligibleSymbols, fetchKlines, tickerMap]);
-  
-  // Update prices in existing signals without reordering (real-time)
-  useEffect(() => {
-    if (signalSymbolsRef.current.length === 0) return;
-    
-    setSignals(prev => {
-      // Keep the same order, just update prices
-      return prev.map(signal => {
-        const ticker = tickerMap.get(signal.symbol);
-        if (!ticker) return signal;
-        
-        return {
-          ...signal,
-          price: ticker.price,
-          priceChangePercent: ticker.priceChangePercent,
-          volume: ticker.volume
-        };
-      });
-    });
-  }, [tickerMap]);
+  }, [tickerMap, eligibleSymbols]);
   
   // Initial fetch and periodic refresh
   useEffect(() => {
