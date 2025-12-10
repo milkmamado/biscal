@@ -129,6 +129,15 @@ export function useBollingerSignals(tickers: TickerInfo[]) {
           const klines = await fetchKlines(symbol);
           if (!klines || klines.length < 20) return;
           
+          // Check 10-minute volatility (last 4 candles of 3m = 12 min)
+          const recentKlines = klines.slice(-4);
+          const highIn10m = Math.max(...recentKlines.map(k => k.high));
+          const lowIn10m = Math.min(...recentKlines.map(k => k.low));
+          const volatility10m = ((highIn10m - lowIn10m) / lowIn10m) * 100;
+          
+          // Skip if 10-min volatility < 2%
+          if (volatility10m < 2) return;
+          
           const closes = klines.map(k => k.close);
           const bb = calculateBB(closes);
           if (!bb) return;
