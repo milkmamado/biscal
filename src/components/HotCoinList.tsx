@@ -18,14 +18,19 @@ const HotCoinList = ({ onSelectSymbol, selectedSymbol }: HotCoinListProps) => {
   const [sortMode, setSortMode] = useState<SortMode>('hot');
   const [searchQuery, setSearchQuery] = useState('');
   
-  // Get symbols for BB scanning (top 30 by volume)
-  const symbolsForBB = tickers
+  // Get tickers for BB scanning (filtered by criteria)
+  const tickersForBB = tickers
     .filter(c => c.price >= 0.1 && c.volume >= 50_000_000)
     .sort((a, b) => b.volume - a.volume)
     .slice(0, 30)
-    .map(c => c.symbol);
+    .map(c => ({
+      symbol: c.symbol,
+      price: c.price,
+      priceChangePercent: c.priceChangePercent,
+      volume: c.volume
+    }));
   
-  const { signals: bbSignals, isLoading: bbLoading } = useBollingerSignals(symbolsForBB);
+  const { signals: bbSignals, isLoading: bbLoading } = useBollingerSignals(tickersForBB);
 
   // Sort and filter coins based on mode and search
   useEffect(() => {
