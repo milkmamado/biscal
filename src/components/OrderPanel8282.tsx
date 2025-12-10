@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { OrderBook, formatPrice, formatQuantity } from '@/lib/binance';
+import { OrderBook, formatPrice, formatQuantity, fetchSymbolPrecision, roundPrice, roundQuantity } from '@/lib/binance';
 import { useOrderBookWebSocket } from '@/hooks/useOrderBookWebSocket';
 import { useTickerWebSocket } from '@/hooks/useTickerWebSocket';
 import { cn } from '@/lib/utils';
@@ -165,6 +165,9 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
   // Real open orders count from Binance
   const [openOrdersCount, setOpenOrdersCount] = useState<number>(0);
   
+  // Track open order prices for ★ display on B/S buttons
+  const [openOrderPrices, setOpenOrderPrices] = useState<Map<number, 'BUY' | 'SELL'>>(new Map());
+  
   // Notify parent when position changes
   useEffect(() => {
     onPositionChange?.(position);
@@ -276,6 +279,14 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
         const openOrders = await getOpenOrders(symbol);
         const ordersArray = Array.isArray(openOrders) ? openOrders : [];
         setOpenOrdersCount(ordersArray.length);
+        
+        // Track order prices for ★ display
+        const priceMap = new Map<number, 'BUY' | 'SELL'>();
+        ordersArray.forEach((o: any) => {
+          const price = parseFloat(o.price);
+          priceMap.set(price, o.side as 'BUY' | 'SELL');
+        });
+        setOpenOrderPrices(priceMap);
         
         // Notify parent about open orders
         if (onOpenOrdersChange) {
@@ -621,20 +632,57 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
       const side = type === 'long' ? 'BUY' : 'SELL';
       const reduceOnly = position && position.type !== type;
       
-      let qty: number;
+      // 청산 주문은 1개 주문으로 처리
       if (reduceOnly) {
-        // Close position - use position quantity
-        qty = position!.quantity;
-      } else {
-        // Use current orderQty value
-        qty = parseFloat(orderQty) || 0.001;
+        const qty = position!.quantity;
+        await apiPlaceLimitOrder(symbol, side, qty, price, true);
+        
+        toast({
+          title: '📋 청산 주문',
+          description: `${symbol} ${qty.toFixed(3)}개 @ $${formatPrice(price)}`,
+        });
+        
+        setTimeout(fetchBalanceAndPosition, 1000);
+        return;
       }
       
-      await apiPlaceLimitOrder(symbol, side, qty, price, reduceOnly);
+      // 5분할 주문: 롱은 아래호가로, 숏은 위호가로
+      const totalQty = parseFloat(orderQty) || 0.001;
+      const precision = await fetchSymbolPrecision(symbol);
+      const tickSize = precision.tickSize;
+      const splitCount = 5;
+      const qtyPerOrder = roundQuantity(totalQty / splitCount, precision);
+      
+      // 최소 수량 체크
+      if (qtyPerOrder < precision.minQty) {
+        toast({
+          title: '수량 부족',
+          description: `분할 주문 최소 수량: ${(precision.minQty * splitCount).toFixed(3)}개`,
+          variant: 'destructive',
+        });
+        return;
+      }
+      
+      // 5개 가격 레벨 계산
+      const prices: number[] = [];
+      for (let i = 0; i < splitCount; i++) {
+        // 롱: 클릭한 가격에서 아래로 (더 좋은 가격)
+        // 숏: 클릭한 가격에서 위로 (더 좋은 가격)
+        const offset = type === 'long' ? -i * tickSize : i * tickSize;
+        const orderPrice = roundPrice(price + offset, precision);
+        prices.push(orderPrice);
+      }
+      
+      // 5개 주문 동시 실행
+      const orderPromises = prices.map(p => 
+        apiPlaceLimitOrder(symbol, side, qtyPerOrder, p, false)
+      );
+      
+      await Promise.all(orderPromises);
       
       toast({
-        title: type === 'long' ? '📋 지정가 롱 주문' : '📋 지정가 숏 주문',
-        description: `${symbol} ${qty.toFixed(3)}개 @ $${formatPrice(price)}`,
+        title: type === 'long' ? '📋 5분할 롱 주문' : '📋 5분할 숏 주문',
+        description: `${symbol} ${qtyPerOrder.toFixed(3)}개 × 5호가 (${formatPrice(prices[0])} ~ ${formatPrice(prices[4])})`,
       });
       
       // Refresh position after order
@@ -1059,10 +1107,13 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
               {/* S button */}
               <button
                 onDoubleClick={() => handleQuickOrder('short', ask.price)}
-                className="px-1 py-0.5 text-center bg-blue-950/50 hover:bg-blue-900/70 border-r border-border/30 text-blue-400 font-bold text-[10px]"
+                className={cn(
+                  "px-1 py-0.5 text-center hover:bg-blue-900/70 border-r border-border/30 text-blue-400 font-bold text-[10px]",
+                  openOrderPrices.get(ask.price) === 'SELL' ? "bg-blue-700/70" : "bg-blue-950/50"
+                )}
                 title={position ? "더블클릭: 청산" : "더블클릭: 숏 진입"}
               >
-                {position?.type === 'long' ? 'C' : 'S'}
+                {openOrderPrices.get(ask.price) === 'SELL' ? '★' : (position?.type === 'long' ? 'C' : 'S')}
               </button>
               
               {/* 매도잔량 */}
@@ -1091,10 +1142,13 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
               {/* B button */}
               <button
                 onDoubleClick={() => handleQuickOrder('long', ask.price)}
-                className="px-1 py-0.5 text-center bg-red-950/50 hover:bg-red-900/70 text-red-400 font-bold text-[10px]"
+                className={cn(
+                  "px-1 py-0.5 text-center hover:bg-red-900/70 text-red-400 font-bold text-[10px]",
+                  openOrderPrices.get(ask.price) === 'BUY' ? "bg-red-700/70" : "bg-red-950/50"
+                )}
                 title="더블클릭: 롱 진입"
               >
-                B
+                {openOrderPrices.get(ask.price) === 'BUY' ? '★' : 'B'}
               </button>
             </div>
           );
@@ -1210,10 +1264,13 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
               {/* S button */}
               <button
                 onDoubleClick={() => handleQuickOrder('short', bid.price)}
-                className="px-1 py-0.5 text-center bg-blue-950/50 hover:bg-blue-900/70 border-r border-border/30 text-blue-400 font-bold text-[10px]"
+                className={cn(
+                  "px-1 py-0.5 text-center hover:bg-blue-900/70 border-r border-border/30 text-blue-400 font-bold text-[10px]",
+                  openOrderPrices.get(bid.price) === 'SELL' ? "bg-blue-700/70" : "bg-blue-950/50"
+                )}
                 title="더블클릭: 숏 진입"
               >
-                S
+                {openOrderPrices.get(bid.price) === 'SELL' ? '★' : 'S'}
               </button>
 
               {/* Empty sell quantity */}
@@ -1242,10 +1299,13 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
               {/* B button */}
               <button
                 onDoubleClick={() => handleQuickOrder('long', bid.price)}
-                className="px-1 py-0.5 text-center bg-red-950/50 hover:bg-red-900/70 text-red-400 font-bold text-[10px]"
+                className={cn(
+                  "px-1 py-0.5 text-center hover:bg-red-900/70 text-red-400 font-bold text-[10px]",
+                  openOrderPrices.get(bid.price) === 'BUY' ? "bg-red-700/70" : "bg-red-950/50"
+                )}
                 title={position ? "더블클릭: 청산" : "더블클릭: 롱 진입"}
               >
-                {position?.type === 'short' ? 'C' : 'B'}
+                {openOrderPrices.get(bid.price) === 'BUY' ? '★' : (position?.type === 'short' ? 'C' : 'B')}
               </button>
             </div>
           );
