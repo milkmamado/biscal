@@ -80,9 +80,10 @@ const TickChart = ({ symbol, orderBook, isConnected, height = 400, interval = 60
   const [candles, setCandles] = useState<Candle[]>([]);
   const [loading, setLoading] = useState(true);
   const [visibleCount, setVisibleCount] = useState(50);
+  const [displaySymbol, setDisplaySymbol] = useState(symbol); // 현재 표시 중인 심볼
   const lastCandleTimeRef = useRef<number>(0);
   const currentCandleRef = useRef<Candle | null>(null);
-  const currentSymbolRef = useRef<string>(symbol); // 현재 심볼 추적
+  const fetchIdRef = useRef<number>(0); // fetch 요청 ID
   
   // 줌 인/아웃
   const handleZoomIn = useCallback(() => {
@@ -114,14 +115,17 @@ const TickChart = ({ symbol, orderBook, isConnected, height = 400, interval = 60
   
   // Binance에서 히스토리컬 klines 가져오기
   useEffect(() => {
-    // 심볼 변경 시 즉시 초기화
-    currentSymbolRef.current = symbol;
+    // 새 요청 ID 생성
+    const currentFetchId = ++fetchIdRef.current;
+    
+    // 즉시 상태 초기화 (동기적으로)
     currentCandleRef.current = null;
     lastCandleTimeRef.current = 0;
+    
+    // 상태 동시 업데이트로 깜빡임 최소화
     setCandles([]);
     setLoading(true);
-    
-    let isCancelled = false;
+    setDisplaySymbol(symbol);
     
     const fetchKlines = async () => {
       try {
@@ -131,8 +135,8 @@ const TickChart = ({ symbol, orderBook, isConnected, height = 400, interval = 60
         );
         const data = await res.json();
         
-        // 심볼이 변경되었으면 데이터 무시
-        if (isCancelled || currentSymbolRef.current !== symbol) return;
+        // 이 fetch가 최신 요청인지 확인 (race condition 방지)
+        if (fetchIdRef.current !== currentFetchId) return;
         
         if (Array.isArray(data)) {
           const historicalCandles: Candle[] = data.map((k: any[]) => ({
@@ -144,18 +148,21 @@ const TickChart = ({ symbol, orderBook, isConnected, height = 400, interval = 60
             volume: parseFloat(k[5]),
           }));
           
-          setCandles(historicalCandles);
+          // 다시 한번 확인 (fetch 후 symbol 변경되었을 수 있음)
+          if (fetchIdRef.current !== currentFetchId) return;
           
           if (historicalCandles.length > 0) {
             const lastCandle = historicalCandles[historicalCandles.length - 1];
             currentCandleRef.current = { ...lastCandle };
             lastCandleTimeRef.current = lastCandle.time;
           }
+          
+          setCandles(historicalCandles);
+          setLoading(false);
         }
       } catch (error) {
         console.error('Failed to fetch klines:', error);
-      } finally {
-        if (!isCancelled && currentSymbolRef.current === symbol) {
+        if (fetchIdRef.current === currentFetchId) {
           setLoading(false);
         }
       }
@@ -164,19 +171,24 @@ const TickChart = ({ symbol, orderBook, isConnected, height = 400, interval = 60
     fetchKlines();
     
     const refreshInterval = Math.min(interval * 1000, 60000);
-    const intervalId = setInterval(fetchKlines, refreshInterval);
+    const intervalId = setInterval(() => {
+      // 주기적 갱신도 현재 심볼/interval에만 적용
+      if (fetchIdRef.current === currentFetchId) {
+        fetchKlines();
+      }
+    }, refreshInterval);
     
     return () => {
-      isCancelled = true;
       clearInterval(intervalId);
     };
   }, [symbol, interval]);
   
   // orderBook에서 현재가로 현재 봉 업데이트
   useEffect(() => {
+    // 로딩 중이거나 캔들이 없으면 무시
+    if (loading || candles.length === 0) return;
     if (!orderBook || orderBook.bids.length === 0 || orderBook.asks.length === 0) return;
     if (!currentCandleRef.current) return;
-    if (candles.length === 0) return; // 캔들 데이터가 없으면 무시
     
     const bestBid = orderBook.bids[0].price;
     const bestAsk = orderBook.asks[0].price;
@@ -189,7 +201,7 @@ const TickChart = ({ symbol, orderBook, isConnected, height = 400, interval = 60
     
     // 캔버스 다시 그리기 트리거
     setCandles(prev => [...prev]);
-  }, [orderBook, candles.length]);
+  }, [orderBook, candles.length, loading]);
   
   // 캔버스에 봉차트 그리기
   useEffect(() => {

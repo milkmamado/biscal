@@ -198,7 +198,7 @@ export function useBollingerSignals(tickers: TickerInfo[]) {
   // Initial fetch and periodic BB data refresh
   useEffect(() => {
     const runScan = async () => {
-      setSignals([]);
+      // 신호를 먼저 지우지 않고 데이터 가져온 후 업데이트
       await fetchBBData();
       checkSignals();
     };
