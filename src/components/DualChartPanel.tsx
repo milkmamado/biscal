@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { useBinanceApi, BinancePosition } from '@/hooks/useBinanceApi';
 import { useAuth } from '@/hooks/useAuth';
@@ -66,8 +66,26 @@ const DualChartPanel = ({
   const [positions, setPositions] = useState<BinancePosition[]>([]);
   const [previousDayBalance, setPreviousDayBalance] = useState<number | null>(null);
   const [todayRealizedPnL, setTodayRealizedPnL] = useState<number>(0);
+  const prevSymbolRef = useRef<string>(symbol);
   const { user } = useAuth();
   const { getBalances, getPositions, getIncomeHistory } = useBinanceApi();
+
+  // 심볼 변경 시 차트 분봉 자동 전환 (3분 → 1분)
+  useEffect(() => {
+    if (prevSymbolRef.current !== symbol) {
+      prevSymbolRef.current = symbol;
+      
+      // 3분봉으로 전환
+      setInterval(180);
+      
+      // 200ms 후 1분봉으로 복귀
+      const timer = setTimeout(() => {
+        setInterval(60);
+      }, 200);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [symbol]);
 
   // Fetch positions
   const fetchPositions = async () => {
