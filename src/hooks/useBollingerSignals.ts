@@ -67,10 +67,11 @@ export function useBollingerSignals(tickers: TickerInfo[]) {
   const lastFetchRef = useRef<number>(0);
   const bbDataRef = useRef<Map<string, { upper: number; lower: number; sma: number; timestamp: number }>>(new Map());
   
-  // Filter symbols: $50M+ volume, $0.1+ price, 3%+ volatility (execution speed)
+  // Filter symbols: $0.1-$50 price, $50M+ volume, 3%+ volatility (execution speed)
   const eligibleSymbols = tickers
     .filter(t => 
       t.price >= 0.1 && 
+      t.price <= 50 && // 스캘핑용 중소형 코인만 (BTC, ETH 등 제외)
       t.volume >= 50_000_000 && 
       t.volatilityRange >= 3 // 최소 3% 일일 변동폭 (체결속도 필터)
     )
