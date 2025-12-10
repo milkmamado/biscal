@@ -135,8 +135,8 @@ export function useBollingerSignals(tickers: TickerInfo[]) {
           const lowIn10m = Math.min(...recentKlines.map(k => k.low));
           const volatility10m = ((highIn10m - lowIn10m) / lowIn10m) * 100;
           
-          // Skip if 10-min volatility < 2%
-          if (volatility10m < 2) return;
+          // Skip if 10-min volatility < 1.5%
+          if (volatility10m < 1.5) return;
           
           const closes = klines.map(k => k.close);
           const bb = calculateBB(closes);
@@ -158,46 +158,66 @@ export function useBollingerSignals(tickers: TickerInfo[]) {
     setIsLoading(false);
   }, [eligibleSymbols, fetchKlines]);
   
-  // Real-time check: Update signals based on CURRENT price touching BB bands
+  // Add signals when BB touch detected, keep them until next scan cycle
   useEffect(() => {
     if (bbDataRef.current.size === 0) return;
     
-    const newSignals: BBSignal[] = [];
-    
-    for (const symbol of eligibleSymbols) {
-      const bbData = bbDataRef.current.get(symbol);
-      const ticker = tickerMap.get(symbol);
-      if (!bbData || !ticker) continue;
+    setSignals(prev => {
+      const existingSymbols = new Set(prev.map(s => s.symbol));
+      const newSignals = [...prev];
       
-      // Check if CURRENT price is touching BB band RIGHT NOW
-      const touchType = checkBandTouch(ticker.price, bbData.upper, bbData.lower);
-      
-      // Only add if currently touching
-      if (touchType) {
-        newSignals.push({
-          symbol,
-          price: ticker.price,
-          priceChangePercent: ticker.priceChangePercent,
-          volume: ticker.volume,
-          touchType,
-          upperBand: bbData.upper,
-          lowerBand: bbData.lower,
-          sma: bbData.sma,
-          timestamp: Date.now()
-        });
+      for (const symbol of eligibleSymbols) {
+        const bbData = bbDataRef.current.get(symbol);
+        const ticker = tickerMap.get(symbol);
+        if (!bbData || !ticker) continue;
+        
+        // Check if touching BB band
+        const touchType = checkBandTouch(ticker.price, bbData.upper, bbData.lower);
+        
+        if (touchType) {
+          if (existingSymbols.has(symbol)) {
+            // Update existing signal with latest price
+            const idx = newSignals.findIndex(s => s.symbol === symbol);
+            if (idx !== -1) {
+              newSignals[idx] = {
+                ...newSignals[idx],
+                price: ticker.price,
+                priceChangePercent: ticker.priceChangePercent,
+                touchType
+              };
+            }
+          } else {
+            // Add new signal
+            newSignals.push({
+              symbol,
+              price: ticker.price,
+              priceChangePercent: ticker.priceChangePercent,
+              volume: ticker.volume,
+              touchType,
+              upperBand: bbData.upper,
+              lowerBand: bbData.lower,
+              sma: bbData.sma,
+              timestamp: Date.now()
+            });
+          }
+        }
       }
-    }
-    
-    // Sort alphabetically for stable positioning
-    newSignals.sort((a, b) => a.symbol.localeCompare(b.symbol));
-    
-    setSignals(newSignals);
+      
+      // Sort alphabetically for stable positioning
+      newSignals.sort((a, b) => a.symbol.localeCompare(b.symbol));
+      return newSignals;
+    });
   }, [tickerMap, eligibleSymbols]);
   
-  // Initial fetch and periodic refresh
+  // Initial fetch and periodic refresh - clear signals on each new scan
   useEffect(() => {
-    fetchBBData();
-    const interval = setInterval(fetchBBData, 30000);
+    const runScan = () => {
+      setSignals([]); // Clear old signals on new scan
+      fetchBBData();
+    };
+    
+    runScan();
+    const interval = setInterval(runScan, 30000);
     return () => clearInterval(interval);
   }, [fetchBBData]);
   
