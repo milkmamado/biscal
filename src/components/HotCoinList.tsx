@@ -143,16 +143,21 @@ const HotCoinList = ({ onSelectSymbol, selectedSymbol }: HotCoinListProps) => {
       </div>
 
       {/* Coin List */}
-      <div className="divide-y divide-border/50 max-h-[calc(100vh-350px)] overflow-y-auto">
+      <div className={cn(
+        "divide-y divide-border/50 overflow-y-auto",
+        sortMode === 'bb' ? "h-[400px]" : "max-h-[calc(100vh-350px)]" // Fixed height for BB tab
+      )}>
         {sortMode === 'bb' ? (
-          // BB Signal List
+          // BB Signal List - Fixed height container
           bbLoading ? (
-            <div className="py-8 text-center text-sm text-muted-foreground">
-              <RefreshCw className="w-4 h-4 animate-spin mx-auto mb-2" />
-              BB 신호 스캔 중...
+            <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
+              <div className="text-center">
+                <RefreshCw className="w-4 h-4 animate-spin mx-auto mb-2" />
+                BB 신호 스캔 중...
+              </div>
             </div>
           ) : bbSignals.length === 0 ? (
-            <div className="py-8 text-center text-sm text-muted-foreground">
+            <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
               BB 터치 신호 없음
             </div>
           ) : (
