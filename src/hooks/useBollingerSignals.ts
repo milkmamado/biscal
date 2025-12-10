@@ -167,13 +167,8 @@ export function useBollingerSignals(tickers: TickerInfo[]) {
       }
     }
     
-    // Sort: upper touches first, then lower
-    newSignals.sort((a, b) => {
-      if (a.touchType !== b.touchType) {
-        return a.touchType === 'upper' ? -1 : 1;
-      }
-      return b.volume - a.volume;
-    });
+    // Sort by symbol name (alphabetical) for stable positioning
+    newSignals.sort((a, b) => a.symbol.localeCompare(b.symbol));
     
     setSignals(newSignals);
   }, [eligibleSymbols]);
