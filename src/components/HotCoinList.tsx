@@ -27,7 +27,8 @@ const HotCoinList = ({ onSelectSymbol, selectedSymbol }: HotCoinListProps) => {
       symbol: c.symbol,
       price: c.price,
       priceChangePercent: c.priceChangePercent,
-      volume: c.volume
+      volume: c.volume,
+      volatilityRange: c.volatilityRange
     }));
   
   const { signals: bbSignals, isLoading: bbLoading } = useBollingerSignals(tickersForBB);
