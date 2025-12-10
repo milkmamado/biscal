@@ -67,7 +67,6 @@ const HotCoinList = ({ onSelectSymbol, selectedSymbol }: HotCoinListProps) => {
     { mode: 'hot', label: '변동', icon: <Flame className="w-3 h-3" /> },
     { mode: 'volume', label: '거래량', icon: <BarChart3 className="w-3 h-3" /> },
     { mode: 'gainers', label: '상승', icon: <ArrowUpCircle className="w-3 h-3" /> },
-    { mode: 'losers', label: '하락', icon: <ArrowDownCircle className="w-3 h-3" /> },
     { mode: 'bb', label: 'BB', icon: <Activity className="w-3 h-3" /> },
   ];
 
