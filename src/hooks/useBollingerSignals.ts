@@ -48,14 +48,13 @@ function calculateBB(closes: number[], period: number = 20, multiplier: number =
   };
 }
 
-// Check if price touches band (within 0.2% tolerance - tighter for accuracy)
+// Check if price touches band (within 0.2% tolerance)
 function checkBandTouch(price: number, upper: number, lower: number): 'upper' | 'lower' | null {
-  const tolerance = 0.002; // 0.2% - tighter tolerance
+  const tolerance = 0.002;
   
   const upperDiff = Math.abs(price - upper) / upper;
   const lowerDiff = Math.abs(price - lower) / lower;
   
-  // Must be AT or BEYOND the band, or very close
   if (price >= upper || upperDiff <= tolerance) return 'upper';
   if (price <= lower || lowerDiff <= tolerance) return 'lower';
   
@@ -67,17 +66,11 @@ export function useBollingerSignals(tickers: TickerInfo[]) {
   const [isLoading, setIsLoading] = useState(false);
   const lastFetchRef = useRef<number>(0);
   const bbDataRef = useRef<Map<string, { upper: number; lower: number; sma: number }>>(new Map());
-  
-  // Create a stable reference for ticker prices
   const tickerPricesRef = useRef<Map<string, TickerInfo>>(new Map());
+  const checkIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
-  // Update ticker prices without causing re-renders
-  useEffect(() => {
-    tickers.forEach(t => tickerPricesRef.current.set(t.symbol, t));
-  }, [tickers]);
-  
-  // Get eligible symbols
-  const eligibleSymbols = useMemo(() => {
+  // Get eligible symbols - stable dependency
+  const eligibleSymbolsKey = useMemo(() => {
     return tickers
       .filter(t => 
         t.price >= 0.1 && 
@@ -85,10 +78,20 @@ export function useBollingerSignals(tickers: TickerInfo[]) {
         t.volume >= 50_000_000 && 
         t.volatilityRange >= 3
       )
-      .sort((a, b) => a.symbol.localeCompare(b.symbol))
+      .map(t => t.symbol)
+      .sort()
       .slice(0, 30)
-      .map(t => t.symbol);
-  }, [tickers.length]);
+      .join(',');
+  }, [tickers.length > 0 ? tickers.map(t => t.symbol).join(',') : '']);
+  
+  const eligibleSymbols = useMemo(() => {
+    return eligibleSymbolsKey ? eligibleSymbolsKey.split(',') : [];
+  }, [eligibleSymbolsKey]);
+  
+  // Update ticker prices ref (no state change, no re-render)
+  useEffect(() => {
+    tickers.forEach(t => tickerPricesRef.current.set(t.symbol, t));
+  }, [tickers]);
   
   const fetchKlines = useCallback(async (symbol: string): Promise<KlineData[] | null> => {
     try {
@@ -113,11 +116,13 @@ export function useBollingerSignals(tickers: TickerInfo[]) {
     }
   }, []);
   
-  // Fetch BB data periodically (every 30 seconds)
+  // Fetch BB data
   const fetchBBData = useCallback(async () => {
     const now = Date.now();
     if (now - lastFetchRef.current < 30000) return;
     lastFetchRef.current = now;
+    
+    if (eligibleSymbols.length === 0) return;
     
     setIsLoading(true);
     
@@ -130,13 +135,12 @@ export function useBollingerSignals(tickers: TickerInfo[]) {
           const klines = await fetchKlines(symbol);
           if (!klines || klines.length < 20) return;
           
-          // Check 10-minute volatility (last 4 candles of 3m = 12 min)
+          // Check 10-minute volatility
           const recentKlines = klines.slice(-4);
           const highIn10m = Math.max(...recentKlines.map(k => k.high));
           const lowIn10m = Math.min(...recentKlines.map(k => k.low));
           const volatility10m = ((highIn10m - lowIn10m) / lowIn10m) * 100;
           
-          // Skip if 10-min volatility < 1.5%
           if (volatility10m < 1.5) return;
           
           const closes = klines.map(k => k.close);
@@ -159,56 +163,65 @@ export function useBollingerSignals(tickers: TickerInfo[]) {
     setIsLoading(false);
   }, [eligibleSymbols, fetchKlines]);
   
-  // Check for BB touch periodically (not on every ticker update)
-  useEffect(() => {
+  // Check signals function
+  const checkSignals = useCallback(() => {
     if (bbDataRef.current.size === 0 || eligibleSymbols.length === 0) return;
     
-    const checkSignals = () => {
-      const newSignals: BBSignal[] = [];
-      
-      for (const symbol of eligibleSymbols) {
-        const bbData = bbDataRef.current.get(symbol);
-        const ticker = tickerPricesRef.current.get(symbol);
-        if (!bbData || !ticker) continue;
-        
-        const touchType = checkBandTouch(ticker.price, bbData.upper, bbData.lower);
-        
-        if (touchType) {
-          newSignals.push({
-            symbol,
-            price: ticker.price,
-            priceChangePercent: ticker.priceChangePercent,
-            volume: ticker.volume,
-            touchType,
-            upperBand: bbData.upper,
-            lowerBand: bbData.lower,
-            sma: bbData.sma,
-            timestamp: Date.now()
-          });
-        }
-      }
-      
-      newSignals.sort((a, b) => a.symbol.localeCompare(b.symbol));
-      setSignals(newSignals);
-    };
+    const newSignals: BBSignal[] = [];
     
-    // Check immediately and then every 2 seconds
-    checkSignals();
-    const interval = setInterval(checkSignals, 2000);
-    return () => clearInterval(interval);
+    for (const symbol of eligibleSymbols) {
+      const bbData = bbDataRef.current.get(symbol);
+      const ticker = tickerPricesRef.current.get(symbol);
+      if (!bbData || !ticker) continue;
+      
+      const touchType = checkBandTouch(ticker.price, bbData.upper, bbData.lower);
+      
+      if (touchType) {
+        newSignals.push({
+          symbol,
+          price: ticker.price,
+          priceChangePercent: ticker.priceChangePercent,
+          volume: ticker.volume,
+          touchType,
+          upperBand: bbData.upper,
+          lowerBand: bbData.lower,
+          sma: bbData.sma,
+          timestamp: Date.now()
+        });
+      }
+    }
+    
+    newSignals.sort((a, b) => a.symbol.localeCompare(b.symbol));
+    setSignals(newSignals);
   }, [eligibleSymbols]);
   
-  // Initial fetch and periodic refresh - clear signals on each new scan
+  // Initial fetch and periodic BB data refresh
   useEffect(() => {
-    const runScan = () => {
-      setSignals([]); // Clear old signals on new scan
-      fetchBBData();
+    const runScan = async () => {
+      setSignals([]);
+      await fetchBBData();
+      checkSignals();
     };
     
     runScan();
     const interval = setInterval(runScan, 30000);
     return () => clearInterval(interval);
-  }, [fetchBBData]);
+  }, [fetchBBData, checkSignals]);
+  
+  // Periodic signal check (every 2 seconds)
+  useEffect(() => {
+    if (checkIntervalRef.current) {
+      clearInterval(checkIntervalRef.current);
+    }
+    
+    checkIntervalRef.current = setInterval(checkSignals, 2000);
+    
+    return () => {
+      if (checkIntervalRef.current) {
+        clearInterval(checkIntervalRef.current);
+      }
+    };
+  }, [checkSignals]);
   
   return { signals, isLoading, refresh: fetchBBData };
 }
