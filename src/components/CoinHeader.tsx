@@ -15,17 +15,17 @@ const CoinHeader = ({ symbol, onSelectSymbol }: CoinHeaderProps) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   
-  const { tickers } = useTickerWebSocket();
+  const { tickers, isConnected } = useTickerWebSocket();
   
   // Get all available symbols from tickers
   const allSymbols = tickers.map(t => t.symbol).sort();
   
-  // Filter symbols based on input
+  // Filter symbols based on input - show top coins if no input, otherwise filter
   const filteredSymbols = inputValue.length > 0
     ? allSymbols.filter(s => 
         s.replace('USDT', '').toLowerCase().includes(inputValue.toLowerCase())
-      ).slice(0, 10)
-    : [];
+      ).slice(0, 15)
+    : allSymbols.slice(0, 15); // Show first 15 coins when no input
 
   useEffect(() => {
     if (isEditing && inputRef.current) {
@@ -150,8 +150,15 @@ const CoinHeader = ({ symbol, onSelectSymbol }: CoinHeaderProps) => {
           </div>
         )}
         
+        {/* Loading state */}
+        {showSuggestions && !isConnected && filteredSymbols.length === 0 && (
+          <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded-lg shadow-lg z-50 px-3 py-2 text-sm text-muted-foreground">
+            종목 데이터 로딩중...
+          </div>
+        )}
+        
         {/* No results message */}
-        {showSuggestions && inputValue.length > 0 && filteredSymbols.length === 0 && (
+        {showSuggestions && isConnected && inputValue.length > 0 && filteredSymbols.length === 0 && (
           <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded-lg shadow-lg z-50 px-3 py-2 text-sm text-muted-foreground">
             검색 결과 없음 - Enter로 직접 이동
           </div>
