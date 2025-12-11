@@ -66,6 +66,7 @@ const DualChartPanel = ({
   const [positions, setPositions] = useState<BinancePosition[]>([]);
   const [previousDayBalance, setPreviousDayBalance] = useState<number | null>(null);
   const [todayRealizedPnL, setTodayRealizedPnL] = useState<number>(0);
+  const [todayDeposits, setTodayDeposits] = useState<number>(0);
   const prevSymbolRef = useRef<string>(symbol);
   const { user } = useAuth();
   const { getBalances, getPositions, getIncomeHistory } = useBinanceApi();
@@ -221,6 +222,7 @@ const DualChartPanel = ({
       console.log(`[PnL Debug] REALIZED_PNL: $${realizedPnLOnly.toFixed(4)}, Deposits: $${deposits.toFixed(2)}, Withdrawals: $${withdrawals.toFixed(2)}`);
       
       setTodayRealizedPnL(realizedPnLOnly);
+      setTodayDeposits(deposits);
       
       // Save today's data including deposits/withdrawals
       const { data: { user } } = await supabase.auth.getUser();
@@ -266,7 +268,9 @@ const DualChartPanel = ({
   
   // Calculate daily P&L based on realized PnL from Binance (순수 거래 손익 + 미실현손익)
   const dailyPnL = todayRealizedPnL + unrealizedPnL;
-  const baseBalance = previousDayBalance !== null ? previousDayBalance : balanceUSD;
+  // Effective starting balance = previous day balance + today's deposits (입금 후 시작자본 기준)
+  const effectiveStartingBalance = (previousDayBalance !== null ? Math.max(0, previousDayBalance) : 0) + todayDeposits;
+  const baseBalance = effectiveStartingBalance > 0 ? effectiveStartingBalance : balanceUSD;
   const dailyPnLPercent = baseBalance > 0 ? (dailyPnL / baseBalance) * 100 : 0;
   const dailyPnLPercentStr = dailyPnLPercent.toFixed(2);
   
