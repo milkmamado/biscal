@@ -975,7 +975,7 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
             }}
             className="bg-background border border-border px-2 py-0.5 text-[11px] rounded font-bold"
           >
-            {[5, 10].map(l => (
+            {[1, 5, 10].map(l => (
               <option key={l} value={l}>{l}x</option>
             ))}
           </select>
