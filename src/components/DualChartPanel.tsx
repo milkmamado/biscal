@@ -206,9 +206,10 @@ const DualChartPanel = ({
       }
       
       // Calculate realized PnL only (excluding funding fees and commissions)
-      const realizedPnLOnly = incomeHistory
-        .filter((item: any) => item.incomeType === 'REALIZED_PNL')
-        .reduce((sum: number, item: any) => sum + parseFloat(item.income || 0), 0);
+      const realizedPnLItems = incomeHistory.filter((item: any) => item.incomeType === 'REALIZED_PNL');
+      const realizedPnLOnly = realizedPnLItems.reduce((sum: number, item: any) => sum + parseFloat(item.income || 0), 0);
+      
+      console.log(`[PnL Debug] REALIZED_PNL items: ${realizedPnLItems.length}, Total: $${realizedPnLOnly.toFixed(4)}`);
       
       setTodayRealizedPnL(realizedPnLOnly);
       
