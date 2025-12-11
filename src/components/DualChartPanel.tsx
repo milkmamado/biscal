@@ -193,7 +193,7 @@ const DualChartPanel = ({
     }
   };
 
-  // Fetch today's realized PnL from Binance (매 폴링마다 업데이트)
+  // Fetch today's realized PnL and deposits/withdrawals from Binance
   const fetchTodayRealizedPnL = async (currentBalance: number) => {
     try {
       const todayMidnight = getTodayMidnightKST();
@@ -209,11 +209,20 @@ const DualChartPanel = ({
       const realizedPnLItems = incomeHistory.filter((item: any) => item.incomeType === 'REALIZED_PNL');
       const realizedPnLOnly = realizedPnLItems.reduce((sum: number, item: any) => sum + parseFloat(item.income || 0), 0);
       
-      console.log(`[PnL Debug] REALIZED_PNL items: ${realizedPnLItems.length}, Total: $${realizedPnLOnly.toFixed(4)}`);
+      // Calculate deposits and withdrawals from TRANSFER type
+      const transferItems = incomeHistory.filter((item: any) => item.incomeType === 'TRANSFER');
+      const deposits = transferItems
+        .filter((item: any) => parseFloat(item.income || 0) > 0)
+        .reduce((sum: number, item: any) => sum + parseFloat(item.income || 0), 0);
+      const withdrawals = transferItems
+        .filter((item: any) => parseFloat(item.income || 0) < 0)
+        .reduce((sum: number, item: any) => sum + Math.abs(parseFloat(item.income || 0)), 0);
+      
+      console.log(`[PnL Debug] REALIZED_PNL: $${realizedPnLOnly.toFixed(4)}, Deposits: $${deposits.toFixed(2)}, Withdrawals: $${withdrawals.toFixed(2)}`);
       
       setTodayRealizedPnL(realizedPnLOnly);
       
-      // Save today's current balance and realized PnL for future reference
+      // Save today's data including deposits/withdrawals
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         const today = getTodayDate();
@@ -224,6 +233,8 @@ const DualChartPanel = ({
             snapshot_date: today,
             closing_balance_usd: currentBalance,
             daily_income_usd: realizedPnLOnly,
+            deposit_usd: deposits,
+            withdrawal_usd: withdrawals,
           }, {
             onConflict: 'user_id,snapshot_date'
           });
