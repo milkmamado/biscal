@@ -19,25 +19,31 @@ export type Database = {
           closing_balance_usd: number
           created_at: string
           daily_income_usd: number | null
+          deposit_usd: number | null
           id: string
           snapshot_date: string
           user_id: string
+          withdrawal_usd: number | null
         }
         Insert: {
           closing_balance_usd: number
           created_at?: string
           daily_income_usd?: number | null
+          deposit_usd?: number | null
           id?: string
           snapshot_date: string
           user_id: string
+          withdrawal_usd?: number | null
         }
         Update: {
           closing_balance_usd?: number
           created_at?: string
           daily_income_usd?: number | null
+          deposit_usd?: number | null
           id?: string
           snapshot_date?: string
           user_id?: string
+          withdrawal_usd?: number | null
         }
         Relationships: []
       }
