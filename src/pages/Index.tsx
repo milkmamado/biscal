@@ -165,7 +165,7 @@ const Index = () => {
 
           {/* Center - Coin Info */}
           <div className="col-span-12 lg:col-span-5 xl:col-span-6">
-            <CoinHeader symbol={selectedSymbol} />
+            <CoinHeader symbol={selectedSymbol} onSelectSymbol={setSelectedSymbol} />
             
             {/* Dual Chart Area */}
             <div className="mt-2 h-[calc(100vh-80px)]">
