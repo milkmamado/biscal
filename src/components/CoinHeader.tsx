@@ -13,13 +13,39 @@ const CoinHeader = ({ symbol, onSelectSymbol }: CoinHeaderProps) => {
   const [inputValue, setInputValue] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(0);
+  const [allSymbols, setAllSymbols] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   
-  const { tickers, isConnected } = useTickerWebSocket();
+  const { tickers } = useTickerWebSocket();
   
-  // Get all available symbols from tickers
-  const allSymbols = tickers.map(t => t.symbol).sort();
+  // 기본 심볼 목록은 WebSocket에서, 없으면 REST API에서 한 번만 가져오기
+  useEffect(() => {
+    if (tickers.length > 0) {
+      const symbols = Array.from(new Set(tickers.map(t => t.symbol))).sort();
+      setAllSymbols(symbols);
+    }
+  }, [tickers]);
+  
+  useEffect(() => {
+    if (allSymbols.length === 0) {
+      // WebSocket이 아직 로딩 중일 때를 대비해서 한 번만 REST로 심볼 리스트 로딩
+      fetch('https://fapi.binance.com/fapi/v1/exchangeInfo')
+        .then(res => res.json())
+        .then(data => {
+          const symbols = (data.symbols || [])
+            .filter((s: any) => s.contractType === 'PERPETUAL' && s.quoteAsset === 'USDT')
+            .map((s: any) => s.symbol)
+            .sort();
+          if (symbols.length > 0) {
+            setAllSymbols(symbols);
+          }
+        })
+        .catch((err) => {
+          console.error('[CoinHeader] Failed to load symbols from REST:', err);
+        });
+    }
+  }, [allSymbols.length]);
   
   // Filter symbols based on input - show top coins if no input, otherwise filter
   const filteredSymbols = inputValue.length > 0
@@ -183,15 +209,8 @@ const CoinHeader = ({ symbol, onSelectSymbol }: CoinHeaderProps) => {
           </div>
         )}
         
-        {/* Loading state - show when tickers not yet loaded */}
-        {showSuggestions && allSymbols.length === 0 && (
-          <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded-lg shadow-lg z-50 px-3 py-2 text-sm text-muted-foreground">
-            종목 데이터 로딩중...
-          </div>
-        )}
-        
         {/* No results message */}
-        {showSuggestions && isConnected && inputValue.length > 0 && filteredSymbols.length === 0 && (
+        {showSuggestions && inputValue.length > 0 && filteredSymbols.length === 0 && allSymbols.length > 0 && (
           <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded-lg shadow-lg z-50 px-3 py-2 text-sm text-muted-foreground">
             검색 결과 없음 - Enter로 직접 이동
           </div>
