@@ -206,9 +206,19 @@ const DualChartPanel = ({
         return;
       }
       
-      // Calculate realized PnL only (excluding funding fees and commissions)
-      const realizedPnLItems = incomeHistory.filter((item: any) => item.incomeType === 'REALIZED_PNL');
-      const realizedPnLOnly = realizedPnLItems.reduce((sum: number, item: any) => sum + parseFloat(item.income || 0), 0);
+      // Calculate net PnL (realized PnL minus fees)
+      const realizedPnL = incomeHistory
+        .filter((item: any) => item.incomeType === 'REALIZED_PNL')
+        .reduce((sum: number, item: any) => sum + parseFloat(item.income || 0), 0);
+      const commission = incomeHistory
+        .filter((item: any) => item.incomeType === 'COMMISSION')
+        .reduce((sum: number, item: any) => sum + parseFloat(item.income || 0), 0);
+      const fundingFee = incomeHistory
+        .filter((item: any) => item.incomeType === 'FUNDING_FEE')
+        .reduce((sum: number, item: any) => sum + parseFloat(item.income || 0), 0);
+      
+      // Net PnL = realized profit + commission (negative) + funding fee (can be +/-)
+      const netPnL = realizedPnL + commission + fundingFee;
       
       // Calculate deposits and withdrawals from TRANSFER type
       const transferItems = incomeHistory.filter((item: any) => item.incomeType === 'TRANSFER');
@@ -219,9 +229,9 @@ const DualChartPanel = ({
         .filter((item: any) => parseFloat(item.income || 0) < 0)
         .reduce((sum: number, item: any) => sum + Math.abs(parseFloat(item.income || 0)), 0);
       
-      console.log(`[PnL Debug] REALIZED_PNL: $${realizedPnLOnly.toFixed(4)}, Deposits: $${deposits.toFixed(2)}, Withdrawals: $${withdrawals.toFixed(2)}`);
+      console.log(`[PnL Debug] Realized: $${realizedPnL.toFixed(4)}, Commission: $${commission.toFixed(4)}, Funding: $${fundingFee.toFixed(4)}, Net: $${netPnL.toFixed(4)}`);
       
-      setTodayRealizedPnL(realizedPnLOnly);
+      setTodayRealizedPnL(netPnL);
       setTodayDeposits(deposits);
       
       // Save today's data including deposits/withdrawals
@@ -234,7 +244,7 @@ const DualChartPanel = ({
             user_id: user.id,
             snapshot_date: today,
             closing_balance_usd: currentBalance,
-            daily_income_usd: realizedPnLOnly,
+            daily_income_usd: netPnL,
             deposit_usd: deposits,
             withdrawal_usd: withdrawals,
           }, {
