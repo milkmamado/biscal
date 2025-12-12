@@ -108,10 +108,9 @@ const DualChartPanel = ({
       const balances = await getBalances();
       const usdtBalance = balances?.find((b: any) => b.asset === 'USDT');
       if (usdtBalance) {
-        const available = parseFloat(usdtBalance.availableBalance) || 0;
-        // 총 잔고 사용 (포지션 마진 포함) - 전일대비 계산용
-        const totalBalance = parseFloat(usdtBalance.balance) || parseFloat(usdtBalance.crossWalletBalance) || available;
-        setBalanceUSD(available);
+        // 총 잔고 사용 (포지션 마진 포함) - 화면 표시 및 전일대비 계산
+        const totalBalance = parseFloat(usdtBalance.balance) || parseFloat(usdtBalance.crossWalletBalance) || 0;
+        setBalanceUSD(totalBalance);
         
         // Calculate previous day balance only once (전일 기준 잔고)
         if (previousDayBalance === null) {
