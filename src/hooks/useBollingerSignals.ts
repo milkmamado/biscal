@@ -96,7 +96,7 @@ export function useBollingerSignals(tickers: TickerInfo[]) {
       const currentTickers = tickersRef.current;
       const eligibleSymbols = currentTickers
         .filter(t => 
-          t.price >= 0.1 && 
+          t.price >= 0.01 && 
           t.price <= 50 &&
           t.volume >= 50_000_000 && 
           t.volatilityRange >= 3
@@ -158,7 +158,8 @@ export function useBollingerSignals(tickers: TickerInfo[]) {
         
         const touchType = checkBandTouch(ticker.price, bbData.upper, bbData.lower);
         
-        if (touchType) {
+        // 상단밴드 터치만 표시
+        if (touchType === 'upper') {
           newSignals.push({
             symbol,
             price: ticker.price,
