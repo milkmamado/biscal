@@ -87,6 +87,7 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
   const [priceChangePercent, setPriceChangePercent] = useState<number>(0);
   const [orderQty, setOrderQty] = useState<string>('100');
   const [leverage, setLeverage] = useState<number>(10);
+  const [splitCount, setSplitCount] = useState<number>(5); // 분할 주문 개수 (5 or 10)
   
   // 매매 허용 시간 체크 (한국시간 21:00 ~ 01:00) - 하드코딩
   const isTradingAllowed = (): boolean => {
@@ -650,7 +651,7 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
       const totalQty = parseFloat(orderQty) || 0.001;
       const precision = await fetchSymbolPrecision(symbol);
       const tickSize = precision.tickSize;
-      const splitCount = 5;
+      // Use selected split count from state
       const qtyPerOrder = roundQuantity(totalQty / splitCount, precision);
       
       // 최소 수량 체크
@@ -681,8 +682,8 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
       await Promise.all(orderPromises);
       
       toast({
-        title: type === 'long' ? '📋 5분할 롱 주문' : '📋 5분할 숏 주문',
-        description: `${symbol} ${qtyPerOrder.toFixed(3)}개 × 5호가 (${formatPrice(prices[0])} ~ ${formatPrice(prices[4])})`,
+        title: type === 'long' ? `📋 ${splitCount}분할 롱 주문` : `📋 ${splitCount}분할 숏 주문`,
+        description: `${symbol} ${qtyPerOrder.toFixed(3)}개 × ${splitCount}호가 (${formatPrice(prices[0])} ~ ${formatPrice(prices[splitCount - 1])})`,
       });
       
       // Refresh position after order
@@ -979,6 +980,24 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
               <option key={l} value={l}>{l}x</option>
             ))}
           </select>
+          
+          <span className="text-[9px] text-muted-foreground ml-2">분할</span>
+          <div className="flex gap-0.5">
+            {[5, 10].map(s => (
+              <button
+                key={s}
+                onClick={() => setSplitCount(s)}
+                className={cn(
+                  "px-1.5 py-0.5 text-[10px] rounded border font-bold",
+                  splitCount === s
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-background text-muted-foreground border-border hover:border-primary/50"
+                )}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
         </div>
         
         <div className="flex items-center gap-3">
