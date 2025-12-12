@@ -181,8 +181,8 @@ const CoinHeader = ({ symbol, onSelectSymbol }: CoinHeaderProps) => {
           </div>
         )}
         
-        {/* Loading state */}
-        {showSuggestions && !isConnected && filteredSymbols.length === 0 && (
+        {/* Loading state - show when tickers not yet loaded */}
+        {showSuggestions && allSymbols.length === 0 && (
           <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded-lg shadow-lg z-50 px-3 py-2 text-sm text-muted-foreground">
             종목 데이터 로딩중...
           </div>
