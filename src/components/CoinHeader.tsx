@@ -121,12 +121,14 @@ const CoinHeader = ({ symbol, onSelectSymbol }: CoinHeaderProps) => {
       }
     }
   };
-
+ 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setInputValue(e.target.value.toUpperCase());
-    setShowSuggestions(true);
-    setHighlightedIndex(0);
-  };
+     const nextValue = e.target.value.toUpperCase();
+     setInputValue(nextValue);
+     setShowSuggestions(true);
+     setHighlightedIndex(0);
+     console.log('[CoinHeader] input:', nextValue, 'allSymbols:', allSymbols.length, 'filtered:', filteredSymbols.length);
+   };
 
   if (isEditing) {
     return (
