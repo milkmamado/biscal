@@ -12,6 +12,7 @@ const CoinHeader = ({ symbol, onSelectSymbol }: CoinHeaderProps) => {
   const [isEditing, setIsEditing] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   
@@ -40,12 +41,20 @@ const CoinHeader = ({ symbol, onSelectSymbol }: CoinHeaderProps) => {
         setIsEditing(false);
         setInputValue('');
         setShowSuggestions(false);
+        setHighlightedIndex(0);
       }
     };
     
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+  
+  // Reset highlight when filtered list changes
+  useEffect(() => {
+    if (showSuggestions && filteredSymbols.length > 0) {
+      setHighlightedIndex(0);
+    }
+  }, [showSuggestions, filteredSymbols.length]);
 
   const handleClick = () => {
     if (onSelectSymbol) {
@@ -87,17 +96,36 @@ const CoinHeader = ({ symbol, onSelectSymbol }: CoinHeaderProps) => {
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
-      handleSubmit();
+      if (showSuggestions && filteredSymbols.length > 0) {
+        handleSelectSymbol(filteredSymbols[highlightedIndex] ?? filteredSymbols[0]);
+      } else {
+        handleSubmit();
+      }
     } else if (e.key === 'Escape') {
       setIsEditing(false);
       setInputValue('');
       setShowSuggestions(false);
+      setHighlightedIndex(0);
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (!showSuggestions && filteredSymbols.length > 0) {
+        setShowSuggestions(true);
+        setHighlightedIndex(0);
+      } else if (filteredSymbols.length > 0) {
+        setHighlightedIndex((prev) => (prev + 1) % filteredSymbols.length);
+      }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (filteredSymbols.length > 0) {
+        setHighlightedIndex((prev) => (prev - 1 + filteredSymbols.length) % filteredSymbols.length);
+      }
     }
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInputValue(e.target.value.toUpperCase());
     setShowSuggestions(true);
+    setHighlightedIndex(0);
   };
 
   if (isEditing) {
@@ -129,13 +157,16 @@ const CoinHeader = ({ symbol, onSelectSymbol }: CoinHeaderProps) => {
         {/* Suggestions dropdown */}
         {showSuggestions && filteredSymbols.length > 0 && (
           <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto">
-            {filteredSymbols.map((s) => (
+            {filteredSymbols.map((s, index) => (
               <button
                 key={s}
                 onClick={() => handleSelectSymbol(s)}
                 className={cn(
-                  "w-full px-3 py-2 text-left text-sm hover:bg-secondary/50 flex items-center justify-between",
-                  s === symbol && "bg-primary/10"
+                  "w-full px-3 py-2 text-left text-sm flex items-center justify-between",
+                  s === symbol && "bg-primary/10",
+                  index === highlightedIndex
+                    ? "bg-secondary/70"
+                    : "hover:bg-secondary/50"
                 )}
               >
                 <span className="font-semibold">
