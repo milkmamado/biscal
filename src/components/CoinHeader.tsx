@@ -149,12 +149,11 @@ const CoinHeader = ({ symbol, onSelectSymbol }: CoinHeaderProps) => {
   };
  
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-     const nextValue = e.target.value.toUpperCase();
-     setInputValue(nextValue);
-     setShowSuggestions(true);
-     setHighlightedIndex(0);
-     console.log('[CoinHeader] input:', nextValue, 'allSymbols:', allSymbols.length, 'filtered:', filteredSymbols.length);
-   };
+    const nextValue = e.target.value.toUpperCase();
+    setInputValue(nextValue);
+    setShowSuggestions(true);
+    setHighlightedIndex(0);
+  };
 
   if (isEditing) {
     return (
