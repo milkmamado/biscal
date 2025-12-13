@@ -32,6 +32,7 @@ interface DualChartPanelProps {
   onSelectSymbol?: (symbol: string) => void;
   orderBook?: OrderBook | null;
   orderBookConnected?: boolean;
+  onDailyPnLChange?: (dailyPnLKRW: number) => void;
 }
 
 const INTERVALS = [
@@ -57,6 +58,7 @@ const DualChartPanel = ({
   onSelectSymbol,
   orderBook = null,
   orderBookConnected = false,
+  onDailyPnLChange,
 }: DualChartPanelProps) => {
   const [interval, setInterval] = useState(60);
   const [balanceUSD, setBalanceUSD] = useState<number>(0);
@@ -284,6 +286,13 @@ const DualChartPanel = ({
   
   // Calculate daily P&L based on realized PnL from Binance (순수 거래 손익 + 미실현손익)
   const dailyPnL = todayRealizedPnL + unrealizedPnL;
+  const dailyPnLKRW = dailyPnL * krwRate;
+  
+  // Notify parent of daily P&L in KRW for loss limit check
+  useEffect(() => {
+    onDailyPnLChange?.(dailyPnLKRW);
+  }, [dailyPnLKRW, onDailyPnLChange]);
+  
   // Effective starting balance = previous day balance + today's deposits (입금 후 시작자본 기준)
   const effectiveStartingBalance = (previousDayBalance !== null ? Math.max(0, previousDayBalance) : 0) + todayDeposits;
   const baseBalance = effectiveStartingBalance > 0 ? effectiveStartingBalance : balanceUSD;

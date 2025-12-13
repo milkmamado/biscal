@@ -46,6 +46,7 @@ const Index = () => {
   const [checkingKeys, setCheckingKeys] = useState(true);
   const [orderBook, setOrderBook] = useState<OrderBook | null>(null);
   const [orderBookConnected, setOrderBookConnected] = useState(false);
+  const [dailyPnLKRW, setDailyPnLKRW] = useState(0);
 
   const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
@@ -104,6 +105,10 @@ const Index = () => {
   const handleOrderBookChange = useCallback((ob: OrderBook | null, connected: boolean) => {
     setOrderBook(ob);
     setOrderBookConnected(connected);
+  }, []);
+
+  const handleDailyPnLChange = useCallback((pnl: number) => {
+    setDailyPnLKRW(pnl);
   }, []);
 
   const handleTradeClose = useCallback((trade: {
@@ -181,6 +186,7 @@ const Index = () => {
                 onSelectSymbol={setSelectedSymbol}
                 orderBook={orderBook}
                 orderBookConnected={orderBookConnected}
+                onDailyPnLChange={handleDailyPnLChange}
               />
             </div>
           </div>
@@ -195,6 +201,7 @@ const Index = () => {
               onTradeClose={handleTradeClose}
               onTpSlChange={handleTpSlChange}
               onOrderBookChange={handleOrderBookChange}
+              dailyLossKRW={dailyPnLKRW}
             />
             
             {/* Logout */}
