@@ -602,11 +602,6 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
     const finalQty = Math.max(qty, minQty);
     
     setOrderQty(finalQty.toFixed(3));
-    
-    toast({
-      title: '📊 수량 자동 계산',
-      description: `${leverage}x 레버리지, ${clickOrderPercent}% → ${finalQty.toFixed(3)}개`,
-    });
   };
 
   const handleQuickOrder = async (type: 'long' | 'short', price: number) => {

@@ -91,9 +91,10 @@ const HotCoinList = ({ onSelectSymbol, selectedSymbol }: HotCoinListProps) => {
   });
   
   // Remove from watchlist
-  const removeFromWatchlist = (symbol: string) => {
-    saveWatchlist(watchlist.filter(w => w.symbol !== symbol));
-  };
+  const removeFromWatchlist = useCallback((symbol: string) => {
+    const newList = watchlist.filter(w => w.symbol !== symbol);
+    saveWatchlist(newList);
+  }, [watchlist, saveWatchlist]);
   
   // Filter signals by search query
   const filteredSignals = searchQuery 
