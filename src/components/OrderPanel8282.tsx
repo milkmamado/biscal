@@ -54,9 +54,10 @@ interface OrderPanel8282Props {
   onTradeClose?: (trade: TradeCloseData) => void;
   onTpSlChange?: (tpsl: TpSlPrices) => void;
   onOrderBookChange?: (orderBook: OrderBook | null, isConnected: boolean) => void;
+  dailyLossKRW?: number;
 }
 
-const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersChange, onTradeClose, onTpSlChange, onOrderBookChange }: OrderPanel8282Props) => {
+const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersChange, onTradeClose, onTpSlChange, onOrderBookChange, dailyLossKRW = 0 }: OrderPanel8282Props) => {
   const { toast } = useToast();
   const { user } = useAuth();
   const { 
@@ -90,7 +91,7 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
   const [splitCount, setSplitCount] = useState<number>(5); // 분할 주문 개수 (5 or 10)
   
   // 매매 허용 시간 체크 (한국시간 21:00 ~ 01:00) - 하드코딩
-  const isTradingAllowed = (): boolean => {
+  const isTradingTimeAllowed = (): boolean => {
     const now = new Date();
     const koreaOffset = 9 * 60; // UTC+9
     const utcOffset = now.getTimezoneOffset();
@@ -98,6 +99,20 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
     const hour = koreaTime.getHours();
     // 21:00 ~ 23:59 또는 00:00 ~ 00:59 (새벽 1시 전까지)
     return (hour >= 21 && hour <= 23) || (hour >= 0 && hour < 1);
+  };
+  
+  // 일일 손실 한도 체크 (25,000원 초과시 다음날 21시까지 거래 금지) - 하드코딩
+  const DAILY_LOSS_LIMIT_KRW = 25000;
+  const isDailyLossLimitExceeded = dailyLossKRW < -DAILY_LOSS_LIMIT_KRW;
+  
+  // 매매 허용 여부 통합 체크
+  const isTradingAllowed = (): boolean => {
+    // 일일 손실 한도 초과시 거래 금지
+    if (isDailyLossLimitExceeded) {
+      return false;
+    }
+    // 거래 시간 체크
+    return isTradingTimeAllowed();
   };
   const [loading, setLoading] = useState(true);
   const [clickOrderPercent, setClickOrderPercent] = useState<number>(100);
@@ -605,13 +620,21 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
   };
 
   const handleQuickOrder = async (type: 'long' | 'short', price: number) => {
-    // 매매 시간 제한 (21:00 ~ 01:00 KST)
+    // 매매 제한 체크 (손실 한도 또는 시간 제한)
     if (!isTradingAllowed()) {
-      toast({
-        title: '⏰ 거래 시간 외',
-        description: '매매는 밤 9시 ~ 새벽 1시만 가능합니다.',
-        variant: 'destructive',
-      });
+      if (isDailyLossLimitExceeded) {
+        toast({
+          title: '🚫 일일 손실 한도 초과',
+          description: '당일 손실 25,000원 초과로 내일 밤 9시까지 거래가 제한됩니다.',
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: '⏰ 거래 시간 외',
+          description: '매매는 밤 9시 ~ 새벽 1시만 가능합니다.',
+          variant: 'destructive',
+        });
+      }
       return;
     }
     
@@ -693,13 +716,21 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
   };
 
   const handleMarketOrder = async (type: 'long' | 'short') => {
-    // 매매 시간 제한 (21:00 ~ 01:00 KST)
+    // 매매 제한 체크 (손실 한도 또는 시간 제한)
     if (!isTradingAllowed()) {
-      toast({
-        title: '⏰ 거래 시간 외',
-        description: '매매는 밤 9시 ~ 새벽 1시만 가능합니다.',
-        variant: 'destructive',
-      });
+      if (isDailyLossLimitExceeded) {
+        toast({
+          title: '🚫 일일 손실 한도 초과',
+          description: '당일 손실 25,000원 초과로 내일 밤 9시까지 거래가 제한됩니다.',
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: '⏰ 거래 시간 외',
+          description: '매매는 밤 9시 ~ 새벽 1시만 가능합니다.',
+          variant: 'destructive',
+        });
+      }
       return;
     }
     
