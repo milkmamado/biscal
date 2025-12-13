@@ -275,11 +275,18 @@ const DualChartPanel = ({
 
   const winRate = tradeCount > 0 ? ((winCount / tradeCount) * 100).toFixed(1) : '0.0';
   
-  // Calculate daily P&L based on realized PnL from Binance (순수 거래 손익 + 미실현손익)
-  const dailyPnL = todayRealizedPnL + unrealizedPnL;
   // Effective starting balance = previous day balance + today's deposits (입금 후 시작자본 기준)
   const effectiveStartingBalance = (previousDayBalance !== null ? Math.max(0, previousDayBalance) : 0) + todayDeposits;
   const baseBalance = effectiveStartingBalance > 0 ? effectiveStartingBalance : balanceUSD;
+  
+  // Calculate realized PnL based on balance change (잔고 변화 기반 실현손익)
+  // 실현손익 = 현재잔고 - 전일잔고 - 입금 + 출금 - 미실현손익
+  const calculatedRealizedPnL = previousDayBalance !== null 
+    ? balanceUSD - previousDayBalance - todayDeposits - unrealizedPnL
+    : todayRealizedPnL;
+  
+  // Daily total P&L = realized + unrealized
+  const dailyPnL = calculatedRealizedPnL + unrealizedPnL;
   const dailyPnLPercent = baseBalance > 0 ? (dailyPnL / baseBalance) * 100 : 0;
   const dailyPnLPercentStr = dailyPnLPercent.toFixed(2);
   
@@ -330,9 +337,9 @@ const DualChartPanel = ({
             <span className="text-[10px] text-muted-foreground">실현손익</span>
             <span className={cn(
               "text-sm font-bold font-mono",
-              todayRealizedPnL >= 0 ? "text-red-400" : "text-blue-400"
+              calculatedRealizedPnL >= 0 ? "text-red-400" : "text-blue-400"
             )}>
-              {todayRealizedPnL >= 0 ? '+' : ''}₩{formatKRW(todayRealizedPnL)}
+              {calculatedRealizedPnL >= 0 ? '+' : ''}₩{formatKRW(calculatedRealizedPnL)}
             </span>
           </div>
           
