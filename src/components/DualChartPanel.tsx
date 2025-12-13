@@ -112,12 +112,7 @@ const DualChartPanel = ({
         const totalBalance = parseFloat(usdtBalance.balance) || parseFloat(usdtBalance.crossWalletBalance) || 0;
         setBalanceUSD(totalBalance);
         
-        // Calculate previous day balance only once (전일 기준 잔고)
-        if (previousDayBalance === null) {
-          calculatePreviousDayBalance(totalBalance);
-        }
-        
-        // Always fetch today's realized PnL (매번 업데이트)
+        // 항상 오늘 실현손익/전일잔고를 스냅샷 기준으로 재계산
         fetchTodayRealizedPnL(totalBalance);
       }
     } catch (error) {
@@ -167,35 +162,21 @@ const DualChartPanel = ({
     return `${year}-${month}-${day}`;
   };
 
-  // Calculate previous day's closing balance using income history (한번만)
-  const calculatePreviousDayBalance = async (currentBalance: number) => {
-    try {
-      const todayMidnight = getTodayMidnightKST();
-      const now = Date.now();
-      
-      // Get all income since today's midnight
-      const incomeHistory = await getIncomeHistory(todayMidnight, now);
-      
-      if (!incomeHistory || !Array.isArray(incomeHistory)) {
-        console.log('[PrevBalance] No income history');
-        return;
-      }
-      
-      // Sum all income (realized PnL, funding fees, commissions, transfers 등 모든 변동)
-      const totalIncomeSinceMidnight = incomeHistory.reduce((sum: number, item: any) => {
-        return sum + parseFloat(item.income || 0);
-      }, 0);
-      
-      // Previous day balance = current balance - all income since midnight
-      const calculatedPrevBalance = currentBalance - totalIncomeSinceMidnight;
-      console.log('[PrevBalance] current:', currentBalance.toFixed(4), 'totalIncomeSinceMidnight:', totalIncomeSinceMidnight.toFixed(4), 'prevBalance:', calculatedPrevBalance.toFixed(4));
-      setPreviousDayBalance(calculatedPrevBalance);
-    } catch (error) {
-      console.error('Failed to calculate previous day balance:', error);
-    }
+  // Get yesterday's date in YYYY-MM-DD format (Korean timezone)
+  const getYesterdayDate = () => {
+    const now = new Date();
+    const koreaOffset = 9 * 60;
+    const utcOffset = now.getTimezoneOffset();
+    const koreaTime = new Date(now.getTime() + (koreaOffset + utcOffset) * 60 * 1000);
+    koreaTime.setDate(koreaTime.getDate() - 1);
+    const year = koreaTime.getFullYear();
+    const month = String(koreaTime.getMonth() + 1).padStart(2, '0');
+    const day = String(koreaTime.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   };
 
   // Fetch today's realized PnL and deposits/withdrawals from Binance
+  // But 최종적으로 화면에 표시하는 실현/당일손익은 "잔고 스냅샷" 기준으로 다시 맞춘다.
   const fetchTodayRealizedPnL = async (currentBalance: number) => {
     try {
       const todayMidnight = getTodayMidnightKST();
@@ -207,21 +188,7 @@ const DualChartPanel = ({
         return;
       }
       
-      // Calculate net PnL (realized PnL minus fees)
-      const realizedPnL = incomeHistory
-        .filter((item: any) => item.incomeType === 'REALIZED_PNL')
-        .reduce((sum: number, item: any) => sum + parseFloat(item.income || 0), 0);
-      const commission = incomeHistory
-        .filter((item: any) => item.incomeType === 'COMMISSION')
-        .reduce((sum: number, item: any) => sum + parseFloat(item.income || 0), 0);
-      const fundingFee = incomeHistory
-        .filter((item: any) => item.incomeType === 'FUNDING_FEE')
-        .reduce((sum: number, item: any) => sum + parseFloat(item.income || 0), 0);
-      
-      // Net PnL = realized profit + commission (negative) + funding fee (can be +/-)
-      const netPnL = realizedPnL + commission + fundingFee;
-      
-      // Calculate deposits and withdrawals from TRANSFER type
+      // TRANSFER 로부터 입출금만 사용 (거래 손익은 스냅샷 기반으로 별도 계산)
       const transferItems = incomeHistory.filter((item: any) => item.incomeType === 'TRANSFER');
       const deposits = transferItems
         .filter((item: any) => parseFloat(item.income || 0) > 0)
@@ -230,28 +197,66 @@ const DualChartPanel = ({
         .filter((item: any) => parseFloat(item.income || 0) < 0)
         .reduce((sum: number, item: any) => sum + Math.abs(parseFloat(item.income || 0)), 0);
       
-      console.log(`[PnL Debug] Realized: $${realizedPnL.toFixed(4)}, Commission: $${commission.toFixed(4)}, Funding: $${fundingFee.toFixed(4)}, Net: $${netPnL.toFixed(4)}`);
-      
-      setTodayRealizedPnL(netPnL);
       setTodayDeposits(deposits);
       
-      // Save today's data including deposits/withdrawals
+      // 스냅샷 기반으로 시작잔고/당일손익 계산
       const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const today = getTodayDate();
-        await supabase
-          .from('daily_balance_snapshots')
-          .upsert({
-            user_id: user.id,
-            snapshot_date: today,
-            closing_balance_usd: currentBalance,
-            daily_income_usd: netPnL,
-            deposit_usd: deposits,
-            withdrawal_usd: withdrawals,
-          }, {
-            onConflict: 'user_id,snapshot_date'
-          });
-      }
+      if (!user) return;
+
+      const today = getTodayDate();
+      const yesterday = getYesterdayDate();
+
+      const { data: todaySnapshot } = await supabase
+        .from('daily_balance_snapshots')
+        .select('closing_balance_usd, daily_income_usd, deposit_usd, withdrawal_usd')
+        .eq('user_id', user.id)
+        .eq('snapshot_date', today)
+        .maybeSingle();
+
+      const { data: yesterdaySnapshot } = await supabase
+        .from('daily_balance_snapshots')
+        .select('closing_balance_usd')
+        .eq('user_id', user.id)
+        .eq('snapshot_date', yesterday)
+        .maybeSingle();
+
+      const startBalance = yesterdaySnapshot?.closing_balance_usd 
+        ?? (todaySnapshot 
+          ? todaySnapshot.closing_balance_usd - (todaySnapshot.daily_income_usd || 0) - (todaySnapshot.deposit_usd || 0) + (todaySnapshot.withdrawal_usd || 0)
+          : currentBalance);
+
+      const endBalance = todaySnapshot?.closing_balance_usd ?? currentBalance;
+      const snapshotDeposits = todaySnapshot?.deposit_usd ?? deposits;
+      const snapshotWithdrawals = todaySnapshot?.withdrawal_usd ?? withdrawals;
+
+      const dailyTotal = endBalance - startBalance - snapshotDeposits + snapshotWithdrawals;
+      const realizedToday = dailyTotal - unrealizedPnL;
+
+      console.log('[SnapshotPnL]', {
+        startBalance,
+        endBalance,
+        deposits: snapshotDeposits,
+        withdrawals: snapshotWithdrawals,
+        dailyTotal,
+        realizedToday,
+      });
+
+      setPreviousDayBalance(startBalance);
+      setTodayRealizedPnL(realizedToday);
+
+      // 스냅샷 테이블도 잔고 기준 값으로 덮어쓰기
+      await supabase
+        .from('daily_balance_snapshots')
+        .upsert({
+          user_id: user.id,
+          snapshot_date: today,
+          closing_balance_usd: currentBalance,
+          daily_income_usd: dailyTotal,
+          deposit_usd: snapshotDeposits,
+          withdrawal_usd: snapshotWithdrawals,
+        }, {
+          onConflict: 'user_id,snapshot_date'
+        });
     } catch (error) {
       console.error('Failed to fetch realized PnL:', error);
     }
@@ -277,30 +282,13 @@ const DualChartPanel = ({
 
   const winRate = tradeCount > 0 ? ((winCount / tradeCount) * 100).toFixed(1) : '0.0';
   
+  // Calculate daily P&L based on realized PnL from Binance (순수 거래 손익 + 미실현손익)
+  const dailyPnL = todayRealizedPnL + unrealizedPnL;
   // Effective starting balance = previous day balance + today's deposits (입금 후 시작자본 기준)
   const effectiveStartingBalance = (previousDayBalance !== null ? Math.max(0, previousDayBalance) : 0) + todayDeposits;
   const baseBalance = effectiveStartingBalance > 0 ? effectiveStartingBalance : balanceUSD;
-  
-  // Calculate realized PnL based on balance change (잔고 변화 기반 실현손익)
-  // 실현손익 = 현재잔고 - 시작잔고(전일+입금) - 미실현손익
-  const calculatedRealizedPnL = previousDayBalance !== null 
-    ? balanceUSD - (effectiveStartingBalance) - unrealizedPnL
-    : todayRealizedPnL;
-  
-  // Daily total P&L = realized + unrealized = 현재잔고 - 시작잔고
-  const dailyPnL = balanceUSD - effectiveStartingBalance;
   const dailyPnLPercent = baseBalance > 0 ? (dailyPnL / baseBalance) * 100 : 0;
   const dailyPnLPercentStr = dailyPnLPercent.toFixed(2);
-  
-  console.log('[DailyPnL]', {
-    balanceUSD,
-    previousDayBalance,
-    todayDeposits,
-    unrealizedPnL,
-    effectiveStartingBalance,
-    calculatedRealizedPnL,
-    dailyPnL,
-  });
   
   // Daily target achievement (3% target)
   const DAILY_TARGET_PERCENT = 3;
@@ -349,9 +337,9 @@ const DualChartPanel = ({
             <span className="text-[10px] text-muted-foreground">실현손익</span>
             <span className={cn(
               "text-sm font-bold font-mono",
-              calculatedRealizedPnL >= 0 ? "text-red-400" : "text-blue-400"
+              todayRealizedPnL >= 0 ? "text-red-400" : "text-blue-400"
             )}>
-              {calculatedRealizedPnL >= 0 ? '+' : ''}₩{formatKRW(calculatedRealizedPnL)}
+              {todayRealizedPnL >= 0 ? '+' : ''}₩{formatKRW(todayRealizedPnL)}
             </span>
           </div>
           
