@@ -304,9 +304,9 @@ function connectWebSocket(
     p.pendingRender = true;
   };
   
-  // Create WebSocket connection - use 500ms for stability (100ms or 500ms only supported)
+  // Create WebSocket connection - use 100ms for scalping (fastest option)
   const lowerSymbol = symbol.toLowerCase();
-  const wsUrl = `${BINANCE_WS_URL}/${lowerSymbol}@depth@500ms`;
+  const wsUrl = `${BINANCE_WS_URL}/${lowerSymbol}@depth@100ms`;
   
   try {
     const ws = new WebSocket(wsUrl);
