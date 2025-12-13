@@ -4,8 +4,8 @@ import { OrderBook } from '@/lib/binance';
 const BINANCE_WS_URL = 'wss://fstream.binance.com/ws';
 const BINANCE_REST_URL = 'https://fapi.binance.com';
 
-// Render throttle - 150ms for smoother updates
-const RENDER_INTERVAL_MS = 150;
+// Render throttle - 50ms for fastest updates
+const RENDER_INTERVAL_MS = 50;
 
 // Minimum time between re-initializations (5 seconds)
 const REINIT_COOLDOWN_MS = 5000;
@@ -304,9 +304,9 @@ function connectWebSocket(
     p.pendingRender = true;
   };
   
-  // Create WebSocket connection - use 500ms for less frequent updates
+  // Create WebSocket connection - use 100ms for fastest updates
   const lowerSymbol = symbol.toLowerCase();
-  const wsUrl = `${BINANCE_WS_URL}/${lowerSymbol}@depth@500ms`;
+  const wsUrl = `${BINANCE_WS_URL}/${lowerSymbol}@depth@100ms`;
   
   try {
     const ws = new WebSocket(wsUrl);

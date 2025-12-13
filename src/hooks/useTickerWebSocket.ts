@@ -18,8 +18,8 @@ export const useTickerWebSocket = () => {
   const processTickers = useCallback((data: any[]) => {
     const now = Date.now();
     
-    // 200ms 쓰로틀링 (현재가 업데이트 빈도 개선)
-    if (now - globalLastUpdate < 200) return;
+    // 100ms 쓰로틀링 (최대 속도)
+    if (now - globalLastUpdate < 100) return;
     globalLastUpdate = now;
     
     const processed = data
