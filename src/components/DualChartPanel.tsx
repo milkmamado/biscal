@@ -352,17 +352,17 @@ const DualChartPanel = ({
             </span>
           </div>
           
-          {/* Daily Achievement Rate (3% target) */}
+          {/* Daily Profit Rate (3% target) */}
           <div className="flex flex-col items-center">
-            <span className="text-[10px] text-muted-foreground">달성률</span>
+            <span className="text-[10px] text-muted-foreground">수익률</span>
             <div className="flex items-baseline gap-0.5">
               <span className={cn(
                 "text-sm font-bold font-mono",
-                achievementRate >= 100 ? "text-green-400" : 
-                achievementRate >= 50 ? "text-yellow-400" : 
-                achievementRate >= 0 ? "text-orange-400" : "text-blue-400"
+                dailyPnLPercent >= DAILY_TARGET_PERCENT ? "text-green-400" : 
+                dailyPnLPercent >= DAILY_TARGET_PERCENT / 2 ? "text-yellow-400" : 
+                dailyPnLPercent >= 0 ? "text-orange-400" : "text-blue-400"
               )}>
-                {achievementRateStr}%
+                {dailyPnL >= 0 ? '+' : ''}{dailyPnLPercentStr}%
               </span>
               <span className="text-[8px] text-muted-foreground">/3%</span>
             </div>
