@@ -177,16 +177,18 @@ const DualChartPanel = ({
       const incomeHistory = await getIncomeHistory(todayMidnight, now);
       
       if (!incomeHistory || !Array.isArray(incomeHistory)) {
+        console.log('[PrevBalance] No income history');
         return;
       }
       
-      // Sum all income (realized PnL, funding fees, commissions, etc.)
+      // Sum all income (realized PnL, funding fees, commissions, transfers 등 모든 변동)
       const totalIncomeSinceMidnight = incomeHistory.reduce((sum: number, item: any) => {
         return sum + parseFloat(item.income || 0);
       }, 0);
       
       // Previous day balance = current balance - all income since midnight
       const calculatedPrevBalance = currentBalance - totalIncomeSinceMidnight;
+      console.log('[PrevBalance] current:', currentBalance.toFixed(4), 'totalIncomeSinceMidnight:', totalIncomeSinceMidnight.toFixed(4), 'prevBalance:', calculatedPrevBalance.toFixed(4));
       setPreviousDayBalance(calculatedPrevBalance);
     } catch (error) {
       console.error('Failed to calculate previous day balance:', error);
@@ -280,15 +282,25 @@ const DualChartPanel = ({
   const baseBalance = effectiveStartingBalance > 0 ? effectiveStartingBalance : balanceUSD;
   
   // Calculate realized PnL based on balance change (잔고 변화 기반 실현손익)
-  // 실현손익 = 현재잔고 - 전일잔고 - 입금 + 출금 - 미실현손익
+  // 실현손익 = 현재잔고 - 시작잔고(전일+입금) - 미실현손익
   const calculatedRealizedPnL = previousDayBalance !== null 
-    ? balanceUSD - previousDayBalance - todayDeposits - unrealizedPnL
+    ? balanceUSD - (effectiveStartingBalance) - unrealizedPnL
     : todayRealizedPnL;
   
-  // Daily total P&L = realized + unrealized
-  const dailyPnL = calculatedRealizedPnL + unrealizedPnL;
+  // Daily total P&L = realized + unrealized = 현재잔고 - 시작잔고
+  const dailyPnL = balanceUSD - effectiveStartingBalance;
   const dailyPnLPercent = baseBalance > 0 ? (dailyPnL / baseBalance) * 100 : 0;
   const dailyPnLPercentStr = dailyPnLPercent.toFixed(2);
+  
+  console.log('[DailyPnL]', {
+    balanceUSD,
+    previousDayBalance,
+    todayDeposits,
+    unrealizedPnL,
+    effectiveStartingBalance,
+    calculatedRealizedPnL,
+    dailyPnL,
+  });
   
   // Daily target achievement (3% target)
   const DAILY_TARGET_PERCENT = 3;
