@@ -1,18 +1,46 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { formatPrice } from '@/lib/binance';
 import { useTickerWebSocket } from '@/hooks/useTickerWebSocket';
 import { useBollingerSignals, BBSignal } from '@/hooks/useBollingerSignals';
 import { cn } from '@/lib/utils';
-import { Flame, RefreshCw, TrendingUp, TrendingDown, Search, Wifi, WifiOff, Activity } from 'lucide-react';
+import { RefreshCw, TrendingUp, TrendingDown, Search, Wifi, WifiOff, Activity, Star, X } from 'lucide-react';
 
 interface HotCoinListProps {
   onSelectSymbol: (symbol: string) => void;
   selectedSymbol: string;
 }
 
+interface WatchlistItem {
+  symbol: string;
+  price: number;
+  priceChangePercent: number;
+  addedAt: number;
+}
+
+const WATCHLIST_KEY = 'bb_watchlist';
+
 const HotCoinList = ({ onSelectSymbol, selectedSymbol }: HotCoinListProps) => {
   const { tickers, isConnected } = useTickerWebSocket();
   const [searchQuery, setSearchQuery] = useState('');
+  const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
+  
+  // Load watchlist from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem(WATCHLIST_KEY);
+    if (saved) {
+      try {
+        setWatchlist(JSON.parse(saved));
+      } catch {
+        setWatchlist([]);
+      }
+    }
+  }, []);
+  
+  // Save watchlist to localStorage
+  const saveWatchlist = useCallback((items: WatchlistItem[]) => {
+    setWatchlist(items);
+    localStorage.setItem(WATCHLIST_KEY, JSON.stringify(items));
+  }, []);
   
   // Get tickers for BB scanning (filtered by criteria)
   const tickersForBB = tickers
@@ -29,6 +57,44 @@ const HotCoinList = ({ onSelectSymbol, selectedSymbol }: HotCoinListProps) => {
   
   const { signals: bbSignals, isLoading: bbLoading } = useBollingerSignals(tickersForBB);
   
+  // Auto-add BB signals to watchlist
+  useEffect(() => {
+    if (bbSignals.length === 0) return;
+    
+    const existingSymbols = new Set(watchlist.map(w => w.symbol));
+    const newItems: WatchlistItem[] = [];
+    
+    bbSignals.forEach(signal => {
+      if (!existingSymbols.has(signal.symbol)) {
+        newItems.push({
+          symbol: signal.symbol,
+          price: signal.price,
+          priceChangePercent: signal.priceChangePercent,
+          addedAt: Date.now()
+        });
+      }
+    });
+    
+    if (newItems.length > 0) {
+      saveWatchlist([...newItems, ...watchlist]);
+    }
+  }, [bbSignals, watchlist, saveWatchlist]);
+  
+  // Update watchlist prices from tickers
+  const tickerMap = new Map(tickers.map(t => [t.symbol, t]));
+  const updatedWatchlist = watchlist.map(item => {
+    const ticker = tickerMap.get(item.symbol);
+    if (ticker) {
+      return { ...item, price: ticker.price, priceChangePercent: ticker.priceChangePercent };
+    }
+    return item;
+  });
+  
+  // Remove from watchlist
+  const removeFromWatchlist = (symbol: string) => {
+    saveWatchlist(watchlist.filter(w => w.symbol !== symbol));
+  };
+  
   // Filter signals by search query
   const filteredSignals = searchQuery 
     ? bbSignals.filter(s => s.symbol.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -38,12 +104,12 @@ const HotCoinList = ({ onSelectSymbol, selectedSymbol }: HotCoinListProps) => {
     return (
       <div className="bg-card rounded-lg border border-border">
         <div className="px-4 py-3 border-b border-border flex items-center gap-2">
-          <Flame className="w-5 h-5 text-orange-500" />
-          <h3 className="text-sm font-semibold">선물</h3>
+          <Activity className="w-5 h-5 text-primary" />
+          <h3 className="text-sm font-semibold">BB 신호</h3>
         </div>
         <div className="p-2 space-y-1">
-          {Array(10).fill(0).map((_, i) => (
-            <div key={i} className="h-14 shimmer rounded" />
+          {Array(6).fill(0).map((_, i) => (
+            <div key={i} className="h-10 shimmer rounded" />
           ))}
         </div>
       </div>
@@ -81,13 +147,13 @@ const HotCoinList = ({ onSelectSymbol, selectedSymbol }: HotCoinListProps) => {
         </div>
       </div>
 
-      {/* BB Signal List */}
-      <div className="h-[400px] divide-y divide-border/50 overflow-y-auto">
+      {/* BB Signal List - 절반 높이 */}
+      <div className="h-[180px] divide-y divide-border/50 overflow-y-auto">
         {bbLoading ? (
           <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
             <div className="text-center">
               <RefreshCw className="w-4 h-4 animate-spin mx-auto mb-2" />
-              BB 신호 스캔 중...
+              BB 스캔 중...
             </div>
           </div>
         ) : filteredSignals.length === 0 ? (
@@ -97,56 +163,29 @@ const HotCoinList = ({ onSelectSymbol, selectedSymbol }: HotCoinListProps) => {
         ) : (
           filteredSignals.map((signal) => {
             const isSelected = signal.symbol === selectedSymbol;
-            const isUpper = signal.touchType === 'upper';
             
             return (
               <button
                 key={signal.symbol}
                 onClick={() => onSelectSymbol(signal.symbol)}
                 className={cn(
-                  "w-full px-3 py-2 text-left transition-all hover:bg-secondary/50 flex items-center gap-2",
+                  "w-full px-3 py-1.5 text-left transition-all hover:bg-secondary/50 flex items-center gap-2",
                   isSelected && "bg-primary/10 border-l-2 border-l-primary"
                 )}
               >
-                {/* Touch Type Indicator */}
-                <div className={cn(
-                  "w-6 h-6 rounded flex items-center justify-center text-xs font-bold",
-                  isUpper 
-                    ? "bg-red-500/20 text-red-400" 
-                    : "bg-green-500/20 text-green-400"
-                )}>
-                  {isUpper ? '▲' : '▼'}
+                <div className="bg-red-500/20 text-red-400 w-5 h-5 rounded flex items-center justify-center text-[10px] font-bold">
+                  ▲
                 </div>
-
-                {/* Symbol & Band Info */}
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1">
-                    <span className="font-semibold text-xs truncate">
-                      {signal.symbol.replace('USDT', '')}
-                    </span>
-                    <span className={cn(
-                      "text-[9px] px-1 rounded",
-                      isUpper ? "bg-red-500/20 text-red-400" : "bg-green-500/20 text-green-400"
-                    )}>
-                      {isUpper ? '상단' : '하단'}
-                    </span>
-                  </div>
-                  <p className="text-[10px] text-muted-foreground truncate">
-                    3분봉 BB {isUpper ? '저항' : '지지'}
-                  </p>
+                  <span className="font-semibold text-xs">{signal.symbol.replace('USDT', '')}</span>
                 </div>
-
-                {/* Price & Change */}
                 <div className="text-right">
-                  <p className="font-mono text-xs font-medium">
-                    ${formatPrice(signal.price)}
-                  </p>
+                  <p className="font-mono text-[10px]">${formatPrice(signal.price)}</p>
                   <div className={cn(
-                    "flex items-center justify-end gap-0.5 text-[10px] font-medium",
+                    "text-[9px] font-medium",
                     signal.priceChangePercent >= 0 ? "text-positive" : "text-negative"
                   )}>
-                    {signal.priceChangePercent >= 0 ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingDown className="w-2.5 h-2.5" />}
-                    <span>{signal.priceChangePercent >= 0 ? '+' : ''}{signal.priceChangePercent.toFixed(2)}%</span>
+                    {signal.priceChangePercent >= 0 ? '+' : ''}{signal.priceChangePercent.toFixed(2)}%
                   </div>
                 </div>
               </button>
@@ -155,11 +194,62 @@ const HotCoinList = ({ onSelectSymbol, selectedSymbol }: HotCoinListProps) => {
         )}
       </div>
 
-      {/* Note */}
-      <div className="px-3 py-1.5 bg-secondary/30 border-t border-border">
-        <p className="text-[10px] text-muted-foreground text-center">
-          BB 터치 {filteredSignals.length}개 · 3분봉 · 30초 갱신
-        </p>
+      {/* Watchlist Header */}
+      <div className="px-3 py-1.5 border-y border-border bg-secondary/30 flex items-center gap-2">
+        <Star className="w-3.5 h-3.5 text-yellow-500" />
+        <span className="text-xs font-semibold">관심종목</span>
+        <span className="text-[10px] text-muted-foreground">({updatedWatchlist.length})</span>
+      </div>
+
+      {/* Watchlist */}
+      <div className="h-[180px] divide-y divide-border/50 overflow-y-auto">
+        {updatedWatchlist.length === 0 ? (
+          <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
+            BB 신호 발생 시 자동 저장
+          </div>
+        ) : (
+          updatedWatchlist.map((item) => {
+            const isSelected = item.symbol === selectedSymbol;
+            
+            return (
+              <div
+                key={item.symbol}
+                className={cn(
+                  "w-full px-3 py-1.5 flex items-center gap-2",
+                  isSelected && "bg-primary/10 border-l-2 border-l-primary"
+                )}
+              >
+                <button
+                  onClick={() => onSelectSymbol(item.symbol)}
+                  className="flex-1 flex items-center gap-2 text-left hover:bg-secondary/50 transition-all"
+                >
+                  <Star className="w-4 h-4 text-yellow-500/50" />
+                  <div className="flex-1 min-w-0">
+                    <span className="font-semibold text-xs">{item.symbol.replace('USDT', '')}</span>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-mono text-[10px]">${formatPrice(item.price)}</p>
+                    <div className={cn(
+                      "text-[9px] font-medium",
+                      item.priceChangePercent >= 0 ? "text-positive" : "text-negative"
+                    )}>
+                      {item.priceChangePercent >= 0 ? '+' : ''}{item.priceChangePercent.toFixed(2)}%
+                    </div>
+                  </div>
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeFromWatchlist(item.symbol);
+                  }}
+                  className="p-1 hover:bg-destructive/20 rounded transition-colors"
+                >
+                  <X className="w-3 h-3 text-muted-foreground hover:text-destructive" />
+                </button>
+              </div>
+            );
+          })
+        )}
       </div>
 
       {/* Trading Session Indicator */}
@@ -175,7 +265,7 @@ const TradingSessionIndicator = () => {
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentSession(getSessionInfo());
-    }, 60000); // 1분마다 업데이트
+    }, 60000);
     return () => clearInterval(interval);
   }, []);
 
@@ -209,7 +299,6 @@ const TradingSessionIndicator = () => {
   );
 };
 
-// 현재 시간대에 따른 세션 정보 반환
 function getSessionInfo() {
   const now = new Date();
   const hour = now.getHours();
