@@ -9,7 +9,8 @@ import CoinHeader from '@/components/CoinHeader';
 import DualChartPanel from '@/components/DualChartPanel';
 import ApiKeySetup from '@/components/ApiKeySetup';
 import { Button } from '@/components/ui/button';
-import { LogOut } from 'lucide-react';
+import { LogOut, StopCircle } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface Position {
   type: 'long' | 'short';
@@ -47,6 +48,45 @@ const Index = () => {
   const [orderBook, setOrderBook] = useState<OrderBook | null>(null);
   const [orderBookConnected, setOrderBookConnected] = useState(false);
   const [dailyPnLKRW, setDailyPnLKRW] = useState(0);
+  const [tradingEndedUntil, setTradingEndedUntil] = useState<number | null>(null);
+
+  // 매매종료 상태 체크 (localStorage에서 복원)
+  useEffect(() => {
+    const stored = localStorage.getItem('tradingEndedUntil');
+    if (stored) {
+      const until = parseInt(stored, 10);
+      if (until > Date.now()) {
+        setTradingEndedUntil(until);
+      } else {
+        localStorage.removeItem('tradingEndedUntil');
+      }
+    }
+  }, []);
+
+  // 매매종료 버튼 클릭 핸들러
+  const handleEndTrading = () => {
+    // 다음날 21시(KST) 계산
+    const now = new Date();
+    const koreaOffset = 9 * 60; // UTC+9
+    const utcOffset = now.getTimezoneOffset();
+    const koreaTime = new Date(now.getTime() + (koreaOffset + utcOffset) * 60 * 1000);
+    
+    // 다음날로 설정
+    koreaTime.setDate(koreaTime.getDate() + 1);
+    koreaTime.setHours(21, 0, 0, 0);
+    
+    // UTC timestamp로 변환
+    const untilTimestamp = koreaTime.getTime() - (koreaOffset + utcOffset) * 60 * 1000;
+    
+    setTradingEndedUntil(untilTimestamp);
+    localStorage.setItem('tradingEndedUntil', untilTimestamp.toString());
+    toast.error('매매 종료됨. 내일 21시까지 거래 불가');
+  };
+
+  // 매매종료 상태를 dailyPnLKRW에 반영 (OrderPanel에서 거래 차단하도록)
+  const effectiveDailyLoss = tradingEndedUntil && tradingEndedUntil > Date.now() 
+    ? -999999999 // 거래 차단을 위해 큰 손실로 설정
+    : dailyPnLKRW;
 
   const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
@@ -201,11 +241,21 @@ const Index = () => {
               onTradeClose={handleTradeClose}
               onTpSlChange={handleTpSlChange}
               onOrderBookChange={handleOrderBookChange}
-              dailyLossKRW={dailyPnLKRW}
+              dailyLossKRW={effectiveDailyLoss}
             />
             
-            {/* Logout */}
-            <div className="flex justify-end">
+            {/* Logout & End Trading */}
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleEndTrading}
+                className="text-red-400 hover:text-red-300 hover:bg-red-500/10 border border-red-500/30"
+                disabled={tradingEndedUntil !== null && tradingEndedUntil > Date.now()}
+              >
+                <StopCircle className="h-4 w-4 mr-1" />
+                {tradingEndedUntil && tradingEndedUntil > Date.now() ? '매매종료됨' : '매매종료'}
+              </Button>
               <Button
                 variant="ghost"
                 size="sm"
