@@ -71,9 +71,31 @@ export const useTickerWebSocket = () => {
       return;
     }
     
+    // CONNECTING 상태인데 5초 이상 지나면 강제 종료 후 재연결
     if (activeConnection && activeConnection.readyState === WebSocket.CONNECTING) {
-      console.log('[Ticker WS] Connection in progress...');
+      console.log('[Ticker WS] Connection in progress, will retry if stuck...');
+      // 5초 후에 아직도 CONNECTING이면 강제 재연결
+      setTimeout(() => {
+        if (activeConnection && activeConnection.readyState === WebSocket.CONNECTING) {
+          console.log('[Ticker WS] Connection stuck, forcing reconnect...');
+          try {
+            activeConnection.close();
+          } catch (e) {
+            // ignore
+          }
+          activeConnection = null;
+          if (mountedRef.current && connectionRefCount > 0) {
+            connect();
+          }
+        }
+      }, 5000);
       return;
+    }
+
+    // 이전 연결이 CLOSING 상태면 정리
+    if (activeConnection && activeConnection.readyState === WebSocket.CLOSING) {
+      console.log('[Ticker WS] Previous connection closing, waiting...');
+      activeConnection = null;
     }
 
     try {
@@ -101,22 +123,33 @@ export const useTickerWebSocket = () => {
       
       ws.onerror = (e) => {
         console.error('[Ticker WS] Error:', e);
+        // 에러 발생 시 즉시 정리 및 재연결 예약
+        if (activeConnection === ws) {
+          activeConnection = null;
+        }
       };
       
       ws.onclose = (e) => {
         console.log('[Ticker WS] Closed, code:', e.code, 'reason:', e.reason);
-        activeConnection = null;
+        if (activeConnection === ws) {
+          activeConnection = null;
+        }
         if (mountedRef.current) {
           setIsConnected(false);
-          // 재연결
+          // 재연결 (더 빠르게 - 1초)
           if (connectionRefCount > 0) {
-            console.log('[Ticker WS] Scheduling reconnect in 3s...');
-            reconnectTimeoutRef.current = setTimeout(connect, 3000);
+            console.log('[Ticker WS] Scheduling reconnect in 1s...');
+            reconnectTimeoutRef.current = setTimeout(connect, 1000);
           }
         }
       };
     } catch (e) {
       console.error('[Ticker WS] Connection error:', e);
+      activeConnection = null;
+      // 연결 실패 시 2초 후 재시도
+      if (mountedRef.current && connectionRefCount > 0) {
+        reconnectTimeoutRef.current = setTimeout(connect, 2000);
+      }
     }
   }, [processTickers]);
 
