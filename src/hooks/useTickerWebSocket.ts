@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { SymbolInfo } from '@/lib/binance';
+import { toast } from 'sonner';
 
 const WS_URL = 'wss://fstream.binance.com/ws/!ticker@arr';
 
@@ -8,6 +9,7 @@ let globalTickers: SymbolInfo[] = [];
 let globalLastUpdate = 0;
 let activeConnection: WebSocket | null = null;
 let connectionRefCount = 0;
+let lastDisconnectNotification = 0;
 
 export const useTickerWebSocket = () => {
   const [tickers, setTickers] = useState<SymbolInfo[]>(globalTickers);
@@ -127,6 +129,12 @@ export const useTickerWebSocket = () => {
         if (activeConnection === ws) {
           activeConnection = null;
         }
+        // 5초 내 중복 알림 방지
+        const now = Date.now();
+        if (now - lastDisconnectNotification > 5000) {
+          lastDisconnectNotification = now;
+          toast.error('연결 오류 발생, 재연결 중...');
+        }
       };
       
       ws.onclose = (e) => {
@@ -136,6 +144,14 @@ export const useTickerWebSocket = () => {
         }
         if (mountedRef.current) {
           setIsConnected(false);
+          // 비정상 종료 시 알림 (1006 = abnormal closure)
+          if (e.code === 1006) {
+            const now = Date.now();
+            if (now - lastDisconnectNotification > 5000) {
+              lastDisconnectNotification = now;
+              toast.error('서버 과부하로 연결 끊김, 재연결 중...');
+            }
+          }
           // 재연결 (더 빠르게 - 1초)
           if (connectionRefCount > 0) {
             console.log('[Ticker WS] Scheduling reconnect in 1s...');
