@@ -194,6 +194,12 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
   const [slAmount, setSlAmount] = useState<string>('30');
   const [enableTpSl, setEnableTpSl] = useState<boolean>(true);
   
+  // 본전 자동 청산 (Break-even auto close)
+  const [enableBreakEven, setEnableBreakEven] = useState<boolean>(false);
+  const [breachCount, setBreachCount] = useState<number>(0);
+  const [wasAboveEntry, setWasAboveEntry] = useState<boolean>(false);
+  const [breakEvenOrderPlaced, setBreakEvenOrderPlaced] = useState<boolean>(false);
+  
   // Calculate and notify TP/SL price levels
   useEffect(() => {
     if (!position || !enableTpSl) {
@@ -584,10 +590,68 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
     }
   }, [currentPrice, pendingOrders, position, enableTpSl, tpAmount, slAmount, realUnrealizedPnL]);
 
+  // 본전 자동 청산 로직 - 진입가 2차 이탈 시 본전 지정가 주문
+  useEffect(() => {
+    if (!position || !enableBreakEven || !currentPrice || currentPrice <= 0 || breakEvenOrderPlaced) return;
+    
+    const entryPrice = position.entryPrice;
+    const isLong = position.type === 'long';
+    
+    // 롱: 진입가 위 = 수익, 숏: 진입가 아래 = 수익
+    const isAboveEntry = isLong ? currentPrice > entryPrice : currentPrice < entryPrice;
+    const isBelowEntry = isLong ? currentPrice < entryPrice : currentPrice > entryPrice;
+    
+    if (isAboveEntry && !wasAboveEntry) {
+      // 처음 수익 구간 진입
+      setWasAboveEntry(true);
+    } else if (isBelowEntry && wasAboveEntry) {
+      // 진입가 이탈 (breach)
+      const newBreachCount = breachCount + 1;
+      setBreachCount(newBreachCount);
+      setWasAboveEntry(false);
+      
+      if (newBreachCount >= 2 && !breakEvenOrderPlaced) {
+        // 2차 이탈: 본전 지정가 청산 주문
+        setBreakEvenOrderPlaced(true);
+        const side = isLong ? 'SELL' : 'BUY';
+        
+        apiPlaceLimitOrder(symbol, side, position.quantity, entryPrice, true)
+          .then(() => {
+            toast({
+              title: '📋 본전 자동 청산 주문',
+              description: `2차 이탈 감지 → ${symbol} @ $${formatPrice(entryPrice)} 본전 청산 주문`,
+            });
+            setTimeout(fetchBalanceAndPosition, 1000);
+          })
+          .catch((error) => {
+            console.error('Break-even order failed:', error);
+            setBreakEvenOrderPlaced(false);
+            toast({
+              title: '본전 청산 주문 실패',
+              description: '오류 발생. 다시 시도해주세요.',
+              variant: 'destructive',
+            });
+          });
+      }
+    }
+  }, [currentPrice, position, enableBreakEven, wasAboveEntry, breachCount, breakEvenOrderPlaced, symbol]);
+
+  // Reset break-even state when position changes or clears
+  useEffect(() => {
+    if (!position) {
+      setBreachCount(0);
+      setWasAboveEntry(false);
+      setBreakEvenOrderPlaced(false);
+    }
+  }, [position]);
+
   // Reset position when symbol changes
   useEffect(() => {
     setPosition(null);
     setPendingOrders([]);
+    setBreachCount(0);
+    setWasAboveEntry(false);
+    setBreakEvenOrderPlaced(false);
   }, [symbol]);
   const calculatePnL = (pos: Position, price: number): number => {
     const direction = pos.type === 'long' ? 1 : -1;
@@ -1086,6 +1150,28 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
             disabled={!enableTpSl}
           />
         </div>
+        
+        {/* 본전 자동 청산 토글 */}
+        <button
+          onClick={() => {
+            const newEnabled = !enableBreakEven;
+            setEnableBreakEven(newEnabled);
+            if (newEnabled) {
+              setBreachCount(0);
+              setWasAboveEntry(false);
+              setBreakEvenOrderPlaced(false);
+            }
+          }}
+          className={cn(
+            "px-2 py-0.5 text-[10px] rounded border transition-colors whitespace-nowrap font-bold",
+            enableBreakEven 
+              ? "bg-yellow-600 text-white border-yellow-600" 
+              : "bg-background border-border text-muted-foreground"
+          )}
+          title="진입가 2회 이탈 시 본전 지정가 청산"
+        >
+          본전청산 {enableBreakEven && breachCount > 0 ? `(${breachCount}/2)` : ''}
+        </button>
       </div>
       
 
