@@ -103,10 +103,16 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
   
   // 일일 손실 한도 체크 (25,000원 초과시 다음날 21시까지 거래 금지) - 하드코딩
   const DAILY_LOSS_LIMIT_KRW = 25000;
-  const isDailyLossLimitExceeded = dailyLossKRW < -DAILY_LOSS_LIMIT_KRW;
+  const TRADING_ENDED_VALUE = -999999999; // 매매종료 버튼으로 설정된 값
+  const isTradingEndedManually = dailyLossKRW === TRADING_ENDED_VALUE;
+  const isDailyLossLimitExceeded = !isTradingEndedManually && dailyLossKRW < -DAILY_LOSS_LIMIT_KRW;
   
   // 매매 허용 여부 통합 체크
   const isTradingAllowed = (): boolean => {
+    // 매매종료 버튼으로 종료된 경우
+    if (isTradingEndedManually) {
+      return false;
+    }
     // 일일 손실 한도 초과시 거래 금지
     if (isDailyLossLimitExceeded) {
       return false;
@@ -686,7 +692,19 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
   const handleQuickOrder = async (type: 'long' | 'short', price: number) => {
     // 매매 제한 체크 (손실 한도 또는 시간 제한)
     if (!isTradingAllowed()) {
-      if (isDailyLossLimitExceeded) {
+      if (isTradingEndedManually) {
+        const messages = [
+          '🛌 오늘은 여기까지! 푹 쉬어~',
+          '☕ 커피 한잔 하고 와~',
+          '🎮 게임이나 하자 ㅋㅋ',
+          '📺 넷플릭스 보면서 쉬어!',
+          '🚶 산책 다녀와~',
+        ];
+        toast({
+          title: messages[Math.floor(Math.random() * messages.length)],
+          description: '내일 밤 9시에 다시 만나자 👋',
+        });
+      } else if (isDailyLossLimitExceeded) {
         toast({
           title: '🚫 일일 손실 한도 초과',
           description: '당일 손실 25,000원 초과로 내일 밤 9시까지 거래가 제한됩니다.',
@@ -782,7 +800,19 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
   const handleMarketOrder = async (type: 'long' | 'short') => {
     // 매매 제한 체크 (손실 한도 또는 시간 제한)
     if (!isTradingAllowed()) {
-      if (isDailyLossLimitExceeded) {
+      if (isTradingEndedManually) {
+        const messages = [
+          '🛌 오늘은 여기까지! 푹 쉬어~',
+          '☕ 커피 한잔 하고 와~',
+          '🎮 게임이나 하자 ㅋㅋ',
+          '📺 넷플릭스 보면서 쉬어!',
+          '🚶 산책 다녀와~',
+        ];
+        toast({
+          title: messages[Math.floor(Math.random() * messages.length)],
+          description: '내일 밤 9시에 다시 만나자 👋',
+        });
+      } else if (isDailyLossLimitExceeded) {
         toast({
           title: '🚫 일일 손실 한도 초과',
           description: '당일 손실 25,000원 초과로 내일 밤 9시까지 거래가 제한됩니다.',
