@@ -88,7 +88,7 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
   const [priceChangePercent, setPriceChangePercent] = useState<number>(0);
   const [orderQty, setOrderQty] = useState<string>('100');
   const [leverage, setLeverage] = useState<number>(10);
-  const [splitCount, setSplitCount] = useState<number>(5); // 분할 주문 개수 (5 or 10)
+  const [splitCount, setSplitCount] = useState<number>(10); // 분할 주문 개수 (10, 15, 20)
   
   // 매매 허용 시간 체크 (한국시간 21:00 ~ 01:00) - 하드코딩
   const isTradingTimeAllowed = (): boolean => {
@@ -1103,7 +1103,7 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
           
           <span className="text-[9px] text-muted-foreground ml-2">분할</span>
           <div className="flex gap-0.5">
-            {[5, 10].map(s => (
+            {[10, 15, 20].map(s => (
               <button
                 key={s}
                 onClick={() => setSplitCount(s)}
