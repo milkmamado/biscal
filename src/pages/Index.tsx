@@ -8,8 +8,6 @@ import OrderPanel8282 from '@/components/OrderPanel8282';
 import CoinHeader from '@/components/CoinHeader';
 import DualChartPanel from '@/components/DualChartPanel';
 import ApiKeySetup from '@/components/ApiKeySetup';
-import { Button } from '@/components/ui/button';
-import { LogOut, StopCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Position {
@@ -205,6 +203,9 @@ const Index = () => {
             <HotCoinList
               onSelectSymbol={setSelectedSymbol}
               selectedSymbol={selectedSymbol}
+              onEndTrading={handleEndTrading}
+              onSignOut={handleSignOut}
+              tradingEndedUntil={tradingEndedUntil}
             />
           </div>
 
@@ -232,7 +233,7 @@ const Index = () => {
           </div>
 
           {/* Right - Order Panel 8282 Style */}
-          <div className="col-span-12 lg:col-span-4 xl:col-span-4 flex flex-col gap-2">
+          <div className="col-span-12 lg:col-span-4 xl:col-span-4">
             <OrderPanel8282 
               symbol={selectedSymbol} 
               onPositionChange={handlePositionChange}
@@ -243,29 +244,6 @@ const Index = () => {
               onOrderBookChange={handleOrderBookChange}
               dailyLossKRW={effectiveDailyLoss}
             />
-            
-            {/* Logout & End Trading */}
-            <div className="flex justify-end gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleEndTrading}
-                className="text-red-400 hover:text-red-300 hover:bg-red-500/10 border border-red-500/30"
-                disabled={tradingEndedUntil !== null && tradingEndedUntil > Date.now()}
-              >
-                <StopCircle className="h-4 w-4 mr-1" />
-                {tradingEndedUntil && tradingEndedUntil > Date.now() ? '매매종료됨' : '매매종료'}
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleSignOut}
-                className="text-muted-foreground hover:text-foreground border border-border"
-              >
-                <LogOut className="h-4 w-4 mr-1" />
-                로그아웃
-              </Button>
-            </div>
           </div>
         </div>
       </div>
