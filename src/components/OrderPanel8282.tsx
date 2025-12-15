@@ -1129,12 +1129,11 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
       </div>
 
       {/* Column Headers */}
-      <div className="grid grid-cols-[32px_1fr_70px_1fr_32px] text-[10px] font-medium border-b border-border bg-secondary/70">
+      <div className="grid grid-cols-[32px_1fr_70px_1fr] text-[10px] font-medium border-b border-border bg-secondary/70">
         <div className="px-1 py-1 text-center border-r border-border/50 text-blue-400">S</div>
         <div className="px-1 py-1 text-center border-r border-border/50 text-blue-400">매도잔량</div>
         <div className="px-1 py-1 text-center border-r border-border/50 text-muted-foreground">호가</div>
-        <div className="px-1 py-1 text-center border-r border-border/50 text-red-400">매수잔량</div>
-        <div className="px-1 py-1 text-center text-red-400">B</div>
+        <div className="px-1 py-1 text-center text-red-400">매수잔량</div>
       </div>
       
       
@@ -1147,7 +1146,7 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
           return (
             <div 
               key={`ask-${index}`} 
-              className="grid grid-cols-[32px_1fr_70px_1fr_32px] text-[11px] border-b border-border/30 hover:bg-secondary/50"
+              className="grid grid-cols-[32px_1fr_70px_1fr] text-[11px] border-b border-border/30 hover:bg-secondary/50"
             >
               {/* S button */}
               <button
@@ -1182,19 +1181,7 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
               </div>
 
               {/* Empty buy quantity */}
-              <div className="px-1 py-0.5 border-r border-border/30" />
-
-              {/* B button */}
-              <button
-                onDoubleClick={() => handleQuickOrder('long', ask.price)}
-                className={cn(
-                  "px-1 py-0.5 text-center hover:bg-red-900/70 text-red-400 font-bold text-[10px]",
-                  openOrderPrices.get(ask.price) === 'BUY' ? "bg-red-700/70" : "bg-red-950/50"
-                )}
-                title="더블클릭: 롱 진입"
-              >
-                {openOrderPrices.get(ask.price) === 'BUY' ? '★' : 'B'}
-              </button>
+              <div className="px-1 py-0.5" />
             </div>
           );
         })}
@@ -1304,18 +1291,18 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
           return (
             <div 
               key={`bid-${index}`} 
-              className="grid grid-cols-[32px_1fr_70px_1fr_32px] text-[11px] border-b border-border/30 hover:bg-secondary/50"
+              className="grid grid-cols-[32px_1fr_70px_1fr] text-[11px] border-b border-border/30 hover:bg-secondary/50"
             >
-              {/* S button */}
+              {/* B button (롱) */}
               <button
-                onDoubleClick={() => handleQuickOrder('short', bid.price)}
+                onDoubleClick={() => handleQuickOrder('long', bid.price)}
                 className={cn(
-                  "px-1 py-0.5 text-center hover:bg-blue-900/70 border-r border-border/30 text-blue-400 font-bold text-[10px]",
-                  openOrderPrices.get(bid.price) === 'SELL' ? "bg-blue-700/70" : "bg-blue-950/50"
+                  "px-1 py-0.5 text-center hover:bg-red-900/70 border-r border-border/30 text-red-400 font-bold text-[10px]",
+                  openOrderPrices.get(bid.price) === 'BUY' ? "bg-red-700/70" : "bg-red-950/50"
                 )}
-                title="더블클릭: 숏 진입"
+                title={position ? "더블클릭: 청산" : "더블클릭: 롱 진입"}
               >
-                {openOrderPrices.get(bid.price) === 'SELL' ? '★' : 'S'}
+                {openOrderPrices.get(bid.price) === 'BUY' ? '★' : (position?.type === 'short' ? 'C' : 'B')}
               </button>
 
               {/* Empty sell quantity */}
@@ -1331,7 +1318,7 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
               </div>
 
               {/* 매수잔량 */}
-              <div className="relative px-1 py-0.5 flex items-center border-r border-border/30">
+              <div className="relative px-1 py-0.5 flex items-center">
                 <div 
                   className="absolute left-0 top-0 h-full bg-red-500/20"
                   style={{ width: `${percentage}%` }}
@@ -1340,18 +1327,6 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
                   {formatQuantity(bid.quantity)}
                 </span>
               </div>
-
-              {/* B button */}
-              <button
-                onDoubleClick={() => handleQuickOrder('long', bid.price)}
-                className={cn(
-                  "px-1 py-0.5 text-center hover:bg-red-900/70 text-red-400 font-bold text-[10px]",
-                  openOrderPrices.get(bid.price) === 'BUY' ? "bg-red-700/70" : "bg-red-950/50"
-                )}
-                title={position ? "더블클릭: 청산" : "더블클릭: 롱 진입"}
-              >
-                {openOrderPrices.get(bid.price) === 'BUY' ? '★' : (position?.type === 'short' ? 'C' : 'B')}
-              </button>
             </div>
           );
         })}
