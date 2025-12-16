@@ -55,9 +55,10 @@ interface OrderPanel8282Props {
   onTpSlChange?: (tpsl: TpSlPrices) => void;
   onOrderBookChange?: (orderBook: OrderBook | null, isConnected: boolean) => void;
   dailyLossKRW?: number;
+  dailyProfitPercent?: number;
 }
 
-const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersChange, onTradeClose, onTpSlChange, onOrderBookChange, dailyLossKRW = 0 }: OrderPanel8282Props) => {
+const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersChange, onTradeClose, onTpSlChange, onOrderBookChange, dailyLossKRW = 0, dailyProfitPercent = 0 }: OrderPanel8282Props) => {
   const { toast } = useToast();
   const { user } = useAuth();
   const { 
@@ -107,6 +108,10 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
   const isTradingEndedManually = dailyLossKRW === TRADING_ENDED_VALUE;
   const isDailyLossLimitExceeded = !isTradingEndedManually && dailyLossKRW < -DAILY_LOSS_LIMIT_KRW;
   
+  // 일일 수익 목표 달성 체크 (5% 이상)
+  const DAILY_PROFIT_TARGET_PERCENT = 5;
+  const isDailyProfitTargetReached = !isTradingEndedManually && dailyProfitPercent >= DAILY_PROFIT_TARGET_PERCENT;
+  
   // 매매 허용 여부 통합 체크
   const isTradingAllowed = (): boolean => {
     // 매매종료 버튼으로 종료된 경우
@@ -115,6 +120,10 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
     }
     // 일일 손실 한도 초과시 거래 금지
     if (isDailyLossLimitExceeded) {
+      return false;
+    }
+    // 일일 수익 목표 달성시 거래 금지
+    if (isDailyProfitTargetReached) {
       return false;
     }
     // 거래 시간 체크
@@ -710,6 +719,18 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
           description: '당일 손실 25,000원 초과로 내일 밤 9시까지 거래가 제한됩니다.',
           variant: 'destructive',
         });
+      } else if (isDailyProfitTargetReached) {
+        const messages = [
+          '🎉 대박! 오늘 목표 달성!',
+          '🏆 5% 수익 달성 축하해!',
+          '💰 오늘 충분히 벌었어~',
+          '🌟 완벽한 하루! 이제 쉬자',
+          '🥳 목표 달성! 내일도 화이팅!',
+        ];
+        toast({
+          title: messages[Math.floor(Math.random() * messages.length)],
+          description: '수익 보존을 위해 내일 밤 9시까지 쉬어가자 💪',
+        });
       } else {
         toast({
           title: '⏰ 거래 시간 외',
@@ -817,6 +838,18 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
           title: '🚫 일일 손실 한도 초과',
           description: '당일 손실 25,000원 초과로 내일 밤 9시까지 거래가 제한됩니다.',
           variant: 'destructive',
+        });
+      } else if (isDailyProfitTargetReached) {
+        const messages = [
+          '🎉 대박! 오늘 목표 달성!',
+          '🏆 5% 수익 달성 축하해!',
+          '💰 오늘 충분히 벌었어~',
+          '🌟 완벽한 하루! 이제 쉬자',
+          '🥳 목표 달성! 내일도 화이팅!',
+        ];
+        toast({
+          title: messages[Math.floor(Math.random() * messages.length)],
+          description: '수익 보존을 위해 내일 밤 9시까지 쉬어가자 💪',
         });
       } else {
         toast({
