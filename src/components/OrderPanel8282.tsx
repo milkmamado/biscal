@@ -209,8 +209,8 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
   const [slAmount, setSlAmount] = useState<string>('30');
   const [enableTpSl, setEnableTpSl] = useState<boolean>(true);
   
-  // 본전 자동 청산 (Break-even auto close)
-  const [enableBreakEven, setEnableBreakEven] = useState<boolean>(false);
+  // 본전 자동 청산 (Break-even auto close) - 기본 활성화
+  const [enableBreakEven] = useState<boolean>(true);
   const [breachCount, setBreachCount] = useState<number>(0);
   const [wasAboveEntry, setWasAboveEntry] = useState<boolean>(false);
   const [breakEvenOrderPlaced, setBreakEvenOrderPlaced] = useState<boolean>(false);
@@ -1214,27 +1214,6 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
           />
         </div>
         
-        {/* 본전 자동 청산 토글 */}
-        <button
-          onClick={() => {
-            const newEnabled = !enableBreakEven;
-            setEnableBreakEven(newEnabled);
-            if (newEnabled) {
-              setBreachCount(0);
-              setWasAboveEntry(false);
-              setBreakEvenOrderPlaced(false);
-            }
-          }}
-          className={cn(
-            "px-2 py-0.5 text-[10px] rounded border transition-colors whitespace-nowrap font-bold",
-            enableBreakEven 
-              ? "bg-yellow-600 text-white border-yellow-600" 
-              : "bg-background border-border text-muted-foreground"
-          )}
-          title="진입가 2회 이탈 시 본전 지정가 청산"
-        >
-          본전청산 {enableBreakEven && breachCount > 0 ? `(${breachCount}/2)` : ''}
-        </button>
       </div>
       
 
