@@ -33,6 +33,7 @@ interface DualChartPanelProps {
   orderBook?: OrderBook | null;
   orderBookConnected?: boolean;
   onDailyPnLChange?: (dailyPnLKRW: number) => void;
+  onDailyProfitPercentChange?: (percent: number) => void;
 }
 
 const INTERVALS = [
@@ -59,6 +60,7 @@ const DualChartPanel = ({
   orderBook = null,
   orderBookConnected = false,
   onDailyPnLChange,
+  onDailyProfitPercentChange,
 }: DualChartPanelProps) => {
   const [interval, setInterval] = useState(60);
   const [balanceUSD, setBalanceUSD] = useState<number>(0);
@@ -299,8 +301,13 @@ const DualChartPanel = ({
   const dailyPnLPercent = baseBalance > 0 ? (dailyPnL / baseBalance) * 100 : 0;
   const dailyPnLPercentStr = dailyPnLPercent.toFixed(2);
   
-  // Daily target achievement (3% target)
-  const DAILY_TARGET_PERCENT = 3;
+  // Notify parent of daily profit percent for profit target check
+  useEffect(() => {
+    onDailyProfitPercentChange?.(dailyPnLPercent);
+  }, [dailyPnLPercent, onDailyProfitPercentChange]);
+  
+  // Daily target achievement (5% target)
+  const DAILY_TARGET_PERCENT = 5;
   const achievementRate = DAILY_TARGET_PERCENT > 0 ? (dailyPnLPercent / DAILY_TARGET_PERCENT) * 100 : 0;
   const achievementRateStr = achievementRate.toFixed(0);
 

@@ -46,6 +46,7 @@ const Index = () => {
   const [orderBook, setOrderBook] = useState<OrderBook | null>(null);
   const [orderBookConnected, setOrderBookConnected] = useState(false);
   const [dailyPnLKRW, setDailyPnLKRW] = useState(0);
+  const [dailyProfitPercent, setDailyProfitPercent] = useState(0);
   const [tradingEndedUntil, setTradingEndedUntil] = useState<number | null>(null);
 
   // 매매종료 상태 체크 (localStorage에서 복원)
@@ -149,6 +150,10 @@ const Index = () => {
     setDailyPnLKRW(pnl);
   }, []);
 
+  const handleDailyProfitPercentChange = useCallback((percent: number) => {
+    setDailyProfitPercent(percent);
+  }, []);
+
   const handleTradeClose = useCallback((trade: {
     symbol: string;
     side: 'long' | 'short';
@@ -228,6 +233,7 @@ const Index = () => {
                 orderBook={orderBook}
                 orderBookConnected={orderBookConnected}
                 onDailyPnLChange={handleDailyPnLChange}
+                onDailyProfitPercentChange={handleDailyProfitPercentChange}
               />
             </div>
           </div>
@@ -243,6 +249,7 @@ const Index = () => {
               onTpSlChange={handleTpSlChange}
               onOrderBookChange={handleOrderBookChange}
               dailyLossKRW={effectiveDailyLoss}
+              dailyProfitPercent={dailyProfitPercent}
             />
           </div>
         </div>
