@@ -62,6 +62,24 @@ const calculateBollingerBands = (candles: Candle[], period: number = BB_PERIOD, 
   });
 };
 
+// 변동성 급등 캔들 감지 (최근 20봉 평균 대비 2배 이상 변동)
+const detectHighVolatilityCandles = (candles: Candle[], threshold: number = 2.0): boolean[] => {
+  const period = 20;
+  return candles.map((candle, index) => {
+    if (index < period) return false;
+    
+    // 해당 캔들의 변동폭 (고가 - 저가)
+    const candleRange = candle.high - candle.low;
+    
+    // 최근 period개 캔들의 평균 변동폭
+    const recentCandles = candles.slice(Math.max(0, index - period), index);
+    const avgRange = recentCandles.reduce((sum, c) => sum + (c.high - c.low), 0) / recentCandles.length;
+    
+    // 평균 대비 threshold배 이상이면 변동성 급등
+    return candleRange >= avgRange * threshold;
+  });
+};
+
 // Binance interval string 변환
 const getIntervalString = (seconds: number): string => {
   if (seconds <= 60) return '1m';
@@ -366,14 +384,18 @@ const TickChart = ({ symbol, orderBook, isConnected, height = 400, interval = 60
     });
     ctx.stroke();
     
+    // === 변동성 급등 캔들 감지 ===
+    const highVolatilityFlags = detectHighVolatilityCandles(displayCandles);
+    
     // === 봉차트 그리기 ===
     displayCandles.forEach((candle, index) => {
       const x = CANVAS_PADDING + (index * candleSpacing) + (candleSpacing / 2);
       const isUp = candle.close >= candle.open;
+      const isHighVolatility = highVolatilityFlags[index];
       
-      // 색상
-      const bullColor = '#ef4444'; // 상승 = 빨간색
-      const bearColor = '#3b82f6'; // 하락 = 파란색
+      // 색상 - 변동성 급등 캔들은 노란색/주황색으로 강조
+      const bullColor = isHighVolatility ? '#fbbf24' : '#ef4444'; // 급등: amber-400, 일반: 빨간색
+      const bearColor = isHighVolatility ? '#f97316' : '#3b82f6'; // 급등: orange-500, 일반: 파란색
       const color = isUp ? bullColor : bearColor;
       
       // === 가격 봉 ===
@@ -382,9 +404,15 @@ const TickChart = ({ symbol, orderBook, isConnected, height = 400, interval = 60
       const highY = CANVAS_PADDING / 2 + ((adjustedMax - candle.high) / adjustedRange) * priceChartHeight;
       const lowY = CANVAS_PADDING / 2 + ((adjustedMax - candle.low) / adjustedRange) * priceChartHeight;
       
+      // 변동성 급등 캔들 - 글로우 효과
+      if (isHighVolatility) {
+        ctx.shadowColor = isUp ? '#fbbf24' : '#f97316';
+        ctx.shadowBlur = 8;
+      }
+      
       // 심지 그리기
       ctx.strokeStyle = color;
-      ctx.lineWidth = 1;
+      ctx.lineWidth = isHighVolatility ? 2 : 1;
       ctx.beginPath();
       ctx.moveTo(x, highY);
       ctx.lineTo(x, lowY);
@@ -395,6 +423,11 @@ const TickChart = ({ symbol, orderBook, isConnected, height = 400, interval = 60
       const bodyHeight = Math.max(1, Math.abs(closeY - openY));
       ctx.fillStyle = color;
       ctx.fillRect(x - candleWidth / 2, bodyTop, candleWidth, bodyHeight);
+      
+      // 글로우 효과 리셋
+      if (isHighVolatility) {
+        ctx.shadowBlur = 0;
+      }
       
       // === 거래량 바 ===
       if (maxVolume > 0) {
