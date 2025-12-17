@@ -241,13 +241,75 @@ export const useBinanceApi = () => {
     return callBinanceApi('setMarginType', { symbol, marginType });
   }, [callBinanceApi]);
 
-  // Get income history since a specific timestamp
-  const getIncomeHistory = useCallback(async (startTime: number, endTime?: number, incomeType?: string) => {
-    const params: Record<string, any> = { startTime, limit: 1000 };
-    if (endTime) params.endTime = endTime;
-    if (incomeType) params.incomeType = incomeType;
-    return callBinanceApi('getIncomeHistory', params);
-  }, [callBinanceApi]);
+  // Get income history since a specific timestamp (auto-pagination; Binance returns max 1000 rows per call)
+  const getIncomeHistory = useCallback(
+    async (startTime: number, endTime?: number, incomeType?: string) => {
+      // Skip API call if user is not logged in
+      if (!user) {
+        return null;
+      }
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        const all: any[] = [];
+        const hardEndTime = endTime ?? Date.now();
+
+        let cursor = startTime;
+        let lastCursor = -1;
+
+        // Safety guard: up to 50 pages (50,000 rows)
+        for (let page = 0; page < 50; page++) {
+          const params: Record<string, any> = { startTime: cursor, endTime: hardEndTime, limit: 1000 };
+          if (incomeType) params.incomeType = incomeType;
+
+          const data = await callVpsDirect('getIncomeHistory', params);
+
+          if (data?.error || (data?.code && data.code < 0)) {
+            throw new Error(data.msg || data.error || 'Binance API error');
+          }
+
+          if (!Array.isArray(data)) {
+            break;
+          }
+
+          all.push(...data);
+
+          // Done if this page isn't full
+          if (data.length < 1000) {
+            break;
+          }
+
+          const lastTime = data[data.length - 1]?.time;
+          if (typeof lastTime !== 'number') {
+            break;
+          }
+
+          // Prevent infinite loop if cursor doesn't advance
+          if (lastTime <= lastCursor) {
+            break;
+          }
+          lastCursor = lastTime;
+
+          // If we've reached the end window, stop
+          if (lastTime >= hardEndTime) {
+            break;
+          }
+
+          cursor = lastTime + 1;
+        }
+
+        return all;
+      } catch (err: any) {
+        setError(err?.message ?? '오류 발생. 다시 시도해주세요.');
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [user, callVpsDirect]
+  );
 
   return {
     loading,
