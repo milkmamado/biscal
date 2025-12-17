@@ -91,15 +91,16 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
   const [leverage, setLeverage] = useState<number>(10);
   const [splitCount, setSplitCount] = useState<number>(10); // 분할 주문 개수 (10, 15, 20)
   
-  // 매매 허용 시간 체크 (한국시간 21:00 ~ 01:00) - 하드코딩
+  // 매매 허용 시간 체크 (한국시간 21:00 ~ 01:00) - 임시 해제
   const isTradingTimeAllowed = (): boolean => {
-    const now = new Date();
-    const koreaOffset = 9 * 60; // UTC+9
-    const utcOffset = now.getTimezoneOffset();
-    const koreaTime = new Date(now.getTime() + (koreaOffset + utcOffset) * 60 * 1000);
-    const hour = koreaTime.getHours();
-    // 21:00 ~ 23:59 또는 00:00 ~ 00:59 (새벽 1시 전까지)
-    return (hour >= 21 && hour <= 23) || (hour >= 0 && hour < 1);
+    return true; // 임시로 시간 제한 해제
+    // const now = new Date();
+    // const koreaOffset = 9 * 60; // UTC+9
+    // const utcOffset = now.getTimezoneOffset();
+    // const koreaTime = new Date(now.getTime() + (koreaOffset + utcOffset) * 60 * 1000);
+    // const hour = koreaTime.getHours();
+    // // 21:00 ~ 23:59 또는 00:00 ~ 00:59 (새벽 1시 전까지)
+    // return (hour >= 21 && hour <= 23) || (hour >= 0 && hour < 1);
   };
   
   // 일일 손실 한도 체크 (25,000원 초과시 다음날 21시까지 거래 금지) - 하드코딩
