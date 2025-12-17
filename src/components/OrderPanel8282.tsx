@@ -114,22 +114,23 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
   const DAILY_PROFIT_TARGET_PERCENT = 5;
   const isDailyProfitTargetReached = !isTradingEndedManually && dailyProfitPercent >= DAILY_PROFIT_TARGET_PERCENT;
   
-  // 매매 허용 여부 통합 체크
+  // 매매 허용 여부 통합 체크 (임시로 제한 해제)
   const isTradingAllowed = (): boolean => {
+    return true; // 임시 제한 해제
     // 매매종료 버튼으로 종료된 경우
-    if (isTradingEndedManually) {
-      return false;
-    }
-    // 일일 손실 한도 초과시 거래 금지
-    if (isDailyLossLimitExceeded) {
-      return false;
-    }
-    // 일일 수익 목표 달성시 거래 금지
-    if (isDailyProfitTargetReached) {
-      return false;
-    }
-    // 거래 시간 체크
-    return isTradingTimeAllowed();
+    // if (isTradingEndedManually) {
+    //   return false;
+    // }
+    // // 일일 손실 한도 초과시 거래 금지
+    // if (isDailyLossLimitExceeded) {
+    //   return false;
+    // }
+    // // 일일 수익 목표 달성시 거래 금지
+    // if (isDailyProfitTargetReached) {
+    //   return false;
+    // }
+    // // 거래 시간 체크
+    // return isTradingTimeAllowed();
   };
   const [loading, setLoading] = useState(true);
   const [clickOrderPercent, setClickOrderPercent] = useState<number>(100);
