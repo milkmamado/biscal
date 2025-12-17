@@ -179,8 +179,7 @@ const DualChartPanel = ({
     return `${year}-${month}-${day}`;
   };
 
-  // Fetch today's realized PnL and deposits/withdrawals from Binance
-  // 바이낸스 Income History로 오늘 총 변동분 계산 → 시작잔고 역산
+  // Fetch today's realized PnL from Binance Income History (바이낸스 기록 그대로 사용)
   const fetchTodayRealizedPnL = async (currentBalance: number) => {
     try {
       const todayMidnight = getTodayMidnightKST();
@@ -201,50 +200,34 @@ const DualChartPanel = ({
         .filter((item: any) => parseFloat(item.income || 0) < 0)
         .reduce((sum: number, item: any) => sum + Math.abs(parseFloat(item.income || 0)), 0);
       
-      // 오늘 발생한 모든 수익/비용 (REALIZED_PNL, COMMISSION, FUNDING_FEE 등)
+      // 바이낸스 Income History에서 오늘 실현손익 직접 가져오기
       const tradingIncomeTypes = ['REALIZED_PNL', 'COMMISSION', 'FUNDING_FEE'];
-      const totalTradingIncome = incomeHistory
+      const realizedFromBinance = incomeHistory
         .filter((item: any) => tradingIncomeTypes.includes(item.incomeType))
         .reduce((sum: number, item: any) => sum + parseFloat(item.income || 0), 0);
       
       setTodayDeposits(deposits);
+      setTodayRealizedPnL(realizedFromBinance);
       
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      // 시작잔고 = 현재잔고 - 실현손익 - 입금 + 출금
+      const startBalance = currentBalance - realizedFromBinance - deposits + withdrawals;
+      setPreviousDayBalance(startBalance);
 
-      const today = getTodayDate();
-      const yesterday = getYesterdayDate();
-
-      const { data: yesterdaySnapshot } = await supabase
-        .from('daily_balance_snapshots')
-        .select('closing_balance_usd')
-        .eq('user_id', user.id)
-        .eq('snapshot_date', yesterday)
-        .maybeSingle();
-
-      // 시작잔고: 어제 스냅샷 있으면 사용, 없으면 Income History로 역산
-      // startBalance = currentBalance - totalTradingIncome - deposits + withdrawals
-      const startBalance = yesterdaySnapshot?.closing_balance_usd 
-        ?? (currentBalance - totalTradingIncome - deposits + withdrawals);
-
-      // 당일손익 = 현재잔고 - 시작잔고 - 입금 + 출금
-      const dailyTotal = currentBalance - startBalance - deposits + withdrawals;
-      const realizedToday = dailyTotal - unrealizedPnL;
-
-      console.log('[SnapshotPnL]', {
-        startBalance,
+      console.log('[BinancePnL]', {
         currentBalance,
+        realizedFromBinance,
         deposits,
         withdrawals,
-        totalTradingIncome,
-        dailyTotal,
-        realizedToday,
+        startBalance,
       });
 
-      setPreviousDayBalance(startBalance);
-      setTodayRealizedPnL(realizedToday);
-
       // 스냅샷 테이블 업데이트
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      
+      const today = getTodayDate();
+      const dailyTotal = realizedFromBinance + unrealizedPnL;
+      
       await supabase
         .from('daily_balance_snapshots')
         .upsert({
