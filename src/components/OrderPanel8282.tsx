@@ -106,8 +106,8 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
   const TRADING_ENDED_VALUE = -999999999;
   const isTradingEndedManually = dailyLossKRW === TRADING_ENDED_VALUE;
   
-  // 일일 손실 한도 체크 (-10% 손실시 거래 금지) - 퍼센트 기준
-  const DAILY_LOSS_LIMIT_PERCENT = -10;
+  // 일일 손실 한도 체크 (-5% 손실시 거래 금지) - 퍼센트 기준
+  const DAILY_LOSS_LIMIT_PERCENT = -5;
   const isDailyLossLimitExceeded = !isTradingEndedManually && dailyProfitPercent <= DAILY_LOSS_LIMIT_PERCENT;
   
   // 일일 수익 목표 달성 체크 (5% 이상)
