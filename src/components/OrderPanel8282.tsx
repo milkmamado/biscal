@@ -626,8 +626,8 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
       setBreachCount(newBreachCount);
       setWasAboveEntry(false);
       
-      if (newBreachCount >= 2 && !breakEvenOrderPlaced) {
-        // 2차 이탈: 본전 지정가 청산 주문
+      if (newBreachCount >= 3 && !breakEvenOrderPlaced) {
+        // 3차 이탈: 본전 지정가 청산 주문
         setBreakEvenOrderPlaced(true);
         const side = isLong ? 'SELL' : 'BUY';
         
@@ -635,7 +635,7 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
           .then(() => {
             toast({
               title: '📋 본전 자동 청산 주문',
-              description: `2차 이탈 감지 → ${symbol} @ $${formatPrice(entryPrice)} 본전 청산 주문`,
+              description: `3차 이탈 감지 → ${symbol} @ $${formatPrice(entryPrice)} 본전 청산 주문`,
             });
             setTimeout(fetchBalanceAndPosition, 1000);
           })
