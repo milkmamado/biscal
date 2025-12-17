@@ -628,15 +628,21 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
       setWasAboveEntry(false);
       
       if (newBreachCount >= 3 && !breakEvenOrderPlaced) {
-        // 3차 이탈: 본전 지정가 청산 주문
+        // 3차 이탈: 미체결 주문 취소 후 본전 지정가 청산 주문
         setBreakEvenOrderPlaced(true);
         const side = isLong ? 'SELL' : 'BUY';
         
-        apiPlaceLimitOrder(symbol, side, position.quantity, entryPrice, true)
+        // 먼저 미체결 주문 전부 취소
+        apiCancelAllOrders(symbol)
+          .then(() => {
+            setPendingOrders([]);
+            // 그 후 본전 청산 주문
+            return apiPlaceLimitOrder(symbol, side, position.quantity, entryPrice, true);
+          })
           .then(() => {
             toast({
               title: '📋 본전 자동 청산 주문',
-              description: `3차 이탈 감지 → ${symbol} @ $${formatPrice(entryPrice)} 본전 청산 주문`,
+              description: `3차 이탈 감지 → 미체결 취소 + ${symbol} @ $${formatPrice(entryPrice)} 본전 청산`,
             });
             setTimeout(fetchBalanceAndPosition, 1000);
           })
