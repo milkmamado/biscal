@@ -717,8 +717,8 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
         });
       } else if (isDailyLossLimitExceeded) {
         toast({
-          title: '🚫 일일 손실 한도 초과',
-          description: '당일 손실 25,000원 초과로 내일 밤 9시까지 거래가 제한됩니다.',
+          title: '🚫 거래 제한',
+          description: '지금은 쉬어야 합니다.',
           variant: 'destructive',
         });
       } else if (isDailyProfitTargetReached) {
@@ -837,8 +837,8 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
         });
       } else if (isDailyLossLimitExceeded) {
         toast({
-          title: '🚫 일일 손실 한도 초과',
-          description: '당일 손실 25,000원 초과로 내일 밤 9시까지 거래가 제한됩니다.',
+          title: '🚫 거래 제한',
+          description: '지금은 쉬어야 합니다.',
           variant: 'destructive',
         });
       } else if (isDailyProfitTargetReached) {
