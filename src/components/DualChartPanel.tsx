@@ -371,7 +371,7 @@ const DualChartPanel = ({
               )}>
                 {dailyPnL >= 0 ? '+' : ''}{dailyPnLPercentStr}%
               </span>
-              <span className="text-[8px] text-muted-foreground">/3%</span>
+              <span className="text-[8px] text-muted-foreground">/5%</span>
             </div>
           </div>
           
