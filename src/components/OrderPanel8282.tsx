@@ -91,23 +91,24 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
   const [leverage, setLeverage] = useState<number>(10);
   const [splitCount, setSplitCount] = useState<number>(10); // 분할 주문 개수 (10, 15, 20)
   
-  // 매매 허용 시간 체크 (한국시간 21:00 ~ 01:00) - 임시 해제
+  // 매매 허용 시간 체크 (한국시간 21:00 ~ 01:00)
   const isTradingTimeAllowed = (): boolean => {
-    return true; // 임시로 시간 제한 해제
-    // const now = new Date();
-    // const koreaOffset = 9 * 60; // UTC+9
-    // const utcOffset = now.getTimezoneOffset();
-    // const koreaTime = new Date(now.getTime() + (koreaOffset + utcOffset) * 60 * 1000);
-    // const hour = koreaTime.getHours();
-    // // 21:00 ~ 23:59 또는 00:00 ~ 00:59 (새벽 1시 전까지)
-    // return (hour >= 21 && hour <= 23) || (hour >= 0 && hour < 1);
+    const now = new Date();
+    const koreaOffset = 9 * 60; // UTC+9
+    const utcOffset = now.getTimezoneOffset();
+    const koreaTime = new Date(now.getTime() + (koreaOffset + utcOffset) * 60 * 1000);
+    const hour = koreaTime.getHours();
+    // 21:00 ~ 23:59 또는 00:00 ~ 00:59 (새벽 1시 전까지)
+    return (hour >= 21 && hour <= 23) || (hour >= 0 && hour < 1);
   };
   
-  // 일일 손실 한도 체크 (25,000원 초과시 다음날 21시까지 거래 금지) - 하드코딩
-  const DAILY_LOSS_LIMIT_KRW = 25000;
-  const TRADING_ENDED_VALUE = -999999999; // 매매종료 버튼으로 설정된 값
+  // 매매종료 버튼으로 설정된 값
+  const TRADING_ENDED_VALUE = -999999999;
   const isTradingEndedManually = dailyLossKRW === TRADING_ENDED_VALUE;
-  const isDailyLossLimitExceeded = !isTradingEndedManually && dailyLossKRW < -DAILY_LOSS_LIMIT_KRW;
+  
+  // 일일 손실 한도 체크 (-10% 손실시 거래 금지) - 퍼센트 기준
+  const DAILY_LOSS_LIMIT_PERCENT = -10;
+  const isDailyLossLimitExceeded = !isTradingEndedManually && dailyProfitPercent <= DAILY_LOSS_LIMIT_PERCENT;
   
   // 일일 수익 목표 달성 체크 (5% 이상)
   const DAILY_PROFIT_TARGET_PERCENT = 5;
