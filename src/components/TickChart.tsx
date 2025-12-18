@@ -99,9 +99,12 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height = 400
   const [loading, setLoading] = useState(true);
   const [visibleCount, setVisibleCount] = useState(50);
   const [displaySymbol, setDisplaySymbol] = useState(symbol); // 현재 표시 중인 심볼
+  const [currentPriceDisplay, setCurrentPriceDisplay] = useState(0); // 현재가 표시용
   const lastCandleTimeRef = useRef<number>(0);
   const currentCandleRef = useRef<Candle | null>(null);
   const fetchIdRef = useRef<number>(0); // fetch 요청 ID
+  const rafIdRef = useRef<number>(0); // requestAnimationFrame ID
+  const lastDrawTimeRef = useRef<number>(0); // 마지막 그리기 시간
   
   // 줌 인/아웃
   const handleZoomIn = useCallback(() => {
@@ -201,7 +204,7 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height = 400
     };
   }, [symbol, interval]);
   
-  // orderBook에서 현재가로 현재 봉 업데이트
+  // orderBook에서 현재가로 현재 봉 업데이트 (requestAnimationFrame으로 최적화)
   useEffect(() => {
     // 로딩 중이거나 캔들이 없으면 무시
     if (loading || candles.length === 0) return;
@@ -212,13 +215,32 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height = 400
     const bestAsk = orderBook.asks[0].price;
     const midPrice = (bestBid + bestAsk) / 2;
     
-    // 현재 봉 업데이트
+    // 현재 봉 업데이트 (ref만 업데이트)
     currentCandleRef.current.high = Math.max(currentCandleRef.current.high, midPrice);
     currentCandleRef.current.low = Math.min(currentCandleRef.current.low, midPrice);
     currentCandleRef.current.close = midPrice;
     
-    // 캔버스 다시 그리기 트리거
-    setCandles(prev => [...prev]);
+    // 현재가 상태 업데이트 (UI 표시용)
+    setCurrentPriceDisplay(midPrice);
+    
+    // 쓰로틀링: 50ms마다 한번만 그리기 (바이낸스보다 빠른 반응)
+    const now = performance.now();
+    if (now - lastDrawTimeRef.current < 50) return;
+    lastDrawTimeRef.current = now;
+    
+    // requestAnimationFrame으로 부드러운 업데이트
+    if (rafIdRef.current) {
+      cancelAnimationFrame(rafIdRef.current);
+    }
+    rafIdRef.current = requestAnimationFrame(() => {
+      setCandles(prev => [...prev]);
+    });
+    
+    return () => {
+      if (rafIdRef.current) {
+        cancelAnimationFrame(rafIdRef.current);
+      }
+    };
   }, [orderBook, candles.length, loading]);
   
   // 캔버스에 봉차트 그리기
@@ -476,8 +498,8 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height = 400
     return price.toFixed(6);
   };
   
-  // 현재가 정보
-  const currentPrice = currentCandleRef.current?.close || 0;
+  // 현재가 정보 (상태에서 가져와 빠르게 반응)
+  const currentPrice = currentPriceDisplay || currentCandleRef.current?.close || 0;
   const prevClose = candles.length > 1 ? candles[candles.length - 2].close : currentPrice;
   const isUp = currentPrice >= prevClose;
   
@@ -489,22 +511,34 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height = 400
         style={{ height: `${height}px` }}
       />
       
-      {/* 연결 상태 */}
-      <div className="absolute top-2 left-2 flex items-center gap-2">
+      {/* 심볼명 + 현재가 (좌측 상단) */}
+      <div className="absolute top-2 left-2 flex items-center gap-3">
+        <span className="text-sm font-bold text-foreground">
+          {displaySymbol.replace('USDT', '')}
+        </span>
+        {currentPrice > 0 && (
+          <span className={cn(
+            "text-sm font-bold font-mono",
+            isUp ? "text-red-400" : "text-blue-400"
+          )}>
+            ${formatPrice(currentPrice)} {isUp ? '▲' : '▼'}
+          </span>
+        )}
         <div className={cn(
           "w-2 h-2 rounded-full",
-          orderBook && orderBook.bids.length > 0 ? "bg-green-500" : "bg-red-500"
+          orderBook && orderBook.bids.length > 0 ? "bg-green-500 animate-pulse" : "bg-red-500"
         )} />
-        <span className="text-[10px] text-muted-foreground">
-          {orderBook && orderBook.bids.length > 0 ? 'LIVE' : 'OFFLINE'}
-        </span>
-        <span className="text-[10px] text-muted-foreground">
+      </div>
+      
+      {/* 우측 상단: 분봉 정보 */}
+      <div className="absolute top-2 right-2 flex items-center gap-2">
+        <span className="text-[10px] text-muted-foreground font-mono">
           {getIntervalString(interval)} | {visibleCount}봉
         </span>
       </div>
       
-      {/* 줌 컨트롤 + 현재가 */}
-      <div className="absolute top-2 left-1/2 -translate-x-1/2 flex items-center gap-2">
+      {/* 줌 컨트롤 (중앙) */}
+      <div className="absolute top-2 left-1/2 -translate-x-1/2 flex items-center gap-1">
         <button
           onClick={handleZoomIn}
           className="p-1 bg-secondary/80 hover:bg-secondary rounded text-muted-foreground hover:text-foreground transition-colors"
@@ -519,14 +553,6 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height = 400
         >
           <ZoomOut className="w-3.5 h-3.5" />
         </button>
-        {currentPrice > 0 && (
-          <span className={cn(
-            "text-xs font-bold font-mono ml-1",
-            isUp ? "text-red-400" : "text-blue-400"
-          )}>
-            {formatPrice(currentPrice)} {isUp ? '▲' : '▼'}
-          </span>
-        )}
       </div>
     </div>
   );
