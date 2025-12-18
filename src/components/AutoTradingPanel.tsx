@@ -47,6 +47,7 @@ interface AutoTradingPanelProps {
   onToggle: () => void;
   onManualClose?: () => void;
   onSkipSignal?: () => void;
+  onSwapSignal?: () => void;
   onBreakEvenClose?: () => void;
   onCancelBreakEven?: () => void;
   currentPrice?: number;
@@ -63,6 +64,7 @@ const AutoTradingPanel = ({
   onToggle, 
   onManualClose,
   onSkipSignal,
+  onSwapSignal,
   onBreakEvenClose,
   onCancelBreakEven,
   currentPrice = 0,
@@ -367,14 +369,26 @@ const AutoTradingPanel = ({
                 {pendingSignal.symbol} {pendingSignal.touchType === 'upper' ? '숏' : '롱'} 대기
               </span>
             </div>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={onSkipSignal}
-              className="h-6 px-2 text-[10px] border-yellow-500/50 text-yellow-500 hover:bg-yellow-500/20"
-            >
-              패스
-            </Button>
+            <div className="flex gap-1">
+              {onSwapSignal && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={onSwapSignal}
+                  className="h-6 px-2 text-[10px] border-blue-500/50 text-blue-400 hover:bg-blue-500/20"
+                >
+                  🔄
+                </Button>
+              )}
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={onSkipSignal}
+                className="h-6 px-2 text-[10px] border-yellow-500/50 text-yellow-500 hover:bg-yellow-500/20"
+              >
+                패스
+              </Button>
+            </div>
           </div>
           <div className="mt-1 text-[10px] text-muted-foreground">
             시그널 @ ${pendingSignal.signalPrice.toFixed(4)} | 봉 완성 대기 중
