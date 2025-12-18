@@ -1096,6 +1096,25 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
     toast.info(`⏭️ ${symbol} 패스됨`);
   }, [state.pendingSignal, addLog]);
   
+  // 시그널 방향 스왑 (롱↔숏)
+  const swapSignalDirection = useCallback(() => {
+    if (!state.pendingSignal) return;
+    
+    const { symbol, touchType } = state.pendingSignal;
+    const newTouchType = touchType === 'upper' ? 'lower' : 'upper';
+    const newSide = newTouchType === 'upper' ? '숏' : '롱';
+    
+    setState(prev => ({
+      ...prev,
+      pendingSignal: prev.pendingSignal ? {
+        ...prev.pendingSignal,
+        touchType: newTouchType,
+      } : null,
+    }));
+    
+    toast.info(`🔄 ${symbol} → ${newSide}으로 변경`);
+  }, [state.pendingSignal]);
+  
   // 본절 청산 (진입가에 지정가 주문)
   const breakEvenClose = useCallback(async () => {
     if (!state.currentPosition) return;
@@ -1190,6 +1209,7 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
     closePosition,
     checkTpSl,
     skipSignal,
+    swapSignalDirection,
     breakEvenClose,
     cancelBreakEvenOrder,
     updatePrice: useCallback(() => {}, []), // 더 이상 사용 안 함

@@ -259,6 +259,7 @@ const Index = () => {
               onToggle={autoTrading.toggleAutoTrading}
               onManualClose={handleManualClose}
               onSkipSignal={autoTrading.skipSignal}
+              onSwapSignal={autoTrading.swapSignalDirection}
               onBreakEvenClose={autoTrading.breakEvenClose}
               onCancelBreakEven={autoTrading.cancelBreakEvenOrder}
               currentPrice={currentAutoPrice}
