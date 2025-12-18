@@ -6,10 +6,12 @@ import { useAutoTrading } from '@/hooks/useAutoTrading';
 import { useCoinScreening } from '@/hooks/useCoinScreening';
 import { useTickerWebSocket } from '@/hooks/useTickerWebSocket';
 import { useWakeLock } from '@/hooks/useWakeLock';
+import { useOrderBookWall } from '@/hooks/useOrderBookWall';
 import { supabase } from '@/integrations/supabase/client';
 import DualChartPanel from '@/components/DualChartPanel';
 import AutoTradingPanel from '@/components/AutoTradingPanel';
 import ApiKeySetup from '@/components/ApiKeySetup';
+import { toast } from 'sonner';
 
 const Index = () => {
   const [selectedSymbol, setSelectedSymbol] = useState('BTCUSDT');
@@ -51,6 +53,10 @@ const Index = () => {
   
   // 자동매매 중 절전 방지 (백그라운드 탭에서도 안정적 동작)
   useWakeLock(autoTrading.state.isEnabled);
+  
+  // 오더북 벽 분석 (100ms 실시간)
+  const currentWallSymbol = autoTrading.state.pendingSignal?.symbol || autoTrading.state.currentPosition?.symbol || null;
+  const { shouldBlockLongEntry, shouldBlockShortEntry } = useOrderBookWall(currentWallSymbol, autoTrading.state.isEnabled);
 
   // 종목 스크리닝용 티커 데이터 준비
   const tickersForScreening = tickers
@@ -112,6 +118,23 @@ const Index = () => {
       // medium 이상만 처리
       if (signal.strength === 'weak') continue;
       
+      // 🆕 오더북 벽 필터 체크
+      if (signal.direction === 'long') {
+        const blockCheck = shouldBlockLongEntry();
+        if (blockCheck.blocked) {
+          console.log(`🚫 오더북 벽으로 롱 진입 차단: ${blockCheck.reason}`);
+          toast.warning(`🚫 ${signal.symbol} 롱 차단: ${blockCheck.reason}`);
+          continue;
+        }
+      } else {
+        const blockCheck = shouldBlockShortEntry();
+        if (blockCheck.blocked) {
+          console.log(`🚫 오더북 벽으로 숏 진입 차단: ${blockCheck.reason}`);
+          toast.warning(`🚫 ${signal.symbol} 숏 차단: ${blockCheck.reason}`);
+          continue;
+        }
+      }
+      
       console.log(`🔥 Technical signal: ${signal.symbol} ${signal.direction} (${signal.strength})`, signal.reasons.slice(0, 3));
       
       // 자동매매 진입 실행 (새로운 기술적 분석 시그널 사용)
@@ -130,7 +153,7 @@ const Index = () => {
     }
     
     prevSignalsRef.current = currentSignalKeys;
-  }, [activeSignals, autoTrading.state.isEnabled, autoTrading.state.currentPosition, autoTrading.state.pendingSignal]);
+  }, [activeSignals, autoTrading.state.isEnabled, autoTrading.state.currentPosition, autoTrading.state.pendingSignal, shouldBlockLongEntry, shouldBlockShortEntry]);
   
   // 포지션 보유 중이거나 대기 중일 때 해당 종목 차트 유지
   useEffect(() => {

@@ -116,9 +116,19 @@ const CONFIG = {
   TRAILING_TRIGGER: 0.4,     // +0.4% 도달 시 트레일링 활성화
   TRAILING_DISTANCE: 0.15,   // 0.15% 거리 유지
   
-  // 손절
-  HARD_STOP_PERCENT: 0.5,    // -0.5% 하드 스탑
+  // 손절 - 레버리지별 동적 손절
+  LEVERAGE_STOP_LOSS: {
+    5: 0.8,   // 5배: -0.8%
+    10: 0.4,  // 10배: -0.4%
+    20: 0.2,  // 20배: -0.2%
+    DEFAULT: 0.5,  // 기본: -0.5%
+  } as Record<number | 'DEFAULT', number>,
   TIME_STOP_MINUTES: 15,     // 15분 타임 스탑
+  VOLUME_STOP_RATIO: 0.5,    // 거래량 50% 감소 시 청산
+  
+  // 연속 손실 관리
+  MAX_CONSECUTIVE_LOSSES: 5, // 연속 5회 손실
+  LOSS_COOLDOWN_MINUTES: 60, // 1시간 휴식
   
   // 진입 조건
   MIN_SIGNAL_STRENGTH: 'medium' as const, // 최소 시그널 강도
@@ -128,10 +138,10 @@ const CONFIG = {
   MIN_ATR_PERCENT: 0.2,      // 최소 ATR 퍼센트
   MAX_ATR_PERCENT: 2.0,      // 최대 ATR 퍼센트
   
-  // 시장 환경 필터 (NEW)
+  // 시장 환경 필터
   MIN_ADX_FOR_TREND: 20,     // 최소 ADX - 횡보장 필터
   
-  // 동적 포지션 사이징 (NEW)
+  // 동적 포지션 사이징
   BASE_RISK_PERCENT: 1.0,    // 기본 리스크 퍼센트
   ATR_POSITION_MULTIPLIER: {
     LOW: 1.2,                // 낮은 변동성 → 큰 포지션
@@ -139,6 +149,18 @@ const CONFIG = {
     HIGH: 0.7,               // 높은 변동성 → 작은 포지션
   },
 };
+
+// 레버리지별 손절 퍼센트 가져오기
+function getStopLossPercent(leverage: number): number {
+  if (leverage in CONFIG.LEVERAGE_STOP_LOSS) {
+    return CONFIG.LEVERAGE_STOP_LOSS[leverage];
+  }
+  // 가장 가까운 레버리지 찾기
+  if (leverage <= 5) return CONFIG.LEVERAGE_STOP_LOSS[5];
+  if (leverage <= 10) return CONFIG.LEVERAGE_STOP_LOSS[10];
+  if (leverage >= 20) return CONFIG.LEVERAGE_STOP_LOSS[20];
+  return CONFIG.LEVERAGE_STOP_LOSS.DEFAULT;
+}
 
 // 분 타임스탬프
 function getMinuteTimestamp() {
@@ -333,8 +355,19 @@ export function useAutoTrading({
           totalPnL: newTotalPnL,
         },
         consecutiveLosses: isWin ? 0 : prev.consecutiveLosses + 1,
-        statusMessage: `${isWin ? '✅ 익절' : '❌ 손절'} 완료! 다음 시그널 대기...`,
+        // 연속 5손실 시 1시간 휴식
+        cooldownUntil: (!isWin && prev.consecutiveLosses + 1 >= CONFIG.MAX_CONSECUTIVE_LOSSES) 
+          ? Date.now() + CONFIG.LOSS_COOLDOWN_MINUTES * 60 * 1000 
+          : prev.cooldownUntil,
+        statusMessage: (!isWin && prev.consecutiveLosses + 1 >= CONFIG.MAX_CONSECUTIVE_LOSSES)
+          ? `⏸️ 연속 ${CONFIG.MAX_CONSECUTIVE_LOSSES}손실 - ${CONFIG.LOSS_COOLDOWN_MINUTES}분 휴식`
+          : `${isWin ? '✅ 익절' : '❌ 손절'} 완료! 다음 시그널 대기...`,
       }));
+      
+      // 연속 손실 경고
+      if (!isWin && state.consecutiveLosses + 1 >= CONFIG.MAX_CONSECUTIVE_LOSSES) {
+        toast.warning(`⏸️ 연속 ${CONFIG.MAX_CONSECUTIVE_LOSSES}손실! ${CONFIG.LOSS_COOLDOWN_MINUTES}분간 자동매매 일시 중지`);
+      }
 
       const reasonText = {
         tp: '익절',
@@ -395,7 +428,7 @@ export function useAutoTrading({
   }, [state.currentPosition, state.todayStats, placeMarketOrder, getPositions, krwRate, leverage, addLog, onTradeComplete, logTrade]);
 
   // TP/SL 체크 (3단계 익절 + 트레일링)
-  const checkTpSl = useCallback(async (currentPrice: number, _tpPercent: number = 0.3, _slPercent: number = 0.5) => {
+  const checkTpSl = useCallback(async (currentPrice: number, _tpPercent: number = 0.3, _slPercent: number = 0.5, currentVolumeRatio?: number) => {
     if (!state.currentPosition) return;
     if (processingRef.current) return;
 
@@ -404,9 +437,13 @@ export function useAutoTrading({
     const priceDiff = (currentPrice - position.entryPrice) * direction;
     const pnlPercent = (priceDiff / position.entryPrice) * 100;
     const tpState = position.takeProfitState;
+    
+    // 레버리지별 동적 손절 퍼센트
+    const dynamicStopLoss = getStopLossPercent(leverage);
 
-    // 1. 하드 스탑 체크
-    if (pnlPercent <= -CONFIG.HARD_STOP_PERCENT) {
+    // 1. 하드 스탑 체크 (레버리지별)
+    if (pnlPercent <= -dynamicStopLoss) {
+      console.log(`[checkTpSl] 하드 스탑 발동: ${pnlPercent.toFixed(2)}% <= -${dynamicStopLoss}% (레버리지 ${leverage}x)`);
       await closePosition('sl', currentPrice);
       return;
     }
@@ -415,6 +452,14 @@ export function useAutoTrading({
     const holdTime = (Date.now() - position.entryTime) / 60000;
     if (holdTime >= CONFIG.TIME_STOP_MINUTES && pnlPercent < 0) {
       await closePosition('time', currentPrice);
+      return;
+    }
+    
+    // 3. 볼륨 스톱 체크 (거래량 50% 감소 시)
+    if (currentVolumeRatio !== undefined && currentVolumeRatio < CONFIG.VOLUME_STOP_RATIO && pnlPercent < 0) {
+      console.log(`[checkTpSl] 볼륨 스톱 발동: 거래량 ${(currentVolumeRatio * 100).toFixed(0)}% < ${CONFIG.VOLUME_STOP_RATIO * 100}%`);
+      await closePosition('sl', currentPrice);
+      toast.warning('📉 거래량 급감으로 청산');
       return;
     }
 
@@ -512,7 +557,7 @@ export function useAutoTrading({
       }));
       toast.info(`📈 트레일링 스탑 활성화 @ $${currentPrice.toFixed(4)}`);
     }
-  }, [state.currentPosition, closePosition, executePartialClose]);
+  }, [state.currentPosition, leverage, closePosition, executePartialClose]);
 
   // 시그널 핸들러 (기술적 분석 기반)
   const handleSignal = useCallback(async (
@@ -530,6 +575,24 @@ export function useAutoTrading({
     if (state.currentPosition) return;
     if (state.pendingSignal) return;
 
+    // 연속 손실 쿨다운 체크
+    if (state.cooldownUntil && Date.now() < state.cooldownUntil) {
+      const remainingMin = Math.ceil((state.cooldownUntil - Date.now()) / 60000);
+      console.log(`[handleSignal] 연속 손실 휴식 중 (${remainingMin}분 남음)`);
+      return;
+    }
+    
+    // 연속 손실 쿨다운 해제
+    if (state.cooldownUntil && Date.now() >= state.cooldownUntil) {
+      setState(prev => ({
+        ...prev,
+        cooldownUntil: null,
+        consecutiveLosses: 0,
+        statusMessage: '✅ 휴식 완료! 자동매매 재개',
+      }));
+      toast.success('✅ 휴식 완료! 자동매매 재개');
+    }
+
     // 쿨다운 체크
     if (Date.now() - lastEntryTimeRef.current < CONFIG.ENTRY_COOLDOWN_MS) return;
 
@@ -537,7 +600,7 @@ export function useAutoTrading({
     const strengthOrder = { weak: 1, medium: 2, strong: 3 };
     if (strengthOrder[strength] < strengthOrder[CONFIG.MIN_SIGNAL_STRENGTH]) return;
 
-    // 🆕 ADX 시장 환경 필터 - 횡보장 차단
+    // ADX 시장 환경 필터 - 횡보장 차단
     if (indicators.adx < CONFIG.MIN_ADX_FOR_TREND) {
       console.log(`[handleSignal] ${symbol} 횡보장 필터 (ADX: ${indicators.adx.toFixed(1)} < ${CONFIG.MIN_ADX_FOR_TREND})`);
       return;
