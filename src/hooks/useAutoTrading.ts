@@ -299,14 +299,57 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate }: UseAutoTrading
     const position = state.currentPosition;
     
     try {
+      // 실제 바이낸스 포지션 확인
+      const positions = await getPositions(position.symbol);
+      const actualPosition = positions?.find((p: any) => 
+        p.symbol === position.symbol && Math.abs(parseFloat(p.positionAmt)) > 0
+      );
+      
+      // 실제 포지션이 없으면 state만 정리하고 종료
+      if (!actualPosition) {
+        console.warn('실제 포지션 없음, state만 정리');
+        setState(prev => ({
+          ...prev,
+          currentPosition: null,
+          currentSymbol: null,
+        }));
+        addLog({
+          symbol: position.symbol,
+          action: 'error',
+          side: position.side,
+          price: currentPrice,
+          quantity: position.quantity,
+          reason: '실제 포지션 없음 (가상 청산)',
+        });
+        return;
+      }
+      
+      const actualQty = Math.abs(parseFloat(actualPosition.positionAmt));
+      const actualEntryPrice = parseFloat(actualPosition.entryPrice);
+      
       // 청산 주문
       const orderSide = position.side === 'long' ? 'SELL' : 'BUY';
-      await placeMarketOrder(position.symbol, orderSide, position.quantity, true, currentPrice);
+      const closeResult = await placeMarketOrder(position.symbol, orderSide, actualQty, true, currentPrice);
       
-      // PnL 계산
+      if (!closeResult || closeResult.error) {
+        throw new Error(closeResult?.error || '청산 주문 실패');
+      }
+      
+      // 실제 청산 확인
+      await new Promise(resolve => setTimeout(resolve, 500));
+      const afterPositions = await getPositions(position.symbol);
+      const remainingPosition = afterPositions?.find((p: any) => 
+        p.symbol === position.symbol && Math.abs(parseFloat(p.positionAmt)) > 0
+      );
+      
+      if (remainingPosition) {
+        console.warn('청산 후에도 포지션 남아있음');
+      }
+      
+      // 실제 PnL 계산 (실제 진입가 기준)
       const direction = position.side === 'long' ? 1 : -1;
-      const priceDiff = (currentPrice - position.entryPrice) * direction;
-      const pnl = priceDiff * position.quantity;
+      const priceDiff = (currentPrice - actualEntryPrice) * direction;
+      const pnl = priceDiff * actualQty;
       
       const isWin = pnl > 0;
       
