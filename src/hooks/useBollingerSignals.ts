@@ -158,8 +158,8 @@ export function useBollingerSignals(tickers: TickerInfo[]) {
         
         const touchType = checkBandTouch(ticker.price, bbData.upper, bbData.lower);
         
-        // 상단밴드 터치만 표시
-        if (touchType === 'upper') {
+        // 상단밴드 또는 하단밴드 터치 모두 표시
+        if (touchType) {
           newSignals.push({
             symbol,
             price: ticker.price,

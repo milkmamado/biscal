@@ -1,12 +1,14 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useTradingLogs } from '@/hooks/useTradingLogs';
+import { useAutoTrading } from '@/hooks/useAutoTrading';
+import { useBollingerSignals, BBSignal } from '@/hooks/useBollingerSignals';
+import { useTickerWebSocket } from '@/hooks/useTickerWebSocket';
 import { supabase } from '@/integrations/supabase/client';
 import HotCoinList from '@/components/HotCoinList';
-import OrderPanel8282 from '@/components/OrderPanel8282';
-import CoinHeader from '@/components/CoinHeader';
 import DualChartPanel from '@/components/DualChartPanel';
+import AutoTradingPanel from '@/components/AutoTradingPanel';
 import ApiKeySetup from '@/components/ApiKeySetup';
 import { toast } from 'sonner';
 
@@ -47,70 +49,91 @@ const Index = () => {
   const [orderBookConnected, setOrderBookConnected] = useState(false);
   const [dailyPnLKRW, setDailyPnLKRW] = useState(0);
   const [dailyProfitPercent, setDailyProfitPercent] = useState(0);
-  const [tradingEndedUntil, setTradingEndedUntil] = useState<number | null>(null);
-
-  // 매매종료 상태 체크 (localStorage에서 복원)
-  useEffect(() => {
-    const stored = localStorage.getItem('tradingEndedUntil');
-    if (stored) {
-      const until = parseInt(stored, 10);
-      if (until > Date.now()) {
-        setTradingEndedUntil(until);
-      } else {
-        localStorage.removeItem('tradingEndedUntil');
-      }
-    }
-  }, []);
-
-  // 매매종료 버튼 클릭 핸들러
-  const handleEndTrading = () => {
-    // 다음 거래 가능 시간 계산 (09:00 또는 21:00 중 먼저 오는 시간)
-    const now = new Date();
-    const koreaOffset = 9 * 60; // UTC+9
-    const utcOffset = now.getTimezoneOffset();
-    const koreaTime = new Date(now.getTime() + (koreaOffset + utcOffset) * 60 * 1000);
-    
-    const currentHour = koreaTime.getHours();
-    let nextTradingTime = new Date(koreaTime);
-    
-    // 현재 시간 기준으로 다음 거래 시간 찾기
-    if (currentHour < 9) {
-      // 오전 9시 전이면 오늘 오전 9시
-      nextTradingTime.setHours(9, 0, 0, 0);
-    } else if (currentHour < 11) {
-      // 오전 9-11시면 오늘 밤 9시
-      nextTradingTime.setHours(21, 0, 0, 0);
-    } else if (currentHour < 21) {
-      // 오전 11시 ~ 밤 9시면 오늘 밤 9시
-      nextTradingTime.setHours(21, 0, 0, 0);
-    } else if (currentHour < 23) {
-      // 밤 9-11시면 내일 오전 9시
-      nextTradingTime.setDate(nextTradingTime.getDate() + 1);
-      nextTradingTime.setHours(9, 0, 0, 0);
-    } else {
-      // 밤 11시 이후면 내일 오전 9시
-      nextTradingTime.setDate(nextTradingTime.getDate() + 1);
-      nextTradingTime.setHours(9, 0, 0, 0);
-    }
-    
-    // UTC timestamp로 변환
-    const untilTimestamp = nextTradingTime.getTime() - (koreaOffset + utcOffset) * 60 * 1000;
-    
-    setTradingEndedUntil(untilTimestamp);
-    localStorage.setItem('tradingEndedUntil', untilTimestamp.toString());
-    
-    const nextTimeStr = nextTradingTime.getHours() === 9 ? '오전 9시' : '밤 9시';
-    toast.error(`매매 종료됨. ${nextTimeStr}까지 거래 불가`);
-  };
-
-  // 매매종료 상태를 dailyPnLKRW에 반영 (OrderPanel에서 거래 차단하도록)
-  const effectiveDailyLoss = tradingEndedUntil && tradingEndedUntil > Date.now() 
-    ? -999999999 // 거래 차단을 위해 큰 손실로 설정
-    : dailyPnLKRW;
+  const [balanceUSD, setBalanceUSD] = useState(0);
+  const [krwRate, setKrwRate] = useState(1380);
 
   const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
   const { dailyStats, logTrade } = useTradingLogs();
+  const { tickers } = useTickerWebSocket();
+  
+  // 자동매매 훅
+  const autoTrading = useAutoTrading({
+    balanceUSD,
+    leverage: 10,
+    krwRate,
+  });
+  
+  // BB 시그널을 위한 티커 데이터 준비
+  const tickersForBB = tickers
+    .filter(c => c.price >= 0.01 && c.volume >= 50_000_000)
+    .sort((a, b) => b.volume - a.volume)
+    .slice(0, 30)
+    .map(c => ({
+      symbol: c.symbol,
+      price: c.price,
+      priceChangePercent: c.priceChangePercent,
+      volume: c.volume,
+      volatilityRange: c.volatilityRange
+    }));
+  
+  const { signals: bbSignals } = useBollingerSignals(tickersForBB);
+  
+  // 이전 시그널 추적 (중복 진입 방지)
+  const prevSignalsRef = useRef<Set<string>>(new Set());
+  
+  // BB 시그널 감지 시 자동매매 트리거
+  useEffect(() => {
+    if (!autoTrading.state.isEnabled) return;
+    if (bbSignals.length === 0) return;
+    
+    // 새로운 시그널만 처리
+    const currentSignalKeys = new Set(bbSignals.map(s => `${s.symbol}-${s.touchType}`));
+    
+    for (const signal of bbSignals) {
+      const signalKey = `${signal.symbol}-${signal.touchType}`;
+      
+      // 이미 처리한 시그널이면 무시
+      if (prevSignalsRef.current.has(signalKey)) continue;
+      
+      // 자동매매 진입 실행
+      autoTrading.handleSignal(signal.symbol, signal.touchType, signal.price);
+      break; // 한 번에 하나만 처리
+    }
+    
+    prevSignalsRef.current = currentSignalKeys;
+  }, [bbSignals, autoTrading.state.isEnabled]);
+  
+  // 현재 가격으로 TP/SL 체크
+  useEffect(() => {
+    if (!autoTrading.state.currentPosition) return;
+    
+    const position = autoTrading.state.currentPosition;
+    const ticker = tickers.find(t => t.symbol === position.symbol);
+    if (!ticker) return;
+    
+    // 동적 TP/SL 값 (state에 저장된 값 사용)
+    const tpPercent = (autoTrading.state as any).tpPercent || 0.3;
+    const slPercent = (autoTrading.state as any).slPercent || 0.5;
+    
+    autoTrading.checkTpSl(ticker.price, tpPercent, slPercent);
+  }, [tickers, autoTrading.state.currentPosition]);
+
+  // Fetch USD/KRW rate
+  useEffect(() => {
+    const fetchRate = async () => {
+      try {
+        const res = await fetch('https://api.frankfurter.app/latest?from=USD&to=KRW');
+        const data = await res.json();
+        if (data.rates?.KRW) {
+          setKrwRate(Math.round(data.rates.KRW));
+        }
+      } catch (error) {
+        console.error('Failed to fetch exchange rate:', error);
+      }
+    };
+    fetchRate();
+  }, []);
 
   // Redirect to auth if not logged in
   useEffect(() => {
@@ -119,7 +142,7 @@ const Index = () => {
     }
   }, [loading, user, navigate]);
 
-  // Check if user has API keys configured (only if logged in)
+  // Check if user has API keys configured
   useEffect(() => {
     const checkApiKeys = async () => {
       if (!user) {
@@ -174,6 +197,10 @@ const Index = () => {
   const handleDailyProfitPercentChange = useCallback((percent: number) => {
     setDailyProfitPercent(percent);
   }, []);
+  
+  const handleBalanceChange = useCallback((balance: number) => {
+    setBalanceUSD(balance);
+  }, []);
 
   const handleTradeClose = useCallback((trade: {
     symbol: string;
@@ -184,7 +211,6 @@ const Index = () => {
     leverage: number;
     pnl: number;
   }) => {
-    // Log trade to database
     logTrade({
       symbol: trade.symbol,
       side: trade.side,
@@ -204,8 +230,19 @@ const Index = () => {
   const handleApiKeyComplete = () => {
     setHasApiKeys(true);
   };
+  
+  // 수동 청산 핸들러
+  const handleManualClose = () => {
+    if (!autoTrading.state.currentPosition) return;
+    
+    const position = autoTrading.state.currentPosition;
+    const ticker = tickers.find(t => t.symbol === position.symbol);
+    if (!ticker) return;
+    
+    autoTrading.closePosition('exit', ticker.price);
+  };
 
-  // Show loading only if checking keys for logged-in user
+  // Show loading
   if (loading || (user && checkingKeys)) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -218,59 +255,49 @@ const Index = () => {
   if (user && hasApiKeys === false) {
     return <ApiKeySetup onComplete={handleApiKeyComplete} />;
   }
+  
+  // 현재 가격 (자동매매 포지션용)
+  const currentAutoPrice = autoTrading.state.currentPosition
+    ? tickers.find(t => t.symbol === autoTrading.state.currentPosition?.symbol)?.price || 0
+    : 0;
 
   return (
     <div className="min-h-screen bg-background p-2">
-      {/* Main Content */}
       <div className="max-w-[1920px] mx-auto">
         <div className="grid grid-cols-12 gap-2">
-          {/* Left - Hot Coin List */}
-          <div className="col-span-12 lg:col-span-3 xl:col-span-2">
+          {/* Left - BB Signals & Auto Trading */}
+          <div className="col-span-12 lg:col-span-3 xl:col-span-2 space-y-2">
+            <AutoTradingPanel
+              state={autoTrading.state}
+              onToggle={autoTrading.toggleAutoTrading}
+              onManualClose={handleManualClose}
+              currentPrice={currentAutoPrice}
+              krwRate={krwRate}
+            />
             <HotCoinList
               onSelectSymbol={setSelectedSymbol}
               selectedSymbol={selectedSymbol}
-              onEndTrading={handleEndTrading}
               onSignOut={handleSignOut}
-              tradingEndedUntil={tradingEndedUntil}
             />
           </div>
 
-          {/* Center - Coin Info */}
-          <div className="col-span-12 lg:col-span-5 xl:col-span-6">
-            <CoinHeader symbol={selectedSymbol} onSelectSymbol={setSelectedSymbol} />
-            
-            {/* Dual Chart Area */}
-            <div className="mt-2 h-[calc(100vh-80px)]">
-              <DualChartPanel 
-                symbol={selectedSymbol} 
-                unrealizedPnL={currentPnL}
-                realizedPnL={dailyStats.totalPnL}
-                tradeCount={dailyStats.tradeCount}
-                winCount={dailyStats.winCount}
-                hasPosition={!!currentPosition}
-                entryPrice={currentPosition?.entryPrice}
-                openOrders={openOrders}
-                onSelectSymbol={setSelectedSymbol}
-                orderBook={orderBook}
-                orderBookConnected={orderBookConnected}
-                onDailyPnLChange={handleDailyPnLChange}
-                onDailyProfitPercentChange={handleDailyProfitPercentChange}
-              />
-            </div>
-          </div>
-
-          {/* Right - Order Panel 8282 Style */}
-          <div className="col-span-12 lg:col-span-4 xl:col-span-4">
-            <OrderPanel8282 
+          {/* Center - Chart */}
+          <div className="col-span-12 lg:col-span-9 xl:col-span-10">
+            <DualChartPanel 
               symbol={selectedSymbol} 
-              onPositionChange={handlePositionChange}
-              onPnLChange={handlePnLChange}
-              onOpenOrdersChange={handleOpenOrdersChange}
-              onTradeClose={handleTradeClose}
-              onTpSlChange={handleTpSlChange}
-              onOrderBookChange={handleOrderBookChange}
-              dailyLossKRW={effectiveDailyLoss}
-              dailyProfitPercent={dailyProfitPercent}
+              unrealizedPnL={currentPnL}
+              realizedPnL={dailyStats.totalPnL}
+              tradeCount={dailyStats.tradeCount}
+              winCount={dailyStats.winCount}
+              hasPosition={!!currentPosition || !!autoTrading.state.currentPosition}
+              entryPrice={currentPosition?.entryPrice || autoTrading.state.currentPosition?.entryPrice}
+              openOrders={openOrders}
+              onSelectSymbol={setSelectedSymbol}
+              orderBook={orderBook}
+              orderBookConnected={orderBookConnected}
+              onDailyPnLChange={handleDailyPnLChange}
+              onDailyProfitPercentChange={handleDailyProfitPercentChange}
+              onBalanceChange={handleBalanceChange}
             />
           </div>
         </div>

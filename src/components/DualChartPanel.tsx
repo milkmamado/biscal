@@ -34,6 +34,7 @@ interface DualChartPanelProps {
   orderBookConnected?: boolean;
   onDailyPnLChange?: (dailyPnLKRW: number) => void;
   onDailyProfitPercentChange?: (percent: number) => void;
+  onBalanceChange?: (balance: number) => void;
 }
 
 const INTERVALS = [
@@ -61,6 +62,7 @@ const DualChartPanel = ({
   orderBookConnected = false,
   onDailyPnLChange,
   onDailyProfitPercentChange,
+  onBalanceChange,
 }: DualChartPanelProps) => {
   const [interval, setInterval] = useState(60);
   const [balanceUSD, setBalanceUSD] = useState<number>(0);
@@ -112,11 +114,9 @@ const DualChartPanel = ({
       const balances = await getBalances();
       const usdtBalance = balances?.find((b: any) => b.asset === 'USDT');
       if (usdtBalance) {
-        // 총 잔고 사용 (포지션 마진 포함) - 화면 표시 및 전일대비 계산
         const totalBalance = parseFloat(usdtBalance.balance) || parseFloat(usdtBalance.crossWalletBalance) || 0;
         setBalanceUSD(totalBalance);
-        
-        // 항상 오늘 실현손익/전일잔고를 스냅샷 기준으로 재계산
+        onBalanceChange?.(totalBalance);
         fetchTodayRealizedPnL(totalBalance);
       }
     } catch (error) {
