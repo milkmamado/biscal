@@ -784,7 +784,7 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
     }
   }, [state.isEnabled, state.pendingSignal, state.currentPosition, executeEntry, closePosition, addLog]);
   
-  // 실시간 TP/SL 체크 (봉 완성 기다리지 않고)
+  // 실시간 TP 체크 (손절은 봉 기준으로만 판단)
   const checkTpSl = useCallback((currentPrice: number, tpPercent: number, _slPercent: number) => {
     if (!state.currentPosition || !state.isEnabled) return;
     
@@ -793,24 +793,14 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
     const priceDiff = (currentPrice - position.entryPrice) * direction;
     const pnlPercent = (priceDiff / position.entryPrice) * 100;
     
-    // 익절: 퍼센트 기준
+    // 익절: 퍼센트 기준 (실시간)
     if (pnlPercent >= tpPercent) {
       closePosition('tp', currentPrice);
       return;
     }
     
-    // 실시간 손절: 기준봉 대비 10% 이상 역방향 움직임
-    if (position.referenceBodySize > 0) {
-      const slThreshold = position.referenceBodySize * 0.1; // 10%
-      const priceMove = (currentPrice - position.entryPrice) * direction; // 양수면 이익 방향
-      
-      // 역방향으로 기준봉의 10% 이상 움직이면 손절
-      if (priceMove <= -slThreshold) {
-        const movePercent = (Math.abs(priceMove) / position.referenceBodySize * 100).toFixed(0);
-        console.log(`[AutoTrading] Real-time SL triggered: ${movePercent}% opposite move`);
-        closePosition('sl', currentPrice);
-      }
-    }
+    // 손절은 봉 기준으로만 판단 (checkCandleCompletion에서 처리)
+    // 실시간 손절 제거 - 너무 민감해서 즉시 손절되는 문제 해결
   }, [state.currentPosition, state.isEnabled, closePosition]);
   
   // 기존 포지션 동기화 (로드 시 및 주기적)
