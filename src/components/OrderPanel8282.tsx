@@ -219,32 +219,34 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
   // Position state
   const [position, setPosition] = useState<Position | null>(null);
   
-  // 포지션 진입 시 누적 거래시간 카운트 시작
+  // 로그인(페이지 접속) 시점부터 누적 거래시간 카운트
   useEffect(() => {
-    if (position && !tradingStartTimeRef.current) {
-      tradingStartTimeRef.current = Date.now();
-    } else if (!position && tradingStartTimeRef.current) {
-      // 포지션 청산 시 누적시간 저장
-      const elapsed = Date.now() - tradingStartTimeRef.current;
-      const newTotal = cumulativeTradingTimeMs + elapsed;
-      setCumulativeTradingTimeMs(newTotal);
-      localStorage.setItem(TRADING_TIME_KEY, JSON.stringify({
-        date: getKoreaDateStr(),
-        totalMs: newTotal
-      }));
-      tradingStartTimeRef.current = null;
-    }
-  }, [position]);
-  
-  // 실시간 누적시간 업데이트 (포지션 보유 중)
-  useEffect(() => {
-    if (!position || !tradingStartTimeRef.current) return;
+    // 컴포넌트 마운트 시 시간 측정 시작
+    tradingStartTimeRef.current = Date.now();
+    
+    // 10초마다 누적시간 업데이트 및 저장
     const interval = setInterval(() => {
-      const elapsed = Date.now() - (tradingStartTimeRef.current || Date.now());
-      setCumulativeTradingTimeMs(getTodayTradingTime() + elapsed);
-    }, 10000); // 10초마다 업데이트
-    return () => clearInterval(interval);
-  }, [position]);
+      if (tradingStartTimeRef.current) {
+        const elapsed = Date.now() - tradingStartTimeRef.current;
+        const newTotal = getTodayTradingTime() + elapsed;
+        setCumulativeTradingTimeMs(newTotal);
+      }
+    }, 10000);
+    
+    // 언마운트 시 (페이지 이탈/로그아웃) 누적시간 저장
+    return () => {
+      clearInterval(interval);
+      if (tradingStartTimeRef.current) {
+        const elapsed = Date.now() - tradingStartTimeRef.current;
+        const storedTime = getTodayTradingTime();
+        const newTotal = storedTime + elapsed;
+        localStorage.setItem(TRADING_TIME_KEY, JSON.stringify({
+          date: getKoreaDateStr(),
+          totalMs: newTotal
+        }));
+      }
+    };
+  }, []);
   
   // Real unrealized PnL from Binance API (more accurate than calculated)
   const [realUnrealizedPnL, setRealUnrealizedPnL] = useState<number>(0);
