@@ -211,7 +211,7 @@ const AutoTradingPanel = ({
     if (!currentPosition || !currentPrice) return 0;
     const direction = currentPosition.side === 'long' ? 1 : -1;
     const priceDiff = (currentPrice - currentPosition.entryPrice) * direction;
-    return priceDiff * currentPosition.quantity;
+    return priceDiff * currentPosition.remainingQuantity;
   }, [currentPosition, currentPrice]);
   
   const winRate = todayStats.trades > 0 
@@ -366,7 +366,7 @@ const AutoTradingPanel = ({
             >
               <Clock className="w-4 h-4 text-yellow-500 animate-pulse" />
               <span className="font-semibold text-sm text-yellow-500">
-                {pendingSignal.symbol} {pendingSignal.touchType === 'upper' ? '숏' : '롱'} 대기
+                {pendingSignal.symbol} {pendingSignal.direction === 'short' ? '숏' : '롱'} 대기
               </span>
             </div>
             <div className="flex gap-1">
@@ -425,7 +425,7 @@ const AutoTradingPanel = ({
             <span>TP: {state.tpPercent.toFixed(2)}%</span>
           </div>
           <div className="flex items-center justify-between text-[10px] text-muted-foreground mt-0.5">
-            <span>수량: {currentPosition.quantity.toFixed(4)}</span>
+            <span>수량: {currentPosition.remainingQuantity.toFixed(4)}</span>
             <span>SL: 봉기준</span>
           </div>
           <div className="flex gap-2 mt-2">
