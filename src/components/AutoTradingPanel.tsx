@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { cn } from '@/lib/utils';
-import { Bot, TrendingUp, TrendingDown, Activity, Clock, AlertTriangle, Star, RefreshCw, Wallet } from 'lucide-react';
+import { Bot, TrendingUp, TrendingDown, Activity, Clock, AlertTriangle, Star, RefreshCw, Wallet, LogOut } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { AutoTradingState, AutoTradeLog } from '@/hooks/useAutoTrading';
@@ -68,8 +68,13 @@ const AutoTradingPanel = ({
   refreshTrigger = 0,
 }: AutoTradingPanelProps) => {
   const { isEnabled, isProcessing, currentPosition, pendingSignal, todayStats, tradeLogs, cooldownUntil } = state;
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const { getBalances, getIncomeHistory } = useBinanceApi();
+  
+  const handleSignOut = async () => {
+    await signOut();
+    window.location.href = '/auth';
+  };
   
   // 잔고 상태
   const [balanceUSD, setBalanceUSD] = useState(0);
@@ -246,6 +251,13 @@ const AutoTradingPanel = ({
             onCheckedChange={onToggle}
             className="data-[state=checked]:bg-green-500"
           />
+          <button
+            onClick={handleSignOut}
+            className="p-1 rounded hover:bg-secondary/50 text-muted-foreground hover:text-foreground transition-colors"
+            title="로그아웃"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
         </div>
       </div>
       
