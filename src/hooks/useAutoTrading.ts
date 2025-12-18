@@ -697,6 +697,15 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
         const bodyMove = completedCandle.close - completedCandle.open;
         const bodySize = Math.abs(bodyMove);
         const bodyMovePct = (bodySize / (completedCandle.open || completedCandle.close || 1)) * 100;
+        
+        // 꼬리(wick) 계산
+        const upperWick = completedCandle.high - Math.max(completedCandle.open, completedCandle.close);
+        const lowerWick = Math.min(completedCandle.open, completedCandle.close) - completedCandle.low;
+        
+        // 망치/역망치 패턴 판단 (꼬리가 몸통의 2배 이상)
+        const WICK_RATIO = 2;
+        const isHammer = lowerWick >= bodySize * WICK_RATIO && upperWick < bodySize; // 긴 아래꼬리
+        const isInvertedHammer = upperWick >= bodySize * WICK_RATIO && lowerWick < bodySize; // 긴 위꼬리
 
         // 도지/망치 판단:
         // 1) 20% 임계값 미만이거나
@@ -721,16 +730,53 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
         const DOJI_THRESHOLD = 0.05; // 0.05% 미만이면 진짜 도지
         const isTrueDoji = bodyMovePct < DOJI_THRESHOLD;
         
+        // 🔥 망치/역망치 패턴에 따른 진입 판단
+        // 롱: 망치(긴 아래꼬리) = 긍정적 / 역망치(긴 위꼬리) = 부정적
+        // 숏: 역망치(긴 위꼬리, shooting star) = 긍정적 / 망치 = 부정적
+        const isBadPattern = (touchType === 'lower' && isInvertedHammer) || // 롱에서 역망치 = 최악
+                             (touchType === 'upper' && isHammer); // 숏에서 망치 = 매수세 강함
+        
+        const isGoodPattern = (touchType === 'lower' && isHammer) || // 롱에서 망치 = 매수 방어
+                              (touchType === 'upper' && isInvertedHammer); // 숏에서 역망치 = 매도 압력
+        
         // 상단 터치 → 음봉 확인 → 숏 진입
         // 하단 터치 → 양봉 확인 → 롱 진입
         if (touchType === 'upper' && isBearish) {
-          // 숏 진입 (기준 봉 크기 전달)
           await executeEntry(symbol, 'short', completedCandle.close, completedCandle, referenceBodySize);
         } else if (touchType === 'lower' && isBullish) {
-          // 롱 진입 (기준 봉 크기 전달)
           await executeEntry(symbol, 'long', completedCandle.close, completedCandle, referenceBodySize);
+        } else if (isBadPattern) {
+          // 🚫 나쁜 패턴 즉시 취소 (롱+역망치, 숏+망치)
+          setState(prev => ({ ...prev, pendingSignal: null, statusMessage: '🔍 BB 시그널 종목 검색 중...' }));
+          const patternName = isInvertedHammer ? '역망치(매도압력)' : '망치(매수방어)';
+          addLog({
+            symbol,
+            action: 'cancel',
+            side: expectedSide,
+            price: completedCandle.close,
+            quantity: 0,
+            reason: `🔻 ${patternName} 패턴 - ${expectedSide === 'long' ? '롱' : '숏'}에 불리`,
+          });
+          toast.warning(`❌ ${symbol} 취소 - ${patternName} 패턴`);
+        } else if (isGoodPattern && waitCount < MAX_WAIT_COUNT) {
+          // ✅ 좋은 패턴은 다음 봉 대기 (방향 확인 필요)
+          setState(prev => ({
+            ...prev,
+            pendingSignal: prev.pendingSignal ? { ...prev.pendingSignal, waitCount: waitCount + 1 } : null,
+            statusMessage: `⏳ ${symbol.replace('USDT', '')} ${isHammer ? '망치' : '역망치'} 패턴 - 다음 봉 확인 중...`,
+          }));
+          const patternName = isHammer ? '망치(매수방어)' : '역망치(매도압력)';
+          addLog({
+            symbol,
+            action: 'pending',
+            side: expectedSide,
+            price: completedCandle.close,
+            quantity: 0,
+            reason: `✅ ${patternName} 패턴 - 다음 봉 방향 확인 대기`,
+          });
+          toast.info(`⏳ ${symbol} ${patternName} → 다음 봉 대기`);
         } else if (isWrongDirection && !isTrueDoji) {
-          // 방향이 반대면 크기 작아도 즉시 취소! (AVAX 버그 수정)
+          // 방향이 반대면 크기 작아도 즉시 취소!
           setState(prev => ({ ...prev, pendingSignal: null, statusMessage: '🔍 BB 시그널 종목 검색 중...' }));
           const actualCandle = isDirectionBullish ? '🟢양봉' : '🔴음봉';
           const expectedCandle = touchType === 'upper' ? '🔴음봉' : '🟢양봉';
