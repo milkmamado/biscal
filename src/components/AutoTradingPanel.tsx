@@ -1,10 +1,14 @@
 import { useState, useEffect, useMemo } from 'react';
 import { cn } from '@/lib/utils';
-import { Bot, TrendingUp, TrendingDown, Activity, Clock, AlertTriangle, Star } from 'lucide-react';
+import { Bot, TrendingUp, TrendingDown, Activity, Clock, AlertTriangle, Star, RefreshCw, Wallet } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { AutoTradingState, AutoTradeLog } from '@/hooks/useAutoTrading';
 import { formatPrice } from '@/lib/binance';
+import { useBinanceApi } from '@/hooks/useBinanceApi';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
+import TradingRecordModal from './TradingRecordModal';
 
 // 스캘핑 시간대 적합도 데이터
 const getScalpingRating = () => {
@@ -47,6 +51,8 @@ interface AutoTradingPanelProps {
   leverage: number;
   onLeverageChange: (leverage: number) => void;
   onSelectSymbol?: (symbol: string) => void;
+  onBalanceChange?: (balance: number) => void;
+  refreshTrigger?: number;
 }
 
 const AutoTradingPanel = ({ 
@@ -58,8 +64,19 @@ const AutoTradingPanel = ({
   leverage,
   onLeverageChange,
   onSelectSymbol,
+  onBalanceChange,
+  refreshTrigger = 0,
 }: AutoTradingPanelProps) => {
   const { isEnabled, isProcessing, currentPosition, pendingSignal, todayStats, tradeLogs, cooldownUntil } = state;
+  const { user } = useAuth();
+  const { getBalances, getIncomeHistory } = useBinanceApi();
+  
+  // 잔고 상태
+  const [balanceUSD, setBalanceUSD] = useState(0);
+  const [balanceLoading, setBalanceLoading] = useState(false);
+  const [todayRealizedPnL, setTodayRealizedPnL] = useState(0);
+  const [previousDayBalance, setPreviousDayBalance] = useState<number | null>(null);
+  const [todayDeposits, setTodayDeposits] = useState(0);
   
   // 쿨다운 타이머
   const [cooldownRemaining, setCooldownRemaining] = useState<string | null>(null);
@@ -86,6 +103,96 @@ const AutoTradingPanel = ({
     return () => clearInterval(interval);
   }, [cooldownUntil]);
   
+  // 잔고 가져오기
+  const getTodayMidnightKST = () => {
+    const now = new Date();
+    const koreaOffset = 9 * 60;
+    const utcOffset = now.getTimezoneOffset();
+    const koreaTime = new Date(now.getTime() + (koreaOffset + utcOffset) * 60 * 1000);
+    koreaTime.setHours(0, 0, 0, 0);
+    return koreaTime.getTime() - (koreaOffset + utcOffset) * 60 * 1000;
+  };
+  
+  const getTodayDate = () => {
+    const now = new Date();
+    const koreaOffset = 9 * 60;
+    const utcOffset = now.getTimezoneOffset();
+    const koreaTime = new Date(now.getTime() + (koreaOffset + utcOffset) * 60 * 1000);
+    return `${koreaTime.getFullYear()}-${String(koreaTime.getMonth() + 1).padStart(2, '0')}-${String(koreaTime.getDate()).padStart(2, '0')}`;
+  };
+  
+  const fetchTodayRealizedPnL = async (currentBalance: number) => {
+    try {
+      const todayMidnight = getTodayMidnightKST();
+      const now = Date.now();
+      const incomeHistory = await getIncomeHistory(todayMidnight, now);
+      if (!incomeHistory || !Array.isArray(incomeHistory)) return;
+      
+      const transferItems = incomeHistory.filter((item: any) => item.incomeType === 'TRANSFER');
+      const deposits = transferItems.filter((item: any) => parseFloat(item.income || 0) > 0)
+        .reduce((sum: number, item: any) => sum + parseFloat(item.income || 0), 0);
+      const withdrawals = transferItems.filter((item: any) => parseFloat(item.income || 0) < 0)
+        .reduce((sum: number, item: any) => sum + Math.abs(parseFloat(item.income || 0)), 0);
+      
+      const tradingIncomeTypes = ['REALIZED_PNL', 'COMMISSION', 'FUNDING_FEE'];
+      const realizedFromBinance = incomeHistory
+        .filter((item: any) => tradingIncomeTypes.includes(item.incomeType))
+        .reduce((sum: number, item: any) => sum + parseFloat(item.income || 0), 0);
+      
+      setTodayDeposits(deposits);
+      setTodayRealizedPnL(realizedFromBinance);
+      const startBalance = currentBalance - realizedFromBinance - deposits + withdrawals;
+      setPreviousDayBalance(startBalance);
+      
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (authUser) {
+        await supabase.from('daily_balance_snapshots').upsert({
+          user_id: authUser.id,
+          snapshot_date: getTodayDate(),
+          closing_balance_usd: currentBalance,
+          daily_income_usd: realizedFromBinance,
+          deposit_usd: deposits,
+          withdrawal_usd: withdrawals,
+        }, { onConflict: 'user_id,snapshot_date' });
+      }
+    } catch (error) {
+      console.error('Failed to fetch realized PnL:', error);
+    }
+  };
+  
+  const fetchRealBalance = async () => {
+    setBalanceLoading(true);
+    try {
+      const balances = await getBalances();
+      const usdtBalance = balances?.find((b: any) => b.asset === 'USDT');
+      if (usdtBalance) {
+        const totalBalance = parseFloat(usdtBalance.balance) || parseFloat(usdtBalance.crossWalletBalance) || 0;
+        setBalanceUSD(totalBalance);
+        onBalanceChange?.(totalBalance);
+        fetchTodayRealizedPnL(totalBalance);
+      }
+    } catch (error) {
+      console.error('Failed to fetch balance:', error);
+    } finally {
+      setBalanceLoading(false);
+    }
+  };
+  
+  // 잔고 주기적 갱신
+  useEffect(() => {
+    if (!user) return;
+    fetchRealBalance();
+    const intervalId = setInterval(fetchRealBalance, 10000);
+    return () => clearInterval(intervalId);
+  }, [user]);
+  
+  // 청산 후 즉시 갱신
+  useEffect(() => {
+    if (refreshTrigger > 0 && user) {
+      fetchRealBalance();
+    }
+  }, [refreshTrigger]);
+  
   // 현재 포지션 PnL
   const currentPnL = useMemo(() => {
     if (!currentPosition || !currentPrice) return 0;
@@ -102,6 +209,13 @@ const AutoTradingPanel = ({
     const krw = usd * krwRate;
     return krw.toLocaleString('ko-KR', { maximumFractionDigits: 0 });
   };
+  
+  // Daily P&L calculations
+  const dailyPnL = todayRealizedPnL;
+  const effectiveStartingBalance = (previousDayBalance !== null ? Math.max(0, previousDayBalance) : 0) + todayDeposits;
+  const baseBalance = effectiveStartingBalance > 0 ? effectiveStartingBalance : balanceUSD;
+  const dailyPnLPercent = baseBalance > 0 ? (dailyPnL / baseBalance) * 100 : 0;
+  const dailyPnLPercentStr = dailyPnLPercent.toFixed(2);
   
   return (
     <div className="bg-card border border-border rounded-lg overflow-hidden flex flex-col w-full">
@@ -132,6 +246,41 @@ const AutoTradingPanel = ({
             onCheckedChange={onToggle}
             className="data-[state=checked]:bg-green-500"
           />
+        </div>
+      </div>
+      
+      {/* Balance Section */}
+      <div className="px-3 py-2 border-b border-border bg-secondary/20">
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <div className="flex items-center gap-1">
+              <Wallet className="w-3 h-3 text-muted-foreground" />
+              <span className="text-[10px] text-muted-foreground">잔고</span>
+              <button onClick={fetchRealBalance} className="p-0.5 hover:bg-secondary rounded">
+                <RefreshCw className={cn("w-2.5 h-2.5 text-muted-foreground", balanceLoading && "animate-spin")} />
+              </button>
+            </div>
+            <div className="text-sm font-bold font-mono">{balanceLoading ? '...' : `₩${formatKRW(balanceUSD)}`}</div>
+          </div>
+          <div className="text-right">
+            <span className="text-[10px] text-muted-foreground">수익률</span>
+            <div className={cn(
+              "text-sm font-bold font-mono",
+              dailyPnLPercent >= 5 ? "text-green-400" : 
+              dailyPnLPercent >= 0 ? "text-red-400" : "text-blue-400"
+            )}>
+              {dailyPnL >= 0 ? '+' : ''}{dailyPnLPercentStr}%
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center justify-between mt-1.5 pt-1.5 border-t border-border/30">
+          <div>
+            <span className="text-[9px] text-muted-foreground">실현손익</span>
+            <div className={cn("text-xs font-mono font-semibold", todayRealizedPnL >= 0 ? "text-red-400" : "text-blue-400")}>
+              {todayRealizedPnL >= 0 ? '+' : ''}₩{formatKRW(todayRealizedPnL)}
+            </div>
+          </div>
+          <TradingRecordModal krwRate={krwRate} />
         </div>
       </div>
       

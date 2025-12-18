@@ -235,6 +235,8 @@ const Index = () => {
               leverage={leverage}
               onLeverageChange={setLeverage}
               onSelectSymbol={setSelectedSymbol}
+              onBalanceChange={handleBalanceChange}
+              refreshTrigger={refreshTrigger}
             />
           </div>
 
@@ -242,13 +244,9 @@ const Index = () => {
           <div className="col-span-12 lg:col-span-8 xl:col-span-9">
             <DualChartPanel 
               symbol={selectedSymbol} 
-              tradeCount={dailyStats.tradeCount}
-              winCount={dailyStats.winCount}
               hasPosition={!!autoTrading.state.currentPosition}
               entryPrice={autoTrading.state.currentPosition?.entryPrice}
               onSelectSymbol={setSelectedSymbol}
-              onBalanceChange={handleBalanceChange}
-              refreshTrigger={refreshTrigger}
             />
           </div>
         </div>
