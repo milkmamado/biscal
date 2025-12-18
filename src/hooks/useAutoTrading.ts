@@ -225,55 +225,47 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate }: UseAutoTrading
         throw new Error(orderResult?.error || '주문 실패');
       }
       
-      // 실제 포지션 확인
-      await new Promise(resolve => setTimeout(resolve, 500)); // 바이낸스 반영 대기
-      const positions = await getPositions(symbol);
-      const actualPosition = positions?.find((p: any) => 
-        p.symbol === symbol && Math.abs(parseFloat(p.positionAmt)) > 0
-      );
+      // 주문 응답에서 직접 정보 추출 (바이낸스 응답)
+      const executedQty = parseFloat(orderResult.executedQty || orderResult.origQty || quantity);
+      const avgPrice = parseFloat(orderResult.avgPrice || orderResult.price || currentPrice);
       
-      if (!actualPosition) {
-        throw new Error('포지션 생성 확인 실패');
+      // 주문이 체결되었는지 확인
+      if (executedQty <= 0) {
+        throw new Error('주문 체결 수량 0');
       }
-      
-      const actualQty = Math.abs(parseFloat(actualPosition.positionAmt));
-      const actualEntryPrice = parseFloat(actualPosition.entryPrice);
       
       lastEntryTimeRef.current = Date.now();
       
-      // 실제 포지션 정보로 저장
+      // 주문 응답 정보로 저장 (포지션 조회 대기 없이)
       setState(prev => ({
         ...prev,
         currentPosition: {
           symbol,
           side,
-          entryPrice: actualEntryPrice,
-          quantity: actualQty,
+          entryPrice: avgPrice > 0 ? avgPrice : currentPrice,
+          quantity: executedQty,
           entryTime: Date.now(),
         },
         currentSymbol: symbol,
-      }));
+        tpPercent,
+        slPercent,
+      } as any));
       
       addLog({
         symbol,
         action: 'entry',
         side,
-        price: actualEntryPrice,
-        quantity: actualQty,
+        price: avgPrice > 0 ? avgPrice : currentPrice,
+        quantity: executedQty,
         reason: `BB ${touchType === 'upper' ? '상단' : '하단'} 터치 (TP: ${tpPercent.toFixed(2)}%, SL: ${slPercent.toFixed(2)}%)`,
       });
       
-      toast.success(`🤖 ${side === 'long' ? '롱' : '숏'} 진입 | ${symbol} @ $${actualEntryPrice.toFixed(2)}`);
-      
-      // TP/SL 저장 (state에)
-      setState(prev => ({
-        ...prev,
-        tpPercent,
-        slPercent,
-      } as any));
+      toast.success(`🤖 ${side === 'long' ? '롱' : '숏'} 진입 | ${symbol} @ $${(avgPrice > 0 ? avgPrice : currentPrice).toFixed(2)}`);
       
     } catch (error: any) {
       console.error('Auto trade entry error:', error);
+      // 에러 시에도 쿨다운 적용 (번쩍임 방지)
+      lastEntryTimeRef.current = Date.now();
       addLog({
         symbol,
         action: 'error',
@@ -282,6 +274,7 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate }: UseAutoTrading
         quantity: 0,
         reason: error.message || '진입 실패',
       });
+      toast.error(`진입 실패: ${error.message || '오류'}`);
     } finally {
       processingRef.current = false;
       setState(prev => ({ ...prev, isProcessing: false }));
