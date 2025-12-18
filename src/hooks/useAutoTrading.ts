@@ -653,6 +653,61 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete 
     }
   }, [state.currentPosition, state.isEnabled, closePosition]);
   
+  // 기존 포지션 동기화 (로드 시 및 주기적)
+  useEffect(() => {
+    if (!user) return;
+    
+    const syncPositions = async () => {
+      // 이미 로컬에 포지션이 있으면 스킵
+      if (state.currentPosition) return;
+      if (processingRef.current) return;
+      
+      try {
+        const positions = await getPositions();
+        if (!positions || !Array.isArray(positions)) return;
+        
+        const activePosition = positions.find((p: any) => 
+          Math.abs(parseFloat(p.positionAmt)) > 0
+        );
+        
+        if (activePosition) {
+          const posAmt = parseFloat(activePosition.positionAmt);
+          const side = posAmt > 0 ? 'long' : 'short';
+          const entryPrice = parseFloat(activePosition.entryPrice);
+          
+          setState(prev => {
+            // 이미 동기화되어 있으면 스킵
+            if (prev.currentPosition?.symbol === activePosition.symbol) return prev;
+            
+            return {
+              ...prev,
+              currentPosition: {
+                symbol: activePosition.symbol,
+                side,
+                entryPrice,
+                quantity: Math.abs(posAmt),
+                entryTime: Date.now(),
+                entryCandle: { open: entryPrice, high: entryPrice, low: entryPrice, close: entryPrice },
+              },
+              currentSymbol: activePosition.symbol,
+            };
+          });
+          
+          console.log('[AutoTrading] Synced existing position:', activePosition.symbol);
+        }
+      } catch (error) {
+        console.error('Position sync error:', error);
+      }
+    };
+    
+    // 최초 동기화
+    syncPositions();
+    
+    // 10초마다 동기화 체크
+    const interval = setInterval(syncPositions, 10000);
+    return () => clearInterval(interval);
+  }, [user, state.currentPosition, getPositions]);
+  
   // 봉 완성 체크 interval
   useEffect(() => {
     if (!state.isEnabled) return;
