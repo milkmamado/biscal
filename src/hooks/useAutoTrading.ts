@@ -59,6 +59,7 @@ export interface AutoTradingState {
   consecutiveLosses: number;
   cooldownUntil: number | null;
   tpPercent: number; // 동적 익절 퍼센트
+  statusMessage: string; // 현재 상태 메시지
 }
 
 interface UseAutoTradingProps {
@@ -149,6 +150,7 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete 
     consecutiveLosses: 0,
     cooldownUntil: null,
     tpPercent: 0.3, // 기본값, 진입 시 동적으로 업데이트됨
+    statusMessage: '자동매매 비활성화',
   });
   
   const processingRef = useRef(false);
@@ -169,7 +171,12 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete 
       } else {
         toast.info('자동매매 중지');
       }
-      return { ...prev, isEnabled: newEnabled, pendingSignal: null };
+      return { 
+        ...prev, 
+        isEnabled: newEnabled, 
+        pendingSignal: null,
+        statusMessage: newEnabled ? '🔍 BB 시그널 종목 검색 중...' : '자동매매 비활성화',
+      };
     });
   }, []);
   
@@ -241,7 +248,7 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete 
         signalCandleLow: currentCandle.low,
       };
       
-      setState(prev => ({ ...prev, pendingSignal, currentSymbol: symbol }));
+      setState(prev => ({ ...prev, pendingSignal, currentSymbol: symbol, statusMessage: `✨ ${symbol.replace('USDT', '')} 발견! 봉 완성 대기 중...` }));
       
       const side = touchType === 'upper' ? '숏' : '롱';
       addLog({
@@ -348,6 +355,7 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete 
             },
             currentSymbol: symbol,
             tpPercent: dynamicTpPercent,
+            statusMessage: `🎯 ${symbol.replace('USDT', '')} ${side === 'long' ? '롱' : '숏'} 포지션 보유 중`,
           }));
           
           addLog({
@@ -399,6 +407,7 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete 
             },
             currentSymbol: symbol,
             tpPercent: dynamicTpPercent,
+            statusMessage: `🎯 ${symbol.replace('USDT', '')} ${side === 'long' ? '롱' : '숏'} 포지션 보유 중`,
           }));
           
           addLog({
@@ -434,6 +443,7 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete 
         },
         currentSymbol: symbol,
         tpPercent: dynamicTpPercent,
+        statusMessage: `🎯 ${symbol.replace('USDT', '')} ${side === 'long' ? '롱' : '숏'} 포지션 보유 중`,
       }));
       
       addLog({
@@ -450,7 +460,7 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete 
     } catch (error: any) {
       console.error('Entry error:', error);
       lastEntryTimeRef.current = Date.now();
-      setState(prev => ({ ...prev, pendingSignal: null }));
+      setState(prev => ({ ...prev, pendingSignal: null, statusMessage: '🔍 BB 시그널 종목 검색 중...' }));
       addLog({
         symbol,
         action: 'error',
@@ -484,7 +494,7 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete 
       );
       
       if (!actualPosition) {
-        setState(prev => ({ ...prev, currentPosition: null, currentSymbol: null }));
+        setState(prev => ({ ...prev, currentPosition: null, currentSymbol: null, statusMessage: '🔍 BB 시그널 종목 검색 중...' }));
         addLog({
           symbol: position.symbol,
           action: 'error',
@@ -536,6 +546,9 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete 
           },
           consecutiveLosses: newConsecutiveLosses,
           cooldownUntil: newCooldownUntil,
+          statusMessage: newCooldownUntil 
+            ? `⏸️ 30분 휴식 중...` 
+            : `${isWin ? '✅ 익절 완료!' : '❌ 손절 완료'} 다음 시그널 대기...`,
         };
       });
       
@@ -622,7 +635,7 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete 
         } else {
           // 조건 불충족 - 시그널 취소
           const movePercent = prevBodySize > 0 ? (Math.abs(bodyMove) / prevBodySize * 100).toFixed(0) : '0';
-          setState(prev => ({ ...prev, pendingSignal: null }));
+          setState(prev => ({ ...prev, pendingSignal: null, statusMessage: '🔍 BB 시그널 종목 검색 중...' }));
           addLog({
             symbol,
             action: 'cancel',
