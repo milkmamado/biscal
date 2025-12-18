@@ -1025,12 +1025,38 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
     return () => clearInterval(interval);
   }, []);
   
+  // 시그널 패스 (수동 취소)
+  const skipSignal = useCallback(() => {
+    if (!state.pendingSignal) return;
+    
+    const { symbol, touchType } = state.pendingSignal;
+    const side = touchType === 'upper' ? 'short' : 'long';
+    
+    addLog({
+      symbol,
+      action: 'cancel',
+      side,
+      price: state.pendingSignal.signalPrice,
+      quantity: 0,
+      reason: '🚫 수동 패스',
+    });
+    
+    setState(prev => ({ 
+      ...prev, 
+      pendingSignal: null, 
+      statusMessage: '🔍 강화 시그널 검색 중...' 
+    }));
+    
+    toast.info(`⏭️ ${symbol} 패스됨`);
+  }, [state.pendingSignal, addLog]);
+  
   return {
     state,
     toggleAutoTrading,
     handleSignal,
     closePosition,
     checkTpSl,
+    skipSignal,
     updatePrice: useCallback(() => {}, []), // 더 이상 사용 안 함
   };
 }
