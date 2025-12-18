@@ -181,6 +181,12 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
   const lastMinuteRef = useRef(getMinuteTimestamp());
   const lastEntryTimeRef = useRef(0);
   
+  // pendingSignal을 ref로도 추적 (closure 문제 방지)
+  const pendingSignalRef = useRef<PendingSignal | null>(null);
+  useEffect(() => {
+    pendingSignalRef.current = state.pendingSignal;
+  }, [state.pendingSignal]);
+  
   // 본전가 터치 추적 (3회 터치 시 자동 청산)
   const breakEvenTouchRef = useRef<{
     count: number;
@@ -675,9 +681,12 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
     // 봉 완성 후 4초 대기 (Binance API 데이터 완전 확정 대기 - 2초는 부족)
     await new Promise(resolve => setTimeout(resolve, 4000));
     
+    // 🔥 ref에서 최신 pendingSignal 가져오기 (스왑 후에도 최신 값 반영)
+    const latestPendingSignal = pendingSignalRef.current;
+    
     // 대기 중인 시그널이 있으면 확인 진입 체크
-    if (state.pendingSignal && !state.currentPosition) {
-      const { symbol, touchType, waitCount } = state.pendingSignal;
+    if (latestPendingSignal && !state.currentPosition) {
+      const { symbol, touchType, waitCount } = latestPendingSignal;
       const MAX_WAIT_COUNT = 2; // 최대 2번 추가 대기 (도지/망치 시)
       
       try {
