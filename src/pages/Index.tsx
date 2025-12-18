@@ -54,10 +54,30 @@ const Index = () => {
   
   // 이전 시그널 추적 (중복 진입 방지)
   const prevSignalsRef = useRef<Set<string>>(new Set());
+  const justEnabledRef = useRef(false);
+  
+  // 자동매매 켜질 때 기존 시그널 무시하도록 처리
+  useEffect(() => {
+    if (autoTrading.state.isEnabled) {
+      // 자동매매 켜지면 현재 시그널들을 "이미 본 것"으로 처리
+      justEnabledRef.current = true;
+      const currentSignalKeys = new Set(bbSignals.map(s => `${s.symbol}-${s.touchType}`));
+      prevSignalsRef.current = currentSignalKeys;
+      
+      // 2초 후부터 새 시그널 감지 시작
+      const timer = setTimeout(() => {
+        justEnabledRef.current = false;
+      }, 2000);
+      return () => clearTimeout(timer);
+    } else {
+      prevSignalsRef.current = new Set();
+    }
+  }, [autoTrading.state.isEnabled]);
   
   // BB 시그널 감지 시 자동매매 트리거
   useEffect(() => {
     if (!autoTrading.state.isEnabled) return;
+    if (justEnabledRef.current) return; // 방금 켜졌으면 대기
     if (bbSignals.length === 0) return;
     
     // 포지션 보유 중이거나 대기 중이면 새 시그널 무시
