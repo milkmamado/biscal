@@ -15,6 +15,7 @@ interface DualChartPanelProps {
   entryPrice?: number;
   onSelectSymbol?: (symbol: string) => void;
   onBalanceChange?: (balance: number) => void;
+  refreshTrigger?: number; // 청산 후 즉시 갱신용
 }
 
 const INTERVALS = [
@@ -36,6 +37,7 @@ const DualChartPanel = ({
   entryPrice,
   onSelectSymbol,
   onBalanceChange,
+  refreshTrigger = 0,
 }: DualChartPanelProps) => {
   const [interval, setInterval] = useState(60);
   const [balanceUSD, setBalanceUSD] = useState<number>(0);
@@ -191,6 +193,14 @@ const DualChartPanel = ({
     }, 10000);
     return () => window.clearInterval(intervalId);
   }, [user]);
+
+  // 청산 후 즉시 갱신
+  useEffect(() => {
+    if (refreshTrigger > 0 && user) {
+      fetchRealBalance();
+      fetchPositions();
+    }
+  }, [refreshTrigger]);
 
   const formatKRW = (usd: number) => {
     const krw = usd * krwRate;

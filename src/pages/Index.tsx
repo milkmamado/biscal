@@ -18,17 +18,24 @@ const Index = () => {
   const [balanceUSD, setBalanceUSD] = useState(0);
   const [krwRate, setKrwRate] = useState(1380);
   const [leverage, setLeverage] = useState(10);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
   const { dailyStats } = useTradingLogs();
   const { tickers } = useTickerWebSocket();
   
+  // 청산 후 즉시 잔고 갱신
+  const handleTradeComplete = useCallback(() => {
+    setRefreshTrigger(prev => prev + 1);
+  }, []);
+  
   // 자동매매 훅
   const autoTrading = useAutoTrading({
     balanceUSD,
     leverage,
     krwRate,
+    onTradeComplete: handleTradeComplete,
   });
   
   // BB 시그널을 위한 티커 데이터 준비
@@ -220,6 +227,7 @@ const Index = () => {
               entryPrice={autoTrading.state.currentPosition?.entryPrice}
               onSelectSymbol={setSelectedSymbol}
               onBalanceChange={handleBalanceChange}
+              refreshTrigger={refreshTrigger}
             />
           </div>
         </div>
