@@ -203,9 +203,9 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-background p-2">
       <div className="max-w-[1920px] mx-auto">
-        <div className="grid grid-cols-12 gap-2">
+        <div className="grid grid-cols-12 gap-2 items-stretch">
           {/* Left - Auto Trading Panel */}
-          <div className="col-span-12 lg:col-span-3 xl:col-span-2">
+          <div className="col-span-12 lg:col-span-3 xl:col-span-2 flex">
             <AutoTradingPanel
               state={autoTrading.state}
               onToggle={autoTrading.toggleAutoTrading}
