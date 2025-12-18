@@ -679,10 +679,13 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
         
         // 직전 완성된 봉 (시그널 발생 후 완성된 봉)
         const completedCandle = klines[klines.length - 2];
+        const currentFormingCandle = klines[klines.length - 1]; // 현재 진행 중인 봉 (참고용)
         
-        // 디버깅: 실제 캔들 데이터 로그
+        // 디버깅: 실제 캔들 데이터 로그 (사용자 UI에서 확인 가능하도록)
         const candleType = completedCandle.close > completedCandle.open ? '양봉' : completedCandle.close < completedCandle.open ? '음봉' : '도지';
-        console.log(`[${symbol}] 확인 봉: O=${completedCandle.open.toFixed(4)} C=${completedCandle.close.toFixed(4)} (${candleType}) [대기 ${waitCount + 1}회차]`);
+        const candleTime = new Date(completedCandle.closeTime).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+        console.log(`[${symbol}] 확인 봉: O=${completedCandle.open.toFixed(4)} C=${completedCandle.close.toFixed(4)} (${candleType}) 완성시간=${candleTime} [대기 ${waitCount + 1}회차]`);
+        console.log(`[${symbol}] 진행 봉: O=${currentFormingCandle.open.toFixed(4)} C=${currentFormingCandle.close.toFixed(4)} (현재가 참고용)`);
         
         // 최근 20봉의 평균 몸통 크기를 기준으로 사용 (안정적인 기준)
         const recentCandles = klines.slice(-22, -2); // 완성된 봉 제외, 그 이전 20봉
@@ -786,15 +789,16 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
           setState(prev => ({ ...prev, pendingSignal: null, statusMessage: '🔍 BB+강화 시그널 검색 중...' }));
           const actualCandle = isDirectionBullish ? '🟢양봉' : '🔴음봉';
           const expectedCandle = touchType === 'upper' ? '🔴음봉' : '🟢양봉';
+          const candleInfo = `O=${completedCandle.open.toFixed(4)} C=${completedCandle.close.toFixed(4)}`;
           addLog({
             symbol,
             action: 'cancel',
             side: expectedSide,
             price: completedCandle.close,
             quantity: 0,
-            reason: `${actualCandle} 출현 - 방향 불일치 (기대: ${expectedCandle})`,
+            reason: `${actualCandle} (${candleInfo}) - 기대: ${expectedCandle}`,
           });
-          toast.warning(`❌ ${symbol} 시그널 취소 - 반대 방향 캔들`);
+          toast.warning(`❌ ${symbol} 취소 - ${actualCandle} (${candleInfo})`);
         } else if (isSmallCandle && !isWrongDirection && waitCount < MAX_WAIT_COUNT) {
           // 🔧 DOT 버그 수정: 방향 맞지만 작은 캔들 → 대기 (취소 X)
           setState(prev => ({
