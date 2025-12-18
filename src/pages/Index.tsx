@@ -3,8 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useTradingLogs } from '@/hooks/useTradingLogs';
 import { useAutoTrading } from '@/hooks/useAutoTrading';
-import { useBollingerSignals } from '@/hooks/useBollingerSignals';
-import { useEnhancedSignals } from '@/hooks/useEnhancedSignals';
+import { useCoinScreening } from '@/hooks/useCoinScreening';
 import { useTickerWebSocket } from '@/hooks/useTickerWebSocket';
 import { useWakeLock } from '@/hooks/useWakeLock';
 import { supabase } from '@/integrations/supabase/client';
@@ -53,11 +52,11 @@ const Index = () => {
   // 자동매매 중 절전 방지 (백그라운드 탭에서도 안정적 동작)
   useWakeLock(autoTrading.state.isEnabled);
 
-  // BB 시그널을 위한 티커 데이터 준비
-  const tickersForBB = tickers
+  // 종목 스크리닝용 티커 데이터 준비
+  const tickersForScreening = tickers
     .filter(c => c.price >= 0.01 && c.volume >= 50_000_000)
     .sort((a, b) => b.volume - a.volume)
-    .slice(0, 30)
+    .slice(0, 50)
     .map(c => ({
       symbol: c.symbol,
       price: c.price,
@@ -66,13 +65,8 @@ const Index = () => {
       volatilityRange: c.volatilityRange
     }));
   
-  const { signals: bbSignals } = useBollingerSignals(tickersForBB);
-  
-  // 강화 시그널만 사용 (BB 제외, 모멘텀/거래량/틱속도 중 하나라도 충족)
-  const { enhancedSignals } = useEnhancedSignals(tickersForBB, bbSignals);
-  
-  // BB 제외 - 강화 시그널만 진입 신호로 사용
-  const confluenceSignals = enhancedSignals;
+  // 기술적 분석 기반 종목 스크리닝
+  const { activeSignals, isScanning } = useCoinScreening(tickersForScreening);
   
   // 이전 시그널 추적 (중복 진입 방지)
   const prevSignalsRef = useRef<Set<string>>(new Set());
@@ -83,7 +77,7 @@ const Index = () => {
     if (autoTrading.state.isEnabled) {
       // 자동매매 켜지면 현재 시그널들을 "이미 본 것"으로 처리
       justEnabledRef.current = true;
-      const currentSignalKeys = new Set(confluenceSignals.map(s => `${s.symbol}-${s.touchType}`));
+      const currentSignalKeys = new Set(activeSignals.map(s => `${s.symbol}-${s.direction}`));
       prevSignalsRef.current = currentSignalKeys;
       
       // 2초 후부터 새 시그널 감지 시작
@@ -96,33 +90,39 @@ const Index = () => {
     }
   }, [autoTrading.state.isEnabled]);
   
-  // BB + 강화조건 동시 시그널 감지 시 자동매매 트리거
+  // 기술적 분석 시그널 감지 시 자동매매 트리거
   useEffect(() => {
     if (!autoTrading.state.isEnabled) return;
     if (justEnabledRef.current) return; // 방금 켜졌으면 대기
-    if (confluenceSignals.length === 0) return;
+    if (activeSignals.length === 0) return;
     
     // 포지션 보유 중이거나 대기 중이면 새 시그널 무시
     if (autoTrading.state.currentPosition) return;
     if (autoTrading.state.pendingSignal) return;
     
     // 새로운 시그널만 처리
-    const currentSignalKeys = new Set(confluenceSignals.map(s => `${s.symbol}-${s.touchType}`));
+    const currentSignalKeys = new Set(activeSignals.map(s => `${s.symbol}-${s.direction}`));
     
-    for (const signal of confluenceSignals) {
-      const signalKey = `${signal.symbol}-${signal.touchType}`;
+    for (const signal of activeSignals) {
+      const signalKey = `${signal.symbol}-${signal.direction}`;
       
       // 이미 처리한 시그널이면 무시
       if (prevSignalsRef.current.has(signalKey)) continue;
       
-      // 강화 시그널 정보 찾기
-      const enhanced = enhancedSignals.find(e => e.symbol === signal.symbol);
-      const enhancedInfo = enhanced ? `(${enhanced.reason})` : '';
+      // medium 이상만 처리
+      if (signal.strength === 'weak') continue;
       
-      console.log(`🔥 Enhanced signal: ${signal.symbol} BB ${signal.touchType} ${enhancedInfo}`);
+      console.log(`🔥 Technical signal: ${signal.symbol} ${signal.direction} (${signal.strength})`, signal.reasons.slice(0, 3));
       
-      // 자동매매 진입 실행
-      autoTrading.handleSignal(signal.symbol, signal.touchType, signal.price);
+      // 자동매매 진입 실행 (새로운 기술적 분석 시그널 사용)
+      autoTrading.handleTechnicalSignal(
+        signal.symbol,
+        signal.direction,
+        signal.price,
+        signal.strength,
+        signal.reasons,
+        signal.indicators
+      );
       
       // 진입한 종목으로 차트 전환
       setSelectedSymbol(signal.symbol);
@@ -130,7 +130,7 @@ const Index = () => {
     }
     
     prevSignalsRef.current = currentSignalKeys;
-  }, [confluenceSignals, enhancedSignals, autoTrading.state.isEnabled, autoTrading.state.currentPosition, autoTrading.state.pendingSignal]);
+  }, [activeSignals, autoTrading.state.isEnabled, autoTrading.state.currentPosition, autoTrading.state.pendingSignal]);
   
   // 포지션 보유 중이거나 대기 중일 때 해당 종목 차트 유지
   useEffect(() => {
@@ -141,7 +141,7 @@ const Index = () => {
     }
   }, [autoTrading.state.currentPosition?.symbol, autoTrading.state.pendingSignal?.symbol]);
   
-  // 현재 가격으로 TP 체크
+  // 현재 가격으로 TP/SL 체크
   useEffect(() => {
     if (!autoTrading.state.currentPosition) return;
     
@@ -149,11 +149,9 @@ const Index = () => {
     const ticker = tickers.find(t => t.symbol === position.symbol);
     if (!ticker) return;
     
-    // state에 저장된 동적 TP 값 사용
-    const tpPercent = autoTrading.state.tpPercent;
-    
-    autoTrading.checkTpSl(ticker.price, tpPercent, 0); // slPercent는 봉 기준이라 미사용
-  }, [tickers, autoTrading.state.currentPosition, autoTrading.state.tpPercent]);
+    // 3단계 익절 시스템 사용
+    autoTrading.checkTpSl(ticker.price);
+  }, [tickers, autoTrading.state.currentPosition]);
 
   // Fetch USD/KRW rate
   useEffect(() => {

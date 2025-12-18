@@ -368,6 +368,15 @@ const AutoTradingPanel = ({
               <span className="font-semibold text-sm text-yellow-500">
                 {pendingSignal.symbol} {pendingSignal.direction === 'short' ? '숏' : '롱'} 대기
               </span>
+              {/* 시그널 강도 배지 */}
+              <span className={cn(
+                "text-[9px] px-1.5 py-0.5 rounded font-semibold",
+                pendingSignal.strength === 'strong' ? "bg-green-500/20 text-green-400" :
+                pendingSignal.strength === 'medium' ? "bg-yellow-500/20 text-yellow-400" :
+                "bg-gray-500/20 text-gray-400"
+              )}>
+                {pendingSignal.strength === 'strong' ? '강함' : pendingSignal.strength === 'medium' ? '보통' : '약함'}
+              </span>
             </div>
             <div className="flex gap-1">
               {onSwapSignal && (
@@ -393,6 +402,16 @@ const AutoTradingPanel = ({
           <div className="mt-1 text-[10px] text-muted-foreground">
             시그널 @ ${pendingSignal.signalPrice.toFixed(4)} | 봉 완성 대기 중
           </div>
+          {/* 시그널 근거 표시 */}
+          {pendingSignal.reasons && pendingSignal.reasons.length > 0 && (
+            <div className="mt-1.5 flex flex-wrap gap-1">
+              {pendingSignal.reasons.slice(0, 3).map((reason, idx) => (
+                <span key={idx} className="text-[9px] px-1.5 py-0.5 bg-secondary/50 rounded text-muted-foreground">
+                  {reason}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       )}
       
@@ -422,12 +441,46 @@ const AutoTradingPanel = ({
           </div>
           <div className="flex items-center justify-between text-[10px] text-muted-foreground">
             <span>진입가: ${formatPrice(currentPosition.entryPrice)}</span>
-            <span>TP: {state.tpPercent.toFixed(2)}%</span>
-          </div>
-          <div className="flex items-center justify-between text-[10px] text-muted-foreground mt-0.5">
             <span>수량: {currentPosition.remainingQuantity.toFixed(4)}</span>
-            <span>SL: 봉기준</span>
           </div>
+          {/* 3단계 익절 진행 상태 */}
+          <div className="mt-2 flex items-center gap-1">
+            <span className="text-[9px] text-muted-foreground">익절:</span>
+            <div className="flex gap-1.5">
+              <span className={cn(
+                "text-[9px] px-1.5 py-0.5 rounded font-mono",
+                currentPosition.takeProfitState?.stage1Hit 
+                  ? "bg-green-500/30 text-green-400" 
+                  : "bg-secondary/50 text-muted-foreground"
+              )}>
+                1단계 {currentPosition.takeProfitState?.stage1Hit ? '✓' : '0.3%'}
+              </span>
+              <span className={cn(
+                "text-[9px] px-1.5 py-0.5 rounded font-mono",
+                currentPosition.takeProfitState?.stage2Hit 
+                  ? "bg-green-500/30 text-green-400" 
+                  : "bg-secondary/50 text-muted-foreground"
+              )}>
+                2단계 {currentPosition.takeProfitState?.stage2Hit ? '✓' : '0.8%'}
+              </span>
+              <span className={cn(
+                "text-[9px] px-1.5 py-0.5 rounded font-mono",
+                currentPosition.takeProfitState?.stage3Hit 
+                  ? "bg-green-500/30 text-green-400" 
+                  : "bg-secondary/50 text-muted-foreground"
+              )}>
+                3단계 {currentPosition.takeProfitState?.stage3Hit ? '✓' : '1.5%'}
+              </span>
+            </div>
+          </div>
+          {/* 트레일링 스탑 상태 */}
+          {currentPosition.takeProfitState?.trailingActive && (
+            <div className="mt-1 flex items-center gap-1">
+              <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 font-mono">
+                📈 트레일링 활성 @ ${currentPosition.takeProfitState.trailingHighPrice.toFixed(4)}
+              </span>
+            </div>
+          )}
           <div className="flex gap-2 mt-2">
             {onBreakEvenClose && (
               <Button
@@ -475,7 +528,7 @@ const AutoTradingPanel = ({
         <div className="overflow-y-auto space-y-1 max-h-[140px]">
           {tradeLogs.length === 0 ? (
             <div className="text-center py-4 text-[11px] text-muted-foreground">
-              {isEnabled ? 'BB 시그널 대기 중...' : '자동매매를 시작하세요'}
+              {isEnabled ? '기술적 분석 시그널 대기 중...' : '자동매매를 시작하세요'}
             </div>
           ) : (
             tradeLogs.slice(0, 50).map((log) => (
@@ -501,7 +554,7 @@ const AutoTradingPanel = ({
         isEnabled ? "bg-blue-500/10 text-blue-400 border border-blue-500/30" :
         "bg-secondary/50 text-muted-foreground border border-border"
       )}>
-        {state.statusMessage || (isEnabled ? '🔍 BB 시그널 종목 검색 중...' : '자동매매를 시작하세요')}
+        {state.statusMessage || (isEnabled ? '🔍 기술적 분석 스캔 중...' : '자동매매를 시작하세요')}
       </div>
       
       {/* Warning */}
