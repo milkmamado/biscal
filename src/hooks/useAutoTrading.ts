@@ -578,13 +578,24 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete 
       const { symbol, touchType } = state.pendingSignal;
       
       try {
-        const klines = await fetch1mKlines(symbol, 3);
-        if (!klines || klines.length < 2) return;
+        const klines = await fetch1mKlines(symbol, 4);
+        if (!klines || klines.length < 3) return;
         
         // 직전 완성된 봉 (시그널 발생 후 완성된 봉)
         const completedCandle = klines[klines.length - 2];
-        const isBullish = completedCandle.close > completedCandle.open; // 양봉
-        const isBearish = completedCandle.close < completedCandle.open; // 음봉
+        // 그 전 봉 (기준 봉)
+        const prevCandle = klines[klines.length - 3];
+        
+        // 전봉 몸통 크기의 20%를 임계값으로 사용
+        const prevBodySize = Math.abs(prevCandle.close - prevCandle.open);
+        const threshold = prevBodySize * 0.2;
+        
+        // 완성된 봉의 몸통 크기
+        const bodyMove = completedCandle.close - completedCandle.open;
+        
+        // 임계값 이상 움직여야 유효한 양봉/음봉으로 판단
+        const isBullish = bodyMove >= threshold;
+        const isBearish = bodyMove <= -threshold;
         
         const expectedSide = touchType === 'upper' ? 'short' : 'long';
         
@@ -598,6 +609,7 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete 
           await executeEntry(symbol, 'long', completedCandle.close, completedCandle);
         } else {
           // 조건 불충족 - 시그널 취소
+          const movePercent = prevBodySize > 0 ? (Math.abs(bodyMove) / prevBodySize * 100).toFixed(0) : '0';
           setState(prev => ({ ...prev, pendingSignal: null }));
           addLog({
             symbol,
@@ -605,9 +617,9 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete 
             side: expectedSide,
             price: completedCandle.close,
             quantity: 0,
-            reason: `확인 실패 (${isBullish ? '양봉' : isBearish ? '음봉' : '도지'})`,
+            reason: `확인 실패 (움직임 ${movePercent}% < 20%)`,
           });
-          toast.info(`❌ ${symbol} 시그널 취소 - 봉 방향 불일치`);
+          toast.info(`❌ ${symbol} 시그널 취소 - 봉 움직임 부족 (${movePercent}%)`);
         }
       } catch (error) {
         console.error('Candle check error:', error);
