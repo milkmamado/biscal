@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useBinanceApi } from './useBinanceApi';
 import { useAuth } from './useAuth';
 import { fetchSymbolPrecision, roundQuantity } from '@/lib/binance';
+import { playEntrySound, playTpSound, playSlSound } from '@/lib/sounds';
 import { toast } from 'sonner';
 
 export interface AutoTradeLog {
@@ -389,6 +390,7 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
           });
           
           // 귀여운 진입 알림
+          playEntrySound();
           const cuteEmojis = ['🚀', '💫', '✨', '🎯', '💰', '🔥', '⚡'];
           const randomEmoji = cuteEmojis[Math.floor(Math.random() * cuteEmojis.length)];
           toast.success(`${randomEmoji} ${side === 'long' ? '롱롱이' : '숏숏이'} 출격! ${symbol.replace('USDT', '')} @ $${actualEntryPrice.toFixed(2)}`);
@@ -444,6 +446,7 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
           });
           
           // 귀여운 진입 알림
+          playEntrySound();
           const cuteEmojis2 = ['🚀', '💫', '✨', '🎯', '💰', '🔥', '⚡'];
           const randomEmoji2 = cuteEmojis2[Math.floor(Math.random() * cuteEmojis2.length)];
           toast.success(`${randomEmoji2} ${side === 'long' ? '롱롱이' : '숏숏이'} 출격! ${symbol.replace('USDT', '')} @ $${actualEntryPrice.toFixed(2)}`);
@@ -483,6 +486,7 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
       });
       
       // 귀여운 진입 알림
+      playEntrySound();
       const cuteEmojis3 = ['🚀', '💫', '✨', '🎯', '💰', '🔥', '⚡'];
       const randomEmoji3 = cuteEmojis3[Math.floor(Math.random() * cuteEmojis3.length)];
       toast.success(`${randomEmoji3} ${side === 'long' ? '롱롱이' : '숏숏이'} 출격! ${symbol.replace('USDT', '')} @ $${(avgPrice > 0 ? avgPrice : currentPrice).toFixed(2)}`);
@@ -592,6 +596,14 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
       });
       
       const pnlKRW = Math.round(pnl * krwRate);
+      
+      // 효과음 재생
+      if (isWin) {
+        playTpSound();
+      } else {
+        playSlSound();
+      }
+      
       toast[isWin ? 'success' : 'error'](
         `${isWin ? '✅' : '❌'} ${reason === 'tp' ? '익절' : reason === 'sl' ? '손절' : '청산'} | ${pnl >= 0 ? '+' : ''}₩${pnlKRW.toLocaleString()}`
       );
