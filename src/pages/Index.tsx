@@ -1,9 +1,10 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useTradingLogs } from '@/hooks/useTradingLogs';
 import { useAutoTrading } from '@/hooks/useAutoTrading';
 import { useBollingerSignals } from '@/hooks/useBollingerSignals';
+import { useMomentumSignals } from '@/hooks/useMomentumSignals';
 import { useTickerWebSocket } from '@/hooks/useTickerWebSocket';
 import { useWakeLock } from '@/hooks/useWakeLock';
 import { supabase } from '@/integrations/supabase/client';
@@ -67,6 +68,15 @@ const Index = () => {
   
   const { signals: bbSignals } = useBollingerSignals(tickersForBB);
   
+  // 모멘텀 시그널 (급등/급락 감지)
+  const { signals: momentumSignals } = useMomentumSignals(tickersForBB);
+  
+  // BB + 모멘텀 동시 발생 종목만 필터링
+  const confluenceSignals = useMemo(() => {
+    const momentumSymbols = new Set(momentumSignals.map(s => s.symbol));
+    return bbSignals.filter(s => momentumSymbols.has(s.symbol));
+  }, [bbSignals, momentumSignals]);
+  
   // 이전 시그널 추적 (중복 진입 방지)
   const prevSignalsRef = useRef<Set<string>>(new Set());
   const justEnabledRef = useRef(false);
@@ -76,7 +86,7 @@ const Index = () => {
     if (autoTrading.state.isEnabled) {
       // 자동매매 켜지면 현재 시그널들을 "이미 본 것"으로 처리
       justEnabledRef.current = true;
-      const currentSignalKeys = new Set(bbSignals.map(s => `${s.symbol}-${s.touchType}`));
+      const currentSignalKeys = new Set(confluenceSignals.map(s => `${s.symbol}-${s.touchType}`));
       prevSignalsRef.current = currentSignalKeys;
       
       // 2초 후부터 새 시그널 감지 시작
@@ -89,24 +99,32 @@ const Index = () => {
     }
   }, [autoTrading.state.isEnabled]);
   
-  // BB 시그널 감지 시 자동매매 트리거
+  // BB + 모멘텀 동시 시그널 감지 시 자동매매 트리거
   useEffect(() => {
     if (!autoTrading.state.isEnabled) return;
     if (justEnabledRef.current) return; // 방금 켜졌으면 대기
-    if (bbSignals.length === 0) return;
+    if (confluenceSignals.length === 0) return;
     
     // 포지션 보유 중이거나 대기 중이면 새 시그널 무시
     if (autoTrading.state.currentPosition) return;
     if (autoTrading.state.pendingSignal) return;
     
     // 새로운 시그널만 처리
-    const currentSignalKeys = new Set(bbSignals.map(s => `${s.symbol}-${s.touchType}`));
+    const currentSignalKeys = new Set(confluenceSignals.map(s => `${s.symbol}-${s.touchType}`));
     
-    for (const signal of bbSignals) {
+    for (const signal of confluenceSignals) {
       const signalKey = `${signal.symbol}-${signal.touchType}`;
       
       // 이미 처리한 시그널이면 무시
       if (prevSignalsRef.current.has(signalKey)) continue;
+      
+      // 모멘텀 정보 찾기
+      const momentum = momentumSignals.find(m => m.symbol === signal.symbol);
+      const momentumInfo = momentum 
+        ? `(${momentum.direction === 'up' ? '급등' : '급락'} ${Math.abs(momentum.changePercent).toFixed(1)}%)` 
+        : '';
+      
+      console.log(`🔥 Confluence signal: ${signal.symbol} BB ${signal.touchType} + Momentum ${momentumInfo}`);
       
       // 자동매매 진입 실행
       autoTrading.handleSignal(signal.symbol, signal.touchType, signal.price);
@@ -117,7 +135,7 @@ const Index = () => {
     }
     
     prevSignalsRef.current = currentSignalKeys;
-  }, [bbSignals, autoTrading.state.isEnabled, autoTrading.state.currentPosition, autoTrading.state.pendingSignal]);
+  }, [confluenceSignals, momentumSignals, autoTrading.state.isEnabled, autoTrading.state.currentPosition, autoTrading.state.pendingSignal]);
   
   // 포지션 보유 중이거나 대기 중일 때 해당 종목 차트 유지
   useEffect(() => {
