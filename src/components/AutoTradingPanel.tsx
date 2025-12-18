@@ -236,13 +236,13 @@ const AutoTradingPanel = ({
           <Activity className="w-3 h-3 text-muted-foreground" />
           <span className="text-[10px] text-muted-foreground">매매 로그</span>
         </div>
-        <div className="max-h-[200px] overflow-y-auto space-y-1">
+        <div className="max-h-[500px] overflow-y-auto space-y-1">
           {tradeLogs.length === 0 ? (
-            <div className="text-center py-4 text-[11px] text-muted-foreground">
+            <div className="text-center py-8 text-[11px] text-muted-foreground">
               {isEnabled ? 'BB 시그널 대기 중...' : '자동매매를 시작하세요'}
             </div>
           ) : (
-            tradeLogs.slice(0, 20).map((log) => (
+            tradeLogs.slice(0, 50).map((log) => (
               <TradeLogItem key={log.id} log={log} krwRate={krwRate} />
             ))
           )}

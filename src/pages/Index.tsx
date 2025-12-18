@@ -6,7 +6,6 @@ import { useAutoTrading } from '@/hooks/useAutoTrading';
 import { useBollingerSignals } from '@/hooks/useBollingerSignals';
 import { useTickerWebSocket } from '@/hooks/useTickerWebSocket';
 import { supabase } from '@/integrations/supabase/client';
-import HotCoinList from '@/components/HotCoinList';
 import DualChartPanel from '@/components/DualChartPanel';
 import AutoTradingPanel from '@/components/AutoTradingPanel';
 import ApiKeySetup from '@/components/ApiKeySetup';
@@ -199,8 +198,8 @@ const Index = () => {
     <div className="min-h-screen bg-background p-2">
       <div className="max-w-[1920px] mx-auto">
         <div className="grid grid-cols-12 gap-2">
-          {/* Left - BB Signals & Auto Trading */}
-          <div className="col-span-12 lg:col-span-3 xl:col-span-2 space-y-2">
+          {/* Left - Auto Trading Panel */}
+          <div className="col-span-12 lg:col-span-3 xl:col-span-2">
             <AutoTradingPanel
               state={autoTrading.state}
               onToggle={autoTrading.toggleAutoTrading}
@@ -209,11 +208,6 @@ const Index = () => {
               krwRate={krwRate}
               leverage={leverage}
               onLeverageChange={setLeverage}
-            />
-            <HotCoinList
-              onSelectSymbol={setSelectedSymbol}
-              selectedSymbol={selectedSymbol}
-              onSignOut={handleSignOut}
             />
           </div>
 
