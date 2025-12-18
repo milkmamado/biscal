@@ -746,9 +746,10 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
         );
         // 상단 터치 → 음봉 확인 → 숏 진입
         // 하단 터치 → 양봉 확인 → 롱 진입
-        if (touchType === 'upper' && isBearish) {
+        // 🔥 방향만 맞으면 크기 작아도 바로 진입! (스캘핑은 타이밍이 핵심)
+        if (touchType === 'upper' && isDirectionBearish && !isTrueDoji) {
           await executeEntry(symbol, 'short', completedCandle.close, completedCandle, referenceBodySize);
-        } else if (touchType === 'lower' && isBullish) {
+        } else if (touchType === 'lower' && isDirectionBullish && !isTrueDoji) {
           await executeEntry(symbol, 'long', completedCandle.close, completedCandle, referenceBodySize);
         } else if (isBadPattern) {
           // 🚫 나쁜 패턴 즉시 취소 (롱+역망치, 숏+망치)
