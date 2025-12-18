@@ -608,22 +608,11 @@ export function useAutoTrading({
 
     console.log(`[handleSignal] ${symbol} ${direction} ${strength} (ADX: ${indicators.adx.toFixed(1)})`, reasons);
 
-    const pendingSignal: PendingSignal = {
-      symbol,
-      direction,
-      strength,
-      reasons,
-      signalTime: Date.now(),
-      signalPrice: price,
-      indicators,
-      confirmCount: 0,
-    };
-
+    // 즉시 진입 (확인대기 없음)
     setState(prev => ({
       ...prev,
-      pendingSignal,
       currentSymbol: symbol,
-      statusMessage: `✨ ${symbol.replace('USDT', '')} ${direction === 'long' ? '롱' : '숏'} 시그널 확인 중...`,
+      statusMessage: `🚀 ${symbol.replace('USDT', '')} ${direction === 'long' ? '롱' : '숏'} 즉시 진입 중...`,
     }));
 
     addLog({
@@ -635,7 +624,10 @@ export function useAutoTrading({
       reason: `${strength} 시그널 - ${reasons.slice(0, 3).join(', ')}`,
     });
 
-    toast.info(`⏳ ${symbol} ${direction === 'long' ? '롱' : '숏'} 시그널 확인 중`);
+    toast.info(`🚀 ${symbol} ${direction === 'long' ? '롱' : '숏'} 즉시 진입`);
+
+    // 바로 진입 실행
+    await executeEntry(symbol, direction, price, indicators);
   }, [state.isEnabled, state.currentPosition, state.pendingSignal, user, balanceUSD, addLog]);
 
   // BB 시그널 핸들러 (레거시 호환)
@@ -805,7 +797,7 @@ export function useAutoTrading({
     }
   }, [balanceUSD, leverage, placeMarketOrder, setLeverage, addLog]);
 
-  // 봉 완성 체크 및 진입 판단
+  // 봉 완성 체크 (TP/SL 체크용으로만 사용)
   const checkCandleCompletion = useCallback(async () => {
     if (!state.isEnabled) return;
     if (processingRef.current) return;
@@ -814,60 +806,8 @@ export function useAutoTrading({
     if (currentMinute === lastMinuteRef.current) return;
     lastMinuteRef.current = currentMinute;
 
-    await new Promise(resolve => setTimeout(resolve, 3000));
-
-    const latestPendingSignal = pendingSignalRef.current;
-
-    if (latestPendingSignal && !state.currentPosition) {
-      const { symbol, direction, confirmCount, indicators } = latestPendingSignal;
-
-      try {
-        const klines = await fetch1mKlines(symbol, 5);
-        if (!klines || klines.length < 3) return;
-
-        const completedCandle = klines[klines.length - 2];
-        const bodyMove = completedCandle.close - completedCandle.open;
-
-        // 방향 확인
-        const isBullish = bodyMove > 0;
-        const isBearish = bodyMove < 0;
-
-        const expectedDirection = direction === 'long' ? isBullish : isBearish;
-
-        if (expectedDirection) {
-          // 방향 맞음 - 진입
-          await executeEntry(symbol, direction, completedCandle.close, indicators);
-        } else if (confirmCount < 2) {
-          // 방향 안 맞음 - 추가 대기
-          setState(prev => ({
-            ...prev,
-            pendingSignal: prev.pendingSignal
-              ? { ...prev.pendingSignal, confirmCount: confirmCount + 1 }
-              : null,
-            statusMessage: `⏳ ${symbol.replace('USDT', '')} 확인 대기 (${confirmCount + 1}/2)`,
-          }));
-        } else {
-          // 최대 대기 초과 - 취소
-          setState(prev => ({
-            ...prev,
-            pendingSignal: null,
-            statusMessage: '🔍 기술적 분석 기반 스캔 중...',
-          }));
-          addLog({
-            symbol,
-            action: 'cancel',
-            side: direction,
-            price: completedCandle.close,
-            quantity: 0,
-            reason: '확인 실패 - 시그널 취소',
-          });
-          toast.info(`❌ ${symbol} 시그널 취소`);
-        }
-      } catch (error) {
-        console.error('Candle check error:', error);
-      }
-    }
-  }, [state.isEnabled, state.currentPosition, executeEntry, addLog]);
+    // 진입은 handleSignal에서 즉시 처리되므로 여기서는 별도 로직 없음
+  }, [state.isEnabled]);
 
   // 포지션 동기화
   useEffect(() => {
