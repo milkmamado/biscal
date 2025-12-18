@@ -603,17 +603,20 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete 
       const { symbol, touchType } = state.pendingSignal;
       
       try {
-        const klines = await fetch1mKlines(symbol, 4);
-        if (!klines || klines.length < 3) return;
+        const klines = await fetch1mKlines(symbol, 7);
+        if (!klines || klines.length < 6) return;
         
         // 직전 완성된 봉 (시그널 발생 후 완성된 봉)
         const completedCandle = klines[klines.length - 2];
-        // 그 전 봉 (기준 봉)
-        const prevCandle = klines[klines.length - 3];
         
-        // 전봉 몸통 크기의 20%를 임계값으로 사용
-        const prevBodySize = Math.abs(prevCandle.close - prevCandle.open);
-        const threshold = prevBodySize * 0.2;
+        // 최근 5봉의 평균 몸통 크기를 기준으로 사용 (단봉 방지)
+        const recentCandles = klines.slice(-7, -2); // 완성된 봉 제외, 그 이전 5봉
+        const avgBodySize = recentCandles.reduce((sum, k) => sum + Math.abs(k.close - k.open), 0) / recentCandles.length;
+        
+        // 최소 기준값 설정 (가격의 0.05% 이상)
+        const minThreshold = completedCandle.close * 0.0005;
+        const referenceBodySize = Math.max(avgBodySize, minThreshold);
+        const threshold = referenceBodySize * 0.2;
         
         // 완성된 봉의 몸통 크기
         const bodyMove = completedCandle.close - completedCandle.open;
@@ -628,13 +631,13 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete 
         // 하단 터치 → 양봉 확인 → 롱 진입
         if (touchType === 'upper' && isBearish) {
           // 숏 진입 (기준 봉 크기 전달)
-          await executeEntry(symbol, 'short', completedCandle.close, completedCandle, prevBodySize);
+          await executeEntry(symbol, 'short', completedCandle.close, completedCandle, referenceBodySize);
         } else if (touchType === 'lower' && isBullish) {
           // 롱 진입 (기준 봉 크기 전달)
-          await executeEntry(symbol, 'long', completedCandle.close, completedCandle, prevBodySize);
+          await executeEntry(symbol, 'long', completedCandle.close, completedCandle, referenceBodySize);
         } else {
           // 조건 불충족 - 시그널 취소
-          const movePercent = prevBodySize > 0 ? (Math.abs(bodyMove) / prevBodySize * 100).toFixed(0) : '0';
+          const movePercent = referenceBodySize > 0 ? (Math.abs(bodyMove) / referenceBodySize * 100).toFixed(0) : '0';
           setState(prev => ({ ...prev, pendingSignal: null, statusMessage: '🔍 BB 시그널 종목 검색 중...' }));
           addLog({
             symbol,
