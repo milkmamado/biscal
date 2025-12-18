@@ -702,13 +702,24 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
         // 1) 20% 임계값 미만이거나
         // 2) 절대 몸통 퍼센트가 너무 작으면(저변동 코인에서 '살짝 양봉' 오판 방지)
         const MIN_CONFIRM_BODY_PCT = 0.3; // 0.3% 미만은 방향성 애매로 간주
-        const isAmbiguousCandle = bodySize < threshold || bodyMovePct < MIN_CONFIRM_BODY_PCT;
-
-        // 임계값 이상 + 최소 퍼센트도 만족해야 유효한 양봉/음봉으로 판단
-        const isBullish = !isAmbiguousCandle && bodyMove >= threshold;
-        const isBearish = !isAmbiguousCandle && bodyMove <= -threshold;
+        const isSmallCandle = bodySize < threshold || bodyMovePct < MIN_CONFIRM_BODY_PCT;
         
+        // 방향 판단 (크기 작아도 방향은 알 수 있음)
+        const isDirectionBullish = bodyMove > 0;
+        const isDirectionBearish = bodyMove < 0;
+        
+        // 유효한 확인 캔들: 크기도 충분하고 방향도 맞아야 함
+        const isBullish = !isSmallCandle && isDirectionBullish;
+        const isBearish = !isSmallCandle && isDirectionBearish;
+        
+        // 방향이 반대면 크기 작아도 즉시 취소 (대기 X)
         const expectedSide = touchType === 'upper' ? 'short' : 'long';
+        const isWrongDirection = (touchType === 'upper' && isDirectionBullish) || 
+                                  (touchType === 'lower' && isDirectionBearish);
+        
+        // 진짜 도지: 방향도 애매한 경우 (몸통이 거의 없음)
+        const DOJI_THRESHOLD = 0.05; // 0.05% 미만이면 진짜 도지
+        const isTrueDoji = bodyMovePct < DOJI_THRESHOLD;
         
         // 상단 터치 → 음봉 확인 → 숏 진입
         // 하단 터치 → 양봉 확인 → 롱 진입
@@ -718,7 +729,22 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
         } else if (touchType === 'lower' && isBullish) {
           // 롱 진입 (기준 봉 크기 전달)
           await executeEntry(symbol, 'long', completedCandle.close, completedCandle, referenceBodySize);
-        } else if (isAmbiguousCandle && waitCount < MAX_WAIT_COUNT) {
+        } else if (isWrongDirection && !isTrueDoji) {
+          // 방향이 반대면 크기 작아도 즉시 취소! (AVAX 버그 수정)
+          setState(prev => ({ ...prev, pendingSignal: null, statusMessage: '🔍 BB 시그널 종목 검색 중...' }));
+          const actualCandle = isDirectionBullish ? '🟢양봉' : '🔴음봉';
+          const expectedCandle = touchType === 'upper' ? '🔴음봉' : '🟢양봉';
+          addLog({
+            symbol,
+            action: 'cancel',
+            side: expectedSide,
+            price: completedCandle.close,
+            quantity: 0,
+            reason: `${actualCandle} 출현 - 방향 불일치 (기대: ${expectedCandle})`,
+          });
+          toast.warning(`❌ ${symbol} 시그널 취소 - 반대 방향 캔들`);
+        } else if (isTrueDoji && waitCount < MAX_WAIT_COUNT) {
+          // 진짜 도지(방향 불명확)만 추가 대기
           // 도지/망치 등 애매한 캔들 → 추가 대기
           setState(prev => ({
             ...prev,
@@ -740,7 +766,7 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
           setState(prev => ({ ...prev, pendingSignal: null, statusMessage: '🔍 BB 시그널 종목 검색 중...' }));
           
           // 직관적인 취소 사유 생성
-          const actualCandle = isAmbiguousCandle ? '➖도지/망치' : (bodyMove > 0 ? '🟢양봉' : '🔴음봉');
+          const actualCandle = isTrueDoji ? '➖도지' : (bodyMove > 0 ? '🟢양봉' : '🔴음봉');
           const expectedCandle = touchType === 'upper' ? '🔴음봉' : '🟢양봉';
           const cancelReason = waitCount >= MAX_WAIT_COUNT 
             ? `${MAX_WAIT_COUNT}회 대기 후에도 방향 불명확`
