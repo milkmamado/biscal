@@ -308,7 +308,53 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete 
       
       // 시장가 주문
       const orderSide = side === 'long' ? 'BUY' : 'SELL';
-      const orderResult = await placeMarketOrder(symbol, orderSide, quantity, false, currentPrice);
+      let orderResult;
+      try {
+        orderResult = await placeMarketOrder(symbol, orderSide, quantity, false, currentPrice);
+      } catch (orderError: any) {
+        // 주문 실패 시에도 실제 포지션 확인 (이미 체결됐을 수 있음)
+        console.log('Order error, checking actual position...', orderError);
+        const positions = await getPositions(symbol);
+        const actualPosition = positions?.find((p: any) => 
+          p.symbol === symbol && Math.abs(parseFloat(p.positionAmt)) > 0
+        );
+        
+        if (actualPosition) {
+          // 실제로 체결됨 - 포지션 저장
+          const actualQty = Math.abs(parseFloat(actualPosition.positionAmt));
+          const actualEntryPrice = parseFloat(actualPosition.entryPrice);
+          
+          lastEntryTimeRef.current = Date.now();
+          setState(prev => ({
+            ...prev,
+            pendingSignal: null,
+            currentPosition: {
+              symbol,
+              side,
+              entryPrice: actualEntryPrice,
+              quantity: actualQty,
+              entryTime: Date.now(),
+              entryCandle,
+            },
+            currentSymbol: symbol,
+            tpPercent: dynamicTpPercent,
+          }));
+          
+          addLog({
+            symbol,
+            action: 'entry',
+            side,
+            price: actualEntryPrice,
+            quantity: actualQty,
+            reason: `확인 진입 (TP ${dynamicTpPercent.toFixed(2)}%)`,
+          });
+          
+          toast.success(`🤖 ${side === 'long' ? '롱' : '숏'} 진입 | ${symbol} @ $${actualEntryPrice.toFixed(2)}`);
+          return;
+        }
+        
+        throw orderError;
+      }
       
       if (!orderResult || orderResult.error) {
         throw new Error(orderResult?.error || '주문 실패');
@@ -318,6 +364,45 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete 
       const avgPrice = parseFloat(orderResult.avgPrice || orderResult.price || currentPrice);
       
       if (executedQty <= 0) {
+        // 체결 수량 0이어도 실제 포지션 확인
+        const positions = await getPositions(symbol);
+        const actualPosition = positions?.find((p: any) => 
+          p.symbol === symbol && Math.abs(parseFloat(p.positionAmt)) > 0
+        );
+        
+        if (actualPosition) {
+          const actualQty = Math.abs(parseFloat(actualPosition.positionAmt));
+          const actualEntryPrice = parseFloat(actualPosition.entryPrice);
+          
+          lastEntryTimeRef.current = Date.now();
+          setState(prev => ({
+            ...prev,
+            pendingSignal: null,
+            currentPosition: {
+              symbol,
+              side,
+              entryPrice: actualEntryPrice,
+              quantity: actualQty,
+              entryTime: Date.now(),
+              entryCandle,
+            },
+            currentSymbol: symbol,
+            tpPercent: dynamicTpPercent,
+          }));
+          
+          addLog({
+            symbol,
+            action: 'entry',
+            side,
+            price: actualEntryPrice,
+            quantity: actualQty,
+            reason: `확인 진입 (TP ${dynamicTpPercent.toFixed(2)}%)`,
+          });
+          
+          toast.success(`🤖 ${side === 'long' ? '롱' : '숏'} 진입 | ${symbol} @ $${actualEntryPrice.toFixed(2)}`);
+          return;
+        }
+        
         throw new Error('주문 체결 수량 0');
       }
       
@@ -367,7 +452,7 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete 
       processingRef.current = false;
       setState(prev => ({ ...prev, isProcessing: false }));
     }
-  }, [balanceUSD, leverage, placeMarketOrder, setLeverage, addLog]);
+  }, [balanceUSD, leverage, placeMarketOrder, setLeverage, getPositions, addLog]);
   
   // 포지션 청산
   const closePosition = useCallback(async (reason: 'tp' | 'sl' | 'exit', currentPrice: number) => {
