@@ -698,19 +698,25 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
         const bodySize = Math.abs(bodyMove);
         const bodyMovePct = (bodySize / (completedCandle.open || completedCandle.close || 1)) * 100;
         
+        // 진짜 도지: 몸통이 거의 없음 (패턴 판단/대기 로직에서 최우선)
+        const DOJI_THRESHOLD = 0.05; // 0.05% 미만이면 진짜 도지
+        const isTrueDoji = bodyMovePct < DOJI_THRESHOLD;
+        
         // 꼬리(wick) 계산
         const upperWick = completedCandle.high - Math.max(completedCandle.open, completedCandle.close);
         const lowerWick = Math.min(completedCandle.open, completedCandle.close) - completedCandle.low;
         
-        // 망치/역망치 패턴 판단 (꼬리가 몸통의 2배 이상)
+        // 망치/역망치 패턴 판단 (진짜 도지는 패턴 판단에서 제외)
         const WICK_RATIO = 2;
-        const isHammer = lowerWick >= bodySize * WICK_RATIO && upperWick < bodySize; // 긴 아래꼬리
-        const isInvertedHammer = upperWick >= bodySize * WICK_RATIO && lowerWick < bodySize; // 긴 위꼬리
+        const isHammerRaw = lowerWick >= bodySize * WICK_RATIO && upperWick < bodySize; // 긴 아래꼬리
+        const isInvertedHammerRaw = upperWick >= bodySize * WICK_RATIO && lowerWick < bodySize; // 긴 위꼬리
+        const isHammer = !isTrueDoji && isHammerRaw;
+        const isInvertedHammer = !isTrueDoji && isInvertedHammerRaw;
 
-        // 도지/망치 판단:
+        // 작은 캔들 판단:
         // 1) 20% 임계값 미만이거나
         // 2) 절대 몸통 퍼센트가 너무 작으면(저변동 코인에서 '살짝 양봉' 오판 방지)
-        const MIN_CONFIRM_BODY_PCT = 0.3; // 0.3% 미만은 방향성 애매로 간주
+        const MIN_CONFIRM_BODY_PCT = 0.3; // 0.3% 미만은 크기 부족으로 간주
         const isSmallCandle = bodySize < threshold || bodyMovePct < MIN_CONFIRM_BODY_PCT;
         
         // 방향 판단 (크기 작아도 방향은 알 수 있음)
@@ -725,11 +731,7 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
         const expectedSide = touchType === 'upper' ? 'short' : 'long';
         const isWrongDirection = (touchType === 'upper' && isDirectionBullish) || 
                                   (touchType === 'lower' && isDirectionBearish);
-        
-        // 진짜 도지: 방향도 애매한 경우 (몸통이 거의 없음)
-        const DOJI_THRESHOLD = 0.05; // 0.05% 미만이면 진짜 도지
-        const isTrueDoji = bodyMovePct < DOJI_THRESHOLD;
-        
+
         // 🔥 망치/역망치 패턴에 따른 진입 판단
         // 롱: 망치(긴 아래꼬리) = 긍정적 / 역망치(긴 위꼬리) = 부정적
         // 숏: 역망치(긴 위꼬리, shooting star) = 긍정적 / 망치 = 부정적
@@ -738,7 +740,10 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
         
         const isGoodPattern = (touchType === 'lower' && isHammer) || // 롱에서 망치 = 매수 방어
                               (touchType === 'upper' && isInvertedHammer); // 숏에서 역망치 = 매도 압력
-        
+
+        console.log(
+          `[${symbol}] confirm flags: expected=${expectedSide} bodyPct=${bodyMovePct.toFixed(2)}% small=${isSmallCandle} doji=${isTrueDoji} hammer=${isHammer} invHammer=${isInvertedHammer} wrongDir=${isWrongDirection} wait=${waitCount}`
+        );
         // 상단 터치 → 음봉 확인 → 숏 진입
         // 하단 터치 → 양봉 확인 → 롱 진입
         if (touchType === 'upper' && isBearish) {
