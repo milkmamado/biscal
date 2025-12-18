@@ -147,6 +147,7 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
   const { user } = useAuth();
   const { 
     placeMarketOrder, 
+    placeLimitOrder,
     getPositions,
     cancelAllOrders,
     setLeverage,
@@ -1050,6 +1051,60 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
     toast.info(`⏭️ ${symbol} 패스됨`);
   }, [state.pendingSignal, addLog]);
   
+  // 본절 청산 (진입가에 지정가 주문)
+  const breakEvenClose = useCallback(async () => {
+    if (!state.currentPosition) return;
+    if (processingRef.current) return;
+    
+    processingRef.current = true;
+    setState(prev => ({ ...prev, isProcessing: true }));
+    
+    const position = state.currentPosition;
+    
+    try {
+      // 실제 포지션 확인
+      const positions = await getPositions(position.symbol);
+      const actualPosition = positions?.find((p: any) => 
+        p.symbol === position.symbol && Math.abs(parseFloat(p.positionAmt)) > 0
+      );
+      
+      if (!actualPosition) {
+        setState(prev => ({ ...prev, currentPosition: null, currentSymbol: null, statusMessage: '🔍 강화 시그널 검색 중...' }));
+        toast.error('실제 포지션이 없습니다');
+        return;
+      }
+      
+      const actualQty = Math.abs(parseFloat(actualPosition.positionAmt));
+      const entryPrice = parseFloat(actualPosition.entryPrice);
+      
+      // 본절 지정가 주문
+      const orderSide = position.side === 'long' ? 'SELL' : 'BUY';
+      const result = await placeLimitOrder(position.symbol, orderSide, actualQty, entryPrice, true);
+      
+      if (!result || result.error) {
+        throw new Error(result?.error || '본절 주문 실패');
+      }
+      
+      addLog({
+        symbol: position.symbol,
+        action: 'pending',
+        side: position.side,
+        price: entryPrice,
+        quantity: actualQty,
+        reason: `📍 본절 주문 등록 @ $${entryPrice.toFixed(4)}`,
+      });
+      
+      toast.success(`📍 ${position.symbol} 본절 주문 등록 @ $${entryPrice.toFixed(4)}`);
+      
+    } catch (error: any) {
+      console.error('Break-even order error:', error);
+      toast.error(`본절 주문 실패: ${error.message || '오류'}`);
+    } finally {
+      processingRef.current = false;
+      setState(prev => ({ ...prev, isProcessing: false }));
+    }
+  }, [state.currentPosition, getPositions, placeLimitOrder, addLog]);
+  
   return {
     state,
     toggleAutoTrading,
@@ -1057,6 +1112,7 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
     closePosition,
     checkTpSl,
     skipSignal,
+    breakEvenClose,
     updatePrice: useCallback(() => {}, []), // 더 이상 사용 안 함
   };
 }

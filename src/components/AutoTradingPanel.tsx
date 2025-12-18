@@ -47,6 +47,7 @@ interface AutoTradingPanelProps {
   onToggle: () => void;
   onManualClose?: () => void;
   onSkipSignal?: () => void;
+  onBreakEvenClose?: () => void;
   currentPrice?: number;
   krwRate: number;
   leverage: number;
@@ -61,6 +62,7 @@ const AutoTradingPanel = ({
   onToggle, 
   onManualClose,
   onSkipSignal,
+  onBreakEvenClose,
   currentPrice = 0,
   krwRate,
   leverage,
@@ -410,17 +412,30 @@ const AutoTradingPanel = ({
             <span>수량: {currentPosition.quantity.toFixed(4)}</span>
             <span>SL: 봉기준</span>
           </div>
-          {onManualClose && (
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={onManualClose}
-              className="w-full mt-2 h-7 text-xs"
-              disabled={isProcessing}
-            >
-              수동 청산
-            </Button>
-          )}
+          <div className="flex gap-2 mt-2">
+            {onBreakEvenClose && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onBreakEvenClose}
+                className="flex-1 h-7 text-xs border-yellow-500/50 text-yellow-500 hover:bg-yellow-500/20"
+                disabled={isProcessing}
+              >
+                본절
+              </Button>
+            )}
+            {onManualClose && (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={onManualClose}
+                className="flex-1 h-7 text-xs"
+                disabled={isProcessing}
+              >
+                청산
+              </Button>
+            )}
+          </div>
         </div>
       )}
       
