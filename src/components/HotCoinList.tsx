@@ -3,15 +3,13 @@ import { formatPrice } from '@/lib/binance';
 import { useTickerWebSocket } from '@/hooks/useTickerWebSocket';
 import { useBollingerSignals, BBSignal } from '@/hooks/useBollingerSignals';
 import { cn } from '@/lib/utils';
-import { RefreshCw, TrendingUp, TrendingDown, Search, Wifi, WifiOff, Activity, Star, X, LogOut, StopCircle } from 'lucide-react';
+import { RefreshCw, TrendingUp, TrendingDown, Search, Wifi, WifiOff, Activity, Star, X, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface HotCoinListProps {
   onSelectSymbol: (symbol: string) => void;
   selectedSymbol: string;
-  onEndTrading?: () => void;
   onSignOut?: () => void;
-  tradingEndedUntil?: number | null;
 }
 
 interface WatchlistItem {
@@ -23,7 +21,7 @@ interface WatchlistItem {
 
 const WATCHLIST_KEY = 'bb_watchlist';
 
-const HotCoinList = ({ onSelectSymbol, selectedSymbol, onEndTrading, onSignOut, tradingEndedUntil }: HotCoinListProps) => {
+const HotCoinList = ({ onSelectSymbol, selectedSymbol, onSignOut }: HotCoinListProps) => {
   const { tickers, isConnected } = useTickerWebSocket();
   const [searchQuery, setSearchQuery] = useState('');
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
@@ -260,32 +258,18 @@ const HotCoinList = ({ onSelectSymbol, selectedSymbol, onEndTrading, onSignOut, 
       {/* Trading Session Indicator */}
       <TradingSessionIndicator />
       
-      {/* End Trading & Logout Buttons */}
-      {(onEndTrading || onSignOut) && (
-        <div className="mx-2 mb-2 flex gap-2">
-          {onEndTrading && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onEndTrading}
-              className="flex-1 text-red-400 hover:text-red-300 hover:bg-red-500/10 border border-red-500/30 text-[10px] h-7"
-              disabled={tradingEndedUntil !== null && tradingEndedUntil !== undefined && tradingEndedUntil > Date.now()}
-            >
-              <StopCircle className="h-3 w-3 mr-1" />
-              {tradingEndedUntil && tradingEndedUntil > Date.now() ? '매매종료됨' : '매매종료'}
-            </Button>
-          )}
-          {onSignOut && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onSignOut}
-              className="flex-1 text-muted-foreground hover:text-foreground border border-border text-[10px] h-7"
-            >
-              <LogOut className="h-3 w-3 mr-1" />
-              로그아웃
-            </Button>
-          )}
+      {/* Logout Button */}
+      {onSignOut && (
+        <div className="mx-2 mb-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onSignOut}
+            className="w-full text-muted-foreground hover:text-foreground border border-border text-[10px] h-7"
+          >
+            <LogOut className="h-3 w-3 mr-1" />
+            로그아웃
+          </Button>
         </div>
       )}
     </div>
