@@ -273,8 +273,8 @@ const Index = () => {
     <div className="min-h-screen bg-background p-2">
       <div className="max-w-[1920px] mx-auto">
         <div className="grid grid-cols-12 gap-2 items-stretch">
-          {/* Left - Auto Trading Panel */}
-          <div className="col-span-12 lg:col-span-4 xl:col-span-3 flex">
+          {/* Left - Auto Trading Panel (더 넓게) */}
+          <div className="col-span-12 lg:col-span-5 xl:col-span-4 flex">
             <AutoTradingPanel
               state={autoTrading.state}
               onToggle={autoTrading.toggleAutoTrading}
@@ -293,8 +293,8 @@ const Index = () => {
             />
           </div>
 
-          {/* Center - Chart */}
-          <div className="col-span-12 lg:col-span-8 xl:col-span-9">
+          {/* Center - Chart (더 작게) */}
+          <div className="col-span-12 lg:col-span-7 xl:col-span-8">
             <DualChartPanel 
               symbol={selectedSymbol} 
               hasPosition={!!autoTrading.state.currentPosition}
