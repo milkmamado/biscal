@@ -1,10 +1,40 @@
 import { useState, useEffect, useMemo } from 'react';
 import { cn } from '@/lib/utils';
-import { Bot, TrendingUp, TrendingDown, Activity, Clock, AlertTriangle } from 'lucide-react';
+import { Bot, TrendingUp, TrendingDown, Activity, Clock, AlertTriangle, Star } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { AutoTradingState, AutoTradeLog } from '@/hooks/useAutoTrading';
 import { formatPrice } from '@/lib/binance';
+
+// 스캘핑 시간대 적합도 데이터
+const getScalpingRating = () => {
+  const now = new Date();
+  const koreaOffset = 9 * 60;
+  const utcOffset = now.getTimezoneOffset();
+  const koreaTime = new Date(now.getTime() + (koreaOffset + utcOffset) * 60 * 1000);
+  const hour = koreaTime.getHours();
+  
+  // 시간대별 적합도 (한국시간 기준)
+  if (hour >= 4 && hour < 8) {
+    return { stars: 0, label: '데드존', color: 'text-gray-500', volume: '최저', volatility: '최저' };
+  } else if (hour >= 8 && hour < 9) {
+    return { stars: 1, label: '준비중', color: 'text-gray-400', volume: '낮음', volatility: '낮음' };
+  } else if (hour >= 9 && hour < 11) {
+    return { stars: 3, label: '아시아장', color: 'text-yellow-500', volume: '보통', volatility: '보통' };
+  } else if (hour >= 11 && hour < 16) {
+    return { stars: 2, label: '점심휴식', color: 'text-orange-400', volume: '낮음', volatility: '낮음' };
+  } else if (hour >= 16 && hour < 18) {
+    return { stars: 3, label: '유럽준비', color: 'text-yellow-500', volume: '보통', volatility: '상승' };
+  } else if (hour >= 18 && hour < 21) {
+    return { stars: 4, label: '유럽장', color: 'text-green-400', volume: '높음', volatility: '높음' };
+  } else if (hour >= 21 && hour < 24) {
+    return { stars: 5, label: '골든타임', color: 'text-green-500', volume: '최고', volatility: '최고' };
+  } else if (hour >= 0 && hour < 2) {
+    return { stars: 4, label: '미국장', color: 'text-green-400', volume: '높음', volatility: '높음' };
+  } else {
+    return { stars: 1, label: '마감', color: 'text-gray-400', volume: '낮음', volatility: '하락' };
+  }
+};
 
 const LEVERAGE_OPTIONS = [1, 5, 10];
 
@@ -256,6 +286,9 @@ const AutoTradingPanel = ({
         </div>
       </div>
       
+      {/* Scalping Suitability Indicator */}
+      <ScalpingIndicator />
+      
       {/* Status Message */}
       <div className={cn(
         "mx-3 mb-3 px-3 py-2 rounded-md text-xs font-medium text-center",
@@ -276,6 +309,46 @@ const AutoTradingPanel = ({
           </div>
         </div>
       )}
+    </div>
+  );
+};
+
+// Scalping Indicator
+const ScalpingIndicator = () => {
+  const [rating, setRating] = useState(getScalpingRating());
+  
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setRating(getScalpingRating());
+    }, 60000); // 1분마다 업데이트
+    return () => clearInterval(interval);
+  }, []);
+  
+  return (
+    <div className="mx-3 px-3 py-2 bg-secondary/30 rounded-md border border-border/50">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] text-muted-foreground">스캘핑 적합도</span>
+          <span className={cn("text-[10px] font-semibold", rating.color)}>
+            {rating.label}
+          </span>
+        </div>
+        <div className="flex items-center gap-0.5">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <Star
+              key={i}
+              className={cn(
+                "w-3 h-3",
+                i <= rating.stars ? "text-yellow-500 fill-yellow-500" : "text-gray-600"
+              )}
+            />
+          ))}
+        </div>
+      </div>
+      <div className="flex items-center gap-3 mt-1 text-[9px] text-muted-foreground">
+        <span>거래량: <span className={rating.color}>{rating.volume}</span></span>
+        <span>변동성: <span className={rating.color}>{rating.volatility}</span></span>
+      </div>
     </div>
   );
 };
