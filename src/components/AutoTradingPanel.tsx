@@ -16,6 +16,7 @@ interface AutoTradingPanelProps {
   krwRate: number;
   leverage: number;
   onLeverageChange: (leverage: number) => void;
+  onSelectSymbol?: (symbol: string) => void;
 }
 
 const AutoTradingPanel = ({ 
@@ -26,6 +27,7 @@ const AutoTradingPanel = ({
   krwRate,
   leverage,
   onLeverageChange,
+  onSelectSymbol,
 }: AutoTradingPanelProps) => {
   const { isEnabled, isProcessing, currentPosition, pendingSignal, todayStats, tradeLogs, cooldownUntil } = state;
   
@@ -243,7 +245,12 @@ const AutoTradingPanel = ({
             </div>
           ) : (
             tradeLogs.slice(0, 50).map((log) => (
-              <TradeLogItem key={log.id} log={log} krwRate={krwRate} />
+              <TradeLogItem 
+                key={log.id} 
+                log={log} 
+                krwRate={krwRate} 
+                onSelectSymbol={onSelectSymbol}
+              />
             ))
           )}
         </div>
@@ -263,7 +270,11 @@ const AutoTradingPanel = ({
 };
 
 // Trade Log Item
-const TradeLogItem = ({ log, krwRate }: { log: AutoTradeLog; krwRate: number }) => {
+const TradeLogItem = ({ log, krwRate, onSelectSymbol }: { 
+  log: AutoTradeLog; 
+  krwRate: number;
+  onSelectSymbol?: (symbol: string) => void;
+}) => {
   const formatTime = (timestamp: number) => {
     const date = new Date(timestamp);
     return date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -320,17 +331,20 @@ const TradeLogItem = ({ log, krwRate }: { log: AutoTradeLog; krwRate: number }) 
   const showReason = ['cancel', 'error', 'pending'].includes(log.action);
   
   return (
-    <div className={cn(
-      "px-2 py-1.5 rounded text-[10px]",
-      log.action === 'error' ? "bg-red-500/10" : 
-      log.action === 'cancel' ? "bg-yellow-500/10" :
-      log.action === 'pending' ? "bg-blue-500/10" :
-      "bg-secondary/50"
-    )}>
+    <div 
+      onClick={() => onSelectSymbol?.(log.symbol)}
+      className={cn(
+        "px-2 py-1.5 rounded text-[10px] cursor-pointer hover:ring-1 hover:ring-primary/50 transition-all",
+        log.action === 'error' ? "bg-red-500/10" : 
+        log.action === 'cancel' ? "bg-yellow-500/10" :
+        log.action === 'pending' ? "bg-blue-500/10" :
+        "bg-secondary/50"
+      )}
+    >
       <div className="flex items-center gap-2">
         <span>{getActionIcon()}</span>
         <span className="text-muted-foreground">{formatTime(log.timestamp)}</span>
-        <span className="font-semibold">{log.symbol.replace('USDT', '')}</span>
+        <span className="font-semibold text-primary">{log.symbol.replace('USDT', '')}</span>
         <span>{getActionText()}</span>
         {log.pnl !== undefined && (
           <span className={cn(

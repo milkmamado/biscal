@@ -214,6 +214,7 @@ const Index = () => {
               krwRate={krwRate}
               leverage={leverage}
               onLeverageChange={setLeverage}
+              onSelectSymbol={setSelectedSymbol}
             />
           </div>
 
