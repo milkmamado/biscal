@@ -789,35 +789,42 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
             reason: `${actualCandle} 출현 - 방향 불일치 (기대: ${expectedCandle})`,
           });
           toast.warning(`❌ ${symbol} 시그널 취소 - 반대 방향 캔들`);
-        } else if (isTrueDoji && waitCount < MAX_WAIT_COUNT) {
-          // 진짜 도지(방향 불명확)만 추가 대기
-          // 도지/망치 등 애매한 캔들 → 추가 대기
+        } else if (isSmallCandle && !isWrongDirection && waitCount < MAX_WAIT_COUNT) {
+          // 🔧 DOT 버그 수정: 방향 맞지만 작은 캔들 → 대기 (취소 X)
           setState(prev => ({
             ...prev,
             pendingSignal: prev.pendingSignal ? { ...prev.pendingSignal, waitCount: waitCount + 1 } : null,
-            statusMessage: `⏳ ${symbol.replace('USDT', '')} 도지/망치 감지 - ${waitCount + 2}번째 봉 대기 중...`,
+            statusMessage: `⏳ ${symbol.replace('USDT', '')} 작은 ${isDirectionBullish ? '양봉' : '음봉'} - 다음 봉 확인 중...`,
           }));
-          
           addLog({
             symbol,
             action: 'pending',
             side: expectedSide,
             price: completedCandle.close,
             quantity: 0,
-            reason: `도지/망치 감지 - 추가 대기 (${waitCount + 1}/${MAX_WAIT_COUNT})`,
+            reason: `작은 ${isDirectionBullish ? '양봉' : '음봉'} - 방향 맞음, 크기 확인 대기 (${waitCount + 1}/${MAX_WAIT_COUNT})`,
           });
-          toast.info(`⏳ ${symbol} 도지/망치 → ${waitCount + 2}번째 봉 대기`);
+          toast.info(`⏳ ${symbol} 작은 캔들 → 다음 봉 대기`);
+        } else if (isTrueDoji && waitCount < MAX_WAIT_COUNT) {
+          // 진짜 도지(방향 불명확)만 추가 대기
+          setState(prev => ({
+            ...prev,
+            pendingSignal: prev.pendingSignal ? { ...prev.pendingSignal, waitCount: waitCount + 1 } : null,
+            statusMessage: `⏳ ${symbol.replace('USDT', '')} 도지 감지 - ${waitCount + 2}번째 봉 대기 중...`,
+          }));
+          addLog({
+            symbol,
+            action: 'pending',
+            side: expectedSide,
+            price: completedCandle.close,
+            quantity: 0,
+            reason: `도지 감지 - 추가 대기 (${waitCount + 1}/${MAX_WAIT_COUNT})`,
+          });
+          toast.info(`⏳ ${symbol} 도지 → ${waitCount + 2}번째 봉 대기`);
         } else {
-          // 조건 불충족 또는 최대 대기 초과 - 시그널 취소
+          // 최대 대기 초과 - 시그널 취소
           setState(prev => ({ ...prev, pendingSignal: null, statusMessage: '🔍 BB 시그널 종목 검색 중...' }));
-          
-          // 직관적인 취소 사유 생성
-          const actualCandle = isTrueDoji ? '➖도지' : (bodyMove > 0 ? '🟢양봉' : '🔴음봉');
-          const expectedCandle = touchType === 'upper' ? '🔴음봉' : '🟢양봉';
-          const cancelReason = waitCount >= MAX_WAIT_COUNT 
-            ? `${MAX_WAIT_COUNT}회 대기 후에도 방향 불명확`
-            : `${actualCandle} 출현 (기대: ${expectedCandle})`;
-          
+          const cancelReason = `${MAX_WAIT_COUNT}회 대기 후에도 확인 안됨`;
           addLog({
             symbol,
             action: 'cancel',
