@@ -88,6 +88,7 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate }: UseAutoTrading
     placeMarketOrder, 
     getPositions,
     cancelAllOrders,
+    setLeverage,
   } = useBinanceApi();
   
   const [state, setState] = useState<AutoTradingState>({
@@ -205,19 +206,49 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate }: UseAutoTrading
       const side: 'long' | 'short' = touchType === 'upper' ? 'short' : 'long';
       const orderSide = side === 'long' ? 'BUY' : 'SELL';
       
+      // 레버리지 설정 (주문 전 필수)
+      try {
+        await setLeverage(symbol, leverage);
+      } catch (levError: any) {
+        // -4028: 레버리지 설정 불가 (포지션 존재 등)
+        // -4046: 이미 설정된 레버리지와 동일
+        if (!levError.message?.includes('-4046') && !levError.message?.includes('already')) {
+          console.warn('레버리지 설정 실패:', levError.message);
+        }
+      }
+      
       // 시장가 주문 실행
-      await placeMarketOrder(symbol, orderSide, quantity, false, currentPrice);
+      const orderResult = await placeMarketOrder(symbol, orderSide, quantity, false, currentPrice);
+      
+      // 주문 결과 검증
+      if (!orderResult || orderResult.error) {
+        throw new Error(orderResult?.error || '주문 실패');
+      }
+      
+      // 실제 포지션 확인
+      await new Promise(resolve => setTimeout(resolve, 500)); // 바이낸스 반영 대기
+      const positions = await getPositions(symbol);
+      const actualPosition = positions?.find((p: any) => 
+        p.symbol === symbol && Math.abs(parseFloat(p.positionAmt)) > 0
+      );
+      
+      if (!actualPosition) {
+        throw new Error('포지션 생성 확인 실패');
+      }
+      
+      const actualQty = Math.abs(parseFloat(actualPosition.positionAmt));
+      const actualEntryPrice = parseFloat(actualPosition.entryPrice);
       
       lastEntryTimeRef.current = Date.now();
       
-      // 포지션 저장
+      // 실제 포지션 정보로 저장
       setState(prev => ({
         ...prev,
         currentPosition: {
           symbol,
           side,
-          entryPrice: currentPrice,
-          quantity,
+          entryPrice: actualEntryPrice,
+          quantity: actualQty,
           entryTime: Date.now(),
         },
         currentSymbol: symbol,
@@ -227,12 +258,12 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate }: UseAutoTrading
         symbol,
         action: 'entry',
         side,
-        price: currentPrice,
-        quantity,
+        price: actualEntryPrice,
+        quantity: actualQty,
         reason: `BB ${touchType === 'upper' ? '상단' : '하단'} 터치 (TP: ${tpPercent.toFixed(2)}%, SL: ${slPercent.toFixed(2)}%)`,
       });
       
-      toast.success(`🤖 ${side === 'long' ? '롱' : '숏'} 진입 | ${symbol} @ $${currentPrice.toFixed(2)}`);
+      toast.success(`🤖 ${side === 'long' ? '롱' : '숏'} 진입 | ${symbol} @ $${actualEntryPrice.toFixed(2)}`);
       
       // TP/SL 저장 (state에)
       setState(prev => ({
