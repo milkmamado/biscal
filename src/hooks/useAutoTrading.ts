@@ -786,7 +786,7 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
     }
   }, [state.isEnabled, state.pendingSignal, state.currentPosition, executeEntry, closePosition, addLog]);
   
-  // 실시간 TP 체크 (손절은 봉 기준으로만 판단)
+  // 실시간 TP/긴급SL 체크
   const checkTpSl = useCallback((currentPrice: number, tpPercent: number, _slPercent: number) => {
     if (!state.currentPosition || !state.isEnabled) return;
     
@@ -801,8 +801,15 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
       return;
     }
     
-    // 손절은 봉 기준으로만 판단 (checkCandleCompletion에서 처리)
-    // 실시간 손절 제거 - 너무 민감해서 즉시 손절되는 문제 해결
+    // 긴급 손절: -3% 이상 역행 시 즉시 청산 (봉 완성 기다리지 않음)
+    const EMERGENCY_SL_PERCENT = -3;
+    if (pnlPercent <= EMERGENCY_SL_PERCENT) {
+      console.log(`[${position.symbol}] 긴급 손절: ${pnlPercent.toFixed(2)}% <= ${EMERGENCY_SL_PERCENT}%`);
+      closePosition('sl', currentPrice);
+      return;
+    }
+    
+    // 일반 손절은 봉 기준으로 판단 (checkCandleCompletion에서 처리)
   }, [state.currentPosition, state.isEnabled, closePosition]);
   
   // 기존 포지션 동기화 (로드 시 및 주기적)
