@@ -19,8 +19,8 @@ interface OrderBook {
 
 interface TickChartProps {
   symbol: string;
-  orderBook: OrderBook | null;
-  isConnected: boolean;
+  orderBook?: OrderBook | null;
+  isConnected?: boolean;
   height?: number;
   interval?: number; // 봉 간격 (초)
   entryPrice?: number; // 포지션 진입가
@@ -92,7 +92,7 @@ const getIntervalString = (seconds: number): string => {
   return '1d';
 };
 
-const TickChart = ({ symbol, orderBook, isConnected, height = 400, interval = 60, entryPrice }: TickChartProps) => {
+const TickChart = ({ symbol, orderBook = null, isConnected = false, height = 400, interval = 60, entryPrice }: TickChartProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [candles, setCandles] = useState<Candle[]>([]);

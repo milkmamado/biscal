@@ -3,58 +3,24 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useTradingLogs } from '@/hooks/useTradingLogs';
 import { useAutoTrading } from '@/hooks/useAutoTrading';
-import { useBollingerSignals, BBSignal } from '@/hooks/useBollingerSignals';
+import { useBollingerSignals } from '@/hooks/useBollingerSignals';
 import { useTickerWebSocket } from '@/hooks/useTickerWebSocket';
 import { supabase } from '@/integrations/supabase/client';
 import HotCoinList from '@/components/HotCoinList';
 import DualChartPanel from '@/components/DualChartPanel';
 import AutoTradingPanel from '@/components/AutoTradingPanel';
 import ApiKeySetup from '@/components/ApiKeySetup';
-import { toast } from 'sonner';
-
-interface Position {
-  type: 'long' | 'short';
-  entryPrice: number;
-  quantity: number;
-  leverage: number;
-}
-
-interface OpenOrder {
-  orderId: number;
-  price: number;
-  side: 'BUY' | 'SELL';
-  origQty: number;
-}
-
-interface TpSlPrices {
-  tpPrice: number | null;
-  slPrice: number | null;
-}
-
-interface OrderBook {
-  bids: { price: number; quantity: number }[];
-  asks: { price: number; quantity: number }[];
-  lastUpdateId: number;
-}
 
 const Index = () => {
   const [selectedSymbol, setSelectedSymbol] = useState('BTCUSDT');
-  const [currentPosition, setCurrentPosition] = useState<Position | null>(null);
-  const [currentPnL, setCurrentPnL] = useState(0);
-  const [openOrders, setOpenOrders] = useState<OpenOrder[]>([]);
-  const [tpSlPrices, setTpSlPrices] = useState<TpSlPrices>({ tpPrice: null, slPrice: null });
   const [hasApiKeys, setHasApiKeys] = useState<boolean | null>(null);
   const [checkingKeys, setCheckingKeys] = useState(true);
-  const [orderBook, setOrderBook] = useState<OrderBook | null>(null);
-  const [orderBookConnected, setOrderBookConnected] = useState(false);
-  const [dailyPnLKRW, setDailyPnLKRW] = useState(0);
-  const [dailyProfitPercent, setDailyProfitPercent] = useState(0);
   const [balanceUSD, setBalanceUSD] = useState(0);
   const [krwRate, setKrwRate] = useState(1380);
 
   const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
-  const { dailyStats, logTrade } = useTradingLogs();
+  const { dailyStats } = useTradingLogs();
   const { tickers } = useTickerWebSocket();
   
   // 자동매매 훅
@@ -152,14 +118,14 @@ const Index = () => {
       }
       
       try {
-        const { data, error } = await supabase
+        const { data } = await supabase
           .from('user_api_keys')
           .select('id')
           .eq('user_id', user.id)
           .eq('is_testnet', false);
         
         setHasApiKeys(data && data.length > 0);
-      } catch (e) {
+      } catch {
         setHasApiKeys(false);
       } finally {
         setCheckingKeys(false);
@@ -168,59 +134,10 @@ const Index = () => {
 
     checkApiKeys();
   }, [user]);
-
-  const handlePositionChange = useCallback((position: Position | null) => {
-    setCurrentPosition(position);
-  }, []);
-
-  const handlePnLChange = useCallback((pnl: number) => {
-    setCurrentPnL(pnl);
-  }, []);
-
-  const handleOpenOrdersChange = useCallback((orders: OpenOrder[]) => {
-    setOpenOrders(orders);
-  }, []);
-
-  const handleTpSlChange = useCallback((tpsl: TpSlPrices) => {
-    setTpSlPrices(tpsl);
-  }, []);
-
-  const handleOrderBookChange = useCallback((ob: OrderBook | null, connected: boolean) => {
-    setOrderBook(ob);
-    setOrderBookConnected(connected);
-  }, []);
-
-  const handleDailyPnLChange = useCallback((pnl: number) => {
-    setDailyPnLKRW(pnl);
-  }, []);
-
-  const handleDailyProfitPercentChange = useCallback((percent: number) => {
-    setDailyProfitPercent(percent);
-  }, []);
   
   const handleBalanceChange = useCallback((balance: number) => {
     setBalanceUSD(balance);
   }, []);
-
-  const handleTradeClose = useCallback((trade: {
-    symbol: string;
-    side: 'long' | 'short';
-    entryPrice: number;
-    exitPrice: number;
-    quantity: number;
-    leverage: number;
-    pnl: number;
-  }) => {
-    logTrade({
-      symbol: trade.symbol,
-      side: trade.side,
-      entryPrice: trade.entryPrice,
-      exitPrice: trade.exitPrice,
-      quantity: trade.quantity,
-      leverage: trade.leverage,
-      pnlUsd: trade.pnl,
-    });
-  }, [logTrade]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -285,18 +202,11 @@ const Index = () => {
           <div className="col-span-12 lg:col-span-9 xl:col-span-10">
             <DualChartPanel 
               symbol={selectedSymbol} 
-              unrealizedPnL={currentPnL}
-              realizedPnL={dailyStats.totalPnL}
               tradeCount={dailyStats.tradeCount}
               winCount={dailyStats.winCount}
-              hasPosition={!!currentPosition || !!autoTrading.state.currentPosition}
-              entryPrice={currentPosition?.entryPrice || autoTrading.state.currentPosition?.entryPrice}
-              openOrders={openOrders}
+              hasPosition={!!autoTrading.state.currentPosition}
+              entryPrice={autoTrading.state.currentPosition?.entryPrice}
               onSelectSymbol={setSelectedSymbol}
-              orderBook={orderBook}
-              orderBookConnected={orderBookConnected}
-              onDailyPnLChange={handleDailyPnLChange}
-              onDailyProfitPercentChange={handleDailyProfitPercentChange}
               onBalanceChange={handleBalanceChange}
             />
           </div>
