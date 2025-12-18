@@ -64,22 +64,43 @@ const Index = () => {
 
   // 매매종료 버튼 클릭 핸들러
   const handleEndTrading = () => {
-    // 다음날 21시(KST) 계산
+    // 다음 거래 가능 시간 계산 (09:00 또는 21:00 중 먼저 오는 시간)
     const now = new Date();
     const koreaOffset = 9 * 60; // UTC+9
     const utcOffset = now.getTimezoneOffset();
     const koreaTime = new Date(now.getTime() + (koreaOffset + utcOffset) * 60 * 1000);
     
-    // 다음날로 설정
-    koreaTime.setDate(koreaTime.getDate() + 1);
-    koreaTime.setHours(21, 0, 0, 0);
+    const currentHour = koreaTime.getHours();
+    let nextTradingTime = new Date(koreaTime);
+    
+    // 현재 시간 기준으로 다음 거래 시간 찾기
+    if (currentHour < 9) {
+      // 오전 9시 전이면 오늘 오전 9시
+      nextTradingTime.setHours(9, 0, 0, 0);
+    } else if (currentHour < 11) {
+      // 오전 9-11시면 오늘 밤 9시
+      nextTradingTime.setHours(21, 0, 0, 0);
+    } else if (currentHour < 21) {
+      // 오전 11시 ~ 밤 9시면 오늘 밤 9시
+      nextTradingTime.setHours(21, 0, 0, 0);
+    } else if (currentHour < 23) {
+      // 밤 9-11시면 내일 오전 9시
+      nextTradingTime.setDate(nextTradingTime.getDate() + 1);
+      nextTradingTime.setHours(9, 0, 0, 0);
+    } else {
+      // 밤 11시 이후면 내일 오전 9시
+      nextTradingTime.setDate(nextTradingTime.getDate() + 1);
+      nextTradingTime.setHours(9, 0, 0, 0);
+    }
     
     // UTC timestamp로 변환
-    const untilTimestamp = koreaTime.getTime() - (koreaOffset + utcOffset) * 60 * 1000;
+    const untilTimestamp = nextTradingTime.getTime() - (koreaOffset + utcOffset) * 60 * 1000;
     
     setTradingEndedUntil(untilTimestamp);
     localStorage.setItem('tradingEndedUntil', untilTimestamp.toString());
-    toast.error('매매 종료됨. 내일 21시까지 거래 불가');
+    
+    const nextTimeStr = nextTradingTime.getHours() === 9 ? '오전 9시' : '밤 9시';
+    toast.error(`매매 종료됨. ${nextTimeStr}까지 거래 불가`);
   };
 
   // 매매종료 상태를 dailyPnLKRW에 반영 (OrderPanel에서 거래 차단하도록)

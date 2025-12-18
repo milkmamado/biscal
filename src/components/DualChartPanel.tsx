@@ -284,11 +284,6 @@ const DualChartPanel = ({
   useEffect(() => {
     onDailyProfitPercentChange?.(dailyPnLPercent);
   }, [dailyPnLPercent, onDailyProfitPercentChange]);
-  
-  // Daily target achievement (5% target)
-  const DAILY_TARGET_PERCENT = 5;
-  const achievementRate = DAILY_TARGET_PERCENT > 0 ? (dailyPnLPercent / DAILY_TARGET_PERCENT) * 100 : 0;
-  const achievementRateStr = achievementRate.toFixed(0);
 
   return (
     <div className="flex flex-col gap-1 h-full">
@@ -338,20 +333,17 @@ const DualChartPanel = ({
             </span>
           </div>
           
-          {/* Daily Profit Rate (3% target) */}
+          {/* Daily Profit Rate */}
           <div className="flex flex-col items-center">
             <span className="text-[10px] text-muted-foreground">수익률</span>
-            <div className="flex items-baseline gap-0.5">
-              <span className={cn(
-                "text-sm font-bold font-mono",
-                dailyPnLPercent >= DAILY_TARGET_PERCENT ? "text-green-400" : 
-                dailyPnLPercent >= DAILY_TARGET_PERCENT / 2 ? "text-yellow-400" : 
-                dailyPnLPercent >= 0 ? "text-orange-400" : "text-blue-400"
-              )}>
-                {dailyPnL >= 0 ? '+' : ''}{dailyPnLPercentStr}%
-              </span>
-              <span className="text-[8px] text-muted-foreground">/5%</span>
-            </div>
+            <span className={cn(
+              "text-sm font-bold font-mono",
+              dailyPnLPercent >= 5 ? "text-green-400" : 
+              dailyPnLPercent >= 2.5 ? "text-yellow-400" : 
+              dailyPnLPercent >= 0 ? "text-orange-400" : "text-blue-400"
+            )}>
+              {dailyPnL >= 0 ? '+' : ''}{dailyPnLPercentStr}%
+            </span>
           </div>
           
           <div className="flex flex-col items-end">

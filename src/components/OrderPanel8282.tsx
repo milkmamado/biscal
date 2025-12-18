@@ -91,16 +91,50 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
   const [leverage, setLeverage] = useState<number>(10);
   const [splitCount, setSplitCount] = useState<number>(10); // 분할 주문 개수 (10, 15, 20)
   
-  // 매매 허용 시간 체크 (한국시간 21:00 ~ 01:00)
+  // 매매 허용 시간 체크 (한국시간 09:00~11:00 또는 21:00~23:00)
   const isTradingTimeAllowed = (): boolean => {
     const now = new Date();
     const koreaOffset = 9 * 60; // UTC+9
     const utcOffset = now.getTimezoneOffset();
     const koreaTime = new Date(now.getTime() + (koreaOffset + utcOffset) * 60 * 1000);
     const hour = koreaTime.getHours();
-    // 21:00 ~ 23:59 또는 00:00 ~ 00:59 (새벽 1시 전까지)
-    return (hour >= 21 && hour <= 23) || (hour >= 0 && hour < 1);
+    // 09:00~10:59 또는 21:00~22:59
+    return (hour >= 9 && hour < 11) || (hour >= 21 && hour < 23);
   };
+  
+  // 현재 거래 가능 시간대 문자열 반환
+  const getTradingTimeString = (): string => {
+    return '오전 9시~11시 또는 밤 9시~11시';
+  };
+  
+  // 누적 거래시간 관리
+  const TRADING_TIME_KEY = 'dailyTradingTime';
+  const TRADING_TIME_LIMIT_MS = 60 * 60 * 1000; // 1시간 (밀리초)
+  
+  const getKoreaDateStr = (): string => {
+    const now = new Date();
+    const koreaOffset = 9 * 60;
+    const utcOffset = now.getTimezoneOffset();
+    const koreaTime = new Date(now.getTime() + (koreaOffset + utcOffset) * 60 * 1000);
+    return koreaTime.toISOString().split('T')[0];
+  };
+  
+  const getTodayTradingTime = (): number => {
+    const stored = localStorage.getItem(TRADING_TIME_KEY);
+    if (!stored) return 0;
+    try {
+      const data = JSON.parse(stored);
+      if (data.date === getKoreaDateStr()) {
+        return data.totalMs || 0;
+      }
+    } catch {}
+    return 0;
+  };
+  
+  const [cumulativeTradingTimeMs, setCumulativeTradingTimeMs] = useState<number>(getTodayTradingTime());
+  const tradingStartTimeRef = useRef<number | null>(null);
+  
+  const isTradingTimeLimitExceeded = cumulativeTradingTimeMs >= TRADING_TIME_LIMIT_MS;
   
   // 매매종료 버튼으로 설정된 값
   const TRADING_ENDED_VALUE = -999999999;
@@ -109,10 +143,6 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
   // 일일 손실 한도 체크 (-5% 손실시 거래 금지) - 퍼센트 기준
   const DAILY_LOSS_LIMIT_PERCENT = -5;
   const isDailyLossLimitExceeded = !isTradingEndedManually && dailyProfitPercent <= DAILY_LOSS_LIMIT_PERCENT;
-  
-  // 일일 수익 목표 달성 체크 (5% 이상)
-  const DAILY_PROFIT_TARGET_PERCENT = 5;
-  const isDailyProfitTargetReached = !isTradingEndedManually && dailyProfitPercent >= DAILY_PROFIT_TARGET_PERCENT;
   
   // 매매 허용 여부 통합 체크
   const isTradingAllowed = (): boolean => {
@@ -124,8 +154,8 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
     if (isDailyLossLimitExceeded) {
       return false;
     }
-    // 일일 수익 목표 달성시 거래 금지
-    if (isDailyProfitTargetReached) {
+    // 누적 거래시간 1시간 초과시 거래 금지
+    if (isTradingTimeLimitExceeded) {
       return false;
     }
     // 거래 시간 체크
@@ -189,6 +219,33 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
   // Position state
   const [position, setPosition] = useState<Position | null>(null);
   
+  // 포지션 진입 시 누적 거래시간 카운트 시작
+  useEffect(() => {
+    if (position && !tradingStartTimeRef.current) {
+      tradingStartTimeRef.current = Date.now();
+    } else if (!position && tradingStartTimeRef.current) {
+      // 포지션 청산 시 누적시간 저장
+      const elapsed = Date.now() - tradingStartTimeRef.current;
+      const newTotal = cumulativeTradingTimeMs + elapsed;
+      setCumulativeTradingTimeMs(newTotal);
+      localStorage.setItem(TRADING_TIME_KEY, JSON.stringify({
+        date: getKoreaDateStr(),
+        totalMs: newTotal
+      }));
+      tradingStartTimeRef.current = null;
+    }
+  }, [position]);
+  
+  // 실시간 누적시간 업데이트 (포지션 보유 중)
+  useEffect(() => {
+    if (!position || !tradingStartTimeRef.current) return;
+    const interval = setInterval(() => {
+      const elapsed = Date.now() - (tradingStartTimeRef.current || Date.now());
+      setCumulativeTradingTimeMs(getTodayTradingTime() + elapsed);
+    }, 10000); // 10초마다 업데이트
+    return () => clearInterval(interval);
+  }, [position]);
+  
   // Real unrealized PnL from Binance API (more accurate than calculated)
   const [realUnrealizedPnL, setRealUnrealizedPnL] = useState<number>(0);
   
@@ -210,12 +267,6 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
   const [tpAmount, setTpAmount] = useState<string>('50');
   const [slAmount, setSlAmount] = useState<string>('30');
   const [enableTpSl, setEnableTpSl] = useState<boolean>(true);
-  
-  // 본전 자동 청산 (Break-even auto close) - 기본 활성화
-  const [enableBreakEven] = useState<boolean>(true);
-  const [breachCount, setBreachCount] = useState<number>(0);
-  const [wasAboveEntry, setWasAboveEntry] = useState<boolean>(false);
-  const [breakEvenOrderPlaced, setBreakEvenOrderPlaced] = useState<boolean>(false);
   
   // Calculate and notify TP/SL price levels
   useEffect(() => {
@@ -607,74 +658,10 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
     }
   }, [currentPrice, pendingOrders, position, enableTpSl, tpAmount, slAmount, realUnrealizedPnL]);
 
-  // 본전 자동 청산 로직 - 진입가 2차 이탈 시 본전 지정가 주문
-  useEffect(() => {
-    if (!position || !enableBreakEven || !currentPrice || currentPrice <= 0 || breakEvenOrderPlaced) return;
-    
-    const entryPrice = position.entryPrice;
-    const isLong = position.type === 'long';
-    
-    // 롱: 진입가 위 = 수익, 숏: 진입가 아래 = 수익
-    const isAboveEntry = isLong ? currentPrice > entryPrice : currentPrice < entryPrice;
-    const isBelowEntry = isLong ? currentPrice < entryPrice : currentPrice > entryPrice;
-    
-    if (isAboveEntry && !wasAboveEntry) {
-      // 처음 수익 구간 진입
-      setWasAboveEntry(true);
-    } else if (isBelowEntry && wasAboveEntry) {
-      // 진입가 이탈 (breach)
-      const newBreachCount = breachCount + 1;
-      setBreachCount(newBreachCount);
-      setWasAboveEntry(false);
-      
-      if (newBreachCount >= 3 && !breakEvenOrderPlaced) {
-        // 3차 이탈: 미체결 주문 취소 후 본전 지정가 청산 주문
-        setBreakEvenOrderPlaced(true);
-        const side = isLong ? 'SELL' : 'BUY';
-        
-        // 먼저 미체결 주문 전부 취소
-        apiCancelAllOrders(symbol)
-          .then(() => {
-            setPendingOrders([]);
-            // 그 후 본전 청산 주문
-            return apiPlaceLimitOrder(symbol, side, position.quantity, entryPrice, true);
-          })
-          .then(() => {
-            toast({
-              title: '📋 본전 자동 청산 주문',
-              description: `3차 이탈 감지 → 미체결 취소 + ${symbol} @ $${formatPrice(entryPrice)} 본전 청산`,
-            });
-            setTimeout(fetchBalanceAndPosition, 1000);
-          })
-          .catch((error) => {
-            console.error('Break-even order failed:', error);
-            setBreakEvenOrderPlaced(false);
-            toast({
-              title: '본전 청산 주문 실패',
-              description: '오류 발생. 다시 시도해주세요.',
-              variant: 'destructive',
-            });
-          });
-      }
-    }
-  }, [currentPrice, position, enableBreakEven, wasAboveEntry, breachCount, breakEvenOrderPlaced, symbol]);
-
-  // Reset break-even state when position changes or clears
-  useEffect(() => {
-    if (!position) {
-      setBreachCount(0);
-      setWasAboveEntry(false);
-      setBreakEvenOrderPlaced(false);
-    }
-  }, [position]);
-
   // Reset position when symbol changes
   useEffect(() => {
     setPosition(null);
     setPendingOrders([]);
-    setBreachCount(0);
-    setWasAboveEntry(false);
-    setBreakEvenOrderPlaced(false);
   }, [symbol]);
   const calculatePnL = (pos: Position, price: number): number => {
     const direction = pos.type === 'long' ? 1 : -1;
@@ -719,7 +706,7 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
         ];
         toast({
           title: messages[Math.floor(Math.random() * messages.length)],
-          description: '내일 밤 9시에 다시 만나자 👋',
+          description: '다음 거래시간에 다시 만나자 👋',
         });
       } else if (isDailyLossLimitExceeded) {
         toast({
@@ -727,22 +714,16 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
           description: '지금은 쉬어야 합니다.',
           variant: 'destructive',
         });
-      } else if (isDailyProfitTargetReached) {
-        const messages = [
-          '🎉 대박! 오늘 목표 달성!',
-          '🏆 5% 수익 달성 축하해!',
-          '💰 오늘 충분히 벌었어~',
-          '🌟 완벽한 하루! 이제 쉬자',
-          '🥳 목표 달성! 내일도 화이팅!',
-        ];
+      } else if (isTradingTimeLimitExceeded) {
         toast({
-          title: messages[Math.floor(Math.random() * messages.length)],
-          description: '수익 보존을 위해 내일 밤 9시까지 쉬어가자 💪',
+          title: '⏱️ 일일 거래시간 초과',
+          description: '오늘 1시간 거래 완료! 내일 다시 도전하세요.',
+          variant: 'destructive',
         });
       } else {
         toast({
           title: '⏰ 거래 시간 외',
-          description: '매매는 밤 9시 ~ 새벽 1시만 가능합니다.',
+          description: getTradingTimeString() + ' 에만 거래 가능합니다.',
           variant: 'destructive',
         });
       }
@@ -839,7 +820,7 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
         ];
         toast({
           title: messages[Math.floor(Math.random() * messages.length)],
-          description: '내일 밤 9시에 다시 만나자 👋',
+          description: '다음 거래시간에 다시 만나자 👋',
         });
       } else if (isDailyLossLimitExceeded) {
         toast({
@@ -847,22 +828,16 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
           description: '지금은 쉬어야 합니다.',
           variant: 'destructive',
         });
-      } else if (isDailyProfitTargetReached) {
-        const messages = [
-          '🎉 대박! 오늘 목표 달성!',
-          '🏆 5% 수익 달성 축하해!',
-          '💰 오늘 충분히 벌었어~',
-          '🌟 완벽한 하루! 이제 쉬자',
-          '🥳 목표 달성! 내일도 화이팅!',
-        ];
+      } else if (isTradingTimeLimitExceeded) {
         toast({
-          title: messages[Math.floor(Math.random() * messages.length)],
-          description: '수익 보존을 위해 내일 밤 9시까지 쉬어가자 💪',
+          title: '⏱️ 일일 거래시간 초과',
+          description: '오늘 1시간 거래 완료! 내일 다시 도전하세요.',
+          variant: 'destructive',
         });
       } else {
         toast({
           title: '⏰ 거래 시간 외',
-          description: '매매는 밤 9시 ~ 새벽 1시만 가능합니다.',
+          description: getTradingTimeString() + ' 에만 거래 가능합니다.',
           variant: 'destructive',
         });
       }
