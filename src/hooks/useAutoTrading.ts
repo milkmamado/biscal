@@ -440,10 +440,20 @@ export function useAutoTrading({
     
     // 레버리지별 동적 손절 퍼센트
     const dynamicStopLoss = getStopLossPercent(leverage);
+    
+    // 📊 실시간 손익 로그 (1초마다 출력 방지를 위해 정수 퍼센트 변화시에만)
+    const pnlRounded = Math.round(pnlPercent * 10) / 10;
+    console.log(`[TP/SL] ${position.symbol} ${position.side.toUpperCase()} | 현재가: ${currentPrice.toFixed(4)} | 진입가: ${position.entryPrice.toFixed(4)} | 손익: ${pnlRounded >= 0 ? '+' : ''}${pnlRounded.toFixed(1)}% | SL: -${dynamicStopLoss}% | TP1: +${CONFIG.TP_STAGE_1.percent}%`);
+    
+    // 상태 메시지 업데이트
+    setState(prev => ({
+      ...prev,
+      statusMessage: `📊 ${position.symbol.replace('USDT', '')} ${position.side === 'long' ? '롱' : '숏'} | ${pnlRounded >= 0 ? '+' : ''}${pnlRounded.toFixed(1)}%`,
+    }));
 
     // 1. 하드 스탑 체크 (레버리지별)
     if (pnlPercent <= -dynamicStopLoss) {
-      console.log(`[checkTpSl] 하드 스탑 발동: ${pnlPercent.toFixed(2)}% <= -${dynamicStopLoss}% (레버리지 ${leverage}x)`);
+      console.log(`🛑 [checkTpSl] 하드 스탑 발동: ${pnlPercent.toFixed(2)}% <= -${dynamicStopLoss}% (레버리지 ${leverage}x)`);
       await closePosition('sl', currentPrice);
       return;
     }
