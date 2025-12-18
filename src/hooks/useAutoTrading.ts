@@ -668,17 +668,22 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
           await executeEntry(symbol, 'long', completedCandle.close, completedCandle, referenceBodySize);
         } else {
           // 조건 불충족 - 시그널 취소
-          const movePercent = referenceBodySize > 0 ? (Math.abs(bodyMove) / referenceBodySize * 100).toFixed(0) : '0';
           setState(prev => ({ ...prev, pendingSignal: null, statusMessage: '🔍 BB 시그널 종목 검색 중...' }));
+          
+          // 직관적인 취소 사유 생성
+          const actualCandle = bodyMove > 0 ? '🟢양봉' : bodyMove < 0 ? '🔴음봉' : '➖보합';
+          const expectedCandle = touchType === 'upper' ? '🔴음봉' : '🟢양봉';
+          const cancelReason = `${actualCandle} 출현 (기대: ${expectedCandle})`;
+          
           addLog({
             symbol,
             action: 'cancel',
             side: expectedSide,
             price: completedCandle.close,
             quantity: 0,
-            reason: `확인 실패 (움직임 ${movePercent}% < 20%)`,
+            reason: cancelReason,
           });
-          toast.info(`❌ ${symbol} 시그널 취소 - 봉 움직임 부족 (${movePercent}%)`);
+          toast.info(`❌ ${symbol} 취소 - ${actualCandle} ≠ ${expectedCandle}`);
         }
       } catch (error) {
         console.error('Candle check error:', error);
