@@ -1150,6 +1150,39 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
     }
   }, [state.currentPosition, getPositions, placeLimitOrder, addLog]);
   
+  // 본절 주문 취소
+  const cancelBreakEvenOrder = useCallback(async () => {
+    if (!state.currentPosition) return;
+    if (processingRef.current) return;
+    
+    processingRef.current = true;
+    setState(prev => ({ ...prev, isProcessing: true }));
+    
+    const position = state.currentPosition;
+    
+    try {
+      await cancelAllOrders(position.symbol);
+      
+      addLog({
+        symbol: position.symbol,
+        action: 'cancel',
+        side: position.side,
+        price: position.entryPrice,
+        quantity: 0,
+        reason: '🚫 본절 주문 취소됨',
+      });
+      
+      toast.info(`🚫 ${position.symbol} 본절 주문 취소됨`);
+      
+    } catch (error: any) {
+      console.error('Cancel break-even order error:', error);
+      toast.error(`본절 취소 실패: ${error.message || '오류'}`);
+    } finally {
+      processingRef.current = false;
+      setState(prev => ({ ...prev, isProcessing: false }));
+    }
+  }, [state.currentPosition, cancelAllOrders, addLog]);
+  
   return {
     state,
     toggleAutoTrading,
@@ -1158,6 +1191,7 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
     checkTpSl,
     skipSignal,
     breakEvenClose,
+    cancelBreakEvenOrder,
     updatePrice: useCallback(() => {}, []), // 더 이상 사용 안 함
   };
 }
