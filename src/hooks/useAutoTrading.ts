@@ -1,15 +1,31 @@
+/**
+ * 고급 스캘핑 자동매매 시스템
+ * - 기술적 지표 기반 진입
+ * - 3단계 익절 + 트레일링 스탑
+ * - 적응형 손절
+ * - 리스크 관리
+ */
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useBinanceApi } from './useBinanceApi';
 import { useAuth } from './useAuth';
 import { fetchSymbolPrecision, roundQuantity } from '@/lib/binance';
 import { playEntrySound, playTpSound, playSlSound, initAudio } from '@/lib/sounds';
 import { toast } from 'sonner';
+import {
+  calculateAllIndicators,
+  checkLongSignal,
+  checkShortSignal,
+  fetch5mKlines,
+  fetch1mKlines,
+  TechnicalIndicators,
+  Kline,
+} from './useTechnicalIndicators';
 
 export interface AutoTradeLog {
   id: string;
   timestamp: number;
   symbol: string;
-  action: 'entry' | 'exit' | 'tp' | 'sl' | 'error' | 'pending' | 'cancel';
+  action: 'entry' | 'exit' | 'tp' | 'sl' | 'error' | 'pending' | 'cancel' | 'partial_tp';
   side: 'long' | 'short';
   price: number;
   quantity: number;
@@ -20,21 +36,36 @@ export interface AutoTradeLog {
 // 대기 중인 시그널
 interface PendingSignal {
   symbol: string;
-  touchType: 'upper' | 'lower';
+  direction: 'long' | 'short';
+  strength: 'weak' | 'medium' | 'strong';
+  reasons: string[];
   signalTime: number;
   signalPrice: number;
-  signalCandleOpen: number;
-  signalCandleHigh: number;
-  signalCandleLow: number;
-  waitCount: number; // 도지/망치 등 애매한 캔들 시 추가 대기 횟수
+  indicators: TechnicalIndicators;
+  confirmCount: number; // 확인 봉 횟수
 }
 
-// 진입 시 저장할 봉 정보
-interface EntryCandleInfo {
-  open: number;
-  high: number;
-  low: number;
-  close: number;
+// 3단계 익절 상태
+interface TakeProfitState {
+  stage1Hit: boolean; // +0.3% (40% 청산)
+  stage2Hit: boolean; // +0.8% (40% 청산)
+  stage3Hit: boolean; // +1.5% (20% 청산)
+  trailingActive: boolean;
+  trailingHighPrice: number; // 롱: 최고가, 숏: 최저가
+  trailingTriggerPrice: number; // 트레일링 시작 가격
+}
+
+// 포지션 정보
+interface Position {
+  symbol: string;
+  side: 'long' | 'short';
+  entryPrice: number;
+  initialQuantity: number;
+  remainingQuantity: number;
+  entryTime: number;
+  atr: number;
+  takeProfitState: TakeProfitState;
+  indicators: TechnicalIndicators;
 }
 
 export interface AutoTradingState {
@@ -42,16 +73,7 @@ export interface AutoTradingState {
   isProcessing: boolean;
   currentSymbol: string | null;
   pendingSignal: PendingSignal | null;
-  currentPosition: {
-    symbol: string;
-    side: 'long' | 'short';
-    entryPrice: number;
-    quantity: number;
-    entryTime: number;
-    entryCandle: EntryCandleInfo; // 진입 시점 봉 정보
-    referenceBodySize: number; // 기준 봉 몸통 크기 (손절 판단용)
-    atr: number; // ATR (10봉 기준) - 손절 계산용
-  } | null;
+  currentPosition: Position | null;
   todayStats: {
     trades: number;
     wins: number;
@@ -61,15 +83,16 @@ export interface AutoTradingState {
   tradeLogs: AutoTradeLog[];
   consecutiveLosses: number;
   cooldownUntil: number | null;
-  tpPercent: number; // 동적 익절 퍼센트
-  statusMessage: string; // 현재 상태 메시지
+  tpPercent: number;
+  statusMessage: string;
+  scanningProgress: string;
 }
 
 interface UseAutoTradingProps {
   balanceUSD: number;
   leverage: number;
   krwRate: number;
-  onTradeComplete?: () => void; // 청산 완료 시 호출
+  onTradeComplete?: () => void;
   initialStats?: { trades: number; wins: number; losses: number; totalPnL: number };
   logTrade?: (trade: {
     symbol: string;
@@ -82,77 +105,52 @@ interface UseAutoTradingProps {
   }) => Promise<void>;
 }
 
-// 1분봉 데이터 가져오기
-async function fetch1mKlines(symbol: string, limit: number = 20) {
-  try {
-    const res = await fetch(
-      `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=1m&limit=${limit}`
-    );
-    const data = await res.json();
-    if (!Array.isArray(data)) return null;
-    return data.map((k: any[]) => ({
-      openTime: k[0],
-      open: parseFloat(k[1]),
-      high: parseFloat(k[2]),
-      low: parseFloat(k[3]),
-      close: parseFloat(k[4]),
-      volume: parseFloat(k[5]),
-      closeTime: k[6],
-    }));
-  } catch {
-    return null;
-  }
-}
+// 설정값
+const CONFIG = {
+  // 익절 단계
+  TP_STAGE_1: { percent: 0.3, closeRatio: 0.4 },  // +0.3%에서 40% 청산
+  TP_STAGE_2: { percent: 0.8, closeRatio: 0.4 },  // +0.8%에서 40% 청산
+  TP_STAGE_3: { percent: 1.5, closeRatio: 1.0 },  // +1.5%에서 전량 청산
+  
+  // 트레일링 스탑
+  TRAILING_TRIGGER: 0.4,     // +0.4% 도달 시 트레일링 활성화
+  TRAILING_DISTANCE: 0.15,   // 0.15% 거리 유지
+  
+  // 손절
+  HARD_STOP_PERCENT: 0.5,    // -0.5% 하드 스탑
+  TIME_STOP_MINUTES: 15,     // 15분 타임 스탑
+  
+  // 진입 조건
+  MIN_SIGNAL_STRENGTH: 'medium' as const, // 최소 시그널 강도
+  ENTRY_COOLDOWN_MS: 60000,  // 진입 간 쿨다운 1분
+  
+  // 변동성 필터
+  MIN_ATR_PERCENT: 0.2,      // 최소 ATR 퍼센트
+  MAX_ATR_PERCENT: 2.0,      // 최대 ATR 퍼센트
+};
 
-// 변동성 급등 체크 (최근 5분 vs 이전 20분 평균)
-async function checkVolatilitySpike(symbol: string): Promise<{ isSpike: boolean; ratio: number }> {
-  try {
-    const res = await fetch(
-      `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=1m&limit=25`
-    );
-    const data = await res.json();
-    if (!Array.isArray(data) || data.length < 25) {
-      return { isSpike: false, ratio: 1 };
-    }
-    
-    // 최근 5분 변동성 (고가-저가 비율)
-    const recent5 = data.slice(-5);
-    const recent5Vol = recent5.reduce((sum: number, k: any[]) => {
-      const range = (parseFloat(k[2]) - parseFloat(k[3])) / parseFloat(k[3]) * 100;
-      return sum + range;
-    }, 0) / 5;
-    
-    // 이전 20분 평균 변동성
-    const prev20 = data.slice(0, 20);
-    const prev20Vol = prev20.reduce((sum: number, k: any[]) => {
-      const range = (parseFloat(k[2]) - parseFloat(k[3])) / parseFloat(k[3]) * 100;
-      return sum + range;
-    }, 0) / 20;
-    
-    const ratio = prev20Vol > 0 ? recent5Vol / prev20Vol : 1;
-    
-    return { isSpike: ratio >= 3, ratio };
-  } catch (error) {
-    console.error('Volatility check error:', error);
-    return { isSpike: false, ratio: 1 };
-  }
-}
-
-// 현재 분이 바뀌었는지 체크 (봉 완성 감지)
+// 분 타임스탬프
 function getMinuteTimestamp() {
   return Math.floor(Date.now() / 60000);
 }
 
-export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete, initialStats, logTrade }: UseAutoTradingProps) {
+export function useAutoTrading({
+  balanceUSD,
+  leverage,
+  krwRate,
+  onTradeComplete,
+  initialStats,
+  logTrade,
+}: UseAutoTradingProps) {
   const { user } = useAuth();
-  const { 
-    placeMarketOrder, 
+  const {
+    placeMarketOrder,
     placeLimitOrder,
     getPositions,
     cancelAllOrders,
     setLeverage,
   } = useBinanceApi();
-  
+
   const [state, setState] = useState<AutoTradingState>({
     isEnabled: false,
     isProcessing: false,
@@ -163,10 +161,11 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
     tradeLogs: [],
     consecutiveLosses: 0,
     cooldownUntil: null,
-    tpPercent: 0.3, // 기본값, 진입 시 동적으로 업데이트됨
+    tpPercent: 0.3,
     statusMessage: '자동매매 비활성화',
+    scanningProgress: '',
   });
-  
+
   // 초기 통계 업데이트
   useEffect(() => {
     if (initialStats) {
@@ -176,43 +175,17 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
       }));
     }
   }, [initialStats?.trades, initialStats?.wins, initialStats?.losses, initialStats?.totalPnL]);
-  
+
   const processingRef = useRef(false);
   const lastMinuteRef = useRef(getMinuteTimestamp());
   const lastEntryTimeRef = useRef(0);
-  
-  // pendingSignal을 ref로도 추적 (closure 문제 방지)
   const pendingSignalRef = useRef<PendingSignal | null>(null);
+  const positionSyncRef = useRef(false);
+
   useEffect(() => {
     pendingSignalRef.current = state.pendingSignal;
   }, [state.pendingSignal]);
-  
-  
 
-  // 쿨다운 설정
-  const ENTRY_COOLDOWN_MS = 60000; // 1분
-  const DAILY_LIMIT_PERCENT = 10; // 원금 대비 ±10% 도달 시 자동 OFF
-  
-  // 자동매매 토글
-  const toggleAutoTrading = useCallback(() => {
-    setState(prev => {
-      const newEnabled = !prev.isEnabled;
-      if (newEnabled) {
-        // 자동매매 ON 시 오디오 초기화 (사용자 상호작용)
-        initAudio();
-        toast.success('🤖 자동매매 시작 (강화시그널 모드)');
-      } else {
-        toast.info('자동매매 중지');
-      }
-      return { 
-        ...prev, 
-        isEnabled: newEnabled, 
-        pendingSignal: null,
-        statusMessage: newEnabled ? '🔍 강화 시그널 검색 중...' : '자동매매 비활성화',
-      };
-    });
-  }, []);
-  
   // 로그 추가
   const addLog = useCallback((log: Omit<AutoTradeLog, 'id' | 'timestamp'>) => {
     const newLog: AutoTradeLog = {
@@ -226,159 +199,418 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
     }));
     return newLog;
   }, []);
-  
-  // BB 시그널 감지 → 대기 상태로 저장 (바로 진입 X)
+
+  // 자동매매 토글
+  const toggleAutoTrading = useCallback(() => {
+    setState(prev => {
+      const newEnabled = !prev.isEnabled;
+      if (newEnabled) {
+        initAudio();
+        toast.success('🤖 고급 스캘핑 시스템 시작');
+      } else {
+        toast.info('자동매매 중지');
+      }
+      return {
+        ...prev,
+        isEnabled: newEnabled,
+        pendingSignal: null,
+        statusMessage: newEnabled ? '🔍 기술적 분석 기반 스캔 중...' : '자동매매 비활성화',
+        scanningProgress: '',
+      };
+    });
+  }, []);
+
+  // 부분 청산 실행
+  const executePartialClose = useCallback(async (
+    position: Position,
+    closeRatio: number,
+    currentPrice: number,
+    stage: number
+  ): Promise<{ success: boolean; closedQty: number; pnl: number }> => {
+    try {
+      const closeQty = position.remainingQuantity * closeRatio;
+      const precision = await fetchSymbolPrecision(position.symbol);
+      const roundedQty = roundQuantity(closeQty, precision);
+
+      if (roundedQty * currentPrice < 5) {
+        return { success: false, closedQty: 0, pnl: 0 };
+      }
+
+      const orderSide = position.side === 'long' ? 'SELL' : 'BUY';
+      const result = await placeMarketOrder(position.symbol, orderSide, roundedQty, true, currentPrice);
+
+      if (!result || result.error) {
+        return { success: false, closedQty: 0, pnl: 0 };
+      }
+
+      const direction = position.side === 'long' ? 1 : -1;
+      const priceDiff = (currentPrice - position.entryPrice) * direction;
+      const pnl = priceDiff * roundedQty;
+
+      addLog({
+        symbol: position.symbol,
+        action: 'partial_tp',
+        side: position.side,
+        price: currentPrice,
+        quantity: roundedQty,
+        pnl,
+        reason: `${stage}단계 익절 (${(closeRatio * 100).toFixed(0)}%)`,
+      });
+
+      const pnlKRW = Math.round(pnl * krwRate);
+      playTpSound();
+      toast.success(`🎯 ${stage}단계 익절! +₩${pnlKRW.toLocaleString()}`);
+
+      return { success: true, closedQty: roundedQty, pnl };
+    } catch (error) {
+      console.error('Partial close error:', error);
+      return { success: false, closedQty: 0, pnl: 0 };
+    }
+  }, [placeMarketOrder, addLog, krwRate]);
+
+  // 전량 청산
+  const closePosition = useCallback(async (reason: 'tp' | 'sl' | 'exit' | 'time', currentPrice: number) => {
+    if (!state.currentPosition) return;
+    if (processingRef.current) return;
+
+    processingRef.current = true;
+    setState(prev => ({ ...prev, isProcessing: true }));
+
+    const position = state.currentPosition;
+
+    try {
+      const positions = await getPositions(position.symbol);
+      const actualPosition = positions?.find((p: any) =>
+        p.symbol === position.symbol && Math.abs(parseFloat(p.positionAmt)) > 0
+      );
+
+      if (!actualPosition) {
+        setState(prev => ({
+          ...prev,
+          currentPosition: null,
+          currentSymbol: null,
+          statusMessage: '🔍 기술적 분석 기반 스캔 중...',
+        }));
+        return;
+      }
+
+      const actualQty = Math.abs(parseFloat(actualPosition.positionAmt));
+      const actualEntryPrice = parseFloat(actualPosition.entryPrice);
+
+      const orderSide = position.side === 'long' ? 'SELL' : 'BUY';
+      const closeResult = await placeMarketOrder(position.symbol, orderSide, actualQty, true, currentPrice);
+
+      if (!closeResult || closeResult.error) {
+        throw new Error(closeResult?.error || '청산 실패');
+      }
+
+      const direction = position.side === 'long' ? 1 : -1;
+      const priceDiff = (currentPrice - actualEntryPrice) * direction;
+      const pnl = priceDiff * actualQty;
+      const isWin = pnl > 0;
+
+      const newTotalPnL = state.todayStats.totalPnL + pnl;
+
+      setState(prev => ({
+        ...prev,
+        currentPosition: null,
+        currentSymbol: null,
+        todayStats: {
+          trades: prev.todayStats.trades + 1,
+          wins: prev.todayStats.wins + (isWin ? 1 : 0),
+          losses: prev.todayStats.losses + (isWin ? 0 : 1),
+          totalPnL: newTotalPnL,
+        },
+        consecutiveLosses: isWin ? 0 : prev.consecutiveLosses + 1,
+        statusMessage: `${isWin ? '✅ 익절' : '❌ 손절'} 완료! 다음 시그널 대기...`,
+      }));
+
+      const reasonText = {
+        tp: '익절',
+        sl: '손절',
+        exit: '수동 청산',
+        time: '타임 스탑',
+      }[reason];
+
+      addLog({
+        symbol: position.symbol,
+        action: reason === 'sl' || reason === 'time' ? 'sl' : 'tp',
+        side: position.side,
+        price: currentPrice,
+        quantity: actualQty,
+        pnl,
+        reason: reasonText,
+      });
+
+      const pnlKRW = Math.round(pnl * krwRate);
+
+      if (isWin) {
+        playTpSound();
+      } else {
+        playSlSound();
+      }
+
+      toast[isWin ? 'success' : 'error'](
+        `${isWin ? '✅' : '❌'} ${reasonText} | ${pnl >= 0 ? '+' : ''}₩${pnlKRW.toLocaleString()}`
+      );
+
+      if (logTrade) {
+        logTrade({
+          symbol: position.symbol,
+          side: position.side,
+          entryPrice: actualEntryPrice,
+          exitPrice: currentPrice,
+          quantity: actualQty,
+          leverage,
+          pnlUsd: pnl,
+        });
+      }
+
+      onTradeComplete?.();
+    } catch (error: any) {
+      console.error('Close error:', error);
+      addLog({
+        symbol: position.symbol,
+        action: 'error',
+        side: position.side,
+        price: currentPrice,
+        quantity: position.remainingQuantity,
+        reason: error.message || '청산 실패',
+      });
+    } finally {
+      processingRef.current = false;
+      setState(prev => ({ ...prev, isProcessing: false }));
+    }
+  }, [state.currentPosition, state.todayStats, placeMarketOrder, getPositions, krwRate, leverage, addLog, onTradeComplete, logTrade]);
+
+  // TP/SL 체크 (3단계 익절 + 트레일링)
+  const checkTpSl = useCallback(async (currentPrice: number, _tpPercent: number = 0.3, _slPercent: number = 0.5) => {
+    if (!state.currentPosition) return;
+    if (processingRef.current) return;
+
+    const position = state.currentPosition;
+    const direction = position.side === 'long' ? 1 : -1;
+    const priceDiff = (currentPrice - position.entryPrice) * direction;
+    const pnlPercent = (priceDiff / position.entryPrice) * 100;
+    const tpState = position.takeProfitState;
+
+    // 1. 하드 스탑 체크
+    if (pnlPercent <= -CONFIG.HARD_STOP_PERCENT) {
+      await closePosition('sl', currentPrice);
+      return;
+    }
+
+    // 2. 타임 스탑 체크
+    const holdTime = (Date.now() - position.entryTime) / 60000;
+    if (holdTime >= CONFIG.TIME_STOP_MINUTES && pnlPercent < 0) {
+      await closePosition('time', currentPrice);
+      return;
+    }
+
+    // 3. 트레일링 스탑 체크
+    if (tpState.trailingActive) {
+      const trailDistance = position.side === 'long'
+        ? ((tpState.trailingHighPrice - currentPrice) / tpState.trailingHighPrice) * 100
+        : ((currentPrice - tpState.trailingHighPrice) / tpState.trailingHighPrice) * 100;
+
+      if (trailDistance >= CONFIG.TRAILING_DISTANCE) {
+        await closePosition('tp', currentPrice);
+        return;
+      }
+
+      // 트레일링 최고가 업데이트
+      const newHigh = position.side === 'long'
+        ? Math.max(tpState.trailingHighPrice, currentPrice)
+        : Math.min(tpState.trailingHighPrice, currentPrice);
+
+      if (newHigh !== tpState.trailingHighPrice) {
+        setState(prev => ({
+          ...prev,
+          currentPosition: prev.currentPosition ? {
+            ...prev.currentPosition,
+            takeProfitState: {
+              ...prev.currentPosition.takeProfitState,
+              trailingHighPrice: newHigh,
+            },
+          } : null,
+        }));
+      }
+    }
+
+    // 4. 3단계 익절 체크
+    if (!tpState.stage1Hit && pnlPercent >= CONFIG.TP_STAGE_1.percent) {
+      const result = await executePartialClose(position, CONFIG.TP_STAGE_1.closeRatio, currentPrice, 1);
+      if (result.success) {
+        setState(prev => ({
+          ...prev,
+          currentPosition: prev.currentPosition ? {
+            ...prev.currentPosition,
+            remainingQuantity: prev.currentPosition.remainingQuantity - result.closedQty,
+            takeProfitState: {
+              ...prev.currentPosition.takeProfitState,
+              stage1Hit: true,
+            },
+          } : null,
+          todayStats: {
+            ...prev.todayStats,
+            totalPnL: prev.todayStats.totalPnL + result.pnl,
+          },
+        }));
+      }
+    }
+
+    if (!tpState.stage2Hit && tpState.stage1Hit && pnlPercent >= CONFIG.TP_STAGE_2.percent) {
+      const result = await executePartialClose(position, CONFIG.TP_STAGE_2.closeRatio, currentPrice, 2);
+      if (result.success) {
+        setState(prev => ({
+          ...prev,
+          currentPosition: prev.currentPosition ? {
+            ...prev.currentPosition,
+            remainingQuantity: prev.currentPosition.remainingQuantity - result.closedQty,
+            takeProfitState: {
+              ...prev.currentPosition.takeProfitState,
+              stage2Hit: true,
+            },
+          } : null,
+          todayStats: {
+            ...prev.todayStats,
+            totalPnL: prev.todayStats.totalPnL + result.pnl,
+          },
+        }));
+      }
+    }
+
+    if (tpState.stage2Hit && pnlPercent >= CONFIG.TP_STAGE_3.percent) {
+      await closePosition('tp', currentPrice);
+      return;
+    }
+
+    // 5. 트레일링 활성화 체크
+    if (!tpState.trailingActive && pnlPercent >= CONFIG.TRAILING_TRIGGER) {
+      setState(prev => ({
+        ...prev,
+        currentPosition: prev.currentPosition ? {
+          ...prev.currentPosition,
+          takeProfitState: {
+            ...prev.currentPosition.takeProfitState,
+            trailingActive: true,
+            trailingHighPrice: currentPrice,
+            trailingTriggerPrice: currentPrice,
+          },
+        } : null,
+      }));
+      toast.info(`📈 트레일링 스탑 활성화 @ $${currentPrice.toFixed(4)}`);
+    }
+  }, [state.currentPosition, closePosition, executePartialClose]);
+
+  // 시그널 핸들러 (기술적 분석 기반)
   const handleSignal = useCallback(async (
-    symbol: string, 
+    symbol: string,
+    direction: 'long' | 'short',
+    price: number,
+    strength: 'weak' | 'medium' | 'strong',
+    reasons: string[],
+    indicators: TechnicalIndicators
+  ) => {
+    if (!state.isEnabled) return;
+    if (processingRef.current) return;
+    if (!user) return;
+    if (balanceUSD <= 0) return;
+    if (state.currentPosition) return;
+    if (state.pendingSignal) return;
+
+    // 쿨다운 체크
+    if (Date.now() - lastEntryTimeRef.current < CONFIG.ENTRY_COOLDOWN_MS) return;
+
+    // 시그널 강도 체크
+    const strengthOrder = { weak: 1, medium: 2, strong: 3 };
+    if (strengthOrder[strength] < strengthOrder[CONFIG.MIN_SIGNAL_STRENGTH]) return;
+
+    console.log(`[handleSignal] ${symbol} ${direction} ${strength}`, reasons);
+
+    const pendingSignal: PendingSignal = {
+      symbol,
+      direction,
+      strength,
+      reasons,
+      signalTime: Date.now(),
+      signalPrice: price,
+      indicators,
+      confirmCount: 0,
+    };
+
+    setState(prev => ({
+      ...prev,
+      pendingSignal,
+      currentSymbol: symbol,
+      statusMessage: `✨ ${symbol.replace('USDT', '')} ${direction === 'long' ? '롱' : '숏'} 시그널 확인 중...`,
+    }));
+
+    addLog({
+      symbol,
+      action: 'pending',
+      side: direction,
+      price,
+      quantity: 0,
+      reason: `${strength} 시그널 - ${reasons.slice(0, 3).join(', ')}`,
+    });
+
+    toast.info(`⏳ ${symbol} ${direction === 'long' ? '롱' : '숏'} 시그널 확인 중`);
+  }, [state.isEnabled, state.currentPosition, state.pendingSignal, user, balanceUSD, addLog]);
+
+  // BB 시그널 핸들러 (레거시 호환)
+  const handleBBSignal = useCallback(async (
+    symbol: string,
     touchType: 'upper' | 'lower',
     currentPrice: number
   ) => {
-    if (!state.isEnabled) {
-      console.log(`[handleSignal] Skip: not enabled`);
-      return;
+    if (!state.isEnabled) return;
+    if (processingRef.current) return;
+    if (state.currentPosition) return;
+    if (state.pendingSignal) return;
+
+    // 5분봉 기술적 분석
+    const klines = await fetch5mKlines(symbol, 50);
+    if (!klines || klines.length < 30) return;
+
+    const indicators = calculateAllIndicators(klines);
+    if (!indicators) return;
+
+    const direction = touchType === 'upper' ? 'short' : 'long';
+    const signalCheck = direction === 'long'
+      ? checkLongSignal(indicators, currentPrice)
+      : checkShortSignal(indicators, currentPrice);
+
+    if (signalCheck.valid) {
+      await handleSignal(symbol, direction, currentPrice, signalCheck.strength, signalCheck.reasons, indicators);
     }
-    if (processingRef.current) {
-      console.log(`[handleSignal] Skip: processing`);
-      return;
-    }
-    if (!user) {
-      console.log(`[handleSignal] Skip: no user`);
-      return;
-    }
-    if (balanceUSD <= 0) {
-      console.log(`[handleSignal] Skip: balance <= 0 (${balanceUSD})`);
-      return;
-    }
-    
-    // 이미 포지션이 있으면 무시
-    if (state.currentPosition) {
-      console.log(`[handleSignal] Skip: has position`);
-      return;
-    }
-    
-    // 이미 대기 중인 시그널이 있으면 무시
-    if (state.pendingSignal) {
-      console.log(`[handleSignal] Skip: has pending signal`);
-      return;
-    }
-    
-    // 쿨다운 체크
-    if (state.cooldownUntil && Date.now() < state.cooldownUntil) {
-      console.log(`[handleSignal] Skip: cooldown active`);
-      return;
-    }
-    if (Date.now() - lastEntryTimeRef.current < ENTRY_COOLDOWN_MS) {
-      console.log(`[handleSignal] Skip: entry cooldown (${Math.round((Date.now() - lastEntryTimeRef.current) / 1000)}s < 60s)`);
-      return;
-    }
-    
-    console.log(`[handleSignal] Processing: ${symbol} ${touchType}`);
-    
-    try {
-      // 변동성 급등 체크
-      const volatilityCheck = await checkVolatilitySpike(symbol);
-      if (volatilityCheck.isSpike) {
-        addLog({
-          symbol,
-          action: 'cancel',
-          side: touchType === 'upper' ? 'short' : 'long',
-          price: currentPrice,
-          quantity: 0,
-          reason: `변동성 급등 (${volatilityCheck.ratio.toFixed(1)}x) - 진입 보류`,
-        });
-        toast.warning(`⚠️ ${symbol} 변동성 급등 (${volatilityCheck.ratio.toFixed(1)}x) - 진입 보류`);
-        return;
-      }
-      
-      // 현재 봉 정보 가져오기
-      const klines = await fetch1mKlines(symbol, 2);
-      if (!klines || klines.length < 2) return;
-      
-      const currentCandle = klines[klines.length - 1]; // 진행 중인 봉
-      
-      // 대기 상태로 저장
-      const pendingSignal: PendingSignal = {
-        symbol,
-        touchType,
-        signalTime: Date.now(),
-        signalPrice: currentPrice,
-        signalCandleOpen: currentCandle.open,
-        signalCandleHigh: currentCandle.high,
-        signalCandleLow: currentCandle.low,
-        waitCount: 0, // 첫 대기
-      };
-      
-      setState(prev => ({ ...prev, pendingSignal, currentSymbol: symbol, statusMessage: `✨ ${symbol.replace('USDT', '')} 발견! 봉 완성 대기 중...` }));
-      
-      const side = touchType === 'upper' ? '숏' : '롱';
-      addLog({
-        symbol,
-        action: 'pending',
-        side: touchType === 'upper' ? 'short' : 'long',
-        price: currentPrice,
-        quantity: 0,
-        reason: `${touchType === 'upper' ? '📈 상승' : '📉 하락'} 시그널 - 다음 봉 확인 대기`,
-      });
-      
-      toast.info(`⏳ ${symbol} ${side} 시그널 - 봉 완성 대기 중`);
-      
-    } catch (error) {
-      console.error('Signal handling error:', error);
-    }
-  }, [state.isEnabled, state.currentPosition, state.pendingSignal, state.cooldownUntil, user, balanceUSD, addLog]);
-  
-  // 실제 진입 실행
+  }, [state.isEnabled, state.currentPosition, state.pendingSignal, handleSignal]);
+
+  // 진입 실행
   const executeEntry = useCallback(async (
     symbol: string,
     side: 'long' | 'short',
     currentPrice: number,
-    entryCandle: EntryCandleInfo,
-    referenceBodySize?: number // 기준 봉 몸통 크기 (없으면 계산)
+    indicators: TechnicalIndicators
   ) => {
     if (processingRef.current) return;
-    
+
     processingRef.current = true;
     setState(prev => ({ ...prev, isProcessing: true }));
-    
+
     try {
-      // 동적 TP 계산: 최근 20봉 평균 크기의 60%
-      const klines = await fetch1mKlines(symbol, 21);
-      let dynamicTpPercent = 0.3; // 기본값
-      let refBodySize = referenceBodySize || 0;
-      let atr10 = 0; // ATR (10봉) - 손절 계산용
-      
-      if (klines && klines.length >= 20) {
-        const candleSizes = klines.map(k => ((k.high - k.low) / k.low) * 100);
-        const avgCandleSize = candleSizes.reduce((a, b) => a + b, 0) / candleSizes.length;
-        dynamicTpPercent = avgCandleSize * 0.6; // 평균 봉 크기의 60%
-        
-        // 최소 0.1%, 최대 2%로 제한
-        dynamicTpPercent = Math.max(0.1, Math.min(2, dynamicTpPercent));
-        
-        // 기준 봉 크기가 없으면 직전 봉에서 계산
-        if (!refBodySize && klines.length >= 2) {
-          const prevCandle = klines[klines.length - 2];
-          refBodySize = Math.abs(prevCandle.close - prevCandle.open);
-        }
-        
-        // ATR 10봉 계산 (최근 10개 봉의 평균 범위)
-        const recentKlines = klines.slice(-10);
-        atr10 = recentKlines.reduce((sum, k) => sum + (k.high - k.low), 0) / recentKlines.length;
-        console.log(`[${symbol}] ATR(10): $${atr10.toFixed(6)} (${(atr10 / currentPrice * 100).toFixed(2)}%)`);
-      }
-      
       // 주문 수량 계산
       const safeBalance = balanceUSD * 0.9;
       const buyingPower = safeBalance * leverage;
       const rawQty = buyingPower / currentPrice;
-      
+
       const precision = await fetchSymbolPrecision(symbol);
       const quantity = roundQuantity(rawQty, precision);
-      
+
       if (quantity * currentPrice < 5.5) {
         throw new Error('최소 주문금액 미달');
       }
-      
+
       // 레버리지 설정
       try {
         await setLeverage(symbol, leverage);
@@ -387,161 +619,71 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
           console.warn('레버리지 설정 실패:', levError.message);
         }
       }
-      
+
       // 시장가 주문
       const orderSide = side === 'long' ? 'BUY' : 'SELL';
-      let orderResult;
-      try {
-        orderResult = await placeMarketOrder(symbol, orderSide, quantity, false, currentPrice);
-      } catch (orderError: any) {
-        // 주문 실패 시에도 실제 포지션 확인 (이미 체결됐을 수 있음)
-        console.log('Order error, checking actual position...', orderError);
-        const positions = await getPositions(symbol);
-        const actualPosition = positions?.find((p: any) => 
-          p.symbol === symbol && Math.abs(parseFloat(p.positionAmt)) > 0
-        );
-        
-        if (actualPosition) {
-          // 실제로 체결됨 - 포지션 저장
-          const actualQty = Math.abs(parseFloat(actualPosition.positionAmt));
-          const actualEntryPrice = parseFloat(actualPosition.entryPrice);
-          
-          lastEntryTimeRef.current = Date.now();
-          setState(prev => ({
-            ...prev,
-            pendingSignal: null,
-            currentPosition: {
-              symbol,
-              side,
-              entryPrice: actualEntryPrice,
-              quantity: actualQty,
-              entryTime: Date.now(),
-              entryCandle,
-              referenceBodySize: refBodySize,
-              atr: atr10,
-            },
-            currentSymbol: symbol,
-            tpPercent: dynamicTpPercent,
-            statusMessage: `🎯 ${symbol.replace('USDT', '')} ${side === 'long' ? '롱' : '숏'} 포지션 보유 중`,
-          }));
-          
-          addLog({
-            symbol,
-            action: 'entry',
-            side,
-            price: actualEntryPrice,
-            quantity: actualQty,
-            reason: `확인 진입 (TP ${dynamicTpPercent.toFixed(2)}%)`,
-          });
-          
-          // 귀여운 진입 알림
-          playEntrySound();
-          const cuteEmojis = ['🚀', '💫', '✨', '🎯', '💰', '🔥', '⚡'];
-          const randomEmoji = cuteEmojis[Math.floor(Math.random() * cuteEmojis.length)];
-          toast.success(`${randomEmoji} ${side === 'long' ? '롱롱이' : '숏숏이'} 출격! ${symbol.replace('USDT', '')} @ $${actualEntryPrice.toFixed(2)}`);
-          return;
-        }
-        
-        throw orderError;
-      }
-      
+      const orderResult = await placeMarketOrder(symbol, orderSide, quantity, false, currentPrice);
+
       if (!orderResult || orderResult.error) {
         throw new Error(orderResult?.error || '주문 실패');
       }
-      
+
       const executedQty = parseFloat(orderResult.executedQty || orderResult.origQty || quantity);
       const avgPrice = parseFloat(orderResult.avgPrice || orderResult.price || currentPrice);
-      
+
       if (executedQty <= 0) {
-        // 체결 수량 0이어도 실제 포지션 확인
-        const positions = await getPositions(symbol);
-        const actualPosition = positions?.find((p: any) => 
-          p.symbol === symbol && Math.abs(parseFloat(p.positionAmt)) > 0
-        );
-        
-        if (actualPosition) {
-          const actualQty = Math.abs(parseFloat(actualPosition.positionAmt));
-          const actualEntryPrice = parseFloat(actualPosition.entryPrice);
-          
-          lastEntryTimeRef.current = Date.now();
-          setState(prev => ({
-            ...prev,
-            pendingSignal: null,
-            currentPosition: {
-              symbol,
-              side,
-              entryPrice: actualEntryPrice,
-              quantity: actualQty,
-              entryTime: Date.now(),
-              entryCandle,
-              referenceBodySize: refBodySize,
-              atr: atr10,
-            },
-            currentSymbol: symbol,
-            tpPercent: dynamicTpPercent,
-            statusMessage: `🎯 ${symbol.replace('USDT', '')} ${side === 'long' ? '롱' : '숏'} 포지션 보유 중`,
-          }));
-          
-          addLog({
-            symbol,
-            action: 'entry',
-            side,
-            price: actualEntryPrice,
-            quantity: actualQty,
-            reason: `확인 진입 (TP ${dynamicTpPercent.toFixed(2)}%)`,
-          });
-          
-          // 귀여운 진입 알림
-          playEntrySound();
-          const cuteEmojis2 = ['🚀', '💫', '✨', '🎯', '💰', '🔥', '⚡'];
-          const randomEmoji2 = cuteEmojis2[Math.floor(Math.random() * cuteEmojis2.length)];
-          toast.success(`${randomEmoji2} ${side === 'long' ? '롱롱이' : '숏숏이'} 출격! ${symbol.replace('USDT', '')} @ $${actualEntryPrice.toFixed(2)}`);
-          return;
-        }
-        
         throw new Error('주문 체결 수량 0');
       }
-      
+
       lastEntryTimeRef.current = Date.now();
-      
-      // 포지션 저장 (진입 봉 정보 + 동적 TP 포함)
+
+      // 포지션 저장
+      const newPosition: Position = {
+        symbol,
+        side,
+        entryPrice: avgPrice > 0 ? avgPrice : currentPrice,
+        initialQuantity: executedQty,
+        remainingQuantity: executedQty,
+        entryTime: Date.now(),
+        atr: indicators.atr,
+        takeProfitState: {
+          stage1Hit: false,
+          stage2Hit: false,
+          stage3Hit: false,
+          trailingActive: false,
+          trailingHighPrice: avgPrice,
+          trailingTriggerPrice: 0,
+        },
+        indicators,
+      };
+
       setState(prev => ({
         ...prev,
         pendingSignal: null,
-        currentPosition: {
-          symbol,
-          side,
-          entryPrice: avgPrice > 0 ? avgPrice : currentPrice,
-          quantity: executedQty,
-          entryTime: Date.now(),
-          entryCandle,
-          referenceBodySize: refBodySize,
-          atr: atr10,
-        },
+        currentPosition: newPosition,
         currentSymbol: symbol,
-        tpPercent: dynamicTpPercent,
+        tpPercent: CONFIG.TP_STAGE_1.percent,
         statusMessage: `🎯 ${symbol.replace('USDT', '')} ${side === 'long' ? '롱' : '숏'} 포지션 보유 중`,
       }));
-      
+
       addLog({
         symbol,
         action: 'entry',
         side,
         price: avgPrice > 0 ? avgPrice : currentPrice,
         quantity: executedQty,
-        reason: `확인 진입 (TP ${dynamicTpPercent.toFixed(2)}%)`,
+        reason: `진입 (3단계 TP: ${CONFIG.TP_STAGE_1.percent}%/${CONFIG.TP_STAGE_2.percent}%/${CONFIG.TP_STAGE_3.percent}%)`,
       });
-      
-      // 귀여운 진입 알림
+
       playEntrySound();
-      const cuteEmojis3 = ['🚀', '💫', '✨', '🎯', '💰', '🔥', '⚡'];
-      const randomEmoji3 = cuteEmojis3[Math.floor(Math.random() * cuteEmojis3.length)];
-      toast.success(`${randomEmoji3} ${side === 'long' ? '롱롱이' : '숏숏이'} 출격! ${symbol.replace('USDT', '')} @ $${(avgPrice > 0 ? avgPrice : currentPrice).toFixed(2)}`);
-      
+      const cuteEmojis = ['🚀', '💫', '✨', '🎯', '💰', '🔥', '⚡'];
+      const randomEmoji = cuteEmojis[Math.floor(Math.random() * cuteEmojis.length)];
+      toast.success(`${randomEmoji} ${side === 'long' ? '롱' : '숏'} 진입! ${symbol.replace('USDT', '')} @ $${(avgPrice > 0 ? avgPrice : currentPrice).toFixed(2)}`);
+
     } catch (error: any) {
       console.error('Entry error:', error);
       lastEntryTimeRef.current = Date.now();
-      setState(prev => ({ ...prev, pendingSignal: null, statusMessage: '🔍 강화 시그널 검색 중...' }));
+      setState(prev => ({ ...prev, pendingSignal: null, statusMessage: '🔍 기술적 분석 기반 스캔 중...' }));
       addLog({
         symbol,
         action: 'error',
@@ -555,451 +697,126 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
       processingRef.current = false;
       setState(prev => ({ ...prev, isProcessing: false }));
     }
-  }, [balanceUSD, leverage, placeMarketOrder, setLeverage, getPositions, addLog]);
-  
-  // 포지션 청산
-  const closePosition = useCallback(async (reason: 'tp' | 'sl' | 'exit', currentPrice: number) => {
-    if (!state.currentPosition) return;
-    if (processingRef.current) return;
-    
-    processingRef.current = true;
-    setState(prev => ({ ...prev, isProcessing: true }));
-    
-    const position = state.currentPosition;
-    
-    try {
-      // 실제 포지션 확인
-      const positions = await getPositions(position.symbol);
-      const actualPosition = positions?.find((p: any) => 
-        p.symbol === position.symbol && Math.abs(parseFloat(p.positionAmt)) > 0
-      );
-      
-      if (!actualPosition) {
-        setState(prev => ({ ...prev, currentPosition: null, currentSymbol: null, statusMessage: '🔍 강화 시그널 검색 중...' }));
-        addLog({
-          symbol: position.symbol,
-          action: 'error',
-          side: position.side,
-          price: currentPrice,
-          quantity: position.quantity,
-          reason: '실제 포지션 없음',
-        });
-        return;
-      }
-      
-      const actualQty = Math.abs(parseFloat(actualPosition.positionAmt));
-      const actualEntryPrice = parseFloat(actualPosition.entryPrice);
-      
-      // 청산 주문
-      const orderSide = position.side === 'long' ? 'SELL' : 'BUY';
-      const closeResult = await placeMarketOrder(position.symbol, orderSide, actualQty, true, currentPrice);
-      
-      if (!closeResult || closeResult.error) {
-        throw new Error(closeResult?.error || '청산 실패');
-      }
-      
-      // PnL 계산
-      const direction = position.side === 'long' ? 1 : -1;
-      const priceDiff = (currentPrice - actualEntryPrice) * direction;
-      const pnl = priceDiff * actualQty;
-      const isWin = pnl > 0;
-      
-      // 통계 업데이트
-      const newTotalPnL = state.todayStats.totalPnL + pnl;
-      
-      setState(prev => ({
-        ...prev,
-        currentPosition: null,
-        currentSymbol: null,
-        todayStats: {
-          trades: prev.todayStats.trades + 1,
-          wins: prev.todayStats.wins + (isWin ? 1 : 0),
-          losses: prev.todayStats.losses + (isWin ? 0 : 1),
-          totalPnL: newTotalPnL,
-        },
-        statusMessage: `${isWin ? '✅ 익절 완료!' : '❌ 손절 완료'} 다음 시그널 대기...`,
-      }));
-      
-      addLog({
-        symbol: position.symbol,
-        action: reason === 'exit' ? 'exit' : reason,
-        side: position.side,
-        price: currentPrice,
-        quantity: actualQty,
-        pnl,
-        reason: reason === 'tp' ? '익절' : reason === 'sl' ? '봉 기준 손절' : '청산',
-      });
-      
-      const pnlKRW = Math.round(pnl * krwRate);
-      
-      // 효과음 재생
-      if (isWin) {
-        playTpSound();
-      } else {
-        playSlSound();
-      }
-      
-      toast[isWin ? 'success' : 'error'](
-        `${isWin ? '✅' : '❌'} ${reason === 'tp' ? '익절' : reason === 'sl' ? '손절' : '청산'} | ${pnl >= 0 ? '+' : ''}₩${pnlKRW.toLocaleString()}`
-      );
-      
-      // DB에 거래 기록 저장
-      if (logTrade) {
-        logTrade({
-          symbol: position.symbol,
-          side: position.side,
-          entryPrice: actualEntryPrice,
-          exitPrice: currentPrice,
-          quantity: actualQty,
-          leverage,
-          pnlUsd: pnl,
-        });
-      }
-      
-      // 청산 완료 콜백 (잔고 즉시 업데이트)
-      onTradeComplete?.();
-      
-    } catch (error: any) {
-      console.error('Close error:', error);
-      addLog({
-        symbol: position.symbol,
-        action: 'error',
-        side: position.side,
-        price: currentPrice,
-        quantity: position.quantity,
-        reason: error.message || '청산 실패',
-      });
-    } finally {
-      processingRef.current = false;
-      setState(prev => ({ ...prev, isProcessing: false }));
-    }
-  }, [state.currentPosition, placeMarketOrder, getPositions, krwRate, leverage, addLog, onTradeComplete, logTrade]);
-  
-  // 봉 완성 체크 및 진입/손절 판단 (매 초 실행)
+  }, [balanceUSD, leverage, placeMarketOrder, setLeverage, addLog]);
+
+  // 봉 완성 체크 및 진입 판단
   const checkCandleCompletion = useCallback(async () => {
     if (!state.isEnabled) return;
     if (processingRef.current) return;
-    
+
     const currentMinute = getMinuteTimestamp();
-    
-    // 분이 바뀌지 않았으면 스킵
     if (currentMinute === lastMinuteRef.current) return;
-    
     lastMinuteRef.current = currentMinute;
-    
-    // 봉 완성 후 4초 대기 (Binance API 데이터 완전 확정 대기 - 2초는 부족)
-    await new Promise(resolve => setTimeout(resolve, 4000));
-    
-    // 🔥 ref에서 최신 pendingSignal 가져오기 (스왑 후에도 최신 값 반영)
+
+    await new Promise(resolve => setTimeout(resolve, 3000));
+
     const latestPendingSignal = pendingSignalRef.current;
-    
-    // 대기 중인 시그널이 있으면 확인 진입 체크
+
     if (latestPendingSignal && !state.currentPosition) {
-      const { symbol, touchType, waitCount } = latestPendingSignal;
-      const MAX_WAIT_COUNT = 2; // 최대 2번 추가 대기 (도지/망치 시)
-      
+      const { symbol, direction, confirmCount, indicators } = latestPendingSignal;
+
       try {
-        // 20봉 평균을 위해 22개 fetch
-        const klines = await fetch1mKlines(symbol, 22);
-        if (!klines || klines.length < 21) return;
-        
-        // 직전 완성된 봉 (시그널 발생 후 완성된 봉)
+        const klines = await fetch1mKlines(symbol, 5);
+        if (!klines || klines.length < 3) return;
+
         const completedCandle = klines[klines.length - 2];
-        const currentFormingCandle = klines[klines.length - 1]; // 현재 진행 중인 봉 (참고용)
-        
-        // 디버깅: 실제 캔들 데이터 로그 (사용자 UI에서 확인 가능하도록)
-        const candleType = completedCandle.close > completedCandle.open ? '양봉' : completedCandle.close < completedCandle.open ? '음봉' : '도지';
-        const candleTime = new Date(completedCandle.closeTime).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
-        console.log(`[${symbol}] 확인 봉: O=${completedCandle.open.toFixed(4)} C=${completedCandle.close.toFixed(4)} (${candleType}) 완성시간=${candleTime} [대기 ${waitCount + 1}회차]`);
-        console.log(`[${symbol}] 진행 봉: O=${currentFormingCandle.open.toFixed(4)} C=${currentFormingCandle.close.toFixed(4)} (현재가 참고용)`);
-        
-        // 최근 20봉의 평균 몸통 크기를 기준으로 사용 (안정적인 기준)
-        const recentCandles = klines.slice(-22, -2); // 완성된 봉 제외, 그 이전 20봉
-        const avgBodySize = recentCandles.reduce((sum, k) => sum + Math.abs(k.close - k.open), 0) / recentCandles.length;
-        
-        // 최소 기준값 설정 (가격의 0.05% 이상)
-        const minThreshold = completedCandle.close * 0.0005;
-        const referenceBodySize = Math.max(avgBodySize, minThreshold);
-        const threshold = referenceBodySize * 0.2;
-        
-        // 완성된 봉의 몸통 크기
         const bodyMove = completedCandle.close - completedCandle.open;
-        const bodySize = Math.abs(bodyMove);
-        const bodyMovePct = (bodySize / (completedCandle.open || completedCandle.close || 1)) * 100;
-        
-        // 진짜 도지: 몸통이 거의 없음 (패턴 판단/대기 로직에서 최우선)
-        const DOJI_THRESHOLD = 0.05; // 0.05% 미만이면 진짜 도지
-        const isTrueDoji = bodyMovePct < DOJI_THRESHOLD;
-        
-        // 꼬리(wick) 계산
-        const upperWick = completedCandle.high - Math.max(completedCandle.open, completedCandle.close);
-        const lowerWick = Math.min(completedCandle.open, completedCandle.close) - completedCandle.low;
-        
-        // 망치/역망치 패턴 판단 (진짜 도지는 패턴 판단에서 제외)
-        const WICK_RATIO = 2;
-        const isHammerRaw = lowerWick >= bodySize * WICK_RATIO && upperWick < bodySize; // 긴 아래꼬리
-        const isInvertedHammerRaw = upperWick >= bodySize * WICK_RATIO && lowerWick < bodySize; // 긴 위꼬리
-        const isHammer = !isTrueDoji && isHammerRaw;
-        const isInvertedHammer = !isTrueDoji && isInvertedHammerRaw;
 
-        // 작은 캔들 판단:
-        // 1) 20% 임계값 미만이거나
-        // 2) 절대 몸통 퍼센트가 너무 작으면(저변동 코인에서 '살짝 양봉' 오판 방지)
-        const MIN_CONFIRM_BODY_PCT = 0.3; // 0.3% 미만은 크기 부족으로 간주
-        const isSmallCandle = bodySize < threshold || bodyMovePct < MIN_CONFIRM_BODY_PCT;
-        
-        // 방향 판단 (크기 작아도 방향은 알 수 있음)
-        const isDirectionBullish = bodyMove > 0;
-        const isDirectionBearish = bodyMove < 0;
-        
-        // 유효한 확인 캔들: 크기도 충분하고 방향도 맞아야 함
-        const isBullish = !isSmallCandle && isDirectionBullish;
-        const isBearish = !isSmallCandle && isDirectionBearish;
-        
-        // 방향이 반대면 크기 작아도 즉시 취소 (대기 X)
-        const expectedSide = touchType === 'upper' ? 'short' : 'long';
-        const isWrongDirection = (touchType === 'upper' && isDirectionBullish) || 
-                                  (touchType === 'lower' && isDirectionBearish);
+        // 방향 확인
+        const isBullish = bodyMove > 0;
+        const isBearish = bodyMove < 0;
 
-        // 🔥 망치/역망치 패턴에 따른 진입 판단
-        // 롱: 망치(긴 아래꼬리) = 긍정적 / 역망치(긴 위꼬리) = 부정적
-        // 숏: 역망치(긴 위꼬리, shooting star) = 긍정적 / 망치 = 부정적
-        const isBadPattern = (touchType === 'lower' && isInvertedHammer) || // 롱에서 역망치 = 최악
-                             (touchType === 'upper' && isHammer); // 숏에서 망치 = 매수세 강함
-        
-        const isGoodPattern = (touchType === 'lower' && isHammer) || // 롱에서 망치 = 매수 방어
-                              (touchType === 'upper' && isInvertedHammer); // 숏에서 역망치 = 매도 압력
+        const expectedDirection = direction === 'long' ? isBullish : isBearish;
 
-        console.log(
-          `[${symbol}] confirm flags: expected=${expectedSide} bodyPct=${bodyMovePct.toFixed(2)}% small=${isSmallCandle} doji=${isTrueDoji} hammer=${isHammer} invHammer=${isInvertedHammer} wrongDir=${isWrongDirection} wait=${waitCount}`
-        );
-        // 상단 터치 → 음봉 확인 → 숏 진입
-        // 하단 터치 → 양봉 확인 → 롱 진입
-        // 🔥 방향만 맞으면 크기 작아도 바로 진입! (스캘핑은 타이밍이 핵심)
-        if (touchType === 'upper' && isDirectionBearish && !isTrueDoji) {
-          await executeEntry(symbol, 'short', completedCandle.close, completedCandle, referenceBodySize);
-        } else if (touchType === 'lower' && isDirectionBullish && !isTrueDoji) {
-          await executeEntry(symbol, 'long', completedCandle.close, completedCandle, referenceBodySize);
-        } else if (isBadPattern) {
-          // 🚫 나쁜 패턴 즉시 취소 (롱+역망치, 숏+망치)
-          setState(prev => ({ ...prev, pendingSignal: null, statusMessage: '🔍 강화 시그널 검색 중...' }));
-          const patternName = isInvertedHammer ? '역망치(매도압력)' : '망치(매수방어)';
-          addLog({
-            symbol,
-            action: 'cancel',
-            side: expectedSide,
-            price: completedCandle.close,
-            quantity: 0,
-            reason: `🔻 ${patternName} 패턴 - ${expectedSide === 'long' ? '롱' : '숏'}에 불리`,
-          });
-          toast.warning(`❌ ${symbol} 취소 - ${patternName} 패턴`);
-        } else if (isGoodPattern && waitCount < MAX_WAIT_COUNT) {
-          // ✅ 좋은 패턴은 다음 봉 대기 (방향 확인 필요)
+        if (expectedDirection) {
+          // 방향 맞음 - 진입
+          await executeEntry(symbol, direction, completedCandle.close, indicators);
+        } else if (confirmCount < 2) {
+          // 방향 안 맞음 - 추가 대기
           setState(prev => ({
             ...prev,
-            pendingSignal: prev.pendingSignal ? { ...prev.pendingSignal, waitCount: waitCount + 1 } : null,
-            statusMessage: `⏳ ${symbol.replace('USDT', '')} ${isHammer ? '망치' : '역망치'} 패턴 - 다음 봉 확인 중...`,
+            pendingSignal: prev.pendingSignal
+              ? { ...prev.pendingSignal, confirmCount: confirmCount + 1 }
+              : null,
+            statusMessage: `⏳ ${symbol.replace('USDT', '')} 확인 대기 (${confirmCount + 1}/2)`,
           }));
-          const patternName = isHammer ? '망치(매수방어)' : '역망치(매도압력)';
-          addLog({
-            symbol,
-            action: 'pending',
-            side: expectedSide,
-            price: completedCandle.close,
-            quantity: 0,
-            reason: `✅ ${patternName} 패턴 - 다음 봉 방향 확인 대기`,
-          });
-          toast.info(`⏳ ${symbol} ${patternName} → 다음 봉 대기`);
-        } else if (isWrongDirection && !isTrueDoji) {
-          // 방향이 반대면 크기 작아도 즉시 취소!
-          setState(prev => ({ ...prev, pendingSignal: null, statusMessage: '🔍 강화 시그널 검색 중...' }));
-          const actualCandle = isDirectionBullish ? '🟢양봉' : '🔴음봉';
-          const expectedCandle = touchType === 'upper' ? '🔴음봉' : '🟢양봉';
-          const candleInfo = `O=${completedCandle.open.toFixed(4)} C=${completedCandle.close.toFixed(4)}`;
-          addLog({
-            symbol,
-            action: 'cancel',
-            side: expectedSide,
-            price: completedCandle.close,
-            quantity: 0,
-            reason: `${actualCandle} (${candleInfo}) - 기대: ${expectedCandle}`,
-          });
-          toast.warning(`❌ ${symbol} 취소 - ${actualCandle} (${candleInfo})`);
-        } else if (isSmallCandle && !isWrongDirection && waitCount < MAX_WAIT_COUNT) {
-          // 🔧 DOT 버그 수정: 방향 맞지만 작은 캔들 → 대기 (취소 X)
-          setState(prev => ({
-            ...prev,
-            pendingSignal: prev.pendingSignal ? { ...prev.pendingSignal, waitCount: waitCount + 1 } : null,
-            statusMessage: `⏳ ${symbol.replace('USDT', '')} 작은 ${isDirectionBullish ? '양봉' : '음봉'} - 다음 봉 확인 중...`,
-          }));
-          addLog({
-            symbol,
-            action: 'pending',
-            side: expectedSide,
-            price: completedCandle.close,
-            quantity: 0,
-            reason: `작은 ${isDirectionBullish ? '양봉' : '음봉'} - 방향 맞음, 크기 확인 대기 (${waitCount + 1}/${MAX_WAIT_COUNT})`,
-          });
-          toast.info(`⏳ ${symbol} 작은 캔들 → 다음 봉 대기`);
-        } else if (isTrueDoji && waitCount < MAX_WAIT_COUNT) {
-          // 진짜 도지(방향 불명확)만 추가 대기
-          setState(prev => ({
-            ...prev,
-            pendingSignal: prev.pendingSignal ? { ...prev.pendingSignal, waitCount: waitCount + 1 } : null,
-            statusMessage: `⏳ ${symbol.replace('USDT', '')} 도지 감지 - ${waitCount + 2}번째 봉 대기 중...`,
-          }));
-          addLog({
-            symbol,
-            action: 'pending',
-            side: expectedSide,
-            price: completedCandle.close,
-            quantity: 0,
-            reason: `도지 감지 - 추가 대기 (${waitCount + 1}/${MAX_WAIT_COUNT})`,
-          });
-          toast.info(`⏳ ${symbol} 도지 → ${waitCount + 2}번째 봉 대기`);
         } else {
-          // 최대 대기 초과 - 시그널 취소
-          setState(prev => ({ ...prev, pendingSignal: null, statusMessage: '🔍 강화 시그널 검색 중...' }));
-          const cancelReason = `${MAX_WAIT_COUNT}회 대기 후에도 확인 안됨`;
+          // 최대 대기 초과 - 취소
+          setState(prev => ({
+            ...prev,
+            pendingSignal: null,
+            statusMessage: '🔍 기술적 분석 기반 스캔 중...',
+          }));
           addLog({
             symbol,
             action: 'cancel',
-            side: expectedSide,
+            side: direction,
             price: completedCandle.close,
             quantity: 0,
-            reason: cancelReason,
+            reason: '확인 실패 - 시그널 취소',
           });
-          toast.info(`❌ ${symbol} 취소 - ${cancelReason}`);
+          toast.info(`❌ ${symbol} 시그널 취소`);
         }
       } catch (error) {
         console.error('Candle check error:', error);
       }
     }
-    
-    // 포지션 보유 중이면 봉 기준 손절 체크
-    if (state.currentPosition) {
-      const { symbol, side, entryCandle, entryTime } = state.currentPosition;
-      
-      // 진입 후 최소 1분(1봉) 지나야 봉 기준 손절 적용 (즉시 손절 방지)
-      const MIN_HOLD_TIME_MS = 60000;
-      if (Date.now() - entryTime < MIN_HOLD_TIME_MS) return;
-      
-      try {
-        const klines = await fetch1mKlines(symbol, 2);
-        if (!klines || klines.length < 2) return;
-        
-        const completedCandle = klines[klines.length - 2];
-        
-        // 손절 여유분: 진입봉 고가/저가의 0.2% 허용
-        const SL_TOLERANCE_PCT = 0.002; // 0.2%
-        const highTolerance = entryCandle.high * (1 + SL_TOLERANCE_PCT);
-        const lowTolerance = entryCandle.low * (1 - SL_TOLERANCE_PCT);
-        
-        // 손절 조건 체크 (여유분 포함)
-        // 롱: 현재 봉 저가가 진입봉 저가보다 0.2% 이상 낮으면 손절
-        // 숏: 현재 봉 고가가 진입봉 고가보다 0.2% 이상 높으면 손절
-        if (side === 'long' && completedCandle.low < lowTolerance) {
-          console.log(`[${symbol}] 봉 기준 SL: 저가 ${completedCandle.low.toFixed(4)} < 기준 ${lowTolerance.toFixed(4)}`);
-          await closePosition('sl', completedCandle.close);
-        } else if (side === 'short' && completedCandle.high > highTolerance) {
-          console.log(`[${symbol}] 봉 기준 SL: 고가 ${completedCandle.high.toFixed(4)} > 기준 ${highTolerance.toFixed(4)}`);
-          await closePosition('sl', completedCandle.close);
-        }
-      } catch (error) {
-        console.error('Stop loss check error:', error);
-      }
-    }
-  }, [state.isEnabled, state.pendingSignal, state.currentPosition, executeEntry, closePosition, addLog]);
-  
-  // 실시간 TP/ATR기반 SL 체크
-  const checkTpSl = useCallback((currentPrice: number, tpPercent: number, _slPercent: number) => {
-    if (!state.currentPosition || !state.isEnabled) return;
-    
-    const position = state.currentPosition;
-    const direction = position.side === 'long' ? 1 : -1;
-    const priceDiff = (currentPrice - position.entryPrice) * direction;
-    const pnlPercent = (priceDiff / position.entryPrice) * 100;
-    
-    // 익절: 퍼센트 기준 (실시간)
-    if (pnlPercent >= tpPercent) {
-      closePosition('tp', currentPrice);
-      return;
-    }
-    
-    // ATR 기반 손절: 진입가 ± (ATR × 1배수)
-    // 롱: 진입가 - ATR 이하로 떨어지면 손절
-    // 숏: 진입가 + ATR 이상으로 오르면 손절
-    const atr = position.atr || position.entryPrice * 0.01; // ATR 없으면 1% 기본값
-    const ATR_MULTIPLIER = 1; // 1배수 (타이트)
-    const slDistance = atr * ATR_MULTIPLIER;
-    
-    if (position.side === 'long' && currentPrice <= position.entryPrice - slDistance) {
-      const slPercent = ((currentPrice - position.entryPrice) / position.entryPrice * 100).toFixed(2);
-      console.log(`[${position.symbol}] ATR 손절 (롱): $${currentPrice.toFixed(4)} <= $${(position.entryPrice - slDistance).toFixed(4)} (${slPercent}%)`);
-      closePosition('sl', currentPrice);
-      return;
-    }
-    
-    if (position.side === 'short' && currentPrice >= position.entryPrice + slDistance) {
-      const slPercent = ((position.entryPrice - currentPrice) / position.entryPrice * 100).toFixed(2);
-      console.log(`[${position.symbol}] ATR 손절 (숏): $${currentPrice.toFixed(4)} >= $${(position.entryPrice + slDistance).toFixed(4)} (${slPercent}%)`);
-      closePosition('sl', currentPrice);
-      return;
-    }
-    
-    // 봉 기반 손절도 checkCandleCompletion에서 추가로 체크
-  }, [state.currentPosition, state.isEnabled, closePosition, addLog]);
-  
-  // 기존 포지션 동기화 (로드 시 및 주기적)
-  const positionSyncRef = useRef(false);
-  
+  }, [state.isEnabled, state.currentPosition, executeEntry, addLog]);
+
+  // 포지션 동기화
   useEffect(() => {
     if (!user) return;
-    
+
     let isMounted = true;
-    
+
     const syncPositions = async () => {
-      // 이미 동기화 중이거나 로컬 포지션이 있으면 스킵
       if (positionSyncRef.current) return;
-      if (processingRef.current) return;
-      
       positionSyncRef.current = true;
-      
+
       try {
         const positions = await getPositions();
         if (!isMounted) return;
-        if (!positions || !Array.isArray(positions)) return;
-        
-        const activePosition = positions.find((p: any) => 
+
+        const activePosition = positions?.find((p: any) =>
           Math.abs(parseFloat(p.positionAmt)) > 0
         );
-        
-        if (activePosition) {
-          const posAmt = parseFloat(activePosition.positionAmt);
-          const side: 'long' | 'short' = posAmt > 0 ? 'long' : 'short';
+
+        if (activePosition && !state.currentPosition) {
+          const positionAmt = parseFloat(activePosition.positionAmt);
+          const side = positionAmt > 0 ? 'long' : 'short';
           const entryPrice = parseFloat(activePosition.entryPrice);
-          
-          setState(prev => {
-            // 이미 동기화되어 있으면 스킵
-            if (prev.currentPosition?.symbol === activePosition.symbol) return prev;
-            
-            console.log('[AutoTrading] Synced existing position:', activePosition.symbol);
-            
-            return {
-              ...prev,
-              currentPosition: {
-                symbol: activePosition.symbol,
-                side,
-                entryPrice,
-                quantity: Math.abs(posAmt),
-                entryTime: Date.now(),
-                entryCandle: { open: entryPrice, high: entryPrice, low: entryPrice, close: entryPrice },
-                referenceBodySize: 0, // 동기화된 포지션은 기준값 없음
-                atr: entryPrice * 0.01, // 동기화된 포지션은 1% 기본값
+
+          // 기본 인디케이터 (동기화용)
+          const defaultIndicators: TechnicalIndicators = {
+            rsi: 50, ema8: entryPrice, ema21: entryPrice,
+            macd: 0, macdSignal: 0, macdHistogram: 0,
+            upperBand: entryPrice * 1.02, lowerBand: entryPrice * 0.98, sma20: entryPrice,
+            adx: 25, cci: 0, stochK: 50, stochD: 50, williamsR: -50,
+            atr: entryPrice * 0.005, volumeRatio: 1,
+          };
+
+          setState(prev => ({
+            ...prev,
+            currentPosition: {
+              symbol: activePosition.symbol,
+              side,
+              entryPrice,
+              initialQuantity: Math.abs(positionAmt),
+              remainingQuantity: Math.abs(positionAmt),
+              entryTime: Date.now(),
+              atr: entryPrice * 0.005,
+              takeProfitState: {
+                stage1Hit: false,
+                stage2Hit: false,
+                stage3Hit: false,
+                trailingActive: false,
+                trailingHighPrice: entryPrice,
+                trailingTriggerPrice: 0,
               },
-              currentSymbol: activePosition.symbol,
-            };
-          });
+              indicators: defaultIndicators,
+            },
+            currentSymbol: activePosition.symbol,
+          }));
         }
       } catch (error) {
         console.error('Position sync error:', error);
@@ -1007,27 +824,23 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
         positionSyncRef.current = false;
       }
     };
-    
-    // 최초 동기화
+
     syncPositions();
-    
-    // 10초마다 동기화 체크
     const interval = setInterval(syncPositions, 10000);
-    
+
     return () => {
       isMounted = false;
       clearInterval(interval);
     };
-  }, [user, getPositions]);
-  
+  }, [user, getPositions, state.currentPosition]);
+
   // 봉 완성 체크 interval
   useEffect(() => {
     if (!state.isEnabled) return;
-    
-    const interval = setInterval(checkCandleCompletion, 1000); // 매 초 체크
+    const interval = setInterval(checkCandleCompletion, 1000);
     return () => clearInterval(interval);
   }, [state.isEnabled, checkCandleCompletion]);
-  
+
   // 자정 리셋
   useEffect(() => {
     const checkDayChange = () => {
@@ -1035,7 +848,7 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
       const koreaTime = new Date(now.getTime() + 9 * 60 * 60 * 1000);
       const hours = koreaTime.getUTCHours();
       const minutes = koreaTime.getUTCMinutes();
-      
+
       if (hours === 0 && minutes === 0) {
         setState(prev => ({
           ...prev,
@@ -1046,89 +859,89 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
         }));
       }
     };
-    
+
     const interval = setInterval(checkDayChange, 60000);
     return () => clearInterval(interval);
   }, []);
-  
-  // 시그널 패스 (수동 취소)
+
+  // 시그널 패스
   const skipSignal = useCallback(() => {
     if (!state.pendingSignal) return;
-    
-    const { symbol, touchType } = state.pendingSignal;
-    const side = touchType === 'upper' ? 'short' : 'long';
-    
+
+    const { symbol, direction } = state.pendingSignal;
+
     addLog({
       symbol,
       action: 'cancel',
-      side,
+      side: direction,
       price: state.pendingSignal.signalPrice,
       quantity: 0,
       reason: '🚫 수동 패스',
     });
-    
-    setState(prev => ({ 
-      ...prev, 
-      pendingSignal: null, 
-      statusMessage: '🔍 강화 시그널 검색 중...' 
-    }));
-    
-    toast.info(`⏭️ ${symbol} 패스됨`);
-  }, [state.pendingSignal, addLog]);
-  
-  // 시그널 방향 스왑 (롱↔숏)
-  const swapSignalDirection = useCallback(() => {
-    if (!state.pendingSignal) return;
-    
-    const { symbol, touchType } = state.pendingSignal;
-    const newTouchType = touchType === 'upper' ? 'lower' : 'upper';
-    const newSide = newTouchType === 'upper' ? '숏' : '롱';
-    
+
     setState(prev => ({
       ...prev,
-      pendingSignal: prev.pendingSignal ? {
-        ...prev.pendingSignal,
-        touchType: newTouchType,
-      } : null,
+      pendingSignal: null,
+      statusMessage: '🔍 기술적 분석 기반 스캔 중...',
     }));
-    
-    toast.info(`🔄 ${symbol} → ${newSide}으로 변경`);
+
+    toast.info(`⏭️ ${symbol} 패스됨`);
+  }, [state.pendingSignal, addLog]);
+
+  // 시그널 방향 스왑
+  const swapSignalDirection = useCallback(() => {
+    if (!state.pendingSignal) return;
+
+    const { symbol, direction } = state.pendingSignal;
+    const newDirection = direction === 'long' ? 'short' : 'long';
+
+    setState(prev => ({
+      ...prev,
+      pendingSignal: prev.pendingSignal
+        ? { ...prev.pendingSignal, direction: newDirection }
+        : null,
+    }));
+
+    toast.info(`🔄 ${symbol} → ${newDirection === 'long' ? '롱' : '숏'}으로 변경`);
   }, [state.pendingSignal]);
-  
-  // 본절 청산 (진입가에 지정가 주문)
+
+  // 본절 청산
   const breakEvenClose = useCallback(async () => {
     if (!state.currentPosition) return;
     if (processingRef.current) return;
-    
+
     processingRef.current = true;
     setState(prev => ({ ...prev, isProcessing: true }));
-    
+
     const position = state.currentPosition;
-    
+
     try {
-      // 실제 포지션 확인
       const positions = await getPositions(position.symbol);
-      const actualPosition = positions?.find((p: any) => 
+      const actualPosition = positions?.find((p: any) =>
         p.symbol === position.symbol && Math.abs(parseFloat(p.positionAmt)) > 0
       );
-      
+
       if (!actualPosition) {
-        setState(prev => ({ ...prev, currentPosition: null, currentSymbol: null, statusMessage: '🔍 강화 시그널 검색 중...' }));
+        setState(prev => ({
+          ...prev,
+          currentPosition: null,
+          currentSymbol: null,
+          statusMessage: '🔍 기술적 분석 기반 스캔 중...',
+        }));
         toast.error('실제 포지션이 없습니다');
         return;
       }
-      
+
       const actualQty = Math.abs(parseFloat(actualPosition.positionAmt));
       const entryPrice = parseFloat(actualPosition.entryPrice);
-      
-      // 본절 지정가 주문
+
       const orderSide = position.side === 'long' ? 'SELL' : 'BUY';
       const result = await placeLimitOrder(position.symbol, orderSide, actualQty, entryPrice, true);
-      
+
       if (!result || result.error) {
         throw new Error(result?.error || '본절 주문 실패');
       }
-      
+
       addLog({
         symbol: position.symbol,
         action: 'pending',
@@ -1137,9 +950,8 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
         quantity: actualQty,
         reason: `📍 본절 주문 등록 @ $${entryPrice.toFixed(4)}`,
       });
-      
+
       toast.success(`📍 ${position.symbol} 본절 주문 등록 @ $${entryPrice.toFixed(4)}`);
-      
     } catch (error: any) {
       console.error('Break-even order error:', error);
       toast.error(`본절 주문 실패: ${error.message || '오류'}`);
@@ -1148,20 +960,20 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
       setState(prev => ({ ...prev, isProcessing: false }));
     }
   }, [state.currentPosition, getPositions, placeLimitOrder, addLog]);
-  
+
   // 본절 주문 취소
   const cancelBreakEvenOrder = useCallback(async () => {
     if (!state.currentPosition) return;
     if (processingRef.current) return;
-    
+
     processingRef.current = true;
     setState(prev => ({ ...prev, isProcessing: true }));
-    
+
     const position = state.currentPosition;
-    
+
     try {
       await cancelAllOrders(position.symbol);
-      
+
       addLog({
         symbol: position.symbol,
         action: 'cancel',
@@ -1170,9 +982,8 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
         quantity: 0,
         reason: '🚫 본절 주문 취소됨',
       });
-      
+
       toast.info(`🚫 ${position.symbol} 본절 주문 취소됨`);
-      
     } catch (error: any) {
       console.error('Cancel break-even order error:', error);
       toast.error(`본절 취소 실패: ${error.message || '오류'}`);
@@ -1181,17 +992,18 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
       setState(prev => ({ ...prev, isProcessing: false }));
     }
   }, [state.currentPosition, cancelAllOrders, addLog]);
-  
+
   return {
     state,
     toggleAutoTrading,
-    handleSignal,
+    handleSignal: handleBBSignal, // 레거시 호환
+    handleTechnicalSignal: handleSignal,
     closePosition,
     checkTpSl,
     skipSignal,
     swapSignalDirection,
     breakEvenClose,
     cancelBreakEvenOrder,
-    updatePrice: useCallback(() => {}, []), // 더 이상 사용 안 함
+    updatePrice: useCallback(() => {}, []),
   };
 }
