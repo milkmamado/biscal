@@ -281,6 +281,10 @@ const TradeLogItem = ({ log, krwRate }: { log: AutoTradeLog; krwRate: number }) 
         return '📤';
       case 'error':
         return '⚠️';
+      case 'cancel':
+        return '🚫';
+      case 'pending':
+        return '⏳';
       default:
         return '•';
     }
@@ -298,6 +302,10 @@ const TradeLogItem = ({ log, krwRate }: { log: AutoTradeLog; krwRate: number }) 
         return '청산';
       case 'error':
         return '오류';
+      case 'cancel':
+        return '취소';
+      case 'pending':
+        return '대기';
       default:
         return log.action;
     }
@@ -308,22 +316,35 @@ const TradeLogItem = ({ log, krwRate }: { log: AutoTradeLog; krwRate: number }) 
     return krw.toLocaleString('ko-KR', { maximumFractionDigits: 0 });
   };
   
+  // 사유 표시 (cancel, error, pending만)
+  const showReason = ['cancel', 'error', 'pending'].includes(log.action);
+  
   return (
     <div className={cn(
-      "px-2 py-1.5 rounded text-[10px] flex items-center gap-2",
-      log.action === 'error' ? "bg-red-500/10" : "bg-secondary/50"
+      "px-2 py-1.5 rounded text-[10px]",
+      log.action === 'error' ? "bg-red-500/10" : 
+      log.action === 'cancel' ? "bg-yellow-500/10" :
+      log.action === 'pending' ? "bg-blue-500/10" :
+      "bg-secondary/50"
     )}>
-      <span>{getActionIcon()}</span>
-      <span className="text-muted-foreground">{formatTime(log.timestamp)}</span>
-      <span className="font-semibold">{log.symbol.replace('USDT', '')}</span>
-      <span>{getActionText()}</span>
-      {log.pnl !== undefined && (
-        <span className={cn(
-          "font-mono ml-auto",
-          log.pnl >= 0 ? "text-green-500" : "text-red-500"
-        )}>
-          {log.pnl >= 0 ? '+' : ''}₩{formatKRW(log.pnl)}
-        </span>
+      <div className="flex items-center gap-2">
+        <span>{getActionIcon()}</span>
+        <span className="text-muted-foreground">{formatTime(log.timestamp)}</span>
+        <span className="font-semibold">{log.symbol.replace('USDT', '')}</span>
+        <span>{getActionText()}</span>
+        {log.pnl !== undefined && (
+          <span className={cn(
+            "font-mono ml-auto",
+            log.pnl >= 0 ? "text-green-500" : "text-red-500"
+          )}>
+            {log.pnl >= 0 ? '+' : ''}₩{formatKRW(log.pnl)}
+          </span>
+        )}
+      </div>
+      {showReason && log.reason && (
+        <div className="mt-0.5 ml-5 text-[9px] text-muted-foreground truncate">
+          → {log.reason}
+        </div>
       )}
     </div>
   );
