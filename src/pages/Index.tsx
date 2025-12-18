@@ -60,6 +60,10 @@ const Index = () => {
     if (!autoTrading.state.isEnabled) return;
     if (bbSignals.length === 0) return;
     
+    // 포지션 보유 중이거나 대기 중이면 새 시그널 무시
+    if (autoTrading.state.currentPosition) return;
+    if (autoTrading.state.pendingSignal) return;
+    
     // 새로운 시그널만 처리
     const currentSignalKeys = new Set(bbSignals.map(s => `${s.symbol}-${s.touchType}`));
     
@@ -78,14 +82,16 @@ const Index = () => {
     }
     
     prevSignalsRef.current = currentSignalKeys;
-  }, [bbSignals, autoTrading.state.isEnabled]);
+  }, [bbSignals, autoTrading.state.isEnabled, autoTrading.state.currentPosition, autoTrading.state.pendingSignal]);
   
-  // 포지션 보유 중일 때 해당 종목 차트 유지
+  // 포지션 보유 중이거나 대기 중일 때 해당 종목 차트 유지
   useEffect(() => {
     if (autoTrading.state.currentPosition) {
       setSelectedSymbol(autoTrading.state.currentPosition.symbol);
+    } else if (autoTrading.state.pendingSignal) {
+      setSelectedSymbol(autoTrading.state.pendingSignal.symbol);
     }
-  }, [autoTrading.state.currentPosition?.symbol]);
+  }, [autoTrading.state.currentPosition?.symbol, autoTrading.state.pendingSignal?.symbol]);
   
   // 현재 가격으로 TP 체크
   useEffect(() => {
