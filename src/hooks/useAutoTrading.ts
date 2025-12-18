@@ -25,6 +25,7 @@ interface PendingSignal {
   signalCandleOpen: number;
   signalCandleHigh: number;
   signalCandleLow: number;
+  waitCount: number; // 도지/망치 등 애매한 캔들 시 추가 대기 횟수
 }
 
 // 진입 시 저장할 봉 정보
@@ -265,6 +266,7 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
         signalCandleOpen: currentCandle.open,
         signalCandleHigh: currentCandle.high,
         signalCandleLow: currentCandle.low,
+        waitCount: 0, // 첫 대기
       };
       
       setState(prev => ({ ...prev, pendingSignal, currentSymbol: symbol, statusMessage: `✨ ${symbol.replace('USDT', '')} 발견! 봉 완성 대기 중...` }));
@@ -386,7 +388,10 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
             reason: `확인 진입 (TP ${dynamicTpPercent.toFixed(2)}%)`,
           });
           
-          toast.success(`🤖 ${side === 'long' ? '롱' : '숏'} 진입 | ${symbol} @ $${actualEntryPrice.toFixed(2)}`);
+          // 귀여운 진입 알림
+          const cuteEmojis = ['🚀', '💫', '✨', '🎯', '💰', '🔥', '⚡'];
+          const randomEmoji = cuteEmojis[Math.floor(Math.random() * cuteEmojis.length)];
+          toast.success(`${randomEmoji} ${side === 'long' ? '롱롱이' : '숏숏이'} 출격! ${symbol.replace('USDT', '')} @ $${actualEntryPrice.toFixed(2)}`);
           return;
         }
         
@@ -438,7 +443,10 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
             reason: `확인 진입 (TP ${dynamicTpPercent.toFixed(2)}%)`,
           });
           
-          toast.success(`🤖 ${side === 'long' ? '롱' : '숏'} 진입 | ${symbol} @ $${actualEntryPrice.toFixed(2)}`);
+          // 귀여운 진입 알림
+          const cuteEmojis2 = ['🚀', '💫', '✨', '🎯', '💰', '🔥', '⚡'];
+          const randomEmoji2 = cuteEmojis2[Math.floor(Math.random() * cuteEmojis2.length)];
+          toast.success(`${randomEmoji2} ${side === 'long' ? '롱롱이' : '숏숏이'} 출격! ${symbol.replace('USDT', '')} @ $${actualEntryPrice.toFixed(2)}`);
           return;
         }
         
@@ -474,7 +482,10 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
         reason: `확인 진입 (TP ${dynamicTpPercent.toFixed(2)}%)`,
       });
       
-      toast.success(`🤖 ${side === 'long' ? '롱' : '숏'} 진입 | ${symbol} @ $${(avgPrice > 0 ? avgPrice : currentPrice).toFixed(2)} (TP ${dynamicTpPercent.toFixed(2)}%)`);
+      // 귀여운 진입 알림
+      const cuteEmojis3 = ['🚀', '💫', '✨', '🎯', '💰', '🔥', '⚡'];
+      const randomEmoji3 = cuteEmojis3[Math.floor(Math.random() * cuteEmojis3.length)];
+      toast.success(`${randomEmoji3} ${side === 'long' ? '롱롱이' : '숏숏이'} 출격! ${symbol.replace('USDT', '')} @ $${(avgPrice > 0 ? avgPrice : currentPrice).toFixed(2)}`);
       
     } catch (error: any) {
       console.error('Entry error:', error);
@@ -634,20 +645,23 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
     
     // 대기 중인 시그널이 있으면 확인 진입 체크
     if (state.pendingSignal && !state.currentPosition) {
-      const { symbol, touchType } = state.pendingSignal;
+      const { symbol, touchType, waitCount } = state.pendingSignal;
+      const MAX_WAIT_COUNT = 2; // 최대 2번 추가 대기 (도지/망치 시)
       
       try {
-        const klines = await fetch1mKlines(symbol, 7);
-        if (!klines || klines.length < 6) return;
+        // 20봉 평균을 위해 22개 fetch
+        const klines = await fetch1mKlines(symbol, 22);
+        if (!klines || klines.length < 21) return;
         
         // 직전 완성된 봉 (시그널 발생 후 완성된 봉)
         const completedCandle = klines[klines.length - 2];
         
         // 디버깅: 실제 캔들 데이터 로그
-        console.log(`[${symbol}] 확인 봉: O=${completedCandle.open.toFixed(4)} C=${completedCandle.close.toFixed(4)} (${completedCandle.close > completedCandle.open ? '양봉' : '음봉'})`);
+        const candleType = completedCandle.close > completedCandle.open ? '양봉' : completedCandle.close < completedCandle.open ? '음봉' : '도지';
+        console.log(`[${symbol}] 확인 봉: O=${completedCandle.open.toFixed(4)} C=${completedCandle.close.toFixed(4)} (${candleType}) [대기 ${waitCount + 1}회차]`);
         
-        // 최근 5봉의 평균 몸통 크기를 기준으로 사용 (단봉 방지)
-        const recentCandles = klines.slice(-7, -2); // 완성된 봉 제외, 그 이전 5봉
+        // 최근 20봉의 평균 몸통 크기를 기준으로 사용 (안정적인 기준)
+        const recentCandles = klines.slice(-22, -2); // 완성된 봉 제외, 그 이전 20봉
         const avgBodySize = recentCandles.reduce((sum, k) => sum + Math.abs(k.close - k.open), 0) / recentCandles.length;
         
         // 최소 기준값 설정 (가격의 0.05% 이상)
@@ -657,6 +671,10 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
         
         // 완성된 봉의 몸통 크기
         const bodyMove = completedCandle.close - completedCandle.open;
+        const bodySize = Math.abs(bodyMove);
+        
+        // 도지/망치 판단: 몸통이 임계값 미만 = 애매한 캔들
+        const isAmbiguousCandle = bodySize < threshold;
         
         // 임계값 이상 움직여야 유효한 양봉/음봉으로 판단
         const isBullish = bodyMove >= threshold;
@@ -672,14 +690,33 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
         } else if (touchType === 'lower' && isBullish) {
           // 롱 진입 (기준 봉 크기 전달)
           await executeEntry(symbol, 'long', completedCandle.close, completedCandle, referenceBodySize);
+        } else if (isAmbiguousCandle && waitCount < MAX_WAIT_COUNT) {
+          // 도지/망치 등 애매한 캔들 → 추가 대기
+          setState(prev => ({
+            ...prev,
+            pendingSignal: prev.pendingSignal ? { ...prev.pendingSignal, waitCount: waitCount + 1 } : null,
+            statusMessage: `⏳ ${symbol.replace('USDT', '')} 도지/망치 감지 - ${waitCount + 2}번째 봉 대기 중...`,
+          }));
+          
+          addLog({
+            symbol,
+            action: 'pending',
+            side: expectedSide,
+            price: completedCandle.close,
+            quantity: 0,
+            reason: `도지/망치 감지 - 추가 대기 (${waitCount + 1}/${MAX_WAIT_COUNT})`,
+          });
+          toast.info(`⏳ ${symbol} 도지/망치 → ${waitCount + 2}번째 봉 대기`);
         } else {
-          // 조건 불충족 - 시그널 취소
+          // 조건 불충족 또는 최대 대기 초과 - 시그널 취소
           setState(prev => ({ ...prev, pendingSignal: null, statusMessage: '🔍 BB 시그널 종목 검색 중...' }));
           
           // 직관적인 취소 사유 생성
-          const actualCandle = bodyMove > 0 ? '🟢양봉' : bodyMove < 0 ? '🔴음봉' : '➖보합';
+          const actualCandle = isAmbiguousCandle ? '➖도지/망치' : (bodyMove > 0 ? '🟢양봉' : '🔴음봉');
           const expectedCandle = touchType === 'upper' ? '🔴음봉' : '🟢양봉';
-          const cancelReason = `${actualCandle} 출현 (기대: ${expectedCandle})`;
+          const cancelReason = waitCount >= MAX_WAIT_COUNT 
+            ? `${MAX_WAIT_COUNT}회 대기 후에도 방향 불명확`
+            : `${actualCandle} 출현 (기대: ${expectedCandle})`;
           
           addLog({
             symbol,
@@ -689,7 +726,7 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
             quantity: 0,
             reason: cancelReason,
           });
-          toast.info(`❌ ${symbol} 취소 - ${actualCandle} ≠ ${expectedCandle}`);
+          toast.info(`❌ ${symbol} 취소 - ${cancelReason}`);
         }
       } catch (error) {
         console.error('Candle check error:', error);
