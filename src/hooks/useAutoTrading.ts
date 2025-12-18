@@ -88,6 +88,40 @@ async function fetch1mKlines(symbol: string, limit: number = 20) {
   }
 }
 
+// 변동성 급등 체크 (최근 5분 vs 이전 20분 평균)
+async function checkVolatilitySpike(symbol: string): Promise<{ isSpike: boolean; ratio: number }> {
+  try {
+    const res = await fetch(
+      `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=1m&limit=25`
+    );
+    const data = await res.json();
+    if (!Array.isArray(data) || data.length < 25) {
+      return { isSpike: false, ratio: 1 };
+    }
+    
+    // 최근 5분 변동성 (고가-저가 비율)
+    const recent5 = data.slice(-5);
+    const recent5Vol = recent5.reduce((sum: number, k: any[]) => {
+      const range = (parseFloat(k[2]) - parseFloat(k[3])) / parseFloat(k[3]) * 100;
+      return sum + range;
+    }, 0) / 5;
+    
+    // 이전 20분 평균 변동성
+    const prev20 = data.slice(0, 20);
+    const prev20Vol = prev20.reduce((sum: number, k: any[]) => {
+      const range = (parseFloat(k[2]) - parseFloat(k[3])) / parseFloat(k[3]) * 100;
+      return sum + range;
+    }, 0) / 20;
+    
+    const ratio = prev20Vol > 0 ? recent5Vol / prev20Vol : 1;
+    
+    return { isSpike: ratio >= 3, ratio };
+  } catch (error) {
+    console.error('Volatility check error:', error);
+    return { isSpike: false, ratio: 1 };
+  }
+}
+
 // 현재 분이 바뀌었는지 체크 (봉 완성 감지)
 function getMinuteTimestamp() {
   return Math.floor(Date.now() / 60000);
@@ -173,6 +207,21 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate }: UseAutoTrading
     if (Date.now() - lastEntryTimeRef.current < ENTRY_COOLDOWN_MS) return;
     
     try {
+      // 변동성 급등 체크
+      const volatilityCheck = await checkVolatilitySpike(symbol);
+      if (volatilityCheck.isSpike) {
+        addLog({
+          symbol,
+          action: 'cancel',
+          side: touchType === 'upper' ? 'short' : 'long',
+          price: currentPrice,
+          quantity: 0,
+          reason: `변동성 급등 (${volatilityCheck.ratio.toFixed(1)}x) - 진입 보류`,
+        });
+        toast.warning(`⚠️ ${symbol} 변동성 급등 (${volatilityCheck.ratio.toFixed(1)}x) - 진입 보류`);
+        return;
+      }
+      
       // 현재 봉 정보 가져오기
       const klines = await fetch1mKlines(symbol, 2);
       if (!klines || klines.length < 2) return;
