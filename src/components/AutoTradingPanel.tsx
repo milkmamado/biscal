@@ -46,6 +46,7 @@ interface AutoTradingPanelProps {
   state: AutoTradingState;
   onToggle: () => void;
   onManualClose?: () => void;
+  onSkipSignal?: () => void;
   currentPrice?: number;
   krwRate: number;
   leverage: number;
@@ -59,6 +60,7 @@ const AutoTradingPanel = ({
   state, 
   onToggle, 
   onManualClose,
+  onSkipSignal,
   currentPrice = 0,
   krwRate,
   leverage,
@@ -352,18 +354,26 @@ const AutoTradingPanel = ({
       {pendingSignal && !currentPosition && (
         <div className="px-4 py-3 border-b border-border bg-yellow-500/10">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
+            <div 
+              className="flex items-center gap-2 cursor-pointer hover:opacity-80"
+              onClick={() => onSelectSymbol?.(pendingSignal.symbol)}
+            >
               <Clock className="w-4 h-4 text-yellow-500 animate-pulse" />
               <span className="font-semibold text-sm text-yellow-500">
                 {pendingSignal.symbol} {pendingSignal.touchType === 'upper' ? '숏' : '롱'} 대기
               </span>
             </div>
-            <span className="text-[10px] text-muted-foreground">
-              봉 완성 대기 중
-            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onSkipSignal}
+              className="h-6 px-2 text-[10px] border-yellow-500/50 text-yellow-500 hover:bg-yellow-500/20"
+            >
+              패스
+            </Button>
           </div>
           <div className="mt-1 text-[10px] text-muted-foreground">
-            BB {pendingSignal.touchType === 'upper' ? '상단' : '하단'} 터치 @ ${pendingSignal.signalPrice.toFixed(2)}
+            시그널 @ ${pendingSignal.signalPrice.toFixed(4)} | 봉 완성 대기 중
           </div>
         </div>
       )}
