@@ -100,11 +100,17 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height = 400
   const [visibleCount, setVisibleCount] = useState(50);
   const [displaySymbol, setDisplaySymbol] = useState(symbol); // 현재 표시 중인 심볼
   const [currentPriceDisplay, setCurrentPriceDisplay] = useState(0); // 현재가 표시용
+  const [klineConnected, setKlineConnected] = useState(false);
+
   const lastCandleTimeRef = useRef<number>(0);
   const currentCandleRef = useRef<Candle | null>(null);
   const fetchIdRef = useRef<number>(0); // fetch 요청 ID
   const rafIdRef = useRef<number>(0); // requestAnimationFrame ID
   const lastDrawTimeRef = useRef<number>(0); // 마지막 그리기 시간
+
+  const klineWsRef = useRef<WebSocket | null>(null);
+  const klineReconnectTimeoutRef = useRef<number | null>(null);
+  const klineConnIdRef = useRef(0);
   
   // 줌 인/아웃
   const handleZoomIn = useCallback(() => {
@@ -191,19 +197,130 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height = 400
     
     fetchKlines();
     
-    const refreshInterval = Math.min(interval * 1000, 60000);
-    const intervalId = setInterval(() => {
-      // 주기적 갱신도 현재 심볼/interval에만 적용
-      if (fetchIdRef.current === currentFetchId) {
-        fetchKlines();
-      }
-    }, refreshInterval);
-    
     return () => {
-      clearInterval(intervalId);
+      // no periodic REST refresh: realtime updates come from kline websocket
     };
   }, [symbol, interval]);
-  
+
+  // Kline WebSocket으로 실시간 봉 업데이트 (바이낸스 차트와 동일한 소스)
+  useEffect(() => {
+    const intervalStr = getIntervalString(interval);
+    const connId = ++klineConnIdRef.current;
+
+    setKlineConnected(false);
+
+    if (klineReconnectTimeoutRef.current) {
+      window.clearTimeout(klineReconnectTimeoutRef.current);
+      klineReconnectTimeoutRef.current = null;
+    }
+
+    if (klineWsRef.current) {
+      try {
+        klineWsRef.current.close();
+      } catch {
+        // ignore
+      }
+      klineWsRef.current = null;
+    }
+
+    const connect = () => {
+      if (klineConnIdRef.current !== connId) return;
+
+      const ws = new WebSocket(
+        `wss://fstream.binance.com/ws/${symbol.toLowerCase()}@kline_${intervalStr}`
+      );
+      klineWsRef.current = ws;
+
+      const scheduleReconnect = () => {
+        if (klineConnIdRef.current !== connId) return;
+        if (klineReconnectTimeoutRef.current) return;
+        klineReconnectTimeoutRef.current = window.setTimeout(() => {
+          klineReconnectTimeoutRef.current = null;
+          connect();
+        }, 1000);
+      };
+
+      ws.onopen = () => {
+        if (klineConnIdRef.current !== connId) return;
+        setKlineConnected(true);
+      };
+
+      ws.onmessage = (event) => {
+        if (klineConnIdRef.current !== connId) return;
+        try {
+          const msg = JSON.parse(event.data);
+          const k = msg?.k;
+          if (!k || typeof k.t !== 'number') return;
+
+          const candle: Candle = {
+            time: k.t,
+            open: parseFloat(k.o),
+            high: parseFloat(k.h),
+            low: parseFloat(k.l),
+            close: parseFloat(k.c),
+            volume: parseFloat(k.v),
+          };
+
+          currentCandleRef.current = candle;
+          lastCandleTimeRef.current = candle.time;
+          setCurrentPriceDisplay(candle.close);
+          setLoading(false);
+
+          setCandles((prev) => {
+            if (prev.length === 0) return [candle];
+            const last = prev[prev.length - 1];
+
+            // 같은 봉 업데이트
+            if (last.time === candle.time) {
+              const next = prev.slice();
+              next[next.length - 1] = candle;
+              return next;
+            }
+
+            // 새 봉 시작
+            if (last.time < candle.time) {
+              return [...prev, candle].slice(-MAX_CANDLES);
+            }
+
+            // out-of-order는 무시
+            return prev;
+          });
+        } catch {
+          // ignore
+        }
+      };
+
+      ws.onerror = () => {
+        if (klineConnIdRef.current !== connId) return;
+        setKlineConnected(false);
+        scheduleReconnect();
+      };
+
+      ws.onclose = () => {
+        if (klineConnIdRef.current !== connId) return;
+        setKlineConnected(false);
+        scheduleReconnect();
+      };
+    };
+
+    connect();
+
+    return () => {
+      if (klineReconnectTimeoutRef.current) {
+        window.clearTimeout(klineReconnectTimeoutRef.current);
+        klineReconnectTimeoutRef.current = null;
+      }
+      if (klineWsRef.current) {
+        try {
+          klineWsRef.current.close();
+        } catch {
+          // ignore
+        }
+        klineWsRef.current = null;
+      }
+    };
+  }, [symbol, interval]);
+
   // orderBook에서 현재가로 현재 봉 업데이트 (requestAnimationFrame으로 최적화)
   useEffect(() => {
     // 로딩 중이거나 캔들이 없으면 무시
@@ -287,10 +404,11 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height = 400
     const displayCandles = allCandles.slice(-visibleCount);
     
     if (displayCandles.length < 2) {
+      const connected = klineConnected || isConnected || (!!orderBook && orderBook.bids.length > 0);
       ctx.fillStyle = 'rgba(255,255,255,0.5)';
       ctx.font = '12px sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText(isConnected ? '데이터 수집 중...' : '연결 중...', width / 2, chartHeight / 2);
+      ctx.fillText(connected ? '데이터 수집 중...' : '연결 중...', width / 2, chartHeight / 2);
       return;
     }
     
@@ -526,7 +644,9 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height = 400
         )}
         <div className={cn(
           "w-2 h-2 rounded-full",
-          orderBook && orderBook.bids.length > 0 ? "bg-green-500 animate-pulse" : "bg-red-500"
+          (klineConnected || isConnected || (orderBook && orderBook.bids.length > 0))
+            ? "bg-green-500 animate-pulse"
+            : "bg-red-500"
         )} />
       </div>
       
