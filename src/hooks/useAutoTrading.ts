@@ -654,16 +654,23 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete 
   }, [state.currentPosition, state.isEnabled, closePosition]);
   
   // 기존 포지션 동기화 (로드 시 및 주기적)
+  const positionSyncRef = useRef(false);
+  
   useEffect(() => {
     if (!user) return;
     
+    let isMounted = true;
+    
     const syncPositions = async () => {
-      // 이미 로컬에 포지션이 있으면 스킵
-      if (state.currentPosition) return;
+      // 이미 동기화 중이거나 로컬 포지션이 있으면 스킵
+      if (positionSyncRef.current) return;
       if (processingRef.current) return;
+      
+      positionSyncRef.current = true;
       
       try {
         const positions = await getPositions();
+        if (!isMounted) return;
         if (!positions || !Array.isArray(positions)) return;
         
         const activePosition = positions.find((p: any) => 
@@ -672,12 +679,14 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete 
         
         if (activePosition) {
           const posAmt = parseFloat(activePosition.positionAmt);
-          const side = posAmt > 0 ? 'long' : 'short';
+          const side: 'long' | 'short' = posAmt > 0 ? 'long' : 'short';
           const entryPrice = parseFloat(activePosition.entryPrice);
           
           setState(prev => {
             // 이미 동기화되어 있으면 스킵
             if (prev.currentPosition?.symbol === activePosition.symbol) return prev;
+            
+            console.log('[AutoTrading] Synced existing position:', activePosition.symbol);
             
             return {
               ...prev,
@@ -692,11 +701,11 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete 
               currentSymbol: activePosition.symbol,
             };
           });
-          
-          console.log('[AutoTrading] Synced existing position:', activePosition.symbol);
         }
       } catch (error) {
         console.error('Position sync error:', error);
+      } finally {
+        positionSyncRef.current = false;
       }
     };
     
@@ -705,8 +714,12 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete 
     
     // 10초마다 동기화 체크
     const interval = setInterval(syncPositions, 10000);
-    return () => clearInterval(interval);
-  }, [user, state.currentPosition, getPositions]);
+    
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [user, getPositions]);
   
   // 봉 완성 체크 interval
   useEffect(() => {
