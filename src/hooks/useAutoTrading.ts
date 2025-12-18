@@ -736,11 +736,24 @@ export function useAutoTrading({
         throw new Error(orderResult?.error || '주문 실패');
       }
 
-      const executedQty = parseFloat(orderResult.executedQty || orderResult.origQty || quantity);
-      const avgPrice = parseFloat(orderResult.avgPrice || orderResult.price || currentPrice);
+      // 체결 수량 파싱 (executedQty가 0이면 origQty 또는 요청 수량 사용)
+      let executedQty = parseFloat(orderResult.executedQty || '0');
+      const origQty = parseFloat(orderResult.origQty || '0');
+      const avgPrice = parseFloat(orderResult.avgPrice || orderResult.price || '0') || currentPrice;
 
+      // executedQty가 0이면 origQty 또는 요청 수량 사용 (시장가 주문은 거의 즉시 체결됨)
+      if (executedQty <= 0 && origQty > 0) {
+        console.log(`[executeEntry] executedQty=0, origQty=${origQty} 사용`);
+        executedQty = origQty;
+      }
       if (executedQty <= 0) {
-        throw new Error('주문 체결 수량 0');
+        executedQty = quantity;
+        console.log(`[executeEntry] executedQty=0, 요청 수량 ${quantity} 사용`);
+      }
+
+      // 최종 검증
+      if (executedQty <= 0) {
+        throw new Error(`주문 체결 수량 0 (응답: ${JSON.stringify(orderResult)})`);
       }
 
       lastEntryTimeRef.current = Date.now();
