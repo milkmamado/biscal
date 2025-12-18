@@ -1,10 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
 import { cn } from '@/lib/utils';
-import { Bot, Power, TrendingUp, TrendingDown, Activity, Clock, AlertTriangle } from 'lucide-react';
+import { Bot, TrendingUp, TrendingDown, Activity, Clock, AlertTriangle } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { AutoTradingState, AutoTradeLog } from '@/hooks/useAutoTrading';
 import { formatPrice } from '@/lib/binance';
+
+const LEVERAGE_OPTIONS = [1, 5, 10];
 
 interface AutoTradingPanelProps {
   state: AutoTradingState;
@@ -12,6 +14,8 @@ interface AutoTradingPanelProps {
   onManualClose?: () => void;
   currentPrice?: number;
   krwRate: number;
+  leverage: number;
+  onLeverageChange: (leverage: number) => void;
 }
 
 const AutoTradingPanel = ({ 
@@ -20,6 +24,8 @@ const AutoTradingPanel = ({
   onManualClose,
   currentPrice = 0,
   krwRate,
+  leverage,
+  onLeverageChange,
 }: AutoTradingPanelProps) => {
   const { isEnabled, isProcessing, currentPosition, todayStats, tradeLogs, cooldownUntil } = state;
   
@@ -94,6 +100,31 @@ const AutoTradingPanel = ({
             onCheckedChange={onToggle}
             className="data-[state=checked]:bg-green-500"
           />
+        </div>
+      </div>
+      
+      {/* Leverage Setting */}
+      <div className="px-4 py-2 border-b border-border bg-secondary/30">
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] text-muted-foreground">레버리지</span>
+          <div className="flex gap-1">
+            {LEVERAGE_OPTIONS.map((lev) => (
+              <button
+                key={lev}
+                onClick={() => onLeverageChange(lev)}
+                disabled={isEnabled || !!currentPosition}
+                className={cn(
+                  "px-2 py-0.5 text-[10px] font-mono rounded transition-colors",
+                  leverage === lev 
+                    ? "bg-primary text-primary-foreground" 
+                    : "bg-secondary hover:bg-secondary/80",
+                  (isEnabled || currentPosition) && "opacity-50 cursor-not-allowed"
+                )}
+              >
+                {lev}x
+              </button>
+            ))}
+          </div>
         </div>
       </div>
       

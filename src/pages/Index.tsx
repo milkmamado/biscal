@@ -17,6 +17,7 @@ const Index = () => {
   const [checkingKeys, setCheckingKeys] = useState(true);
   const [balanceUSD, setBalanceUSD] = useState(0);
   const [krwRate, setKrwRate] = useState(1380);
+  const [leverage, setLeverage] = useState(10);
 
   const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
@@ -26,7 +27,7 @@ const Index = () => {
   // 자동매매 훅
   const autoTrading = useAutoTrading({
     balanceUSD,
-    leverage: 10,
+    leverage,
     krwRate,
   });
   
@@ -190,6 +191,8 @@ const Index = () => {
               onManualClose={handleManualClose}
               currentPrice={currentAutoPrice}
               krwRate={krwRate}
+              leverage={leverage}
+              onLeverageChange={setLeverage}
             />
             <HotCoinList
               onSelectSymbol={setSelectedSymbol}
