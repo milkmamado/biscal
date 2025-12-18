@@ -65,11 +65,21 @@ const Index = () => {
       
       // 자동매매 진입 실행
       autoTrading.handleSignal(signal.symbol, signal.touchType, signal.price);
+      
+      // 진입한 종목으로 차트 전환
+      setSelectedSymbol(signal.symbol);
       break; // 한 번에 하나만 처리
     }
     
     prevSignalsRef.current = currentSignalKeys;
   }, [bbSignals, autoTrading.state.isEnabled]);
+  
+  // 포지션 보유 중일 때 해당 종목 차트 유지
+  useEffect(() => {
+    if (autoTrading.state.currentPosition) {
+      setSelectedSymbol(autoTrading.state.currentPosition.symbol);
+    }
+  }, [autoTrading.state.currentPosition?.symbol]);
   
   // 현재 가격으로 TP/SL 체크
   useEffect(() => {
