@@ -260,6 +260,7 @@ const Index = () => {
               onManualClose={handleManualClose}
               onSkipSignal={autoTrading.skipSignal}
               onBreakEvenClose={autoTrading.breakEvenClose}
+              onCancelBreakEven={autoTrading.cancelBreakEvenOrder}
               currentPrice={currentAutoPrice}
               krwRate={krwRate}
               leverage={leverage}

@@ -48,6 +48,7 @@ interface AutoTradingPanelProps {
   onManualClose?: () => void;
   onSkipSignal?: () => void;
   onBreakEvenClose?: () => void;
+  onCancelBreakEven?: () => void;
   currentPrice?: number;
   krwRate: number;
   leverage: number;
@@ -63,6 +64,7 @@ const AutoTradingPanel = ({
   onManualClose,
   onSkipSignal,
   onBreakEvenClose,
+  onCancelBreakEven,
   currentPrice = 0,
   krwRate,
   leverage,
@@ -422,6 +424,17 @@ const AutoTradingPanel = ({
                 disabled={isProcessing}
               >
                 본절
+              </Button>
+            )}
+            {onCancelBreakEven && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onCancelBreakEven}
+                className="flex-1 h-7 text-xs border-gray-500/50 text-gray-400 hover:bg-gray-500/20"
+                disabled={isProcessing}
+              >
+                취소
               </Button>
             )}
             {onManualClose && (
