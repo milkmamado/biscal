@@ -187,13 +187,8 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
     pendingSignalRef.current = state.pendingSignal;
   }, [state.pendingSignal]);
   
-  // 본전가 터치 추적 (3회 터치 시 자동 청산)
-  const breakEvenTouchRef = useRef<{
-    count: number;
-    lastSide: 'above' | 'below' | null;
-    positionSymbol: string | null;
-  }>({ count: 0, lastSide: null, positionSymbol: null });
   
+
   // 쿨다운 설정
   const ENTRY_COOLDOWN_MS = 60000; // 1분
   const DAILY_LIMIT_PERCENT = 10; // 원금 대비 ±10% 도달 시 자동 OFF
@@ -928,7 +923,7 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
     }
   }, [state.isEnabled, state.pendingSignal, state.currentPosition, executeEntry, closePosition, addLog]);
   
-  // 실시간 TP/ATR기반 SL 체크 + 본전가 3회 터치 자동청산
+  // 실시간 TP/ATR기반 SL 체크
   const checkTpSl = useCallback((currentPrice: number, tpPercent: number, _slPercent: number) => {
     if (!state.currentPosition || !state.isEnabled) return;
     
@@ -941,44 +936,6 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
     if (pnlPercent >= tpPercent) {
       closePosition('tp', currentPrice);
       return;
-    }
-    
-    // 🔥 본전가 3회 터치 자동청산
-    // 가격이 본전가(진입가) 근처(±0.02%)를 지나갈 때마다 카운트
-    const beThreshold = position.entryPrice * 0.0002; // 0.02% 오차 허용
-    const currentSide: 'above' | 'below' = currentPrice > position.entryPrice ? 'above' : 'below';
-    
-    // 새 포지션이면 리셋
-    if (breakEvenTouchRef.current.positionSymbol !== position.symbol) {
-      breakEvenTouchRef.current = { count: 0, lastSide: currentSide, positionSymbol: position.symbol };
-    }
-    
-    // 본전가 근처(±0.02%)를 통과할 때 (한쪽에서 다른쪽으로 이동)
-    if (breakEvenTouchRef.current.lastSide && breakEvenTouchRef.current.lastSide !== currentSide) {
-      // 본전가 영역에 진입 (터치)
-      breakEvenTouchRef.current.count += 1;
-      breakEvenTouchRef.current.lastSide = currentSide;
-      
-      console.log(`[${position.symbol}] 본전가 터치 ${breakEvenTouchRef.current.count}회 (현재가: $${currentPrice.toFixed(4)}, 진입가: $${position.entryPrice.toFixed(4)})`);
-      
-      // 3회 터치 시 자동 본절 청산
-      if (breakEvenTouchRef.current.count >= 3) {
-        console.log(`[${position.symbol}] 🎯 본전가 3회 터치 - 자동 본절 청산`);
-        addLog({
-          symbol: position.symbol,
-          action: 'exit',
-          side: position.side,
-          price: currentPrice,
-          quantity: position.quantity,
-          reason: '🎯 본전가 3회 터치 - 자동 청산',
-        });
-        toast.info(`🎯 ${position.symbol} 본전가 3회 터치 - 자동 청산`);
-        breakEvenTouchRef.current = { count: 0, lastSide: null, positionSymbol: null };
-        closePosition('exit', currentPrice);
-        return;
-      }
-    } else {
-      breakEvenTouchRef.current.lastSide = currentSide;
     }
     
     // ATR 기반 손절: 진입가 ± (ATR × 1배수)
