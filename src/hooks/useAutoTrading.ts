@@ -607,18 +607,8 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
       // 통계 업데이트
       const newTotalPnL = state.todayStats.totalPnL + pnl;
       
-      // 원금 대비 ±10% 체크
-      const pnlPercent = balanceUSD > 0 ? (newTotalPnL / balanceUSD) * 100 : 0;
-      const shouldStopTrading = Math.abs(pnlPercent) >= DAILY_LIMIT_PERCENT;
-      
-      if (shouldStopTrading) {
-        const isProfit = pnlPercent > 0;
-        toast.info(`🛑 원금 대비 ${isProfit ? '+' : ''}${pnlPercent.toFixed(1)}% 도달 - 자동매매 종료`);
-      }
-      
       setState(prev => ({
         ...prev,
-        isEnabled: shouldStopTrading ? false : prev.isEnabled,
         currentPosition: null,
         currentSymbol: null,
         todayStats: {
@@ -627,9 +617,7 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
           losses: prev.todayStats.losses + (isWin ? 0 : 1),
           totalPnL: newTotalPnL,
         },
-        statusMessage: shouldStopTrading 
-          ? '🛑 일일 한도 도달 - 자동매매 종료'
-          : `${isWin ? '✅ 익절 완료!' : '❌ 손절 완료'} 다음 시그널 대기...`,
+        statusMessage: `${isWin ? '✅ 익절 완료!' : '❌ 손절 완료'} 다음 시그널 대기...`,
       }));
       
       addLog({
