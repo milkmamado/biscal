@@ -191,7 +191,7 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
       if (newEnabled) {
         // 자동매매 ON 시 오디오 초기화 (사용자 상호작용)
         initAudio();
-        toast.success('🤖 자동매매 시작 (BB+강화 모드)');
+        toast.success('🤖 자동매매 시작 (강화시그널 모드)');
       } else {
         toast.info('자동매매 중지');
       }
@@ -199,7 +199,7 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
         ...prev, 
         isEnabled: newEnabled, 
         pendingSignal: null,
-        statusMessage: newEnabled ? '🔍 BB+강화 시그널 검색 중...' : '자동매매 비활성화',
+        statusMessage: newEnabled ? '🔍 강화 시그널 검색 중...' : '자동매매 비활성화',
       };
     });
   }, []);
@@ -506,7 +506,7 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
     } catch (error: any) {
       console.error('Entry error:', error);
       lastEntryTimeRef.current = Date.now();
-      setState(prev => ({ ...prev, pendingSignal: null, statusMessage: '🔍 BB+강화 시그널 검색 중...' }));
+      setState(prev => ({ ...prev, pendingSignal: null, statusMessage: '🔍 강화 시그널 검색 중...' }));
       addLog({
         symbol,
         action: 'error',
@@ -540,7 +540,7 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
       );
       
       if (!actualPosition) {
-        setState(prev => ({ ...prev, currentPosition: null, currentSymbol: null, statusMessage: '🔍 BB+강화 시그널 검색 중...' }));
+        setState(prev => ({ ...prev, currentPosition: null, currentSymbol: null, statusMessage: '🔍 강화 시그널 검색 중...' }));
         addLog({
           symbol: position.symbol,
           action: 'error',
@@ -756,7 +756,7 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
           await executeEntry(symbol, 'long', completedCandle.close, completedCandle, referenceBodySize);
         } else if (isBadPattern) {
           // 🚫 나쁜 패턴 즉시 취소 (롱+역망치, 숏+망치)
-          setState(prev => ({ ...prev, pendingSignal: null, statusMessage: '🔍 BB+강화 시그널 검색 중...' }));
+          setState(prev => ({ ...prev, pendingSignal: null, statusMessage: '🔍 강화 시그널 검색 중...' }));
           const patternName = isInvertedHammer ? '역망치(매도압력)' : '망치(매수방어)';
           addLog({
             symbol,
@@ -786,7 +786,7 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
           toast.info(`⏳ ${symbol} ${patternName} → 다음 봉 대기`);
         } else if (isWrongDirection && !isTrueDoji) {
           // 방향이 반대면 크기 작아도 즉시 취소!
-          setState(prev => ({ ...prev, pendingSignal: null, statusMessage: '🔍 BB+강화 시그널 검색 중...' }));
+          setState(prev => ({ ...prev, pendingSignal: null, statusMessage: '🔍 강화 시그널 검색 중...' }));
           const actualCandle = isDirectionBullish ? '🟢양봉' : '🔴음봉';
           const expectedCandle = touchType === 'upper' ? '🔴음봉' : '🟢양봉';
           const candleInfo = `O=${completedCandle.open.toFixed(4)} C=${completedCandle.close.toFixed(4)}`;
@@ -833,7 +833,7 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
           toast.info(`⏳ ${symbol} 도지 → ${waitCount + 2}번째 봉 대기`);
         } else {
           // 최대 대기 초과 - 시그널 취소
-          setState(prev => ({ ...prev, pendingSignal: null, statusMessage: '🔍 BB+강화 시그널 검색 중...' }));
+          setState(prev => ({ ...prev, pendingSignal: null, statusMessage: '🔍 강화 시그널 검색 중...' }));
           const cancelReason = `${MAX_WAIT_COUNT}회 대기 후에도 확인 안됨`;
           addLog({
             symbol,

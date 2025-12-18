@@ -6,6 +6,7 @@ export interface EnhancedSignal {
   reason: string; // 'momentum' | 'volume' | 'tick'
   strength: number; // 신호 강도 (1-3)
   detectedAt: number;
+  touchType: 'upper' | 'lower'; // 진입 방향 (급등=숏, 급락=롱)
 }
 
 interface TickerData {
@@ -40,7 +41,7 @@ export function useEnhancedSignals(
   const [isLoading, setIsLoading] = useState(false);
   const lastScanRef = useRef(0);
 
-  // BB 시그널이 있는 심볼만 추출
+  // BB 시그널이 있는 심볼만 추출 (기존 호환성 유지)
   const bbSymbols = useMemo(() => 
     new Set(bbSignals.map(s => s.symbol)),
     [bbSignals]
@@ -113,9 +114,9 @@ export function useEnhancedSignals(
     return { hit: Math.abs(change) >= TICK_SPEED_THRESHOLD, change };
   }, []);
 
-  // 종합 스캔
+  // 종합 스캔 (BB 없이 모든 티커 대상)
   const runScan = useCallback(async () => {
-    if (tickers.length === 0 || bbSignals.length === 0) return;
+    if (tickers.length === 0) return;
     
     const now = Date.now();
     if (now - lastScanRef.current < SCAN_INTERVAL) return;
@@ -125,43 +126,49 @@ export function useEnhancedSignals(
     
     const results: EnhancedSignal[] = [];
     
-    // BB 시그널이 있는 종목만 체크
-    for (const bbSignal of bbSignals) {
-      const ticker = tickers.find(t => t.symbol === bbSignal.symbol);
-      if (!ticker) continue;
-      
+    // 모든 티커 체크 (BB 필터 제거)
+    for (const ticker of tickers) {
       const reasons: string[] = [];
       let strength = 0;
+      let directionSum = 0; // 양수=상승, 음수=하락
       
       // 1. 모멘텀 체크
-      const momentum = await checkMomentum(bbSignal.symbol);
+      const momentum = await checkMomentum(ticker.symbol);
       if (momentum.hit) {
         reasons.push(`급등 ${momentum.change > 0 ? '+' : ''}${momentum.change.toFixed(1)}%`);
         strength++;
+        directionSum += momentum.change; // 방향 반영
       }
       
       // 2. 거래량 폭발 체크
-      const volumeSpike = checkVolumeSpike(bbSignal.symbol, ticker.volume);
+      const volumeSpike = checkVolumeSpike(ticker.symbol, ticker.volume);
       if (volumeSpike.hit) {
         reasons.push(`거래량 ${volumeSpike.ratio.toFixed(1)}x`);
         strength++;
+        // 거래량은 방향 없음, 24h 변화로 대체
+        directionSum += ticker.priceChangePercent > 0 ? 0.5 : -0.5;
       }
       
       // 3. 틱 속도 체크
-      const tickSpeed = checkTickSpeed(bbSignal.symbol, ticker.price);
+      const tickSpeed = checkTickSpeed(ticker.symbol, ticker.price);
       if (tickSpeed.hit) {
         reasons.push(`틱속도 ${tickSpeed.change > 0 ? '+' : ''}${tickSpeed.change.toFixed(2)}%`);
         strength++;
+        directionSum += tickSpeed.change; // 방향 반영
       }
       
       // 하나라도 만족하면 추가
       if (reasons.length > 0) {
+        // 방향 결정: 상승=upper(숏), 하락=lower(롱)
+        const touchType: 'upper' | 'lower' = directionSum > 0 ? 'upper' : 'lower';
+        
         results.push({
-          symbol: bbSignal.symbol,
+          symbol: ticker.symbol,
           price: ticker.price,
           reason: reasons.join(' + '),
           strength,
           detectedAt: now,
+          touchType,
         });
       }
     }
@@ -171,17 +178,17 @@ export function useEnhancedSignals(
     
     setEnhancedSignals(results);
     setIsLoading(false);
-  }, [tickers, bbSignals, checkMomentum, checkVolumeSpike, checkTickSpeed]);
+  }, [tickers, checkMomentum, checkVolumeSpike, checkTickSpeed]);
 
   // 주기적 스캔
   useEffect(() => {
-    if (tickers.length === 0 || bbSignals.length === 0) return;
+    if (tickers.length === 0) return;
     
     runScan();
     const interval = setInterval(runScan, SCAN_INTERVAL);
     
     return () => clearInterval(interval);
-  }, [tickers.length > 0, bbSignals.length > 0, runScan]);
+  }, [tickers.length > 0, runScan]);
 
   return { enhancedSignals, isLoading, runScan, bbSymbols };
 }
