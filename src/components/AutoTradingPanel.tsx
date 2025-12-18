@@ -229,7 +229,7 @@ const AutoTradingPanel = ({
             "w-5 h-5",
             isEnabled ? "text-green-500" : "text-muted-foreground"
           )} />
-          <span className="font-semibold text-sm">자동매매</span>
+          <span className="font-semibold text-sm tracking-wide">System Trading</span>
           {isProcessing && (
             <div className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" />
           )}
