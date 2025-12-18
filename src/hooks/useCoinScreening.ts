@@ -175,6 +175,9 @@ export function useCoinScreening(tickers: TickerData[], criteria: Partial<Screen
           const indicators = calculateAllIndicators(klines);
           if (!indicators) continue;
           
+          // 🆕 ADX 시장 환경 필터 - 횡보장 차단
+          if (indicators.adx < 20) continue;
+          
           // 시그널 체크
           const longCheck = checkLongSignal(indicators, t.price);
           const shortCheck = checkShortSignal(indicators, t.price);

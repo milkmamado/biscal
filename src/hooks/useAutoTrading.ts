@@ -127,6 +127,17 @@ const CONFIG = {
   // 변동성 필터
   MIN_ATR_PERCENT: 0.2,      // 최소 ATR 퍼센트
   MAX_ATR_PERCENT: 2.0,      // 최대 ATR 퍼센트
+  
+  // 시장 환경 필터 (NEW)
+  MIN_ADX_FOR_TREND: 20,     // 최소 ADX - 횡보장 필터
+  
+  // 동적 포지션 사이징 (NEW)
+  BASE_RISK_PERCENT: 1.0,    // 기본 리스크 퍼센트
+  ATR_POSITION_MULTIPLIER: {
+    LOW: 1.2,                // 낮은 변동성 → 큰 포지션
+    MEDIUM: 1.0,             // 보통 변동성 → 기본 포지션
+    HIGH: 0.7,               // 높은 변동성 → 작은 포지션
+  },
 };
 
 // 분 타임스탬프
@@ -526,7 +537,13 @@ export function useAutoTrading({
     const strengthOrder = { weak: 1, medium: 2, strong: 3 };
     if (strengthOrder[strength] < strengthOrder[CONFIG.MIN_SIGNAL_STRENGTH]) return;
 
-    console.log(`[handleSignal] ${symbol} ${direction} ${strength}`, reasons);
+    // 🆕 ADX 시장 환경 필터 - 횡보장 차단
+    if (indicators.adx < CONFIG.MIN_ADX_FOR_TREND) {
+      console.log(`[handleSignal] ${symbol} 횡보장 필터 (ADX: ${indicators.adx.toFixed(1)} < ${CONFIG.MIN_ADX_FOR_TREND})`);
+      return;
+    }
+
+    console.log(`[handleSignal] ${symbol} ${direction} ${strength} (ADX: ${indicators.adx.toFixed(1)})`, reasons);
 
     const pendingSignal: PendingSignal = {
       symbol,
@@ -586,6 +603,33 @@ export function useAutoTrading({
     }
   }, [state.isEnabled, state.currentPosition, state.pendingSignal, handleSignal]);
 
+  // 🆕 동적 포지션 사이징 계산
+  const calculateDynamicPositionSize = useCallback((
+    balance: number,
+    lev: number,
+    price: number,
+    atrPercent: number
+  ): number => {
+    // ATR 기반 변동성 레벨 판단
+    let positionMultiplier = CONFIG.ATR_POSITION_MULTIPLIER.MEDIUM;
+    let volatilityLevel = 'MEDIUM';
+    
+    if (atrPercent < 0.3) {
+      positionMultiplier = CONFIG.ATR_POSITION_MULTIPLIER.LOW;
+      volatilityLevel = 'LOW';
+    } else if (atrPercent > 0.8) {
+      positionMultiplier = CONFIG.ATR_POSITION_MULTIPLIER.HIGH;
+      volatilityLevel = 'HIGH';
+    }
+    
+    console.log(`[PositionSizing] ATR: ${atrPercent.toFixed(3)}% → ${volatilityLevel} (x${positionMultiplier})`);
+    
+    // 안전 잔고 * 포지션 배수 적용
+    const safeBalance = balance * 0.9 * positionMultiplier;
+    const buyingPower = safeBalance * lev;
+    return buyingPower / price;
+  }, []);
+
   // 진입 실행
   const executeEntry = useCallback(async (
     symbol: string,
@@ -599,10 +643,9 @@ export function useAutoTrading({
     setState(prev => ({ ...prev, isProcessing: true }));
 
     try {
-      // 주문 수량 계산
-      const safeBalance = balanceUSD * 0.9;
-      const buyingPower = safeBalance * leverage;
-      const rawQty = buyingPower / currentPrice;
+      // 🆕 ATR 기반 동적 포지션 사이징
+      const atrPercent = (indicators.atr / currentPrice) * 100;
+      const rawQty = calculateDynamicPositionSize(balanceUSD, leverage, currentPrice, atrPercent);
 
       const precision = await fetchSymbolPrecision(symbol);
       const quantity = roundQuantity(rawQty, precision);

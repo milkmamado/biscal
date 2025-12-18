@@ -9,6 +9,7 @@ import { useBinanceApi } from '@/hooks/useBinanceApi';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import TradingRecordModal from './TradingRecordModal';
+import BacktestModal from './BacktestModal';
 
 // 스캘핑 시간대 적합도 데이터
 const getScalpingRating = () => {
@@ -300,7 +301,15 @@ const AutoTradingPanel = ({
               {todayRealizedPnL >= 0 ? '+' : ''}₩{formatKRW(todayRealizedPnL)}
             </div>
           </div>
-          <TradingRecordModal krwRate={krwRate} />
+          <div className="flex items-center gap-1">
+            {currentPosition && (
+              <BacktestModal symbol={currentPosition.symbol} />
+            )}
+            {pendingSignal && !currentPosition && (
+              <BacktestModal symbol={pendingSignal.symbol} />
+            )}
+            <TradingRecordModal krwRate={krwRate} />
+          </div>
         </div>
       </div>
       
