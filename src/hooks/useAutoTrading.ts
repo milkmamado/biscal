@@ -672,13 +672,17 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
         // 완성된 봉의 몸통 크기
         const bodyMove = completedCandle.close - completedCandle.open;
         const bodySize = Math.abs(bodyMove);
-        
-        // 도지/망치 판단: 몸통이 임계값 미만 = 애매한 캔들
-        const isAmbiguousCandle = bodySize < threshold;
-        
-        // 임계값 이상 움직여야 유효한 양봉/음봉으로 판단
-        const isBullish = bodyMove >= threshold;
-        const isBearish = bodyMove <= -threshold;
+        const bodyMovePct = (bodySize / (completedCandle.open || completedCandle.close || 1)) * 100;
+
+        // 도지/망치 판단:
+        // 1) 20% 임계값 미만이거나
+        // 2) 절대 몸통 퍼센트가 너무 작으면(저변동 코인에서 '살짝 양봉' 오판 방지)
+        const MIN_CONFIRM_BODY_PCT = 0.3; // 0.3% 미만은 방향성 애매로 간주
+        const isAmbiguousCandle = bodySize < threshold || bodyMovePct < MIN_CONFIRM_BODY_PCT;
+
+        // 임계값 이상 + 최소 퍼센트도 만족해야 유효한 양봉/음봉으로 판단
+        const isBullish = !isAmbiguousCandle && bodyMove >= threshold;
+        const isBearish = !isAmbiguousCandle && bodyMove <= -threshold;
         
         const expectedSide = touchType === 'upper' ? 'short' : 'long';
         
