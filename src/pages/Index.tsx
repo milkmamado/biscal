@@ -21,13 +21,22 @@ const Index = () => {
 
   const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
-  const { dailyStats } = useTradingLogs();
+  const { dailyStats, logTrade, fetchDailyStats } = useTradingLogs();
   const { tickers } = useTickerWebSocket();
   
   // 청산 후 즉시 잔고 갱신
   const handleTradeComplete = useCallback(() => {
     setRefreshTrigger(prev => prev + 1);
-  }, []);
+    fetchDailyStats(); // DB에서 당일 통계 다시 로드
+  }, [fetchDailyStats]);
+  
+  // 초기 통계를 dailyStats에서 가져옴
+  const initialStats = {
+    trades: dailyStats.tradeCount,
+    wins: dailyStats.winCount,
+    losses: dailyStats.lossCount,
+    totalPnL: dailyStats.totalPnL,
+  };
   
   // 자동매매 훅
   const autoTrading = useAutoTrading({
@@ -35,6 +44,8 @@ const Index = () => {
     leverage,
     krwRate,
     onTradeComplete: handleTradeComplete,
+    initialStats,
+    logTrade,
   });
   
   // BB 시그널을 위한 티커 데이터 준비
