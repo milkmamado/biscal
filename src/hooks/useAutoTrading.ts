@@ -629,6 +629,9 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
     
     lastMinuteRef.current = currentMinute;
     
+    // 봉 완성 후 2초 대기 (Binance API 데이터 확정 대기)
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
     // 대기 중인 시그널이 있으면 확인 진입 체크
     if (state.pendingSignal && !state.currentPosition) {
       const { symbol, touchType } = state.pendingSignal;
@@ -639,6 +642,9 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
         
         // 직전 완성된 봉 (시그널 발생 후 완성된 봉)
         const completedCandle = klines[klines.length - 2];
+        
+        // 디버깅: 실제 캔들 데이터 로그
+        console.log(`[${symbol}] 확인 봉: O=${completedCandle.open.toFixed(4)} C=${completedCandle.close.toFixed(4)} (${completedCandle.close > completedCandle.open ? '양봉' : '음봉'})`);
         
         // 최근 5봉의 평균 몸통 크기를 기준으로 사용 (단봉 방지)
         const recentCandles = klines.slice(-7, -2); // 완성된 봉 제외, 그 이전 5봉
