@@ -2,8 +2,9 @@ import { useEffect, useState, useCallback } from 'react';
 import { formatPrice } from '@/lib/binance';
 import { useTickerWebSocket } from '@/hooks/useTickerWebSocket';
 import { useBollingerSignals, BBSignal } from '@/hooks/useBollingerSignals';
+import { useMomentumSignals, MomentumSignal } from '@/hooks/useMomentumSignals';
 import { cn } from '@/lib/utils';
-import { RefreshCw, TrendingUp, TrendingDown, Search, Wifi, WifiOff, Activity, Star, X, LogOut } from 'lucide-react';
+import { RefreshCw, TrendingUp, TrendingDown, Search, Wifi, WifiOff, Activity, Star, X, LogOut, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface HotCoinListProps {
@@ -19,12 +20,15 @@ interface WatchlistItem {
   addedAt: number;
 }
 
+type SignalTab = 'bb' | 'momentum';
+
 const WATCHLIST_KEY = 'bb_watchlist';
 
 const HotCoinList = ({ onSelectSymbol, selectedSymbol, onSignOut }: HotCoinListProps) => {
   const { tickers, isConnected } = useTickerWebSocket();
   const [searchQuery, setSearchQuery] = useState('');
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
+  const [activeTab, setActiveTab] = useState<SignalTab>('momentum');
   
   // Load watchlist from localStorage
   useEffect(() => {
@@ -44,11 +48,11 @@ const HotCoinList = ({ onSelectSymbol, selectedSymbol, onSignOut }: HotCoinListP
     localStorage.setItem(WATCHLIST_KEY, JSON.stringify(items));
   }, []);
   
-  // Get tickers for BB scanning (filtered by criteria)
-  const tickersForBB = tickers
-    .filter(c => c.price >= 0.1 && c.volume >= 50_000_000)
+  // Get tickers for scanning (filtered by criteria)
+  const tickersForScan = tickers
+    .filter(c => c.price >= 0.01 && c.volume >= 50_000_000)
     .sort((a, b) => b.volume - a.volume)
-    .slice(0, 30)
+    .slice(0, 50)
     .map(c => ({
       symbol: c.symbol,
       price: c.price,
@@ -57,7 +61,8 @@ const HotCoinList = ({ onSelectSymbol, selectedSymbol, onSignOut }: HotCoinListP
       volatilityRange: c.volatilityRange
     }));
   
-  const { signals: bbSignals, isLoading: bbLoading } = useBollingerSignals(tickersForBB);
+  const { signals: bbSignals, isLoading: bbLoading } = useBollingerSignals(tickersForScan);
+  const { signals: momentumSignals, isLoading: momentumLoading } = useMomentumSignals(tickersForScan);
   
   // Auto-add BB signals to watchlist
   useEffect(() => {
@@ -102,6 +107,10 @@ const HotCoinList = ({ onSelectSymbol, selectedSymbol, onSignOut }: HotCoinListP
   const filteredSignals = searchQuery 
     ? bbSignals.filter(s => s.symbol.toLowerCase().includes(searchQuery.toLowerCase()))
     : bbSignals;
+    
+  const filteredMomentum = searchQuery
+    ? momentumSignals.filter(s => s.symbol.toLowerCase().includes(searchQuery.toLowerCase()))
+    : momentumSignals;
 
   if (tickers.length === 0) {
     return (
@@ -121,11 +130,33 @@ const HotCoinList = ({ onSelectSymbol, selectedSymbol, onSignOut }: HotCoinListP
 
   return (
     <div className="bg-card rounded-lg border border-border overflow-hidden">
-      {/* Header */}
+      {/* Header with Tabs */}
       <div className="px-3 py-2 border-b border-border flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Activity className="w-4 h-4 text-primary" />
-          <h3 className="text-sm font-semibold">BB 신호</h3>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setActiveTab('momentum')}
+            className={cn(
+              "px-2 py-1 rounded text-xs font-semibold transition-colors flex items-center gap-1",
+              activeTab === 'momentum' 
+                ? "bg-orange-500/20 text-orange-400" 
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <Zap className="w-3 h-3" />
+            급등
+          </button>
+          <button
+            onClick={() => setActiveTab('bb')}
+            className={cn(
+              "px-2 py-1 rounded text-xs font-semibold transition-colors flex items-center gap-1",
+              activeTab === 'bb' 
+                ? "bg-primary/20 text-primary" 
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <Activity className="w-3 h-3" />
+            BB
+          </button>
         </div>
         <div className="flex items-center gap-1">
           {isConnected ? (
@@ -150,50 +181,102 @@ const HotCoinList = ({ onSelectSymbol, selectedSymbol, onSignOut }: HotCoinListP
         </div>
       </div>
 
-      {/* BB Signal List - 절반 높이 */}
+      {/* Signal List */}
       <div className="h-[180px] divide-y divide-border/50 overflow-y-auto">
-        {bbLoading ? (
-          <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
-            <div className="text-center">
-              <RefreshCw className="w-4 h-4 animate-spin mx-auto mb-2" />
-              BB 스캔 중...
+        {activeTab === 'momentum' ? (
+          // 급등/급락 신호
+          momentumLoading ? (
+            <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
+              <div className="text-center">
+                <RefreshCw className="w-4 h-4 animate-spin mx-auto mb-2" />
+                급등 스캔 중...
+              </div>
             </div>
-          </div>
-        ) : filteredSignals.length === 0 ? (
-          <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
-            {searchQuery ? '검색 결과 없음' : 'BB 터치 신호 없음'}
-          </div>
-        ) : (
-          filteredSignals.map((signal) => {
-            const isSelected = signal.symbol === selectedSymbol;
-            
-            return (
-              <button
-                key={signal.symbol}
-                onClick={() => onSelectSymbol(signal.symbol)}
-                className={cn(
-                  "w-full px-3 py-1.5 text-left transition-all hover:bg-secondary/50 flex items-center gap-2",
-                  isSelected && "bg-primary/10 border-l-2 border-l-primary"
-                )}
-              >
-                <div className="bg-red-500/20 text-red-400 w-5 h-5 rounded flex items-center justify-center text-[10px] font-bold">
-                  ▲
-                </div>
-                <div className="flex-1 min-w-0">
-                  <span className="font-semibold text-xs">{signal.symbol.replace('USDT', '')}</span>
-                </div>
-                <div className="text-right">
-                  <p className="font-mono text-[10px]">${formatPrice(signal.price)}</p>
+          ) : filteredMomentum.length === 0 ? (
+            <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
+              {searchQuery ? '검색 결과 없음' : '1분 내 2%↑↓ 신호 없음'}
+            </div>
+          ) : (
+            filteredMomentum.map((signal) => {
+              const isSelected = signal.symbol === selectedSymbol;
+              const isUp = signal.direction === 'up';
+              
+              return (
+                <button
+                  key={signal.symbol}
+                  onClick={() => onSelectSymbol(signal.symbol)}
+                  className={cn(
+                    "w-full px-3 py-1.5 text-left transition-all hover:bg-secondary/50 flex items-center gap-2",
+                    isSelected && "bg-primary/10 border-l-2 border-l-primary"
+                  )}
+                >
                   <div className={cn(
-                    "text-[9px] font-medium",
-                    signal.priceChangePercent >= 0 ? "text-positive" : "text-negative"
+                    "w-5 h-5 rounded flex items-center justify-center text-[10px] font-bold",
+                    isUp ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400"
                   )}>
-                    {signal.priceChangePercent >= 0 ? '+' : ''}{signal.priceChangePercent.toFixed(2)}%
+                    {isUp ? '▲' : '▼'}
                   </div>
-                </div>
-              </button>
-            );
-          })
+                  <div className="flex-1 min-w-0">
+                    <span className="font-semibold text-xs">{signal.symbol.replace('USDT', '')}</span>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-mono text-[10px]">${formatPrice(signal.price)}</p>
+                    <div className={cn(
+                      "text-[9px] font-bold",
+                      isUp ? "text-positive" : "text-negative"
+                    )}>
+                      {isUp ? '+' : ''}{signal.changePercent.toFixed(2)}%
+                    </div>
+                  </div>
+                </button>
+              );
+            })
+          )
+        ) : (
+          // BB 신호
+          bbLoading ? (
+            <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
+              <div className="text-center">
+                <RefreshCw className="w-4 h-4 animate-spin mx-auto mb-2" />
+                BB 스캔 중...
+              </div>
+            </div>
+          ) : filteredSignals.length === 0 ? (
+            <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
+              {searchQuery ? '검색 결과 없음' : 'BB 터치 신호 없음'}
+            </div>
+          ) : (
+            filteredSignals.map((signal) => {
+              const isSelected = signal.symbol === selectedSymbol;
+              
+              return (
+                <button
+                  key={signal.symbol}
+                  onClick={() => onSelectSymbol(signal.symbol)}
+                  className={cn(
+                    "w-full px-3 py-1.5 text-left transition-all hover:bg-secondary/50 flex items-center gap-2",
+                    isSelected && "bg-primary/10 border-l-2 border-l-primary"
+                  )}
+                >
+                  <div className="bg-red-500/20 text-red-400 w-5 h-5 rounded flex items-center justify-center text-[10px] font-bold">
+                    ▲
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <span className="font-semibold text-xs">{signal.symbol.replace('USDT', '')}</span>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-mono text-[10px]">${formatPrice(signal.price)}</p>
+                    <div className={cn(
+                      "text-[9px] font-medium",
+                      signal.priceChangePercent >= 0 ? "text-positive" : "text-negative"
+                    )}>
+                      {signal.priceChangePercent >= 0 ? '+' : ''}{signal.priceChangePercent.toFixed(2)}%
+                    </div>
+                  </div>
+                </button>
+              );
+            })
+          )
         )}
       </div>
 
