@@ -282,7 +282,7 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
         side: touchType === 'upper' ? 'short' : 'long',
         price: currentPrice,
         quantity: 0,
-        reason: `BB ${touchType === 'upper' ? '상단' : '하단'} 터치 - 다음 봉 확인 대기`,
+        reason: `${touchType === 'upper' ? '📈 상승' : '📉 하락'} 시그널 - 다음 봉 확인 대기`,
       });
       
       toast.info(`⏳ ${symbol} ${side} 시그널 - 봉 완성 대기 중`);
