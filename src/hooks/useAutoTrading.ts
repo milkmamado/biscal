@@ -47,6 +47,7 @@ export interface AutoTradingState {
     quantity: number;
     entryTime: number;
     entryCandle: EntryCandleInfo; // 진입 시점 봉 정보
+    referenceBodySize: number; // 기준 봉 몸통 크기 (손절 판단용)
   } | null;
   todayStats: {
     trades: number;
@@ -264,7 +265,8 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete 
     symbol: string,
     side: 'long' | 'short',
     currentPrice: number,
-    entryCandle: EntryCandleInfo
+    entryCandle: EntryCandleInfo,
+    referenceBodySize?: number // 기준 봉 몸통 크기 (없으면 계산)
   ) => {
     if (processingRef.current) return;
     
@@ -273,8 +275,9 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete 
     
     try {
       // 동적 TP 계산: 최근 20봉 평균 크기의 60%
-      const klines = await fetch1mKlines(symbol, 20);
+      const klines = await fetch1mKlines(symbol, 21);
       let dynamicTpPercent = 0.3; // 기본값
+      let refBodySize = referenceBodySize || 0;
       
       if (klines && klines.length >= 20) {
         const candleSizes = klines.map(k => ((k.high - k.low) / k.low) * 100);
@@ -283,6 +286,12 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete 
         
         // 최소 0.1%, 최대 2%로 제한
         dynamicTpPercent = Math.max(0.1, Math.min(2, dynamicTpPercent));
+        
+        // 기준 봉 크기가 없으면 직전 봉에서 계산
+        if (!refBodySize && klines.length >= 2) {
+          const prevCandle = klines[klines.length - 2];
+          refBodySize = Math.abs(prevCandle.close - prevCandle.open);
+        }
       }
       
       // 주문 수량 계산
@@ -335,6 +344,7 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete 
               quantity: actualQty,
               entryTime: Date.now(),
               entryCandle,
+              referenceBodySize: refBodySize,
             },
             currentSymbol: symbol,
             tpPercent: dynamicTpPercent,
@@ -385,6 +395,7 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete 
               quantity: actualQty,
               entryTime: Date.now(),
               entryCandle,
+              referenceBodySize: refBodySize,
             },
             currentSymbol: symbol,
             tpPercent: dynamicTpPercent,
@@ -419,6 +430,7 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete 
           quantity: executedQty,
           entryTime: Date.now(),
           entryCandle,
+          referenceBodySize: refBodySize,
         },
         currentSymbol: symbol,
         tpPercent: dynamicTpPercent,
@@ -602,11 +614,11 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete 
         // 상단 터치 → 음봉 확인 → 숏 진입
         // 하단 터치 → 양봉 확인 → 롱 진입
         if (touchType === 'upper' && isBearish) {
-          // 숏 진입
-          await executeEntry(symbol, 'short', completedCandle.close, completedCandle);
+          // 숏 진입 (기준 봉 크기 전달)
+          await executeEntry(symbol, 'short', completedCandle.close, completedCandle, prevBodySize);
         } else if (touchType === 'lower' && isBullish) {
-          // 롱 진입
-          await executeEntry(symbol, 'long', completedCandle.close, completedCandle);
+          // 롱 진입 (기준 봉 크기 전달)
+          await executeEntry(symbol, 'long', completedCandle.close, completedCandle, prevBodySize);
         } else {
           // 조건 불충족 - 시그널 취소
           const movePercent = prevBodySize > 0 ? (Math.abs(bodyMove) / prevBodySize * 100).toFixed(0) : '0';
@@ -650,7 +662,7 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete 
     }
   }, [state.isEnabled, state.pendingSignal, state.currentPosition, executeEntry, closePosition, addLog]);
   
-  // 실시간 TP 체크 (봉 완성 기다리지 않고 퍼센트 기준)
+  // 실시간 TP/SL 체크 (봉 완성 기다리지 않고)
   const checkTpSl = useCallback((currentPrice: number, tpPercent: number, _slPercent: number) => {
     if (!state.currentPosition || !state.isEnabled) return;
     
@@ -659,9 +671,23 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete 
     const priceDiff = (currentPrice - position.entryPrice) * direction;
     const pnlPercent = (priceDiff / position.entryPrice) * 100;
     
-    // 익절만 퍼센트 기준으로 체크 (손절은 봉 기준)
+    // 익절: 퍼센트 기준
     if (pnlPercent >= tpPercent) {
       closePosition('tp', currentPrice);
+      return;
+    }
+    
+    // 실시간 손절: 기준봉 대비 10% 이상 역방향 움직임
+    if (position.referenceBodySize > 0) {
+      const slThreshold = position.referenceBodySize * 0.1; // 10%
+      const priceMove = (currentPrice - position.entryPrice) * direction; // 양수면 이익 방향
+      
+      // 역방향으로 기준봉의 10% 이상 움직이면 손절
+      if (priceMove <= -slThreshold) {
+        const movePercent = (Math.abs(priceMove) / position.referenceBodySize * 100).toFixed(0);
+        console.log(`[AutoTrading] Real-time SL triggered: ${movePercent}% opposite move`);
+        closePosition('sl', currentPrice);
+      }
     }
   }, [state.currentPosition, state.isEnabled, closePosition]);
   
@@ -709,6 +735,7 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete 
                 quantity: Math.abs(posAmt),
                 entryTime: Date.now(),
                 entryCandle: { open: entryPrice, high: entryPrice, low: entryPrice, close: entryPrice },
+                referenceBodySize: 0, // 동기화된 포지션은 기준값 없음
               },
               currentSymbol: activePosition.symbol,
             };
