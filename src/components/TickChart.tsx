@@ -650,29 +650,27 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height = 400
         )} />
       </div>
       
-      {/* 우측 상단: 분봉 정보 */}
-      <div className="absolute top-2 right-2 flex items-center gap-2">
-        <span className="text-[10px] text-muted-foreground font-mono">
-          {getIntervalString(interval)} | {visibleCount}봉
+      {/* 줌 컨트롤 + 분봉 정보 (중앙 상단) */}
+      <div className="absolute top-2 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1">
+        <div className="flex items-center gap-1">
+          <button
+            onClick={handleZoomIn}
+            className="p-1 bg-secondary/80 hover:bg-secondary rounded text-muted-foreground hover:text-foreground transition-colors"
+            title="확대 (스크롤 업)"
+          >
+            <ZoomIn className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={handleZoomOut}
+            className="p-1 bg-secondary/80 hover:bg-secondary rounded text-muted-foreground hover:text-foreground transition-colors"
+            title="축소 (스크롤 다운)"
+          >
+            <ZoomOut className="w-3.5 h-3.5" />
+          </button>
+        </div>
+        <span className="text-[10px] text-muted-foreground font-mono bg-secondary/60 px-1.5 py-0.5 rounded">
+          {getIntervalString(interval)} {visibleCount}봉
         </span>
-      </div>
-      
-      {/* 줌 컨트롤 (중앙) */}
-      <div className="absolute top-2 left-1/2 -translate-x-1/2 flex items-center gap-1">
-        <button
-          onClick={handleZoomIn}
-          className="p-1 bg-secondary/80 hover:bg-secondary rounded text-muted-foreground hover:text-foreground transition-colors"
-          title="확대 (스크롤 업)"
-        >
-          <ZoomIn className="w-3.5 h-3.5" />
-        </button>
-        <button
-          onClick={handleZoomOut}
-          className="p-1 bg-secondary/80 hover:bg-secondary rounded text-muted-foreground hover:text-foreground transition-colors"
-          title="축소 (스크롤 다운)"
-        >
-          <ZoomOut className="w-3.5 h-3.5" />
-        </button>
       </div>
     </div>
   );
