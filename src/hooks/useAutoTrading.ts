@@ -238,20 +238,46 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
     touchType: 'upper' | 'lower',
     currentPrice: number
   ) => {
-    if (!state.isEnabled) return;
-    if (processingRef.current) return;
-    if (!user) return;
-    if (balanceUSD <= 0) return;
+    if (!state.isEnabled) {
+      console.log(`[handleSignal] Skip: not enabled`);
+      return;
+    }
+    if (processingRef.current) {
+      console.log(`[handleSignal] Skip: processing`);
+      return;
+    }
+    if (!user) {
+      console.log(`[handleSignal] Skip: no user`);
+      return;
+    }
+    if (balanceUSD <= 0) {
+      console.log(`[handleSignal] Skip: balance <= 0 (${balanceUSD})`);
+      return;
+    }
     
     // 이미 포지션이 있으면 무시
-    if (state.currentPosition) return;
+    if (state.currentPosition) {
+      console.log(`[handleSignal] Skip: has position`);
+      return;
+    }
     
     // 이미 대기 중인 시그널이 있으면 무시
-    if (state.pendingSignal) return;
+    if (state.pendingSignal) {
+      console.log(`[handleSignal] Skip: has pending signal`);
+      return;
+    }
     
     // 쿨다운 체크
-    if (state.cooldownUntil && Date.now() < state.cooldownUntil) return;
-    if (Date.now() - lastEntryTimeRef.current < ENTRY_COOLDOWN_MS) return;
+    if (state.cooldownUntil && Date.now() < state.cooldownUntil) {
+      console.log(`[handleSignal] Skip: cooldown active`);
+      return;
+    }
+    if (Date.now() - lastEntryTimeRef.current < ENTRY_COOLDOWN_MS) {
+      console.log(`[handleSignal] Skip: entry cooldown (${Math.round((Date.now() - lastEntryTimeRef.current) / 1000)}s < 60s)`);
+      return;
+    }
+    
+    console.log(`[handleSignal] Processing: ${symbol} ${touchType}`);
     
     try {
       // 변동성 급등 체크
