@@ -5,6 +5,7 @@ import { useTradingLogs } from '@/hooks/useTradingLogs';
 import { useAutoTrading } from '@/hooks/useAutoTrading';
 import { useBollingerSignals } from '@/hooks/useBollingerSignals';
 import { useTickerWebSocket } from '@/hooks/useTickerWebSocket';
+import { useWakeLock } from '@/hooks/useWakeLock';
 import { supabase } from '@/integrations/supabase/client';
 import DualChartPanel from '@/components/DualChartPanel';
 import AutoTradingPanel from '@/components/AutoTradingPanel';
@@ -48,6 +49,9 @@ const Index = () => {
     logTrade,
   });
   
+  // 자동매매 중 절전 방지 (백그라운드 탭에서도 안정적 동작)
+  useWakeLock(autoTrading.state.isEnabled);
+
   // BB 시그널을 위한 티커 데이터 준비
   const tickersForBB = tickers
     .filter(c => c.price >= 0.01 && c.volume >= 50_000_000)
