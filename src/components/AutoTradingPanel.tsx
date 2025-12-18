@@ -27,7 +27,7 @@ const AutoTradingPanel = ({
   leverage,
   onLeverageChange,
 }: AutoTradingPanelProps) => {
-  const { isEnabled, isProcessing, currentPosition, todayStats, tradeLogs, cooldownUntil } = state;
+  const { isEnabled, isProcessing, currentPosition, pendingSignal, todayStats, tradeLogs, cooldownUntil } = state;
   
   // 쿨다운 타이머
   const [cooldownRemaining, setCooldownRemaining] = useState<string | null>(null);
@@ -163,6 +163,26 @@ const AutoTradingPanel = ({
           </div>
         </div>
       </div>
+      
+      {/* Pending Signal */}
+      {pendingSignal && !currentPosition && (
+        <div className="px-4 py-3 border-b border-border bg-yellow-500/10">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Clock className="w-4 h-4 text-yellow-500 animate-pulse" />
+              <span className="font-semibold text-sm text-yellow-500">
+                {pendingSignal.symbol} {pendingSignal.touchType === 'upper' ? '숏' : '롱'} 대기
+              </span>
+            </div>
+            <span className="text-[10px] text-muted-foreground">
+              봉 완성 대기 중
+            </span>
+          </div>
+          <div className="mt-1 text-[10px] text-muted-foreground">
+            BB {pendingSignal.touchType === 'upper' ? '상단' : '하단'} 터치 @ ${pendingSignal.signalPrice.toFixed(2)}
+          </div>
+        </div>
+      )}
       
       {/* Current Position */}
       {currentPosition && (
