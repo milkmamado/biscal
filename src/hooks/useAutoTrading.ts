@@ -179,8 +179,7 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
   
   // 쿨다운 설정
   const ENTRY_COOLDOWN_MS = 60000; // 1분
-  const CONSECUTIVE_LOSS_LIMIT = 3;
-  const LOSS_COOLDOWN_MS = 30 * 60 * 1000; // 30분
+  const DAILY_LIMIT_PERCENT = 10; // 원금 대비 ±10% 도달 시 자동 OFF
   
   // 자동매매 토글
   const toggleAutoTrading = useCallback(() => {
@@ -544,33 +543,32 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
       const isWin = pnl > 0;
       
       // 통계 업데이트
-      setState(prev => {
-        const newConsecutiveLosses = isWin ? 0 : prev.consecutiveLosses + 1;
-        const newCooldownUntil = newConsecutiveLosses >= CONSECUTIVE_LOSS_LIMIT
-          ? Date.now() + LOSS_COOLDOWN_MS
-          : null;
-        
-        if (newCooldownUntil) {
-          toast.warning(`⏸️ ${CONSECUTIVE_LOSS_LIMIT}연패로 30분 휴식`);
-        }
-        
-        return {
-          ...prev,
-          currentPosition: null,
-          currentSymbol: null,
-          todayStats: {
-            trades: prev.todayStats.trades + 1,
-            wins: prev.todayStats.wins + (isWin ? 1 : 0),
-            losses: prev.todayStats.losses + (isWin ? 0 : 1),
-            totalPnL: prev.todayStats.totalPnL + pnl,
-          },
-          consecutiveLosses: newConsecutiveLosses,
-          cooldownUntil: newCooldownUntil,
-          statusMessage: newCooldownUntil 
-            ? `⏸️ 30분 휴식 중...` 
-            : `${isWin ? '✅ 익절 완료!' : '❌ 손절 완료'} 다음 시그널 대기...`,
-        };
-      });
+      const newTotalPnL = state.todayStats.totalPnL + pnl;
+      
+      // 원금 대비 ±10% 체크
+      const pnlPercent = balanceUSD > 0 ? (newTotalPnL / balanceUSD) * 100 : 0;
+      const shouldStopTrading = Math.abs(pnlPercent) >= DAILY_LIMIT_PERCENT;
+      
+      if (shouldStopTrading) {
+        const isProfit = pnlPercent > 0;
+        toast.info(`🛑 원금 대비 ${isProfit ? '+' : ''}${pnlPercent.toFixed(1)}% 도달 - 자동매매 종료`);
+      }
+      
+      setState(prev => ({
+        ...prev,
+        isEnabled: shouldStopTrading ? false : prev.isEnabled,
+        currentPosition: null,
+        currentSymbol: null,
+        todayStats: {
+          trades: prev.todayStats.trades + 1,
+          wins: prev.todayStats.wins + (isWin ? 1 : 0),
+          losses: prev.todayStats.losses + (isWin ? 0 : 1),
+          totalPnL: newTotalPnL,
+        },
+        statusMessage: shouldStopTrading 
+          ? '🛑 일일 한도 도달 - 자동매매 종료'
+          : `${isWin ? '✅ 익절 완료!' : '❌ 손절 완료'} 다음 시그널 대기...`,
+      }));
       
       addLog({
         symbol: position.symbol,
