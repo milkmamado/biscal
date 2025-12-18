@@ -739,7 +739,11 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
     
     // 포지션 보유 중이면 봉 기준 손절 체크
     if (state.currentPosition) {
-      const { symbol, side, entryCandle } = state.currentPosition;
+      const { symbol, side, entryCandle, entryTime } = state.currentPosition;
+      
+      // 진입 후 최소 1분(1봉) 지나야 봉 기준 손절 적용 (즉시 손절 방지)
+      const MIN_HOLD_TIME_MS = 60000;
+      if (Date.now() - entryTime < MIN_HOLD_TIME_MS) return;
       
       try {
         const klines = await fetch1mKlines(symbol, 2);
@@ -747,12 +751,19 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
         
         const completedCandle = klines[klines.length - 2];
         
-        // 손절 조건 체크
-        // 롱: 현재 봉 저가가 진입봉 저가보다 낮으면 손절
-        // 숏: 현재 봉 고가가 진입봉 고가보다 높으면 손절
-        if (side === 'long' && completedCandle.low < entryCandle.low) {
+        // 손절 여유분: 진입봉 고가/저가의 0.2% 허용
+        const SL_TOLERANCE_PCT = 0.002; // 0.2%
+        const highTolerance = entryCandle.high * (1 + SL_TOLERANCE_PCT);
+        const lowTolerance = entryCandle.low * (1 - SL_TOLERANCE_PCT);
+        
+        // 손절 조건 체크 (여유분 포함)
+        // 롱: 현재 봉 저가가 진입봉 저가보다 0.2% 이상 낮으면 손절
+        // 숏: 현재 봉 고가가 진입봉 고가보다 0.2% 이상 높으면 손절
+        if (side === 'long' && completedCandle.low < lowTolerance) {
+          console.log(`[${symbol}] 봉 기준 SL: 저가 ${completedCandle.low.toFixed(4)} < 기준 ${lowTolerance.toFixed(4)}`);
           await closePosition('sl', completedCandle.close);
-        } else if (side === 'short' && completedCandle.high > entryCandle.high) {
+        } else if (side === 'short' && completedCandle.high > highTolerance) {
+          console.log(`[${symbol}] 봉 기준 SL: 고가 ${completedCandle.high.toFixed(4)} > 기준 ${highTolerance.toFixed(4)}`);
           await closePosition('sl', completedCandle.close);
         }
       } catch (error) {
