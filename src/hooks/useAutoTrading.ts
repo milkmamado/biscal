@@ -50,6 +50,7 @@ export interface AutoTradingState {
     entryTime: number;
     entryCandle: EntryCandleInfo; // 진입 시점 봉 정보
     referenceBodySize: number; // 기준 봉 몸통 크기 (손절 판단용)
+    atr: number; // ATR (10봉 기준) - 손절 계산용
   } | null;
   todayStats: {
     trades: number;
@@ -309,6 +310,7 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
       const klines = await fetch1mKlines(symbol, 21);
       let dynamicTpPercent = 0.3; // 기본값
       let refBodySize = referenceBodySize || 0;
+      let atr10 = 0; // ATR (10봉) - 손절 계산용
       
       if (klines && klines.length >= 20) {
         const candleSizes = klines.map(k => ((k.high - k.low) / k.low) * 100);
@@ -323,6 +325,11 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
           const prevCandle = klines[klines.length - 2];
           refBodySize = Math.abs(prevCandle.close - prevCandle.open);
         }
+        
+        // ATR 10봉 계산 (최근 10개 봉의 평균 범위)
+        const recentKlines = klines.slice(-10);
+        atr10 = recentKlines.reduce((sum, k) => sum + (k.high - k.low), 0) / recentKlines.length;
+        console.log(`[${symbol}] ATR(10): $${atr10.toFixed(6)} (${(atr10 / currentPrice * 100).toFixed(2)}%)`);
       }
       
       // 주문 수량 계산
@@ -376,6 +383,7 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
               entryTime: Date.now(),
               entryCandle,
               referenceBodySize: refBodySize,
+              atr: atr10,
             },
             currentSymbol: symbol,
             tpPercent: dynamicTpPercent,
@@ -432,6 +440,7 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
               entryTime: Date.now(),
               entryCandle,
               referenceBodySize: refBodySize,
+              atr: atr10,
             },
             currentSymbol: symbol,
             tpPercent: dynamicTpPercent,
@@ -472,6 +481,7 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
           entryTime: Date.now(),
           entryCandle,
           referenceBodySize: refBodySize,
+          atr: atr10,
         },
         currentSymbol: symbol,
         tpPercent: dynamicTpPercent,
@@ -786,7 +796,7 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
     }
   }, [state.isEnabled, state.pendingSignal, state.currentPosition, executeEntry, closePosition, addLog]);
   
-  // 실시간 TP/긴급SL 체크
+  // 실시간 TP/ATR기반 SL 체크
   const checkTpSl = useCallback((currentPrice: number, tpPercent: number, _slPercent: number) => {
     if (!state.currentPosition || !state.isEnabled) return;
     
@@ -801,15 +811,28 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
       return;
     }
     
-    // 긴급 손절: -3% 이상 역행 시 즉시 청산 (봉 완성 기다리지 않음)
-    const EMERGENCY_SL_PERCENT = -3;
-    if (pnlPercent <= EMERGENCY_SL_PERCENT) {
-      console.log(`[${position.symbol}] 긴급 손절: ${pnlPercent.toFixed(2)}% <= ${EMERGENCY_SL_PERCENT}%`);
+    // ATR 기반 손절: 진입가 ± (ATR × 1배수)
+    // 롱: 진입가 - ATR 이하로 떨어지면 손절
+    // 숏: 진입가 + ATR 이상으로 오르면 손절
+    const atr = position.atr || position.entryPrice * 0.01; // ATR 없으면 1% 기본값
+    const ATR_MULTIPLIER = 1; // 1배수 (타이트)
+    const slDistance = atr * ATR_MULTIPLIER;
+    
+    if (position.side === 'long' && currentPrice <= position.entryPrice - slDistance) {
+      const slPercent = ((currentPrice - position.entryPrice) / position.entryPrice * 100).toFixed(2);
+      console.log(`[${position.symbol}] ATR 손절 (롱): $${currentPrice.toFixed(4)} <= $${(position.entryPrice - slDistance).toFixed(4)} (${slPercent}%)`);
       closePosition('sl', currentPrice);
       return;
     }
     
-    // 일반 손절은 봉 기준으로 판단 (checkCandleCompletion에서 처리)
+    if (position.side === 'short' && currentPrice >= position.entryPrice + slDistance) {
+      const slPercent = ((position.entryPrice - currentPrice) / position.entryPrice * 100).toFixed(2);
+      console.log(`[${position.symbol}] ATR 손절 (숏): $${currentPrice.toFixed(4)} >= $${(position.entryPrice + slDistance).toFixed(4)} (${slPercent}%)`);
+      closePosition('sl', currentPrice);
+      return;
+    }
+    
+    // 봉 기반 손절도 checkCandleCompletion에서 추가로 체크
   }, [state.currentPosition, state.isEnabled, closePosition]);
   
   // 기존 포지션 동기화 (로드 시 및 주기적)
@@ -857,6 +880,7 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
                 entryTime: Date.now(),
                 entryCandle: { open: entryPrice, high: entryPrice, low: entryPrice, close: entryPrice },
                 referenceBodySize: 0, // 동기화된 포지션은 기준값 없음
+                atr: entryPrice * 0.01, // 동기화된 포지션은 1% 기본값
               },
               currentSymbol: activePosition.symbol,
             };
