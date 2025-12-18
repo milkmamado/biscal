@@ -82,11 +82,28 @@ export function useBollingerSignals(tickers: TickerInfo[]) {
         return data.map((k: any) => ({
           close: parseFloat(k[4]),
           high: parseFloat(k[2]),
-          low: parseFloat(k[3])
+          low: parseFloat(k[3]),
+          volume: parseFloat(k[5])
         }));
       } catch {
         return null;
       }
+    };
+    
+    // 최근 3봉 내에 고변동성 봉이 있는지 체크 (2x 평균 이상)
+    const hasHighVolatilityCandle = (klines: { high: number; low: number; volume: number }[]) => {
+      if (klines.length < 20) return false;
+      
+      // 최근 20봉의 평균 레인지 계산
+      const ranges = klines.slice(-20).map(k => k.high - k.low);
+      const avgRange = ranges.reduce((a, b) => a + b, 0) / ranges.length;
+      
+      // 최근 3봉 중 하나라도 2x 이상이면 true
+      const recent3 = klines.slice(-3);
+      return recent3.some(k => {
+        const range = k.high - k.low;
+        return range >= avgRange * 2;
+      });
     };
     
     const runScan = async () => {
@@ -127,6 +144,11 @@ export function useBollingerSignals(tickers: TickerInfo[]) {
             const volatility10m = ((highIn10m - lowIn10m) / lowIn10m) * 100;
             
             if (volatility10m < 1.5) return;
+            
+            // 최근 3봉 내 고변동성 봉 체크 (거래량+변동성 터진 봉)
+            if (!hasHighVolatilityCandle(klines)) {
+              return; // 고변동성 봉 없으면 스킵
+            }
             
             const closes = klines.map((k: any) => k.close);
             const bb = calculateBB(closes);
