@@ -1,10 +1,10 @@
-import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useTradingLogs } from '@/hooks/useTradingLogs';
 import { useAutoTrading } from '@/hooks/useAutoTrading';
 import { useBollingerSignals } from '@/hooks/useBollingerSignals';
-import { useMomentumSignals } from '@/hooks/useMomentumSignals';
+import { useEnhancedSignals } from '@/hooks/useEnhancedSignals';
 import { useTickerWebSocket } from '@/hooks/useTickerWebSocket';
 import { useWakeLock } from '@/hooks/useWakeLock';
 import { supabase } from '@/integrations/supabase/client';
@@ -68,14 +68,13 @@ const Index = () => {
   
   const { signals: bbSignals } = useBollingerSignals(tickersForBB);
   
-  // 모멘텀 시그널 (급등/급락 감지)
-  const { signals: momentumSignals } = useMomentumSignals(tickersForBB);
+  // 강화 시그널 (BB + 급등/거래량폭발/틱속도 중 하나 이상)
+  const { enhancedSignals } = useEnhancedSignals(tickersForBB, bbSignals);
   
-  // BB + 모멘텀 동시 발생 종목만 필터링
-  const confluenceSignals = useMemo(() => {
-    const momentumSymbols = new Set(momentumSignals.map(s => s.symbol));
-    return bbSignals.filter(s => momentumSymbols.has(s.symbol));
-  }, [bbSignals, momentumSignals]);
+  // BB 시그널 중 강화 조건 만족하는 것만 필터링
+  const confluenceSignals = bbSignals.filter(bb => 
+    enhancedSignals.some(e => e.symbol === bb.symbol)
+  );
   
   // 이전 시그널 추적 (중복 진입 방지)
   const prevSignalsRef = useRef<Set<string>>(new Set());
@@ -99,7 +98,7 @@ const Index = () => {
     }
   }, [autoTrading.state.isEnabled]);
   
-  // BB + 모멘텀 동시 시그널 감지 시 자동매매 트리거
+  // BB + 강화조건 동시 시그널 감지 시 자동매매 트리거
   useEffect(() => {
     if (!autoTrading.state.isEnabled) return;
     if (justEnabledRef.current) return; // 방금 켜졌으면 대기
@@ -118,13 +117,11 @@ const Index = () => {
       // 이미 처리한 시그널이면 무시
       if (prevSignalsRef.current.has(signalKey)) continue;
       
-      // 모멘텀 정보 찾기
-      const momentum = momentumSignals.find(m => m.symbol === signal.symbol);
-      const momentumInfo = momentum 
-        ? `(${momentum.direction === 'up' ? '급등' : '급락'} ${Math.abs(momentum.changePercent).toFixed(1)}%)` 
-        : '';
+      // 강화 시그널 정보 찾기
+      const enhanced = enhancedSignals.find(e => e.symbol === signal.symbol);
+      const enhancedInfo = enhanced ? `(${enhanced.reason})` : '';
       
-      console.log(`🔥 Confluence signal: ${signal.symbol} BB ${signal.touchType} + Momentum ${momentumInfo}`);
+      console.log(`🔥 Enhanced signal: ${signal.symbol} BB ${signal.touchType} ${enhancedInfo}`);
       
       // 자동매매 진입 실행
       autoTrading.handleSignal(signal.symbol, signal.touchType, signal.price);
@@ -135,7 +132,7 @@ const Index = () => {
     }
     
     prevSignalsRef.current = currentSignalKeys;
-  }, [confluenceSignals, momentumSignals, autoTrading.state.isEnabled, autoTrading.state.currentPosition, autoTrading.state.pendingSignal]);
+  }, [confluenceSignals, enhancedSignals, autoTrading.state.isEnabled, autoTrading.state.currentPosition, autoTrading.state.pendingSignal]);
   
   // 포지션 보유 중이거나 대기 중일 때 해당 종목 차트 유지
   useEffect(() => {
