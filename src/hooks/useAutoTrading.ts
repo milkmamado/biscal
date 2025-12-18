@@ -64,6 +64,7 @@ interface UseAutoTradingProps {
   balanceUSD: number;
   leverage: number;
   krwRate: number;
+  onTradeComplete?: () => void; // 청산 완료 시 호출
 }
 
 // 1분봉 데이터 가져오기
@@ -127,7 +128,7 @@ function getMinuteTimestamp() {
   return Math.floor(Date.now() / 60000);
 }
 
-export function useAutoTrading({ balanceUSD, leverage, krwRate }: UseAutoTradingProps) {
+export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete }: UseAutoTradingProps) {
   const { user } = useAuth();
   const { 
     placeMarketOrder, 
@@ -456,6 +457,9 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate }: UseAutoTrading
         `${isWin ? '✅' : '❌'} ${reason === 'tp' ? '익절' : reason === 'sl' ? '손절' : '청산'} | ${pnl >= 0 ? '+' : ''}₩${pnlKRW.toLocaleString()}`
       );
       
+      // 청산 완료 콜백 (잔고 즉시 업데이트)
+      onTradeComplete?.();
+      
     } catch (error: any) {
       console.error('Close error:', error);
       addLog({
@@ -470,7 +474,7 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate }: UseAutoTrading
       processingRef.current = false;
       setState(prev => ({ ...prev, isProcessing: false }));
     }
-  }, [state.currentPosition, placeMarketOrder, getPositions, krwRate, addLog]);
+  }, [state.currentPosition, placeMarketOrder, getPositions, krwRate, addLog, onTradeComplete]);
   
   // 봉 완성 체크 및 진입/손절 판단 (매 초 실행)
   const checkCandleCompletion = useCallback(async () => {
