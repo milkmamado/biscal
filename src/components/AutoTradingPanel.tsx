@@ -210,7 +210,11 @@ const AutoTradingPanel = ({
           </div>
           <div className="flex items-center justify-between text-[10px] text-muted-foreground">
             <span>진입가: ${formatPrice(currentPosition.entryPrice)}</span>
+            <span>TP: {state.tpPercent.toFixed(2)}%</span>
+          </div>
+          <div className="flex items-center justify-between text-[10px] text-muted-foreground mt-0.5">
             <span>수량: {currentPosition.quantity.toFixed(4)}</span>
+            <span>SL: 봉기준</span>
           </div>
           {onManualClose && (
             <Button

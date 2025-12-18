@@ -57,6 +57,7 @@ export interface AutoTradingState {
   tradeLogs: AutoTradeLog[];
   consecutiveLosses: number;
   cooldownUntil: number | null;
+  tpPercent: number; // 동적 익절 퍼센트
 }
 
 interface UseAutoTradingProps {
@@ -111,6 +112,7 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate }: UseAutoTrading
     tradeLogs: [],
     consecutiveLosses: 0,
     cooldownUntil: null,
+    tpPercent: 0.3, // 기본값, 진입 시 동적으로 업데이트됨
   });
   
   const processingRef = useRef(false);
@@ -220,6 +222,19 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate }: UseAutoTrading
     setState(prev => ({ ...prev, isProcessing: true }));
     
     try {
+      // 동적 TP 계산: 최근 20봉 평균 크기의 60%
+      const klines = await fetch1mKlines(symbol, 20);
+      let dynamicTpPercent = 0.3; // 기본값
+      
+      if (klines && klines.length >= 20) {
+        const candleSizes = klines.map(k => ((k.high - k.low) / k.low) * 100);
+        const avgCandleSize = candleSizes.reduce((a, b) => a + b, 0) / candleSizes.length;
+        dynamicTpPercent = avgCandleSize * 0.6; // 평균 봉 크기의 60%
+        
+        // 최소 0.1%, 최대 2%로 제한
+        dynamicTpPercent = Math.max(0.1, Math.min(2, dynamicTpPercent));
+      }
+      
       // 주문 수량 계산
       const safeBalance = balanceUSD * 0.9;
       const buyingPower = safeBalance * leverage;
@@ -258,7 +273,7 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate }: UseAutoTrading
       
       lastEntryTimeRef.current = Date.now();
       
-      // 포지션 저장 (진입 봉 정보 포함)
+      // 포지션 저장 (진입 봉 정보 + 동적 TP 포함)
       setState(prev => ({
         ...prev,
         pendingSignal: null,
@@ -271,6 +286,7 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate }: UseAutoTrading
           entryCandle,
         },
         currentSymbol: symbol,
+        tpPercent: dynamicTpPercent,
       }));
       
       addLog({
@@ -279,10 +295,10 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate }: UseAutoTrading
         side,
         price: avgPrice > 0 ? avgPrice : currentPrice,
         quantity: executedQty,
-        reason: `확인 진입 (${side === 'long' ? '양봉' : '음봉'} 확인)`,
+        reason: `확인 진입 (TP ${dynamicTpPercent.toFixed(2)}%)`,
       });
       
-      toast.success(`🤖 ${side === 'long' ? '롱' : '숏'} 진입 | ${symbol} @ $${(avgPrice > 0 ? avgPrice : currentPrice).toFixed(2)}`);
+      toast.success(`🤖 ${side === 'long' ? '롱' : '숏'} 진입 | ${symbol} @ $${(avgPrice > 0 ? avgPrice : currentPrice).toFixed(2)} (TP ${dynamicTpPercent.toFixed(2)}%)`);
       
     } catch (error: any) {
       console.error('Entry error:', error);

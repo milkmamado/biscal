@@ -81,7 +81,7 @@ const Index = () => {
     }
   }, [autoTrading.state.currentPosition?.symbol]);
   
-  // 현재 가격으로 TP/SL 체크
+  // 현재 가격으로 TP 체크
   useEffect(() => {
     if (!autoTrading.state.currentPosition) return;
     
@@ -89,12 +89,11 @@ const Index = () => {
     const ticker = tickers.find(t => t.symbol === position.symbol);
     if (!ticker) return;
     
-    // 동적 TP/SL 값 (state에 저장된 값 사용)
-    const tpPercent = (autoTrading.state as any).tpPercent || 0.3;
-    const slPercent = (autoTrading.state as any).slPercent || 0.5;
+    // state에 저장된 동적 TP 값 사용
+    const tpPercent = autoTrading.state.tpPercent;
     
-    autoTrading.checkTpSl(ticker.price, tpPercent, slPercent);
-  }, [tickers, autoTrading.state.currentPosition]);
+    autoTrading.checkTpSl(ticker.price, tpPercent, 0); // slPercent는 봉 기준이라 미사용
+  }, [tickers, autoTrading.state.currentPosition, autoTrading.state.tpPercent]);
 
   // Fetch USD/KRW rate
   useEffect(() => {
