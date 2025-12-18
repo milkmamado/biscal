@@ -254,6 +254,17 @@ const AutoTradingPanel = ({
             ))
           )}
         </div>
+        
+        {/* Status Message */}
+        <div className={cn(
+          "mx-2 mb-2 px-3 py-2 rounded-md text-xs font-medium text-center",
+          state.currentPosition ? "bg-green-500/10 text-green-400 border border-green-500/30" :
+          state.pendingSignal ? "bg-yellow-500/10 text-yellow-400 border border-yellow-500/30" :
+          isEnabled ? "bg-blue-500/10 text-blue-400 border border-blue-500/30" :
+          "bg-secondary/50 text-muted-foreground border border-border"
+        )}>
+          {state.statusMessage || (isEnabled ? '🔍 BB 시그널 종목 검색 중...' : '자동매매를 시작하세요')}
+        </div>
       </div>
       
       {/* Warning */}
