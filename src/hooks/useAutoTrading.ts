@@ -67,6 +67,16 @@ interface UseAutoTradingProps {
   leverage: number;
   krwRate: number;
   onTradeComplete?: () => void; // 청산 완료 시 호출
+  initialStats?: { trades: number; wins: number; losses: number; totalPnL: number };
+  logTrade?: (trade: {
+    symbol: string;
+    side: 'long' | 'short';
+    entryPrice: number;
+    exitPrice: number;
+    quantity: number;
+    leverage: number;
+    pnlUsd: number;
+  }) => Promise<void>;
 }
 
 // 1분봉 데이터 가져오기
@@ -130,7 +140,7 @@ function getMinuteTimestamp() {
   return Math.floor(Date.now() / 60000);
 }
 
-export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete }: UseAutoTradingProps) {
+export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete, initialStats, logTrade }: UseAutoTradingProps) {
   const { user } = useAuth();
   const { 
     placeMarketOrder, 
@@ -145,13 +155,23 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete 
     currentSymbol: null,
     pendingSignal: null,
     currentPosition: null,
-    todayStats: { trades: 0, wins: 0, losses: 0, totalPnL: 0 },
+    todayStats: initialStats || { trades: 0, wins: 0, losses: 0, totalPnL: 0 },
     tradeLogs: [],
     consecutiveLosses: 0,
     cooldownUntil: null,
     tpPercent: 0.3, // 기본값, 진입 시 동적으로 업데이트됨
     statusMessage: '자동매매 비활성화',
   });
+  
+  // 초기 통계 업데이트
+  useEffect(() => {
+    if (initialStats) {
+      setState(prev => ({
+        ...prev,
+        todayStats: initialStats,
+      }));
+    }
+  }, [initialStats?.trades, initialStats?.wins, initialStats?.losses, initialStats?.totalPnL]);
   
   const processingRef = useRef(false);
   const lastMinuteRef = useRef(getMinuteTimestamp());
@@ -567,6 +587,19 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete 
         `${isWin ? '✅' : '❌'} ${reason === 'tp' ? '익절' : reason === 'sl' ? '손절' : '청산'} | ${pnl >= 0 ? '+' : ''}₩${pnlKRW.toLocaleString()}`
       );
       
+      // DB에 거래 기록 저장
+      if (logTrade) {
+        logTrade({
+          symbol: position.symbol,
+          side: position.side,
+          entryPrice: actualEntryPrice,
+          exitPrice: currentPrice,
+          quantity: actualQty,
+          leverage,
+          pnlUsd: pnl,
+        });
+      }
+      
       // 청산 완료 콜백 (잔고 즉시 업데이트)
       onTradeComplete?.();
       
@@ -584,7 +617,7 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete 
       processingRef.current = false;
       setState(prev => ({ ...prev, isProcessing: false }));
     }
-  }, [state.currentPosition, placeMarketOrder, getPositions, krwRate, addLog, onTradeComplete]);
+  }, [state.currentPosition, placeMarketOrder, getPositions, krwRate, leverage, addLog, onTradeComplete, logTrade]);
   
   // 봉 완성 체크 및 진입/손절 판단 (매 초 실행)
   const checkCandleCompletion = useCallback(async () => {
