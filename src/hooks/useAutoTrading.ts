@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useBinanceApi } from './useBinanceApi';
 import { useAuth } from './useAuth';
 import { fetchSymbolPrecision, roundQuantity } from '@/lib/binance';
-import { playEntrySound, playTpSound, playSlSound } from '@/lib/sounds';
+import { playEntrySound, playTpSound, playSlSound, initAudio } from '@/lib/sounds';
 import { toast } from 'sonner';
 
 export interface AutoTradeLog {
@@ -188,6 +188,8 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
     setState(prev => {
       const newEnabled = !prev.isEnabled;
       if (newEnabled) {
+        // 자동매매 ON 시 오디오 초기화 (사용자 상호작용)
+        initAudio();
         toast.success('🤖 자동매매 시작 (확인 진입 모드)');
       } else {
         toast.info('자동매매 중지');
