@@ -7,33 +7,13 @@ import TickChart from './TickChart';
 import TradingRecordModal from './TradingRecordModal';
 import { supabase } from '@/integrations/supabase/client';
 
-interface OrderBook {
-  bids: { price: number; quantity: number }[];
-  asks: { price: number; quantity: number }[];
-  lastUpdateId: number;
-}
-
-interface OpenOrder {
-  orderId: number;
-  price: number;
-  side: 'BUY' | 'SELL';
-  origQty: number;
-}
-
 interface DualChartPanelProps {
   symbol: string;
-  unrealizedPnL?: number;
-  realizedPnL?: number;
   tradeCount?: number;
   winCount?: number;
   hasPosition?: boolean;
   entryPrice?: number;
-  openOrders?: OpenOrder[];
   onSelectSymbol?: (symbol: string) => void;
-  orderBook?: OrderBook | null;
-  orderBookConnected?: boolean;
-  onDailyPnLChange?: (dailyPnLKRW: number) => void;
-  onDailyProfitPercentChange?: (percent: number) => void;
   onBalanceChange?: (balance: number) => void;
 }
 
@@ -50,23 +30,15 @@ const INTERVALS = [
 
 const DualChartPanel = ({ 
   symbol, 
-  unrealizedPnL = 0, 
-  realizedPnL = 0,
   tradeCount = 0,
   winCount = 0,
   hasPosition = false,
   entryPrice,
-  openOrders = [],
   onSelectSymbol,
-  orderBook = null,
-  orderBookConnected = false,
-  onDailyPnLChange,
-  onDailyProfitPercentChange,
   onBalanceChange,
 }: DualChartPanelProps) => {
   const [interval, setInterval] = useState(60);
   const [balanceUSD, setBalanceUSD] = useState<number>(0);
-  const [totalBalanceUSD, setTotalBalanceUSD] = useState<number>(0);
   const [balanceLoading, setBalanceLoading] = useState(false);
   const [krwRate, setKrwRate] = useState(1380);
   const [positions, setPositions] = useState<BinancePosition[]>([]);
@@ -81,15 +53,8 @@ const DualChartPanel = ({
   useEffect(() => {
     if (prevSymbolRef.current !== symbol) {
       prevSymbolRef.current = symbol;
-      
-      // 3분봉으로 전환
       setInterval(180);
-      
-      // 200ms 후 1분봉으로 복귀
-      const timer = setTimeout(() => {
-        setInterval(60);
-      }, 200);
-      
+      const timer = setTimeout(() => setInterval(60), 200);
       return () => clearTimeout(timer);
     }
   }, [symbol]);
@@ -145,12 +110,10 @@ const DualChartPanel = ({
   // Get today's midnight timestamp in Korean timezone
   const getTodayMidnightKST = () => {
     const now = new Date();
-    const koreaOffset = 9 * 60; // UTC+9
+    const koreaOffset = 9 * 60;
     const utcOffset = now.getTimezoneOffset();
     const koreaTime = new Date(now.getTime() + (koreaOffset + utcOffset) * 60 * 1000);
-    // Set to midnight
     koreaTime.setHours(0, 0, 0, 0);
-    // Convert back to UTC timestamp
     return koreaTime.getTime() - (koreaOffset + utcOffset) * 60 * 1000;
   };
 
@@ -160,26 +123,10 @@ const DualChartPanel = ({
     const koreaOffset = 9 * 60;
     const utcOffset = now.getTimezoneOffset();
     const koreaTime = new Date(now.getTime() + (koreaOffset + utcOffset) * 60 * 1000);
-    const year = koreaTime.getFullYear();
-    const month = String(koreaTime.getMonth() + 1).padStart(2, '0');
-    const day = String(koreaTime.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    return `${koreaTime.getFullYear()}-${String(koreaTime.getMonth() + 1).padStart(2, '0')}-${String(koreaTime.getDate()).padStart(2, '0')}`;
   };
 
-  // Get yesterday's date in YYYY-MM-DD format (Korean timezone)
-  const getYesterdayDate = () => {
-    const now = new Date();
-    const koreaOffset = 9 * 60;
-    const utcOffset = now.getTimezoneOffset();
-    const koreaTime = new Date(now.getTime() + (koreaOffset + utcOffset) * 60 * 1000);
-    koreaTime.setDate(koreaTime.getDate() - 1);
-    const year = koreaTime.getFullYear();
-    const month = String(koreaTime.getMonth() + 1).padStart(2, '0');
-    const day = String(koreaTime.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
-
-  // Fetch today's realized PnL from Binance Income History (바이낸스 기록 그대로 사용)
+  // Fetch today's realized PnL from Binance Income History
   const fetchTodayRealizedPnL = async (currentBalance: number) => {
     try {
       const todayMidnight = getTodayMidnightKST();
@@ -187,9 +134,7 @@ const DualChartPanel = ({
       
       const incomeHistory = await getIncomeHistory(todayMidnight, now);
       
-      if (!incomeHistory || !Array.isArray(incomeHistory)) {
-        return;
-      }
+      if (!incomeHistory || !Array.isArray(incomeHistory)) return;
       
       // 입출금 (TRANSFER)
       const transferItems = incomeHistory.filter((item: any) => item.incomeType === 'TRANSFER');
@@ -213,28 +158,17 @@ const DualChartPanel = ({
       const startBalance = currentBalance - realizedFromBinance - deposits + withdrawals;
       setPreviousDayBalance(startBalance);
 
-      console.log('[BinancePnL]', {
-        currentBalance,
-        realizedFromBinance,
-        deposits,
-        withdrawals,
-        startBalance,
-      });
-
       // 스냅샷 테이블 업데이트
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      
-      const today = getTodayDate();
-      const dailyTotal = realizedFromBinance + unrealizedPnL;
       
       await supabase
         .from('daily_balance_snapshots')
         .upsert({
           user_id: user.id,
-          snapshot_date: today,
+          snapshot_date: getTodayDate(),
           closing_balance_usd: currentBalance,
-          daily_income_usd: dailyTotal,
+          daily_income_usd: realizedFromBinance,
           deposit_usd: deposits,
           withdrawal_usd: withdrawals,
         }, {
@@ -245,9 +179,9 @@ const DualChartPanel = ({
     }
   };
 
-  // Fetch balance and positions on mount and every 10 seconds (only if logged in)
+  // Fetch balance and positions on mount and every 10 seconds
   useEffect(() => {
-    if (!user) return; // Skip API calls if not logged in
+    if (!user) return;
     
     fetchRealBalance();
     fetchPositions();
@@ -265,25 +199,14 @@ const DualChartPanel = ({
 
   const winRate = tradeCount > 0 ? ((winCount / tradeCount) * 100).toFixed(1) : '0.0';
   
-  // Calculate daily P&L based on realized PnL from Binance (순수 거래 손익 + 미실현손익)
-  const dailyPnL = todayRealizedPnL + unrealizedPnL;
-  const dailyPnLKRW = dailyPnL * krwRate;
+  // Calculate daily P&L
+  const dailyPnL = todayRealizedPnL;
   
-  // Notify parent of daily P&L in KRW for loss limit check
-  useEffect(() => {
-    onDailyPnLChange?.(dailyPnLKRW);
-  }, [dailyPnLKRW, onDailyPnLChange]);
-  
-  // Effective starting balance = previous day balance + today's deposits (입금 후 시작자본 기준)
+  // Effective starting balance
   const effectiveStartingBalance = (previousDayBalance !== null ? Math.max(0, previousDayBalance) : 0) + todayDeposits;
   const baseBalance = effectiveStartingBalance > 0 ? effectiveStartingBalance : balanceUSD;
   const dailyPnLPercent = baseBalance > 0 ? (dailyPnL / baseBalance) * 100 : 0;
   const dailyPnLPercentStr = dailyPnLPercent.toFixed(2);
-  
-  // Notify parent of daily profit percent for profit target check
-  useEffect(() => {
-    onDailyProfitPercentChange?.(dailyPnLPercent);
-  }, [dailyPnLPercent, onDailyProfitPercentChange]);
 
   return (
     <div className="flex flex-col gap-1 h-full">
@@ -310,18 +233,6 @@ const DualChartPanel = ({
               </span>
             </div>
           </div>
-          
-          {hasPosition && (
-            <div className="flex flex-col items-center">
-              <span className="text-[10px] text-muted-foreground">미실현</span>
-              <span className={cn(
-                "text-sm font-bold font-mono",
-                unrealizedPnL >= 0 ? "text-red-400" : "text-blue-400"
-              )}>
-                {unrealizedPnL >= 0 ? '+' : ''}₩{formatKRW(unrealizedPnL)}
-              </span>
-            </div>
-          )}
           
           <div className="flex flex-col items-center">
             <span className="text-[10px] text-muted-foreground">실현손익</span>
@@ -448,8 +359,6 @@ const DualChartPanel = ({
         <div className="flex-1 min-h-0 relative" style={{ minHeight: '400px' }}>
           <TickChart 
             symbol={symbol}
-            orderBook={orderBook} 
-            isConnected={orderBookConnected} 
             height={450} 
             interval={interval}
             entryPrice={hasPosition ? entryPrice : undefined}
