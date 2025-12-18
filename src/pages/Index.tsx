@@ -68,13 +68,11 @@ const Index = () => {
   
   const { signals: bbSignals } = useBollingerSignals(tickersForBB);
   
-  // 강화 시그널 (BB + 급등/거래량폭발/틱속도 중 하나 이상)
+  // 강화 시그널만 사용 (BB 제외, 모멘텀/거래량/틱속도 중 하나라도 충족)
   const { enhancedSignals } = useEnhancedSignals(tickersForBB, bbSignals);
   
-  // BB 시그널 중 강화 조건 만족하는 것만 필터링
-  const confluenceSignals = bbSignals.filter(bb => 
-    enhancedSignals.some(e => e.symbol === bb.symbol)
-  );
+  // BB 제외 - 강화 시그널만 진입 신호로 사용
+  const confluenceSignals = enhancedSignals;
   
   // 이전 시그널 추적 (중복 진입 방지)
   const prevSignalsRef = useRef<Set<string>>(new Set());
