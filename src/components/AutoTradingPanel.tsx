@@ -311,7 +311,7 @@ const AutoTradingPanel = ({
       
       {/* Today Stats */}
       <div className="px-4 py-3 border-b border-border bg-secondary/20">
-        <div className="grid grid-cols-4 gap-2 text-center">
+        <div className="grid grid-cols-3 gap-3 text-center">
           <div>
             <p className="text-[10px] text-muted-foreground">거래</p>
             <p className="text-sm font-bold font-mono">{todayStats.trades}</p>
@@ -331,15 +331,6 @@ const AutoTradingPanel = ({
               parseFloat(winRate) >= 50 ? "text-green-500" : "text-red-500"
             )}>
               {winRate}%
-            </p>
-          </div>
-          <div>
-            <p className="text-[10px] text-muted-foreground">손익</p>
-            <p className={cn(
-              "text-sm font-bold font-mono",
-              todayStats.totalPnL >= 0 ? "text-green-500" : "text-red-500"
-            )}>
-              {todayStats.totalPnL >= 0 ? '+' : ''}₩{formatKRW(todayStats.totalPnL)}
             </p>
           </div>
         </div>
