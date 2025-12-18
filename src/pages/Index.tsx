@@ -205,7 +205,7 @@ const Index = () => {
       <div className="max-w-[1920px] mx-auto">
         <div className="grid grid-cols-12 gap-2 items-stretch">
           {/* Left - Auto Trading Panel */}
-          <div className="col-span-12 lg:col-span-3 xl:col-span-2 flex">
+          <div className="col-span-12 lg:col-span-4 xl:col-span-3 flex">
             <AutoTradingPanel
               state={autoTrading.state}
               onToggle={autoTrading.toggleAutoTrading}
@@ -219,7 +219,7 @@ const Index = () => {
           </div>
 
           {/* Center - Chart */}
-          <div className="col-span-12 lg:col-span-9 xl:col-span-10">
+          <div className="col-span-12 lg:col-span-8 xl:col-span-9">
             <DualChartPanel 
               symbol={selectedSymbol} 
               tradeCount={dailyStats.tradeCount}
