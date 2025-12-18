@@ -654,8 +654,8 @@ export function useAutoTrading({ balanceUSD, leverage, krwRate, onTradeComplete,
     
     lastMinuteRef.current = currentMinute;
     
-    // 봉 완성 후 2초 대기 (Binance API 데이터 확정 대기)
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    // 봉 완성 후 4초 대기 (Binance API 데이터 완전 확정 대기 - 2초는 부족)
+    await new Promise(resolve => setTimeout(resolve, 4000));
     
     // 대기 중인 시그널이 있으면 확인 진입 체크
     if (state.pendingSignal && !state.currentPosition) {
