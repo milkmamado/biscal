@@ -107,31 +107,52 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
     return '오전 9시~11시 또는 밤 9시~11시';
   };
   
-  // 누적 거래시간 관리
-  const TRADING_TIME_KEY = 'dailyTradingTime';
+  // 누적 거래시간 관리 (세션별 리셋: 오전 9시, 밤 9시)
+  const TRADING_TIME_KEY = 'sessionTradingTime';
   const TRADING_TIME_LIMIT_MS = 60 * 60 * 1000; // 1시간 (밀리초)
   
-  const getKoreaDateStr = (): string => {
+  // 현재 거래 세션 ID 반환 (날짜_오전/날짜_저녁)
+  const getCurrentSessionId = (): string => {
     const now = new Date();
     const koreaOffset = 9 * 60;
     const utcOffset = now.getTimezoneOffset();
     const koreaTime = new Date(now.getTime() + (koreaOffset + utcOffset) * 60 * 1000);
-    return koreaTime.toISOString().split('T')[0];
+    const dateStr = koreaTime.toISOString().split('T')[0];
+    const hour = koreaTime.getHours();
+    
+    // 09:00~11:00 = 오전 세션, 21:00~23:00 = 저녁 세션
+    // 그 외 시간은 다음 세션으로 귀속
+    if (hour >= 9 && hour < 11) {
+      return `${dateStr}_morning`;
+    } else if (hour >= 21 && hour < 23) {
+      return `${dateStr}_evening`;
+    } else if (hour >= 11 && hour < 21) {
+      // 오전 11시~밤 9시 사이면 저녁 세션 대기
+      return `${dateStr}_evening`;
+    } else if (hour < 9) {
+      // 새벽~오전 9시 전이면 오전 세션 대기
+      return `${dateStr}_morning`;
+    } else {
+      // 밤 11시 이후면 다음날 오전 세션
+      const nextDay = new Date(koreaTime);
+      nextDay.setDate(nextDay.getDate() + 1);
+      return `${nextDay.toISOString().split('T')[0]}_morning`;
+    }
   };
   
-  const getTodayTradingTime = (): number => {
+  const getSessionTradingTime = (): number => {
     const stored = localStorage.getItem(TRADING_TIME_KEY);
     if (!stored) return 0;
     try {
       const data = JSON.parse(stored);
-      if (data.date === getKoreaDateStr()) {
+      if (data.sessionId === getCurrentSessionId()) {
         return data.totalMs || 0;
       }
     } catch {}
-    return 0;
+    return 0; // 새 세션이면 0부터 시작
   };
   
-  const [cumulativeTradingTimeMs, setCumulativeTradingTimeMs] = useState<number>(getTodayTradingTime());
+  const [cumulativeTradingTimeMs, setCumulativeTradingTimeMs] = useState<number>(getSessionTradingTime());
   const tradingStartTimeRef = useRef<number | null>(null);
   
   const isTradingTimeLimitExceeded = cumulativeTradingTimeMs >= TRADING_TIME_LIMIT_MS;
@@ -228,7 +249,7 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
     const interval = setInterval(() => {
       if (tradingStartTimeRef.current) {
         const elapsed = Date.now() - tradingStartTimeRef.current;
-        const newTotal = getTodayTradingTime() + elapsed;
+        const newTotal = getSessionTradingTime() + elapsed;
         setCumulativeTradingTimeMs(newTotal);
       }
     }, 10000);
@@ -238,10 +259,10 @@ const OrderPanel8282 = ({ symbol, onPositionChange, onPnLChange, onOpenOrdersCha
       clearInterval(interval);
       if (tradingStartTimeRef.current) {
         const elapsed = Date.now() - tradingStartTimeRef.current;
-        const storedTime = getTodayTradingTime();
+        const storedTime = getSessionTradingTime();
         const newTotal = storedTime + elapsed;
         localStorage.setItem(TRADING_TIME_KEY, JSON.stringify({
-          date: getKoreaDateStr(),
+          sessionId: getCurrentSessionId(),
           totalMs: newTotal
         }));
       }
