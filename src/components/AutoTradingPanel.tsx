@@ -10,6 +10,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import TradingRecordModal from './TradingRecordModal';
 import BacktestModal from './BacktestModal';
+import OrderBookWallIndicator from './OrderBookWallIndicator';
 
 // 스캘핑 시간대 적합도 데이터
 const getScalpingRating = () => {
@@ -364,6 +365,12 @@ const AutoTradingPanel = ({
           </div>
         </div>
       </div>
+      
+      {/* Order Book Wall Analysis */}
+      <OrderBookWallIndicator 
+        symbol={currentPosition?.symbol || pendingSignal?.symbol || null} 
+        enabled={isEnabled} 
+      />
       
       {/* Pending Signal */}
       {pendingSignal && !currentPosition && (
