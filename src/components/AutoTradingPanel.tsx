@@ -42,7 +42,7 @@ const getScalpingRating = () => {
   }
 };
 
-const LEVERAGE_OPTIONS = [1, 5, 10];
+const LEVERAGE_OPTIONS = [1, 5, 10, 15, 20];
 
 interface AutoTradingPanelProps {
   state: AutoTradingState;
@@ -656,7 +656,7 @@ const AutoTradingPanel = ({
               {isEnabled ? '🔍 시그널 대기 중...' : '자동매매를 시작하세요'}
             </div>
           ) : (
-            tradeLogs.slice(0, 6).map((log) => (
+            tradeLogs.slice(0, 4).map((log) => (
               <TradeLogItem 
                 key={log.id} 
                 log={log} 
