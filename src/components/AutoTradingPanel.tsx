@@ -504,44 +504,13 @@ const AutoTradingPanel = ({
             <span>진입가: ${formatPrice(currentPosition.entryPrice)}</span>
             <span>수량: {currentPosition.remainingQuantity.toFixed(4)}</span>
           </div>
-          {/* 3단계 익절 진행 상태 */}
+          {/* 익절 목표 */}
           <div className="mt-2 flex items-center gap-2">
-            <span className="text-[10px] text-muted-foreground">익절:</span>
-            <div className="flex gap-2">
-              <span className={cn(
-                "text-[11px] px-2 py-1 rounded font-mono",
-                currentPosition.takeProfitState?.stage1Hit 
-                  ? "bg-green-500/30 text-green-400" 
-                  : "bg-secondary/50 text-muted-foreground"
-              )}>
-                1단계 {currentPosition.takeProfitState?.stage1Hit ? '✓' : '0.3%'}
-              </span>
-              <span className={cn(
-                "text-[11px] px-2 py-1 rounded font-mono",
-                currentPosition.takeProfitState?.stage2Hit 
-                  ? "bg-green-500/30 text-green-400" 
-                  : "bg-secondary/50 text-muted-foreground"
-              )}>
-                2단계 {currentPosition.takeProfitState?.stage2Hit ? '✓' : '0.8%'}
-              </span>
-              <span className={cn(
-                "text-[11px] px-2 py-1 rounded font-mono",
-                currentPosition.takeProfitState?.stage3Hit 
-                  ? "bg-green-500/30 text-green-400" 
-                  : "bg-secondary/50 text-muted-foreground"
-              )}>
-                3단계 {currentPosition.takeProfitState?.stage3Hit ? '✓' : '1.5%'}
-              </span>
-            </div>
+            <span className="text-[10px] text-muted-foreground">익절 목표:</span>
+            <span className="text-[11px] px-2 py-1 rounded bg-green-500/20 text-green-400 font-mono">
+              +0.2% 전량 청산
+            </span>
           </div>
-          {/* 트레일링 스탑 상태 */}
-          {currentPosition.takeProfitState?.trailingActive && (
-            <div className="mt-1.5 flex items-center gap-1">
-              <span className="text-[11px] px-2 py-1 rounded bg-blue-500/20 text-blue-400 font-mono">
-                📈 트레일링 활성 @ ${currentPosition.takeProfitState.trailingHighPrice.toFixed(4)}
-              </span>
-            </div>
-          )}
           <div className="flex gap-2 mt-2">
             {onManualClose && (
               <Button

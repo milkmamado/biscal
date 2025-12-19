@@ -45,14 +45,9 @@ interface PendingSignal {
   confirmCount: number; // 확인 봉 횟수
 }
 
-// 3단계 익절 상태
+// 익절 상태 (단순화)
 interface TakeProfitState {
-  stage1Hit: boolean; // +0.3% (40% 청산)
-  stage2Hit: boolean; // +0.8% (40% 청산)
-  stage3Hit: boolean; // +1.5% (20% 청산)
-  trailingActive: boolean;
-  trailingHighPrice: number; // 롱: 최고가, 숏: 최저가
-  trailingTriggerPrice: number; // 트레일링 시작 가격
+  tpHit: boolean; // 익절 완료 여부
 }
 
 // 포지션 정보
@@ -111,14 +106,8 @@ interface UseAutoTradingProps {
 
 // 설정값
 const CONFIG = {
-  // 익절 단계
-  TP_STAGE_1: { percent: 0.3, closeRatio: 0.4 },  // +0.3%에서 40% 청산
-  TP_STAGE_2: { percent: 0.8, closeRatio: 0.4 },  // +0.8%에서 40% 청산
-  TP_STAGE_3: { percent: 1.5, closeRatio: 1.0 },  // +1.5%에서 전량 청산
-  
-  // 트레일링 스탑
-  TRAILING_TRIGGER: 0.4,     // +0.4% 도달 시 트레일링 활성화
-  TRAILING_DISTANCE: 0.15,   // 0.15% 거리 유지
+  // 익절 (전량 즉시 익절)
+  TP_PERCENT: 0.2,           // +0.2% 도달 시 전량 익절
   
   // 타임 스탑
   TIME_STOP_MINUTES: 15,     // 15분 타임 스탑
@@ -239,54 +228,6 @@ export function useAutoTrading({
       };
     });
   }, []);
-
-  // 부분 청산 실행
-  const executePartialClose = useCallback(async (
-    position: Position,
-    closeRatio: number,
-    currentPrice: number,
-    stage: number
-  ): Promise<{ success: boolean; closedQty: number; pnl: number }> => {
-    try {
-      const closeQty = position.remainingQuantity * closeRatio;
-      const precision = await fetchSymbolPrecision(position.symbol);
-      const roundedQty = roundQuantity(closeQty, precision);
-
-      if (roundedQty * currentPrice < 5) {
-        return { success: false, closedQty: 0, pnl: 0 };
-      }
-
-      const orderSide = position.side === 'long' ? 'SELL' : 'BUY';
-      const result = await placeMarketOrder(position.symbol, orderSide, roundedQty, true, currentPrice);
-
-      if (!result || result.error) {
-        return { success: false, closedQty: 0, pnl: 0 };
-      }
-
-      const direction = position.side === 'long' ? 1 : -1;
-      const priceDiff = (currentPrice - position.entryPrice) * direction;
-      const pnl = priceDiff * roundedQty;
-
-      addLog({
-        symbol: position.symbol,
-        action: 'partial_tp',
-        side: position.side,
-        price: currentPrice,
-        quantity: roundedQty,
-        pnl,
-        reason: `${stage}단계 익절 (${(closeRatio * 100).toFixed(0)}%)`,
-      });
-
-      const pnlKRW = Math.round(pnl * krwRate);
-      playTpSound();
-      toast.success(`🎯 ${stage}단계 익절! +₩${pnlKRW.toLocaleString()}`);
-
-      return { success: true, closedQty: roundedQty, pnl };
-    } catch (error) {
-      console.error('Partial close error:', error);
-      return { success: false, closedQty: 0, pnl: 0 };
-    }
-  }, [placeMarketOrder, addLog, krwRate]);
 
   // 전량 청산
   const closePosition = useCallback(async (reason: 'tp' | 'sl' | 'exit' | 'time', currentPrice: number) => {
@@ -463,99 +404,10 @@ export function useAutoTrading({
       return;
     }
 
-    // 3. 트레일링 스탑 체크
-    if (tpState.trailingActive) {
-      const trailDistance = position.side === 'long'
-        ? ((tpState.trailingHighPrice - currentPrice) / tpState.trailingHighPrice) * 100
-        : ((currentPrice - tpState.trailingHighPrice) / tpState.trailingHighPrice) * 100;
-
-      if (trailDistance >= CONFIG.TRAILING_DISTANCE) {
-        await closePosition('tp', currentPrice);
-        return;
-      }
-
-      // 트레일링 최고가 업데이트
-      const newHigh = position.side === 'long'
-        ? Math.max(tpState.trailingHighPrice, currentPrice)
-        : Math.min(tpState.trailingHighPrice, currentPrice);
-
-      if (newHigh !== tpState.trailingHighPrice) {
-        setState(prev => ({
-          ...prev,
-          currentPosition: prev.currentPosition ? {
-            ...prev.currentPosition,
-            takeProfitState: {
-              ...prev.currentPosition.takeProfitState,
-              trailingHighPrice: newHigh,
-            },
-          } : null,
-        }));
-      }
-    }
-
-    // 4. 3단계 익절 체크
-    if (!tpState.stage1Hit && pnlPercent >= CONFIG.TP_STAGE_1.percent) {
-      const result = await executePartialClose(position, CONFIG.TP_STAGE_1.closeRatio, currentPrice, 1);
-      if (result.success) {
-        setState(prev => ({
-          ...prev,
-          currentPosition: prev.currentPosition ? {
-            ...prev.currentPosition,
-            remainingQuantity: prev.currentPosition.remainingQuantity - result.closedQty,
-            takeProfitState: {
-              ...prev.currentPosition.takeProfitState,
-              stage1Hit: true,
-            },
-          } : null,
-          todayStats: {
-            ...prev.todayStats,
-            totalPnL: prev.todayStats.totalPnL + result.pnl,
-          },
-        }));
-      }
-    }
-
-    if (!tpState.stage2Hit && tpState.stage1Hit && pnlPercent >= CONFIG.TP_STAGE_2.percent) {
-      const result = await executePartialClose(position, CONFIG.TP_STAGE_2.closeRatio, currentPrice, 2);
-      if (result.success) {
-        setState(prev => ({
-          ...prev,
-          currentPosition: prev.currentPosition ? {
-            ...prev.currentPosition,
-            remainingQuantity: prev.currentPosition.remainingQuantity - result.closedQty,
-            takeProfitState: {
-              ...prev.currentPosition.takeProfitState,
-              stage2Hit: true,
-            },
-          } : null,
-          todayStats: {
-            ...prev.todayStats,
-            totalPnL: prev.todayStats.totalPnL + result.pnl,
-          },
-        }));
-      }
-    }
-
-    if (tpState.stage2Hit && pnlPercent >= CONFIG.TP_STAGE_3.percent) {
+    // 3. 전량 익절 체크 (+0.2%)
+    if (!tpState.tpHit && pnlPercent >= CONFIG.TP_PERCENT) {
       await closePosition('tp', currentPrice);
       return;
-    }
-
-    // 5. 트레일링 활성화 체크
-    if (!tpState.trailingActive && pnlPercent >= CONFIG.TRAILING_TRIGGER) {
-      setState(prev => ({
-        ...prev,
-        currentPosition: prev.currentPosition ? {
-          ...prev.currentPosition,
-          takeProfitState: {
-            ...prev.currentPosition.takeProfitState,
-            trailingActive: true,
-            trailingHighPrice: currentPrice,
-            trailingTriggerPrice: currentPrice,
-          },
-        } : null,
-      }));
-      toast.info(`📈 트레일링 스탑 활성화 @ $${currentPrice.toFixed(4)}`);
     }
     
     // 6. 🆕 전봉 기반 동적 손절선 업데이트 (5분마다 체크)
@@ -619,7 +471,7 @@ export function useAutoTrading({
         console.error('[checkTpSl] 손절선 업데이트 실패:', error);
       }
     }
-  }, [state.currentPosition, closePosition, executePartialClose]);
+  }, [state.currentPosition, closePosition]);
 
   // 시그널 핸들러 (기술적 분석 기반)
   const handleSignal = useCallback(async (
@@ -840,12 +692,7 @@ export function useAutoTrading({
         entryTime: Date.now(),
         atr: indicators.atr,
         takeProfitState: {
-          stage1Hit: false,
-          stage2Hit: false,
-          stage3Hit: false,
-          trailingActive: false,
-          trailingHighPrice: avgPrice,
-          trailingTriggerPrice: 0,
+          tpHit: false,
         },
         indicators,
         stopLossPrice: initialStopLoss,
@@ -857,7 +704,7 @@ export function useAutoTrading({
         pendingSignal: null,
         currentPosition: newPosition,
         currentSymbol: symbol,
-        tpPercent: CONFIG.TP_STAGE_1.percent,
+        tpPercent: CONFIG.TP_PERCENT,
         statusMessage: `🎯 ${symbol.replace('USDT', '')} ${side === 'long' ? '롱' : '숏'} 포지션 보유 중`,
       }));
 
@@ -867,7 +714,7 @@ export function useAutoTrading({
         side,
         price: avgPrice > 0 ? avgPrice : currentPrice,
         quantity: executedQty,
-        reason: `진입 (3단계 TP: ${CONFIG.TP_STAGE_1.percent}%/${CONFIG.TP_STAGE_2.percent}%/${CONFIG.TP_STAGE_3.percent}%)`,
+        reason: `진입 (익절: +${CONFIG.TP_PERCENT}%)`,
       });
 
       playEntrySound();
@@ -949,12 +796,7 @@ export function useAutoTrading({
               entryTime: Date.now(),
               atr: entryPrice * 0.005,
               takeProfitState: {
-                stage1Hit: false,
-                stage2Hit: false,
-                stage3Hit: false,
-                trailingActive: false,
-                trailingHighPrice: entryPrice,
-                trailingTriggerPrice: 0,
+                tpHit: false,
               },
               indicators: defaultIndicators,
               // 동기화된 포지션은 진입가 기준으로 0.5% 손절 설정 (전봉 데이터 없으므로)
