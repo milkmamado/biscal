@@ -284,9 +284,13 @@ export function useAutoTrading({
       const actualEntryPrice = parseFloat(actualPosition.entryPrice);
 
       const orderSide = position.side === 'long' ? 'SELL' : 'BUY';
+      console.log(`🔴 [closePosition] 청산 요청: ${position.symbol} ${orderSide} 수량=${actualQty} 가격=${currentPrice} 사유=${reason}`);
+      
       const closeResult = await placeMarketOrder(position.symbol, orderSide, actualQty, true, currentPrice);
+      console.log(`📋 [closePosition] 청산 결과:`, JSON.stringify(closeResult));
 
       if (!closeResult || closeResult.error) {
+        console.error(`❌ [closePosition] 청산 실패: ${closeResult?.error || '응답 없음'}`);
         throw new Error(closeResult?.error || '청산 실패');
       }
 
@@ -701,9 +705,13 @@ export function useAutoTrading({
 
       // 시장가 주문
       const orderSide = side === 'long' ? 'BUY' : 'SELL';
+      console.log(`🚀 [executeEntry] 주문 요청: ${symbol} ${orderSide} 수량=${quantity} 가격=${currentPrice}`);
+      
       const orderResult = await placeMarketOrder(symbol, orderSide, quantity, false, currentPrice);
+      console.log(`📋 [executeEntry] 주문 결과:`, JSON.stringify(orderResult));
 
       if (!orderResult || orderResult.error) {
+        console.error(`❌ [executeEntry] 주문 실패: ${orderResult?.error || '응답 없음'}`);
         throw new Error(orderResult?.error || '주문 실패');
       }
 
