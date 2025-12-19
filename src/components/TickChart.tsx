@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { ZoomIn, ZoomOut } from 'lucide-react';
+import cyberpunkGirl from '@/assets/cyberpunk-girl.png';
 
 interface Candle {
   time: number;
@@ -733,20 +734,39 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
   const isUp = currentPrice >= prevClose;
   
   return (
-    <div ref={containerRef} className="w-full h-full relative">
+    <div ref={containerRef} className="w-full h-full relative overflow-hidden">
+      {/* 사이버펑크 배경 이미지 */}
+      <div 
+        className="absolute inset-0 z-0"
+        style={{
+          backgroundImage: `url(${cyberpunkGirl})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          opacity: 0.15,
+          filter: 'blur(1px)',
+        }}
+      />
+      {/* 그라데이션 오버레이 */}
+      <div 
+        className="absolute inset-0 z-0"
+        style={{
+          background: 'linear-gradient(135deg, rgba(10,10,10,0.7) 0%, rgba(10,10,20,0.5) 50%, rgba(10,10,10,0.7) 100%)',
+        }}
+      />
+      
       <canvas 
         ref={canvasRef} 
-        className="w-full h-full absolute inset-0"
+        className="w-full h-full absolute inset-0 z-10"
       />
       
       {/* 심볼명 + 현재가 (좌측 상단) */}
-      <div className="absolute top-2 left-2 flex items-center gap-3">
-        <span className="text-sm font-bold text-foreground">
+      <div className="absolute top-2 left-2 flex items-center gap-3 z-20">
+        <span className="text-sm font-bold text-foreground drop-shadow-lg">
           {displaySymbol.replace('USDT', '')}
         </span>
         {currentPrice > 0 && (
           <span className={cn(
-            "text-sm font-bold font-mono",
+            "text-sm font-bold font-mono drop-shadow-lg",
             isUp ? "text-red-400" : "text-blue-400"
           )}>
             ${formatPrice(currentPrice)} {isUp ? '▲' : '▼'}
@@ -761,7 +781,7 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
       </div>
       
       {/* 줌 컨트롤 + 분봉 정보 (중앙 상단) */}
-      <div className="absolute top-2 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1">
+      <div className="absolute top-2 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 z-20">
         <div className="flex items-center gap-1">
           <button
             onClick={handleZoomIn}

@@ -122,17 +122,18 @@ const CyberPigeon = () => {
         }}
       >
         <p 
-          className="text-xs tracking-[0.4em] uppercase font-mono"
+          className="text-xs tracking-[0.4em] uppercase font-mono font-bold"
           style={{
             color: '#ff00ff',
             textShadow: `
               0 0 5px #ff00ff,
               0 0 10px #ff00ff,
-              0 0 20px #ff00ff
+              0 0 20px #ff00ff,
+              0 0 40px #ff00ff
             `,
           }}
         >
-          The Future is Now
+          Do or Die
         </p>
       </div>
 
