@@ -83,6 +83,7 @@ export interface AutoTradingState {
   tradeLogs: AutoTradeLog[];
   consecutiveLosses: number;
   cooldownUntil: number | null;
+  lossProtectionEnabled: boolean; // 연속 손실 보호 기능 ON/OFF
   tpPercent: number;
   statusMessage: string;
   scanningProgress: string;
@@ -194,6 +195,7 @@ export function useAutoTrading({
     tradeLogs: [],
     consecutiveLosses: 0,
     cooldownUntil: null,
+    lossProtectionEnabled: false, // 기본값 OFF
     tpPercent: 0.3,
     statusMessage: '자동매매 비활성화',
     scanningProgress: '',
@@ -355,17 +357,17 @@ export function useAutoTrading({
           totalPnL: newTotalPnL,
         },
         consecutiveLosses: isWin ? 0 : prev.consecutiveLosses + 1,
-        // 연속 5손실 시 1시간 휴식
-        cooldownUntil: (!isWin && prev.consecutiveLosses + 1 >= CONFIG.MAX_CONSECUTIVE_LOSSES) 
+        // 연속 5손실 + 보호 기능 켜져 있을 때만 휴식
+        cooldownUntil: (prev.lossProtectionEnabled && !isWin && prev.consecutiveLosses + 1 >= CONFIG.MAX_CONSECUTIVE_LOSSES) 
           ? Date.now() + CONFIG.LOSS_COOLDOWN_MINUTES * 60 * 1000 
           : prev.cooldownUntil,
-        statusMessage: (!isWin && prev.consecutiveLosses + 1 >= CONFIG.MAX_CONSECUTIVE_LOSSES)
+        statusMessage: (prev.lossProtectionEnabled && !isWin && prev.consecutiveLosses + 1 >= CONFIG.MAX_CONSECUTIVE_LOSSES)
           ? `⏸️ 연속 ${CONFIG.MAX_CONSECUTIVE_LOSSES}손실 - ${CONFIG.LOSS_COOLDOWN_MINUTES}분 휴식`
           : `${isWin ? '✅ 익절' : '❌ 손절'} 완료! 다음 시그널 대기...`,
       }));
       
-      // 연속 손실 경고
-      if (!isWin && state.consecutiveLosses + 1 >= CONFIG.MAX_CONSECUTIVE_LOSSES) {
+      // 연속 손실 경고 (보호 기능 켜져 있을 때만)
+      if (state.lossProtectionEnabled && !isWin && state.consecutiveLosses + 1 >= CONFIG.MAX_CONSECUTIVE_LOSSES) {
         toast.warning(`⏸️ 연속 ${CONFIG.MAX_CONSECUTIVE_LOSSES}손실! ${CONFIG.LOSS_COOLDOWN_MINUTES}분간 자동매매 일시 중지`);
       }
 
@@ -1062,6 +1064,25 @@ export function useAutoTrading({
     }
   }, [state.currentPosition, cancelAllOrders, addLog]);
 
+  // 연속 손실 보호 기능 토글
+  const toggleLossProtection = useCallback(() => {
+    setState(prev => ({
+      ...prev,
+      lossProtectionEnabled: !prev.lossProtectionEnabled,
+      // 보호 기능 끄면 현재 쿨다운도 해제
+      cooldownUntil: !prev.lossProtectionEnabled ? prev.cooldownUntil : null,
+    }));
+  }, []);
+
+  // 쿨다운 즉시 해제 (현재 휴식 해제)
+  const clearCooldown = useCallback(() => {
+    setState(prev => ({
+      ...prev,
+      cooldownUntil: null,
+      consecutiveLosses: 0,
+    }));
+  }, []);
+
   return {
     state,
     toggleAutoTrading,
@@ -1073,6 +1094,8 @@ export function useAutoTrading({
     swapSignalDirection,
     breakEvenClose,
     cancelBreakEvenOrder,
+    toggleLossProtection,
+    clearCooldown,
     updatePrice: useCallback(() => {}, []),
   };
 }
