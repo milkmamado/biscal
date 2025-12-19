@@ -622,15 +622,9 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
       const highY = CANVAS_PADDING / 2 + ((adjustedMax - candle.high) / adjustedRange) * priceChartHeight;
       const lowY = CANVAS_PADDING / 2 + ((adjustedMax - candle.low) / adjustedRange) * priceChartHeight;
       
-      // 변동성 급등 캔들 - 글로우 효과
-      if (isHighVolatility) {
-        ctx.shadowColor = isUp ? '#fbbf24' : '#f97316';
-        ctx.shadowBlur = 8;
-      }
-      
       // 심지 그리기
       ctx.strokeStyle = color;
-      ctx.lineWidth = isHighVolatility ? 2 : 1;
+      ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(x, highY);
       ctx.lineTo(x, lowY);
@@ -641,11 +635,6 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
       const bodyHeight = Math.max(1, Math.abs(closeY - openY));
       ctx.fillStyle = color;
       ctx.fillRect(x - candleWidth / 2, bodyTop, candleWidth, bodyHeight);
-      
-      // 글로우 효과 리셋
-      if (isHighVolatility) {
-        ctx.shadowBlur = 0;
-      }
       
       // === 거래량 바 ===
       if (maxVolume > 0) {
