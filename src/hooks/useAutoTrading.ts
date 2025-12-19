@@ -588,15 +588,18 @@ export function useAutoTrading({
       return;
     }
 
+    const isEntryProtected = holdTimeSec < CONFIG.ENTRY_PROTECTION_SEC;
+
     // ============================================
     // 🚨 2. 오더북 긴급 탈출
     // ============================================
-    if (orderbookImbalance !== undefined && pnlPercent < 0) {
+    // 진입 직후(보호 시간)에는 오더북 급변으로 인한 즉시 손절을 막음
+    if (!isEntryProtected && orderbookImbalance !== undefined && pnlPercent < 0) {
       const isLong = position.side === 'long';
-      const dangerousImbalance = isLong 
+      const dangerousImbalance = isLong
         ? orderbookImbalance < -CONFIG.ORDERBOOK_EMERGENCY.EXIT_THRESHOLD
         : orderbookImbalance > CONFIG.ORDERBOOK_EMERGENCY.EXIT_THRESHOLD;
-      
+
       if (dangerousImbalance) {
         console.log(`🚨 [HFT] 오더북 긴급 탈출! 불균형: ${orderbookImbalance.toFixed(1)}x`);
         toast.warning(`🚨 오더북 압력! 긴급 탈출`);
@@ -608,13 +611,7 @@ export function useAutoTrading({
     // ============================================
     // ⚡ 3. 조기 손절 (진입 보호 시간 적용)
     // ============================================
-    // 🛡️ 진입 보호: 처음 10초간은 손절하지 않음
-    if (holdTimeSec < CONFIG.ENTRY_PROTECTION_SEC) {
-      // 진입 보호 시간 - 손절 스킵
-      return;
-    }
-    
-    if (pnlPercent < 0 && !tpState.breakEvenActivated) {
+    if (!isEntryProtected && pnlPercent < 0 && !tpState.breakEvenActivated) {
       const { EARLY_SL } = CONFIG;
       
       // 1단계: 20초 내 -0.10% → 50% 청산
