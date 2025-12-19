@@ -8,6 +8,7 @@ export interface TechnicalIndicators {
   rsi: number;         // RSI(14)
   ema8: number;        // EMA(8)
   ema21: number;       // EMA(21)
+  ema21Slope: number;  // 🆕 EMA(21) 기울기 (% 변화)
   macd: number;        // MACD
   macdSignal: number;  // MACD 시그널
   macdHistogram: number; // MACD 히스토그램
@@ -21,6 +22,10 @@ export interface TechnicalIndicators {
   williamsR: number;   // Williams %R
   atr: number;         // ATR(14)
   volumeRatio: number; // 현재 거래량 / 20일 평균
+  // 🆕 고저점 기반 추세
+  higherHighs: boolean;  // 최근 n개 봉에서 고점이 상승 중인지
+  lowerLows: boolean;    // 최근 n개 봉에서 저점이 하락 중인지
+  trendStrength: 'strong_up' | 'weak_up' | 'neutral' | 'weak_down' | 'strong_down';
 }
 
 // 캔들 데이터 인터페이스
@@ -270,6 +275,78 @@ function calculateVolumeRatio(klines: Kline[], period: number = 20): number {
   return avgVolume > 0 ? currentVolume / avgVolume : 1;
 }
 
+// 🆕 EMA 기울기 계산 (최근 n개 EMA 값의 변화율)
+function calculateEMASlope(emaArray: number[], lookback: number = 5): number {
+  if (emaArray.length < lookback + 1) return 0;
+  
+  const recent = emaArray.slice(-lookback);
+  const older = emaArray.slice(-lookback - 1, -1);
+  
+  const recentAvg = recent.reduce((a, b) => a + b, 0) / recent.length;
+  const olderAvg = older.reduce((a, b) => a + b, 0) / older.length;
+  
+  // 기울기를 % 변화로 표현
+  return olderAvg > 0 ? ((recentAvg - olderAvg) / olderAvg) * 100 : 0;
+}
+
+// 🆕 고저점 기반 추세 판단
+function analyzeHighLowTrend(klines: Kline[], lookback: number = 10): { 
+  higherHighs: boolean; 
+  lowerLows: boolean;
+  trendStrength: 'strong_up' | 'weak_up' | 'neutral' | 'weak_down' | 'strong_down';
+} {
+  if (klines.length < lookback) {
+    return { higherHighs: false, lowerLows: false, trendStrength: 'neutral' };
+  }
+  
+  const recentKlines = klines.slice(-lookback);
+  
+  // 고점/저점 분석: 최근 봉들의 고점/저점이 상승/하락 추세인지
+  let risingHighs = 0;
+  let fallingHighs = 0;
+  let risingLows = 0;
+  let fallingLows = 0;
+  
+  for (let i = 1; i < recentKlines.length; i++) {
+    // 고점 비교
+    if (recentKlines[i].high > recentKlines[i - 1].high) risingHighs++;
+    else if (recentKlines[i].high < recentKlines[i - 1].high) fallingHighs++;
+    
+    // 저점 비교
+    if (recentKlines[i].low > recentKlines[i - 1].low) risingLows++;
+    else if (recentKlines[i].low < recentKlines[i - 1].low) fallingLows++;
+  }
+  
+  const totalComparisons = lookback - 1;
+  const risingHighsRatio = risingHighs / totalComparisons;
+  const fallingHighsRatio = fallingHighs / totalComparisons;
+  const risingLowsRatio = risingLows / totalComparisons;
+  const fallingLowsRatio = fallingLows / totalComparisons;
+  
+  // 60% 이상 상승 고점 = Higher Highs
+  const higherHighs = risingHighsRatio >= 0.6;
+  // 60% 이상 하락 저점 = Lower Lows
+  const lowerLows = fallingLowsRatio >= 0.6;
+  
+  // 추세 강도 판단
+  let trendStrength: 'strong_up' | 'weak_up' | 'neutral' | 'weak_down' | 'strong_down' = 'neutral';
+  
+  // 상승 추세: 고점 상승 + 저점 상승
+  if (higherHighs && risingLowsRatio >= 0.5) {
+    trendStrength = risingHighsRatio >= 0.7 ? 'strong_up' : 'weak_up';
+  }
+  // 하락 추세: 저점 하락 + 고점 하락
+  else if (lowerLows && fallingHighsRatio >= 0.5) {
+    trendStrength = fallingLowsRatio >= 0.7 ? 'strong_down' : 'weak_down';
+  }
+  // 혼조세
+  else if (higherHighs && lowerLows) {
+    trendStrength = 'neutral'; // 확산형 (volatility)
+  }
+  
+  return { higherHighs, lowerLows, trendStrength };
+}
+
 // 종합 기술적 지표 계산
 export function calculateAllIndicators(klines: Kline[]): TechnicalIndicators | null {
   if (klines.length < 30) return null;
@@ -279,6 +356,12 @@ export function calculateAllIndicators(klines: Kline[]): TechnicalIndicators | n
   // EMA 계산
   const ema8Array = calculateEMA(closes, 8);
   const ema21Array = calculateEMA(closes, 21);
+  
+  // 🆕 EMA21 기울기 계산
+  const ema21Slope = calculateEMASlope(ema21Array, 5);
+  
+  // 🆕 고저점 기반 추세 분석
+  const hlTrend = analyzeHighLowTrend(klines, 10);
   
   // MACD
   const macdData = calculateMACD(closes);
@@ -293,6 +376,7 @@ export function calculateAllIndicators(klines: Kline[]): TechnicalIndicators | n
     rsi: calculateRSI(closes, 14),
     ema8: ema8Array[ema8Array.length - 1] || closes[closes.length - 1],
     ema21: ema21Array[ema21Array.length - 1] || closes[closes.length - 1],
+    ema21Slope,
     macd: macdData.macd,
     macdSignal: macdData.signal,
     macdHistogram: macdData.histogram,
@@ -306,6 +390,9 @@ export function calculateAllIndicators(klines: Kline[]): TechnicalIndicators | n
     williamsR: calculateWilliamsR(klines, 14),
     atr: calculateATR(klines, 14),
     volumeRatio: calculateVolumeRatio(klines, 20),
+    higherHighs: hlTrend.higherHighs,
+    lowerLows: hlTrend.lowerLows,
+    trendStrength: hlTrend.trendStrength,
   };
 }
 
@@ -331,15 +418,39 @@ export function checkTrendDirection(indicators: TechnicalIndicators): 'bullish' 
   return 'neutral';
 }
 
-// 롱 시그널 체크 (추세 필터 추가)
+// 롱 시그널 체크 (강화된 추세 필터)
 export function checkLongSignal(indicators: TechnicalIndicators, price: number): { valid: boolean; strength: 'weak' | 'medium' | 'strong'; reasons: string[] } {
   const reasons: string[] = [];
   let score = 0;
   
-  // 🆕 추세 방향 필터: 하락 추세에서는 Long 차단
+  // 🆕 1차 필터: EMA 기반 추세 방향
   const trend = checkTrendDirection(indicators);
   if (trend === 'bearish') {
     return { valid: false, strength: 'weak', reasons: ['하락 추세 - Long 차단'] };
+  }
+  
+  // 🆕 2차 필터: EMA21 기울기 (하락 중이면 Long 차단)
+  if (indicators.ema21Slope < -0.02) {
+    return { valid: false, strength: 'weak', reasons: [`EMA21 하락 중 (${indicators.ema21Slope.toFixed(3)}%) - Long 차단`] };
+  }
+  
+  // 🆕 3차 필터: 고저점 기반 추세 (강한 하락 추세면 Long 차단)
+  if (indicators.trendStrength === 'strong_down') {
+    return { valid: false, strength: 'weak', reasons: ['고저점 강한 하락 추세 - Long 차단'] };
+  }
+  
+  // 🆕 추세 보너스 점수
+  if (indicators.ema21Slope > 0.03) {
+    reasons.push(`EMA21 상승 기울기 (+${indicators.ema21Slope.toFixed(3)}%)`);
+    score += 1;
+  }
+  if (indicators.higherHighs) {
+    reasons.push('고점 상승 패턴 (Higher Highs)');
+    score += 1;
+  }
+  if (indicators.trendStrength === 'strong_up' || indicators.trendStrength === 'weak_up') {
+    reasons.push(`고저점 상승 추세 (${indicators.trendStrength})`);
+    score += 1;
   }
   
   // 1. RSI < 30 (과매도) - 핵심
@@ -413,15 +524,39 @@ export function checkLongSignal(indicators: TechnicalIndicators, price: number):
   return { valid, strength, reasons };
 }
 
-// 숏 시그널 체크 (추세 필터 추가)
+// 숏 시그널 체크 (강화된 추세 필터)
 export function checkShortSignal(indicators: TechnicalIndicators, price: number): { valid: boolean; strength: 'weak' | 'medium' | 'strong'; reasons: string[] } {
   const reasons: string[] = [];
   let score = 0;
   
-  // 🆕 추세 방향 필터: 상승 추세에서는 Short 차단
+  // 🆕 1차 필터: EMA 기반 추세 방향
   const trend = checkTrendDirection(indicators);
   if (trend === 'bullish') {
     return { valid: false, strength: 'weak', reasons: ['상승 추세 - Short 차단'] };
+  }
+  
+  // 🆕 2차 필터: EMA21 기울기 (상승 중이면 Short 차단)
+  if (indicators.ema21Slope > 0.02) {
+    return { valid: false, strength: 'weak', reasons: [`EMA21 상승 중 (+${indicators.ema21Slope.toFixed(3)}%) - Short 차단`] };
+  }
+  
+  // 🆕 3차 필터: 고저점 기반 추세 (강한 상승 추세면 Short 차단)
+  if (indicators.trendStrength === 'strong_up') {
+    return { valid: false, strength: 'weak', reasons: ['고저점 강한 상승 추세 - Short 차단'] };
+  }
+  
+  // 🆕 추세 보너스 점수
+  if (indicators.ema21Slope < -0.03) {
+    reasons.push(`EMA21 하락 기울기 (${indicators.ema21Slope.toFixed(3)}%)`);
+    score += 1;
+  }
+  if (indicators.lowerLows) {
+    reasons.push('저점 하락 패턴 (Lower Lows)');
+    score += 1;
+  }
+  if (indicators.trendStrength === 'strong_down' || indicators.trendStrength === 'weak_down') {
+    reasons.push(`고저점 하락 추세 (${indicators.trendStrength})`);
+    score += 1;
   }
   
   // 1. RSI > 70 (과매수) - 핵심

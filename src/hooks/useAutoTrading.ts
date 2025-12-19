@@ -847,11 +847,12 @@ export function useAutoTrading({
           const entryPrice = parseFloat(activePosition.entryPrice);
           
           const defaultIndicators: TechnicalIndicators = {
-            rsi: 50, ema8: entryPrice, ema21: entryPrice,
+            rsi: 50, ema8: entryPrice, ema21: entryPrice, ema21Slope: 0,
             macd: 0, macdSignal: 0, macdHistogram: 0,
             upperBand: entryPrice * 1.02, lowerBand: entryPrice * 0.98, sma20: entryPrice,
             adx: 25, cci: 0, stochK: 50, stochD: 50, williamsR: -50,
             atr: entryPrice * 0.005, volumeRatio: 1,
+            higherHighs: false, lowerLows: false, trendStrength: 'neutral',
           };
           
           toast.info(`🔄 포지션 전환: ${activePosition.symbol.replace('USDT', '')} ${side === 'long' ? '롱' : '숏'}`);
@@ -887,11 +888,12 @@ export function useAutoTrading({
 
           // 기본 인디케이터 (동기화용)
           const defaultIndicators: TechnicalIndicators = {
-            rsi: 50, ema8: entryPrice, ema21: entryPrice,
+            rsi: 50, ema8: entryPrice, ema21: entryPrice, ema21Slope: 0,
             macd: 0, macdSignal: 0, macdHistogram: 0,
             upperBand: entryPrice * 1.02, lowerBand: entryPrice * 0.98, sma20: entryPrice,
             adx: 25, cci: 0, stochK: 50, stochD: 50, williamsR: -50,
             atr: entryPrice * 0.005, volumeRatio: 1,
+            higherHighs: false, lowerLows: false, trendStrength: 'neutral',
           };
 
           setState(prev => ({
