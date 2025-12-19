@@ -50,8 +50,6 @@ interface AutoTradingPanelProps {
   onManualClose?: () => void;
   onSkipSignal?: () => void;
   onSwapSignal?: () => void;
-  onBreakEvenClose?: () => void;
-  onCancelBreakEven?: () => void;
   currentPrice?: number;
   krwRate: number;
   leverage: number;
@@ -67,8 +65,6 @@ const AutoTradingPanel = ({
   onManualClose,
   onSkipSignal,
   onSwapSignal,
-  onBreakEvenClose,
-  onCancelBreakEven,
   currentPrice = 0,
   krwRate,
   leverage,
@@ -518,37 +514,15 @@ const AutoTradingPanel = ({
             </div>
           )}
           <div className="flex gap-2 mt-2">
-            {onBreakEvenClose && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={onBreakEvenClose}
-                className="flex-1 h-7 text-xs border-yellow-500/50 text-yellow-500 hover:bg-yellow-500/20"
-                disabled={isProcessing}
-              >
-                본절
-              </Button>
-            )}
-            {onCancelBreakEven && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={onCancelBreakEven}
-                className="flex-1 h-7 text-xs border-gray-500/50 text-gray-400 hover:bg-gray-500/20"
-                disabled={isProcessing}
-              >
-                취소
-              </Button>
-            )}
             {onManualClose && (
               <Button
                 variant="destructive"
                 size="sm"
                 onClick={onManualClose}
-                className="flex-1 h-7 text-xs"
+                className="w-full h-8 text-sm font-semibold"
                 disabled={isProcessing}
               >
-                청산
+                {isProcessing ? '처리중...' : '즉시 청산'}
               </Button>
             )}
           </div>
