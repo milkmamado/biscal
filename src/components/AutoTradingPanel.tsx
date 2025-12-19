@@ -276,18 +276,18 @@ const AutoTradingPanel = ({
         <div className="grid grid-cols-2 gap-2">
           <div>
             <div className="flex items-center gap-1">
-              <Wallet className="w-3 h-3 text-muted-foreground" />
-              <span className="text-[10px] text-muted-foreground">잔고</span>
+              <Wallet className="w-4 h-4 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">잔고</span>
               <button onClick={fetchRealBalance} className="p-0.5 hover:bg-secondary rounded">
-                <RefreshCw className={cn("w-2.5 h-2.5 text-muted-foreground", balanceLoading && "animate-spin")} />
+                <RefreshCw className={cn("w-3 h-3 text-muted-foreground", balanceLoading && "animate-spin")} />
               </button>
             </div>
-            <div className="text-sm font-bold font-mono">{balanceLoading ? '...' : `₩${formatKRW(balanceUSD)}`}</div>
+            <div className="text-base font-bold font-mono">{balanceLoading ? '...' : `₩${formatKRW(balanceUSD)}`}</div>
           </div>
           <div className="text-right">
-            <span className="text-[10px] text-muted-foreground">수익률</span>
+            <span className="text-xs text-muted-foreground">수익률</span>
             <div className={cn(
-              "text-sm font-bold font-mono",
+              "text-base font-bold font-mono",
               dailyPnLPercent >= 5 ? "text-green-400" : 
               dailyPnLPercent >= 0 ? "text-red-400" : "text-blue-400"
             )}>
@@ -295,10 +295,10 @@ const AutoTradingPanel = ({
             </div>
           </div>
         </div>
-        <div className="flex items-center justify-between mt-1.5 pt-1.5 border-t border-border/30">
+        <div className="flex items-center justify-between mt-2 pt-2 border-t border-border/30">
           <div>
-            <span className="text-[9px] text-muted-foreground">실현손익</span>
-            <div className={cn("text-xs font-mono font-semibold", todayRealizedPnL >= 0 ? "text-red-400" : "text-blue-400")}>
+            <span className="text-[10px] text-muted-foreground">실현손익</span>
+            <div className={cn("text-sm font-mono font-semibold", todayRealizedPnL >= 0 ? "text-red-400" : "text-blue-400")}>
               {todayRealizedPnL >= 0 ? '+' : ''}₩{formatKRW(todayRealizedPnL)}
             </div>
           </div>
@@ -317,15 +317,15 @@ const AutoTradingPanel = ({
       {/* Leverage Setting */}
       <div className="px-4 py-2 border-b border-border bg-secondary/30">
         <div className="flex items-center justify-between">
-          <span className="text-[10px] text-muted-foreground">레버리지</span>
-          <div className="flex gap-1">
+          <span className="text-xs text-muted-foreground">레버리지</span>
+          <div className="flex gap-1.5">
             {LEVERAGE_OPTIONS.map((lev) => (
               <button
                 key={lev}
                 onClick={() => onLeverageChange(lev)}
                 disabled={isEnabled || !!currentPosition}
                 className={cn(
-                  "px-2 py-0.5 text-[10px] font-mono rounded transition-colors",
+                  "px-3 py-1 text-xs font-mono rounded transition-colors",
                   leverage === lev 
                     ? "bg-primary text-primary-foreground" 
                     : "bg-secondary hover:bg-secondary/80",
@@ -343,21 +343,21 @@ const AutoTradingPanel = ({
       <div className="px-4 py-3 border-b border-border bg-secondary/20">
         <div className="grid grid-cols-3 gap-3 text-center">
           <div>
-            <p className="text-[10px] text-muted-foreground">거래</p>
-            <p className="text-sm font-bold font-mono">{todayStats.trades}</p>
+            <p className="text-xs text-muted-foreground">거래</p>
+            <p className="text-base font-bold font-mono">{todayStats.trades}</p>
           </div>
           <div>
-            <p className="text-[10px] text-muted-foreground">승/패</p>
-            <p className="text-sm font-bold font-mono">
+            <p className="text-xs text-muted-foreground">승/패</p>
+            <p className="text-base font-bold font-mono">
               <span className="text-green-500">{todayStats.wins}</span>
               /
               <span className="text-red-500">{todayStats.losses}</span>
             </p>
           </div>
           <div>
-            <p className="text-[10px] text-muted-foreground">승률</p>
+            <p className="text-xs text-muted-foreground">승률</p>
             <p className={cn(
-              "text-sm font-bold font-mono",
+              "text-base font-bold font-mono",
               parseFloat(winRate) >= 50 ? "text-green-500" : "text-red-500"
             )}>
               {winRate}%
@@ -460,11 +460,11 @@ const AutoTradingPanel = ({
             <span>수량: {currentPosition.remainingQuantity.toFixed(4)}</span>
           </div>
           {/* 3단계 익절 진행 상태 */}
-          <div className="mt-2 flex items-center gap-1">
-            <span className="text-[9px] text-muted-foreground">익절:</span>
-            <div className="flex gap-1.5">
+          <div className="mt-2 flex items-center gap-2">
+            <span className="text-[10px] text-muted-foreground">익절:</span>
+            <div className="flex gap-2">
               <span className={cn(
-                "text-[9px] px-1.5 py-0.5 rounded font-mono",
+                "text-[11px] px-2 py-1 rounded font-mono",
                 currentPosition.takeProfitState?.stage1Hit 
                   ? "bg-green-500/30 text-green-400" 
                   : "bg-secondary/50 text-muted-foreground"
@@ -472,7 +472,7 @@ const AutoTradingPanel = ({
                 1단계 {currentPosition.takeProfitState?.stage1Hit ? '✓' : '0.3%'}
               </span>
               <span className={cn(
-                "text-[9px] px-1.5 py-0.5 rounded font-mono",
+                "text-[11px] px-2 py-1 rounded font-mono",
                 currentPosition.takeProfitState?.stage2Hit 
                   ? "bg-green-500/30 text-green-400" 
                   : "bg-secondary/50 text-muted-foreground"
@@ -480,7 +480,7 @@ const AutoTradingPanel = ({
                 2단계 {currentPosition.takeProfitState?.stage2Hit ? '✓' : '0.8%'}
               </span>
               <span className={cn(
-                "text-[9px] px-1.5 py-0.5 rounded font-mono",
+                "text-[11px] px-2 py-1 rounded font-mono",
                 currentPosition.takeProfitState?.stage3Hit 
                   ? "bg-green-500/30 text-green-400" 
                   : "bg-secondary/50 text-muted-foreground"
@@ -491,8 +491,8 @@ const AutoTradingPanel = ({
           </div>
           {/* 트레일링 스탑 상태 */}
           {currentPosition.takeProfitState?.trailingActive && (
-            <div className="mt-1 flex items-center gap-1">
-              <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 font-mono">
+            <div className="mt-1.5 flex items-center gap-1">
+              <span className="text-[11px] px-2 py-1 rounded bg-blue-500/20 text-blue-400 font-mono">
                 📈 트레일링 활성 @ ${currentPosition.takeProfitState.trailingHighPrice.toFixed(4)}
               </span>
             </div>
@@ -536,14 +536,14 @@ const AutoTradingPanel = ({
       )}
       
       {/* Trade Logs */}
-      <div className="px-2 py-2 flex-1 flex flex-col min-h-0">
-        <div className="flex items-center gap-1 px-2 mb-2">
-          <Activity className="w-3 h-3 text-muted-foreground" />
-          <span className="text-[10px] text-muted-foreground">매매 로그</span>
+      <div className="px-3 py-2 flex-1 flex flex-col min-h-0">
+        <div className="flex items-center gap-1.5 px-2 mb-2">
+          <Activity className="w-4 h-4 text-muted-foreground" />
+          <span className="text-xs text-muted-foreground font-medium">매매 로그</span>
         </div>
-        <div className="overflow-y-auto space-y-1 max-h-[140px]">
+        <div className="overflow-y-auto space-y-1.5 max-h-[160px]">
           {tradeLogs.length === 0 ? (
-            <div className="text-center py-4 text-[11px] text-muted-foreground">
+            <div className="text-center py-4 text-xs text-muted-foreground">
               {isEnabled ? '기술적 분석 시그널 대기 중...' : '자동매매를 시작하세요'}
             </div>
           ) : (
@@ -691,7 +691,7 @@ const TradeLogItem = ({ log, krwRate, onSelectSymbol }: {
     <div 
       onClick={() => onSelectSymbol?.(log.symbol)}
       className={cn(
-        "px-2 py-1.5 rounded text-[10px] cursor-pointer hover:ring-1 hover:ring-primary/50 transition-all",
+        "px-3 py-2 rounded text-xs cursor-pointer hover:ring-1 hover:ring-primary/50 transition-all",
         log.action === 'error' ? "bg-red-500/10" : 
         log.action === 'cancel' ? "bg-yellow-500/10" :
         log.action === 'pending' ? "bg-blue-500/10" :
@@ -699,13 +699,13 @@ const TradeLogItem = ({ log, krwRate, onSelectSymbol }: {
       )}
     >
       <div className="flex items-center gap-2">
-        <span>{getActionIcon()}</span>
+        <span className="text-sm">{getActionIcon()}</span>
         <span className="text-muted-foreground">{formatTime(log.timestamp)}</span>
         <span className="font-semibold text-primary">{log.symbol.replace('USDT', '')}</span>
         <span>{getActionText()}</span>
         {log.pnl !== undefined && (
           <span className={cn(
-            "font-mono ml-auto",
+            "font-mono ml-auto font-semibold",
             log.pnl >= 0 ? "text-green-500" : "text-red-500"
           )}>
             {log.pnl >= 0 ? '+' : ''}₩{formatKRW(log.pnl)}
@@ -713,7 +713,7 @@ const TradeLogItem = ({ log, krwRate, onSelectSymbol }: {
         )}
       </div>
       {showReason && log.reason && (
-        <div className="mt-0.5 ml-5 text-[9px] text-muted-foreground truncate">
+        <div className="mt-1 ml-6 text-[10px] text-muted-foreground truncate">
           → {log.reason}
         </div>
       )}
