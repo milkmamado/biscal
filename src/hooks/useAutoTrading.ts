@@ -48,6 +48,14 @@ interface PendingSignal {
 // 익절 상태 (단순화)
 interface TakeProfitState {
   tpHit: boolean; // 익절 완료 여부
+  breakEvenActivated: boolean; // 브레이크이븐 활성화 여부
+}
+
+// 코인별 연속 손절 기록
+interface CoinLossRecord {
+  lastLossTime: number;
+  consecutiveLosses: number;
+  cooldownUntil: number;
 }
 
 // 포지션 정보
@@ -61,6 +69,7 @@ interface Position {
   atr: number;
   takeProfitState: TakeProfitState;
   indicators: TechnicalIndicators;
+  maxPnlPercent: number; // 최고 수익률 기록 (브레이크이븐용)
 }
 
 export interface AutoTradingState {
@@ -103,19 +112,30 @@ interface UseAutoTradingProps {
 
 // 설정값
 const CONFIG = {
-  // 익절/손절 (고정 %)
-  TP_PERCENT: 0.4,           // +0.4% 도달 시 전량 익절
-  SL_PERCENT: 0.3,           // -0.3% 도달 시 전량 손절
+  // 익절/손절 (고정 %) - 손익비 1:1
+  TP_PERCENT: 0.25,          // +0.25% 도달 시 전량 익절
+  SL_PERCENT: 0.25,          // -0.25% 도달 시 전량 손절
+  
+  // 브레이크이븐 설정
+  BREAKEVEN_TRIGGER: 0.15,   // +0.15% 도달 시 브레이크이븐 활성화
+  BREAKEVEN_SL: 0.02,        // 브레이크이븐 시 손절을 +0.02%로 (약간의 수수료 커버)
   
   // 진입 후 보호 시간 (손절 체크 안함)
   ENTRY_PROTECTION_SEC: 30,  // 진입 후 30초간 손절 보호
   
+  // 거래당 최대 손실 제한
+  MAX_LOSS_PER_TRADE_USD: 0.4, // 거래당 최대 손실 $0.4 (시드 1만원 기준 약 4%)
+  
   // 타임 스탑
   TIME_STOP_MINUTES: 15,     // 15분 타임 스탑
   
-  // 연속 손실 관리
+  // 연속 손실 관리 (전체)
   MAX_CONSECUTIVE_LOSSES: 5, // 연속 5회 손실
   LOSS_COOLDOWN_MINUTES: 60, // 1시간 휴식
+  
+  // 코인별 연속 손절 방지
+  COIN_MAX_CONSECUTIVE_LOSSES: 2,  // 같은 코인 2연속 손절 시
+  COIN_COOLDOWN_MINUTES: 30,       // 해당 코인 30분 쿨다운
   
   // 진입 조건
   MIN_SIGNAL_STRENGTH: 'medium' as const, // 최소 시그널 강도
@@ -190,6 +210,9 @@ export function useAutoTrading({
   const lastEntryTimeRef = useRef(0);
   const pendingSignalRef = useRef<PendingSignal | null>(null);
   const positionSyncRef = useRef(false);
+  
+  // 🆕 코인별 연속 손절 기록
+  const coinLossRecordRef = useRef<Map<string, CoinLossRecord>>(new Map());
 
   useEffect(() => {
     pendingSignalRef.current = state.pendingSignal;
@@ -292,6 +315,34 @@ export function useAutoTrading({
           : `${isWin ? '✅ 익절' : '❌ 손절'} 완료! 다음 시그널 대기...`,
       }));
       
+      // 🆕 코인별 연속 손절 기록 업데이트
+      if (!isWin) {
+        const coinRecord = coinLossRecordRef.current.get(position.symbol) || {
+          lastLossTime: 0,
+          consecutiveLosses: 0,
+          cooldownUntil: 0,
+        };
+        
+        coinRecord.lastLossTime = Date.now();
+        coinRecord.consecutiveLosses += 1;
+        
+        // 같은 코인 2연속 손절 시 30분 쿨다운
+        if (coinRecord.consecutiveLosses >= CONFIG.COIN_MAX_CONSECUTIVE_LOSSES) {
+          coinRecord.cooldownUntil = Date.now() + CONFIG.COIN_COOLDOWN_MINUTES * 60 * 1000;
+          console.log(`⏸️ [closePosition] ${position.symbol} ${CONFIG.COIN_MAX_CONSECUTIVE_LOSSES}연속 손절 → ${CONFIG.COIN_COOLDOWN_MINUTES}분 쿨다운`);
+          toast.warning(`⏸️ ${position.symbol.replace('USDT', '')} ${CONFIG.COIN_MAX_CONSECUTIVE_LOSSES}연속 손절! ${CONFIG.COIN_COOLDOWN_MINUTES}분간 해당 코인 거래 중지`);
+        }
+        
+        coinLossRecordRef.current.set(position.symbol, coinRecord);
+      } else {
+        // 익절 시 해당 코인 연속 손절 카운트 리셋
+        const coinRecord = coinLossRecordRef.current.get(position.symbol);
+        if (coinRecord) {
+          coinRecord.consecutiveLosses = 0;
+          coinLossRecordRef.current.set(position.symbol, coinRecord);
+        }
+      }
+      
       // 연속 손실 경고 (보호 기능 켜져 있을 때만)
       if (state.lossProtectionEnabled && !isWin && state.consecutiveLosses + 1 >= CONFIG.MAX_CONSECUTIVE_LOSSES) {
         toast.warning(`⏸️ 연속 ${CONFIG.MAX_CONSECUTIVE_LOSSES}손실! ${CONFIG.LOSS_COOLDOWN_MINUTES}분간 자동매매 일시 중지`);
@@ -368,22 +419,62 @@ export function useAutoTrading({
     
     // 📊 실시간 손익 로그
     const pnlRounded = Math.round(pnlPercent * 10) / 10;
-    console.log(`[TP/SL] ${position.symbol} ${position.side.toUpperCase()} | 현재: ${currentPrice.toFixed(4)} | 진입: ${position.entryPrice.toFixed(4)} | TP: +${CONFIG.TP_PERCENT}% | SL: -${CONFIG.SL_PERCENT}% | 손익: ${pnlRounded >= 0 ? '+' : ''}${pnlRounded.toFixed(1)}%`);
+    const beStatus = tpState.breakEvenActivated ? ' [BE]' : '';
+    console.log(`[TP/SL] ${position.symbol} ${position.side.toUpperCase()}${beStatus} | 현재: ${currentPrice.toFixed(4)} | 진입: ${position.entryPrice.toFixed(4)} | TP: +${CONFIG.TP_PERCENT}% | SL: ${tpState.breakEvenActivated ? '+' + CONFIG.BREAKEVEN_SL : '-' + CONFIG.SL_PERCENT}% | 손익: ${pnlRounded >= 0 ? '+' : ''}${pnlRounded.toFixed(1)}%`);
+    
+    // 🆕 최고 수익률 업데이트 (브레이크이븐용)
+    if (pnlPercent > position.maxPnlPercent) {
+      setState(prev => {
+        if (!prev.currentPosition) return prev;
+        return {
+          ...prev,
+          currentPosition: {
+            ...prev.currentPosition,
+            maxPnlPercent: pnlPercent,
+          },
+        };
+      });
+    }
     
     // 상태 메시지 업데이트
     setState(prev => ({
       ...prev,
-      statusMessage: `📊 ${position.symbol.replace('USDT', '')} ${position.side === 'long' ? '롱' : '숏'} | ${pnlRounded >= 0 ? '+' : ''}${pnlRounded.toFixed(1)}%`,
+      statusMessage: `📊 ${position.symbol.replace('USDT', '')} ${position.side === 'long' ? '롱' : '숏'}${beStatus} | ${pnlRounded >= 0 ? '+' : ''}${pnlRounded.toFixed(1)}%`,
     }));
 
     // 진입 후 경과 시간 (초)
     const holdTimeSec = (Date.now() - position.entryTime) / 1000;
     const isProtected = holdTimeSec < CONFIG.ENTRY_PROTECTION_SEC;
 
-    // 1. 고정 % 손절 체크 (-0.3%) - 진입 후 30초간 보호
-    if (!isProtected && pnlPercent <= -CONFIG.SL_PERCENT) {
-      console.log(`🛑 [checkTpSl] 손절: ${pnlPercent.toFixed(2)}% <= -${CONFIG.SL_PERCENT}%`);
-      await closePosition('sl', currentPrice);
+    // 🆕 브레이크이븐 활성화 체크 (+0.15% 도달 시)
+    if (!tpState.breakEvenActivated && pnlPercent >= CONFIG.BREAKEVEN_TRIGGER) {
+      console.log(`🛡️ [checkTpSl] 브레이크이븐 활성화: ${pnlPercent.toFixed(2)}% >= ${CONFIG.BREAKEVEN_TRIGGER}%`);
+      setState(prev => {
+        if (!prev.currentPosition) return prev;
+        return {
+          ...prev,
+          currentPosition: {
+            ...prev.currentPosition,
+            takeProfitState: {
+              ...prev.currentPosition.takeProfitState,
+              breakEvenActivated: true,
+            },
+          },
+        };
+      });
+      toast.info(`🛡️ 브레이크이븐 활성화! 손절이 +${CONFIG.BREAKEVEN_SL}%로 이동`);
+    }
+
+    // 1. 손절 체크 - 브레이크이븐 여부에 따라 다른 기준 적용
+    const effectiveSL = tpState.breakEvenActivated ? CONFIG.BREAKEVEN_SL : -CONFIG.SL_PERCENT;
+    if (!isProtected && pnlPercent <= effectiveSL) {
+      if (tpState.breakEvenActivated) {
+        console.log(`🛡️ [checkTpSl] 브레이크이븐 청산: ${pnlPercent.toFixed(2)}% <= +${CONFIG.BREAKEVEN_SL}%`);
+        await closePosition('tp', currentPrice); // 브레이크이븐은 익절로 처리
+      } else {
+        console.log(`🛑 [checkTpSl] 손절: ${pnlPercent.toFixed(2)}% <= -${CONFIG.SL_PERCENT}%`);
+        await closePosition('sl', currentPrice);
+      }
       return;
     }
 
@@ -394,7 +485,7 @@ export function useAutoTrading({
       return;
     }
 
-    // 3. 전량 익절 체크 (+0.4%) - 익절은 보호 없이 즉시
+    // 3. 전량 익절 체크 (+0.25%) - 익절은 보호 없이 즉시
     if (!tpState.tpHit && pnlPercent >= CONFIG.TP_PERCENT) {
       await closePosition('tp', currentPrice);
       return;
@@ -437,6 +528,20 @@ export function useAutoTrading({
 
     // 쿨다운 체크
     if (Date.now() - lastEntryTimeRef.current < CONFIG.ENTRY_COOLDOWN_MS) return;
+
+    // 🆕 코인별 연속 손절 쿨다운 체크
+    const coinRecord = coinLossRecordRef.current.get(symbol);
+    if (coinRecord && coinRecord.cooldownUntil > Date.now()) {
+      const remainingMin = Math.ceil((coinRecord.cooldownUntil - Date.now()) / 60000);
+      console.log(`[handleSignal] ${symbol} 연속 손절 쿨다운 중 (${remainingMin}분 남음)`);
+      return;
+    }
+    // 쿨다운 해제 시 연속 손절 카운트 리셋
+    if (coinRecord && coinRecord.cooldownUntil <= Date.now() && coinRecord.consecutiveLosses > 0) {
+      coinRecord.consecutiveLosses = 0;
+      coinRecord.cooldownUntil = 0;
+      coinLossRecordRef.current.set(symbol, coinRecord);
+    }
 
     // 시그널 강도 체크
     const strengthOrder = { weak: 1, medium: 2, strong: 3 };
@@ -621,8 +726,10 @@ export function useAutoTrading({
         atr: indicators.atr,
         takeProfitState: {
           tpHit: false,
+          breakEvenActivated: false,
         },
         indicators,
+        maxPnlPercent: 0,
       };
 
       setState(prev => ({
@@ -723,11 +830,10 @@ export function useAutoTrading({
               atr: entryPrice * 0.005,
               takeProfitState: {
                 tpHit: false,
+                breakEvenActivated: false,
               },
               indicators: defaultIndicators,
-              // 동기화된 포지션은 진입가 기준으로 0.5% 손절 설정 (전봉 데이터 없으므로)
-              stopLossPrice: side === 'long' ? entryPrice * 0.995 : entryPrice * 1.005,
-              lastCandleTime: Date.now(),
+              maxPnlPercent: 0,
             },
             currentSymbol: activePosition.symbol,
           }));

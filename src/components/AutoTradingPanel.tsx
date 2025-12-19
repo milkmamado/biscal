@@ -508,12 +508,20 @@ const AutoTradingPanel = ({
           <div className="mt-2 flex items-center gap-2 flex-wrap">
             <span className="text-[10px] text-muted-foreground">목표:</span>
             <span className="text-[11px] px-2 py-1 rounded bg-green-500/20 text-green-400 font-mono">
-              TP +0.4%
+              TP +0.25%
             </span>
-            <span className="text-[11px] px-2 py-1 rounded bg-red-500/20 text-red-400 font-mono">
-              SL -0.3%
+            {currentPosition.takeProfitState?.breakEvenActivated ? (
+              <span className="text-[11px] px-2 py-1 rounded bg-blue-500/20 text-blue-400 font-mono">
+                BE +0.02%
+              </span>
+            ) : (
+              <span className="text-[11px] px-2 py-1 rounded bg-red-500/20 text-red-400 font-mono">
+                SL -0.25%
+              </span>
+            )}
+            <span className="text-[10px] text-muted-foreground">
+              {currentPosition.takeProfitState?.breakEvenActivated ? '(브레이크이븐)' : '(30초 보호)'}
             </span>
-            <span className="text-[10px] text-muted-foreground">(30초 보호)</span>
           </div>
           <div className="flex gap-2 mt-2">
             {onManualClose && (
