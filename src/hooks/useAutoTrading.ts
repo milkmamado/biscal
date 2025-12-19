@@ -66,6 +66,9 @@ interface Position {
   atr: number;
   takeProfitState: TakeProfitState;
   indicators: TechnicalIndicators;
+  // 전봉 기반 동적 손절
+  stopLossPrice: number;       // 현재 손절 기준가
+  lastCandleTime: number;      // 마지막 확인한 봉 시간
 }
 
 export interface AutoTradingState {
@@ -117,13 +120,7 @@ const CONFIG = {
   TRAILING_TRIGGER: 0.4,     // +0.4% 도달 시 트레일링 활성화
   TRAILING_DISTANCE: 0.15,   // 0.15% 거리 유지
   
-  // 손절 - 레버리지별 동적 손절
-  LEVERAGE_STOP_LOSS: {
-    5: 0.8,   // 5배: -0.8%
-    10: 0.4,  // 10배: -0.4%
-    20: 0.2,  // 20배: -0.2%
-    DEFAULT: 0.5,  // 기본: -0.5%
-  } as Record<number | 'DEFAULT', number>,
+  // 타임 스탑
   TIME_STOP_MINUTES: 15,     // 15분 타임 스탑
   VOLUME_STOP_RATIO: 0.5,    // 거래량 50% 감소 시 청산
   
@@ -150,18 +147,6 @@ const CONFIG = {
     HIGH: 0.7,               // 높은 변동성 → 작은 포지션
   },
 };
-
-// 레버리지별 손절 퍼센트 가져오기
-function getStopLossPercent(leverage: number): number {
-  if (leverage in CONFIG.LEVERAGE_STOP_LOSS) {
-    return CONFIG.LEVERAGE_STOP_LOSS[leverage];
-  }
-  // 가장 가까운 레버리지 찾기
-  if (leverage <= 5) return CONFIG.LEVERAGE_STOP_LOSS[5];
-  if (leverage <= 10) return CONFIG.LEVERAGE_STOP_LOSS[10];
-  if (leverage >= 20) return CONFIG.LEVERAGE_STOP_LOSS[20];
-  return CONFIG.LEVERAGE_STOP_LOSS.DEFAULT;
-}
 
 // 분 타임스탬프
 function getMinuteTimestamp() {
@@ -429,7 +414,7 @@ export function useAutoTrading({
     }
   }, [state.currentPosition, state.todayStats, placeMarketOrder, getPositions, krwRate, leverage, addLog, onTradeComplete, logTrade]);
 
-  // TP/SL 체크 (3단계 익절 + 트레일링)
+  // TP/SL 체크 (3단계 익절 + 전봉 기반 동적 손절)
   const checkTpSl = useCallback(async (currentPrice: number, _tpPercent: number = 0.3, _slPercent: number = 0.5, currentVolumeRatio?: number) => {
     if (!state.currentPosition) return;
     if (processingRef.current) return;
@@ -440,12 +425,10 @@ export function useAutoTrading({
     const pnlPercent = (priceDiff / position.entryPrice) * 100;
     const tpState = position.takeProfitState;
     
-    // 레버리지별 동적 손절 퍼센트
-    const dynamicStopLoss = getStopLossPercent(leverage);
-    
-    // 📊 실시간 손익 로그 (1초마다 출력 방지를 위해 정수 퍼센트 변화시에만)
+    // 📊 실시간 손익 로그
     const pnlRounded = Math.round(pnlPercent * 10) / 10;
-    console.log(`[TP/SL] ${position.symbol} ${position.side.toUpperCase()} | 현재가: ${currentPrice.toFixed(4)} | 진입가: ${position.entryPrice.toFixed(4)} | 손익: ${pnlRounded >= 0 ? '+' : ''}${pnlRounded.toFixed(1)}% | SL: -${dynamicStopLoss}% | TP1: +${CONFIG.TP_STAGE_1.percent}%`);
+    const slPercent = ((Math.abs(position.stopLossPrice - position.entryPrice) / position.entryPrice) * 100).toFixed(2);
+    console.log(`[TP/SL] ${position.symbol} ${position.side.toUpperCase()} | 현재: ${currentPrice.toFixed(4)} | 진입: ${position.entryPrice.toFixed(4)} | SL: ${position.stopLossPrice.toFixed(4)} (-${slPercent}%) | 손익: ${pnlRounded >= 0 ? '+' : ''}${pnlRounded.toFixed(1)}%`);
     
     // 상태 메시지 업데이트
     setState(prev => ({
@@ -453,9 +436,14 @@ export function useAutoTrading({
       statusMessage: `📊 ${position.symbol.replace('USDT', '')} ${position.side === 'long' ? '롱' : '숏'} | ${pnlRounded >= 0 ? '+' : ''}${pnlRounded.toFixed(1)}%`,
     }));
 
-    // 1. 하드 스탑 체크 (레버리지별)
-    if (pnlPercent <= -dynamicStopLoss) {
-      console.log(`🛑 [checkTpSl] 하드 스탑 발동: ${pnlPercent.toFixed(2)}% <= -${dynamicStopLoss}% (레버리지 ${leverage}x)`);
+    // 1. 전봉 기반 손절 체크
+    if (position.side === 'long' && currentPrice < position.stopLossPrice) {
+      console.log(`🛑 [checkTpSl] 전봉 저가 이탈 손절: ${currentPrice.toFixed(4)} < ${position.stopLossPrice.toFixed(4)}`);
+      await closePosition('sl', currentPrice);
+      return;
+    }
+    if (position.side === 'short' && currentPrice > position.stopLossPrice) {
+      console.log(`🛑 [checkTpSl] 전봉 고가 이탈 손절: ${currentPrice.toFixed(4)} > ${position.stopLossPrice.toFixed(4)}`);
       await closePosition('sl', currentPrice);
       return;
     }
@@ -569,7 +557,69 @@ export function useAutoTrading({
       }));
       toast.info(`📈 트레일링 스탑 활성화 @ $${currentPrice.toFixed(4)}`);
     }
-  }, [state.currentPosition, leverage, closePosition, executePartialClose]);
+    
+    // 6. 🆕 전봉 기반 동적 손절선 업데이트 (5분마다 체크)
+    const now = Date.now();
+    const fiveMinMs = 5 * 60 * 1000;
+    const currentCandleStart = Math.floor(now / fiveMinMs) * fiveMinMs;
+    
+    // 새로운 5분봉이 완성되었는지 체크
+    if (currentCandleStart > position.lastCandleTime) {
+      try {
+        const klines = await fetch5mKlines(position.symbol, 3);
+        if (klines && klines.length >= 2) {
+          const prevCandle = klines[klines.length - 2]; // 직전 완성된 봉
+          
+          if (position.side === 'long') {
+            // 롱: 새 전봉 저가가 기존 손절가보다 높으면 업데이트 (유리한 방향)
+            if (prevCandle.low > position.stopLossPrice) {
+              console.log(`[checkTpSl] 손절선 상향: ${position.stopLossPrice.toFixed(4)} → ${prevCandle.low.toFixed(4)}`);
+              setState(prev => ({
+                ...prev,
+                currentPosition: prev.currentPosition ? {
+                  ...prev.currentPosition,
+                  stopLossPrice: prevCandle.low,
+                  lastCandleTime: currentCandleStart,
+                } : null,
+              }));
+            } else {
+              // 손절가는 유지하되 시간만 업데이트
+              setState(prev => ({
+                ...prev,
+                currentPosition: prev.currentPosition ? {
+                  ...prev.currentPosition,
+                  lastCandleTime: currentCandleStart,
+                } : null,
+              }));
+            }
+          } else {
+            // 숏: 새 전봉 고가가 기존 손절가보다 낮으면 업데이트 (유리한 방향)
+            if (prevCandle.high < position.stopLossPrice) {
+              console.log(`[checkTpSl] 손절선 하향: ${position.stopLossPrice.toFixed(4)} → ${prevCandle.high.toFixed(4)}`);
+              setState(prev => ({
+                ...prev,
+                currentPosition: prev.currentPosition ? {
+                  ...prev.currentPosition,
+                  stopLossPrice: prevCandle.high,
+                  lastCandleTime: currentCandleStart,
+                } : null,
+              }));
+            } else {
+              setState(prev => ({
+                ...prev,
+                currentPosition: prev.currentPosition ? {
+                  ...prev.currentPosition,
+                  lastCandleTime: currentCandleStart,
+                } : null,
+              }));
+            }
+          }
+        }
+      } catch (error) {
+        console.error('[checkTpSl] 손절선 업데이트 실패:', error);
+      }
+    }
+  }, [state.currentPosition, closePosition, executePartialClose]);
 
   // 시그널 핸들러 (기술적 분석 기반)
   const handleSignal = useCallback(async (
@@ -710,6 +760,26 @@ export function useAutoTrading({
     setState(prev => ({ ...prev, isProcessing: true }));
 
     try {
+      // 🆕 5분봉 데이터로 초기 손절가 설정
+      const klines = await fetch5mKlines(symbol, 5);
+      let initialStopLoss = currentPrice;
+      let lastCandleTime = Date.now();
+      
+      if (klines && klines.length >= 2) {
+        // 전봉 (마지막에서 두번째 봉) 기준
+        const prevCandle = klines[klines.length - 2];
+        lastCandleTime = prevCandle.closeTime;
+        
+        if (side === 'long') {
+          // 롱: 전봉 저가가 손절 기준
+          initialStopLoss = prevCandle.low;
+        } else {
+          // 숏: 전봉 고가가 손절 기준
+          initialStopLoss = prevCandle.high;
+        }
+        console.log(`[executeEntry] 초기 손절가 설정: ${side === 'long' ? '전봉 저가' : '전봉 고가'} = ${initialStopLoss.toFixed(4)}`);
+      }
+      
       // 🆕 ATR 기반 동적 포지션 사이징
       const atrPercent = (indicators.atr / currentPrice) * 100;
       const rawQty = calculateDynamicPositionSize(balanceUSD, leverage, currentPrice, atrPercent);
@@ -778,6 +848,8 @@ export function useAutoTrading({
           trailingTriggerPrice: 0,
         },
         indicators,
+        stopLossPrice: initialStopLoss,
+        lastCandleTime,
       };
 
       setState(prev => ({
@@ -885,6 +957,9 @@ export function useAutoTrading({
                 trailingTriggerPrice: 0,
               },
               indicators: defaultIndicators,
+              // 동기화된 포지션은 진입가 기준으로 0.5% 손절 설정 (전봉 데이터 없으므로)
+              stopLossPrice: side === 'long' ? entryPrice * 0.995 : entryPrice * 1.005,
+              lastCandleTime: Date.now(),
             },
             currentSymbol: activePosition.symbol,
           }));
