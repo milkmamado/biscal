@@ -18,8 +18,8 @@ import {
 } from './useProDirection';
 import { addScreeningLog, clearScreeningLogs } from '@/components/ScreeningLogPanel';
 
-// ⚡ HFT 타겟: SOLUSDT 전용
-const HFT_TARGET_SYMBOL = 'SOLUSDT';
+// ⚡ HFT 타겟: BTC/ETH/SOL
+const HFT_TARGET_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'];
 
 interface TickerData {
   symbol: string;
@@ -154,28 +154,30 @@ export function useCoinScreening(tickers: TickerData[], criteria: Partial<Screen
     
     // UI 로그 초기화 및 시작
     clearScreeningLogs();
-    addScreeningLog('start', `⚡ HFT 스캔: ${HFT_TARGET_SYMBOL} 전용`);
+    addScreeningLog('start', `⚡ HFT 스캔: ${HFT_TARGET_SYMBOLS.join(', ')}`);
 
     try {
-      // ⚡ SOLUSDT 만 찾기
-      const solTicker = currentTickers.find(t => t.symbol === HFT_TARGET_SYMBOL);
+      // ⚡ 타겟 코인들만 찾기
+      const targetTickers = currentTickers.filter(t => HFT_TARGET_SYMBOLS.includes(t.symbol));
       
-      if (!solTicker) {
-        addScreeningLog('reject', `${HFT_TARGET_SYMBOL} 티커 없음`);
+      if (targetTickers.length === 0) {
+        addScreeningLog('reject', `타겟 코인 티커 없음`);
         isScanningRef.current = false;
         setIsScanning(false);
         return;
       }
       
-      addScreeningLog('filter', `🎯 ${HFT_TARGET_SYMBOL} 분석 | $${solTicker.price.toFixed(2)}`);
+      targetTickers.forEach(t => {
+        addScreeningLog('filter', `🎯 ${t.symbol} 분석 | $${t.price.toFixed(2)}`);
+      });
       
-      // SOLUSDT만 분석
-      const scored = [{
-        ...solTicker,
+      // 타겟 코인들 분석
+      const scored = targetTickers.map(ticker => ({
+        ...ticker,
         volatilityScore: 100,
-      }];
+      }));
       
-      addScreeningLog('filter', `🎯 분석 대상: SOL`);
+      addScreeningLog('filter', `🎯 분석 대상: ${scored.map(s => s.symbol.replace('USDT', '')).join(', ')}`);
 
       // 2차 분석: 기술적 지표 + ATR
       const analyzed: ScreenedSymbol[] = [];
