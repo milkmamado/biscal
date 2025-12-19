@@ -710,29 +710,27 @@ export function useAutoTrading({
       const orderResult = await placeMarketOrder(symbol, orderSide, quantity, false, currentPrice);
       console.log(`📋 [executeEntry] 주문 결과:`, JSON.stringify(orderResult));
 
-      if (!orderResult || orderResult.error) {
-        console.error(`❌ [executeEntry] 주문 실패: ${orderResult?.error || '응답 없음'}`);
-        throw new Error(orderResult?.error || '주문 실패');
+      // 🔥 바이낸스 API 에러 체크 (code가 있으면 에러)
+      if (!orderResult || orderResult.error || orderResult.code) {
+        const errorMsg = orderResult?.msg || orderResult?.error || '주문 실패';
+        console.error(`❌ [executeEntry] 주문 실패: ${errorMsg} (code: ${orderResult?.code})`);
+        throw new Error(errorMsg);
       }
 
-      // 체결 수량 파싱 (executedQty가 0이면 origQty 또는 요청 수량 사용)
+      // 체결 수량 파싱
       let executedQty = parseFloat(orderResult.executedQty || '0');
       const origQty = parseFloat(orderResult.origQty || '0');
       const avgPrice = parseFloat(orderResult.avgPrice || orderResult.price || '0') || currentPrice;
 
-      // executedQty가 0이면 origQty 또는 요청 수량 사용 (시장가 주문은 거의 즉시 체결됨)
+      // executedQty가 0이면 origQty 사용 (시장가 주문은 즉시 체결)
       if (executedQty <= 0 && origQty > 0) {
         console.log(`[executeEntry] executedQty=0, origQty=${origQty} 사용`);
         executedQty = origQty;
       }
-      if (executedQty <= 0) {
-        executedQty = quantity;
-        console.log(`[executeEntry] executedQty=0, 요청 수량 ${quantity} 사용`);
-      }
 
-      // 최종 검증
+      // ⚠️ 체결 수량이 여전히 0이면 주문 실패로 처리
       if (executedQty <= 0) {
-        throw new Error(`주문 체결 수량 0 (응답: ${JSON.stringify(orderResult)})`);
+        throw new Error(`주문 체결 실패 - 체결 수량 0 (응답: ${JSON.stringify(orderResult)})`);
       }
 
       lastEntryTimeRef.current = Date.now();
