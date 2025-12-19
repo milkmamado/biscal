@@ -302,4 +302,36 @@
   .neon-flicker {
     animation: neon-flicker 3s linear infinite;
   }
+
+  /* 나방 날개 펄럭임 애니메이션 */
+  @keyframes wingFlap {
+    0% {
+      transform: scaleX(1);
+    }
+    100% {
+      transform: scaleX(0.85);
+    }
+  }
+
+  /* 불꽃 깜빡임 */
+  @keyframes flameFlicker {
+    0% {
+      transform: scaleY(1) translateY(0);
+      opacity: 0.7;
+    }
+    100% {
+      transform: scaleY(1.3) translateY(-2px);
+      opacity: 1;
+    }
+  }
+
+  /* 나방 떠다니는 효과 */
+  @keyframes float {
+    0%, 100% {
+      transform: translateY(0) rotate(-2deg);
+    }
+    50% {
+      transform: translateY(-5px) rotate(2deg);
+    }
+  }
 }
