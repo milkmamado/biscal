@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import TickChart from './TickChart';
+import CyberPigeon from './CyberPigeon';
 
 interface DualChartPanelProps {
   symbol: string;
@@ -71,7 +72,7 @@ const DualChartPanel = ({
         <div className="flex-1 min-h-0 relative" style={{ minHeight: '500px' }}>
           <TickChart 
             symbol={symbol}
-            height={550} 
+            height={500} 
             interval={interval}
             entryPrice={hasPosition ? entryPrice : undefined}
             stopLossPrice={hasPosition ? stopLossPrice : undefined}
@@ -79,6 +80,19 @@ const DualChartPanel = ({
             takeProfit2Price={hasPosition ? takeProfit2Price : undefined}
             takeProfit3Price={hasPosition ? takeProfit3Price : undefined}
             positionSide={hasPosition ? positionSide : undefined}
+          />
+        </div>
+        
+        {/* Cyber Pigeon Area */}
+        <div className="h-12 bg-gradient-to-b from-[#0a0a0a] to-[#0d0d1a] border-t border-cyan-500/10 relative overflow-hidden">
+          <CyberPigeon />
+          {/* 배경 그리드 패턴 */}
+          <div 
+            className="absolute inset-0 opacity-5"
+            style={{
+              backgroundImage: 'linear-gradient(rgba(0,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(0,255,255,0.1) 1px, transparent 1px)',
+              backgroundSize: '20px 20px',
+            }}
           />
         </div>
       </div>
