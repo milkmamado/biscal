@@ -359,7 +359,7 @@ export function useAutoTrading({
 
       addLog({
         symbol: position.symbol,
-        action: reason === 'sl' || reason === 'time' ? 'sl' : 'tp',
+        action: isWin ? 'tp' : 'sl',  // 실제 손익 기준으로 판단
         side: position.side,
         price: currentPrice,
         quantity: actualQty,
