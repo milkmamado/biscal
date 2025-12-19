@@ -473,6 +473,9 @@ export function useAutoTrading({
         time: '타임 스탑',
       }[reason];
 
+      // 체류시간 계산
+      const holdTimeSec = ((Date.now() - position.entryTime) / 1000).toFixed(1);
+      
       addLog({
         symbol: position.symbol,
         action: isWin ? 'tp' : 'sl',  // 실제 손익 기준으로 판단
@@ -480,7 +483,7 @@ export function useAutoTrading({
         price: currentPrice,
         quantity: actualQty,
         pnl,
-        reason: reasonText,
+        reason: `${reasonText} (${holdTimeSec}초)`,
       });
 
       const pnlKRW = Math.round(pnl * krwRate);
