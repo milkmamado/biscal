@@ -450,8 +450,9 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
     const volumeHeight = chartHeight * VOLUME_HEIGHT_RATIO;
     const priceChartHeight = chartHeight - volumeHeight - CANVAS_PADDING;
     
-    // 배경
-    ctx.fillStyle = '#0a0a0a';
+    // 배경 (캔버스는 반투명으로 칠해서 뒤 배경 이미지가 보이게)
+    ctx.clearRect(0, 0, width, chartHeight);
+    ctx.fillStyle = 'rgba(10, 10, 10, 0.35)';
     ctx.fillRect(0, 0, width, chartHeight);
     
     if (loading) {
@@ -749,7 +750,7 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
       <div 
         className="absolute inset-0 z-0"
         style={{
-          background: 'linear-gradient(135deg, rgba(10,10,10,0.7) 0%, rgba(10,10,20,0.5) 50%, rgba(10,10,10,0.7) 100%)',
+          background: 'linear-gradient(135deg, rgba(10,10,10,0.25) 0%, rgba(10,10,20,0.15) 50%, rgba(10,10,10,0.25) 100%)',
         }}
       />
       
