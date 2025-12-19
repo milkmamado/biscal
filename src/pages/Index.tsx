@@ -268,6 +268,20 @@ const Index = () => {
   const currentAutoPrice = autoTrading.state.currentPosition
     ? tickers.find(t => t.symbol === autoTrading.state.currentPosition?.symbol)?.price || 0
     : 0;
+    
+  // 손절/익절 예정 가격 계산
+  const position = autoTrading.state.currentPosition;
+  const stopLossPrice = position ? (
+    position.side === 'long'
+      ? position.entryPrice * (1 - (leverage >= 10 ? 0.004 : leverage >= 5 ? 0.006 : 0.01))  // 레버리지별 SL%
+      : position.entryPrice * (1 + (leverage >= 10 ? 0.004 : leverage >= 5 ? 0.006 : 0.01))
+  ) : undefined;
+  
+  const takeProfitPrice = position ? (
+    position.side === 'long'
+      ? position.entryPrice * (1 + 0.003)  // 1단계 익절 +0.3%
+      : position.entryPrice * (1 - 0.003)
+  ) : undefined;
 
   return (
     <div className="min-h-screen bg-background p-2">
@@ -299,6 +313,9 @@ const Index = () => {
               symbol={selectedSymbol} 
               hasPosition={!!autoTrading.state.currentPosition}
               entryPrice={autoTrading.state.currentPosition?.entryPrice}
+              stopLossPrice={stopLossPrice}
+              takeProfitPrice={takeProfitPrice}
+              positionSide={autoTrading.state.currentPosition?.side}
               onSelectSymbol={setSelectedSymbol}
             />
           </div>

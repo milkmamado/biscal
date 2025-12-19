@@ -6,6 +6,9 @@ interface DualChartPanelProps {
   symbol: string;
   hasPosition?: boolean;
   entryPrice?: number;
+  stopLossPrice?: number;
+  takeProfitPrice?: number;
+  positionSide?: 'long' | 'short';
   onSelectSymbol?: (symbol: string) => void;
 }
 
@@ -24,6 +27,9 @@ const DualChartPanel = ({
   symbol, 
   hasPosition = false,
   entryPrice,
+  stopLossPrice,
+  takeProfitPrice,
+  positionSide,
 }: DualChartPanelProps) => {
   const [interval, setInterval] = useState(60);
   const prevSymbolRef = useRef<string>(symbol);
@@ -64,6 +70,9 @@ const DualChartPanel = ({
             height={550} 
             interval={interval}
             entryPrice={hasPosition ? entryPrice : undefined}
+            stopLossPrice={hasPosition ? stopLossPrice : undefined}
+            takeProfitPrice={hasPosition ? takeProfitPrice : undefined}
+            positionSide={hasPosition ? positionSide : undefined}
           />
         </div>
       </div>
