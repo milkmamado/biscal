@@ -43,7 +43,7 @@ const getScalpingRating = () => {
   }
 };
 
-const LEVERAGE_OPTIONS = [1, 5, 10, 15, 20];
+const LEVERAGE_OPTIONS = [1, 5, 10];
 
 interface AutoTradingPanelProps {
   state: AutoTradingState;
@@ -650,20 +650,20 @@ const AutoTradingPanel = ({
         </div>
       )}
       
-      {/* Trade Logs - 3개 표시, 나머지 스크롤 */}
+      {/* Trade Logs - 최근 3개만 표시 */}
       <div className="relative z-10 px-3 py-2">
         <div className="flex items-center gap-1.5 px-2 mb-1.5">
           <Activity className="w-4 h-4 text-cyan-400" />
           <span className="text-xs text-cyan-400/70 font-medium">매매 로그</span>
           <span className="text-[10px] text-gray-500">({tradeLogs.length})</span>
         </div>
-        <div className="space-y-1 max-h-[120px] overflow-y-auto scrollbar-thin scrollbar-thumb-cyan-500/30 scrollbar-track-transparent">
+        <div className="space-y-1">
           {tradeLogs.length === 0 ? (
             <div className="text-center py-2 text-xs text-gray-500">
               {isEnabled ? '🔍 시그널 대기 중...' : '자동매매를 시작하세요'}
             </div>
           ) : (
-            tradeLogs.map((log) => (
+            tradeLogs.slice(0, 6).map((log) => (
               <TradeLogItem 
                 key={log.id} 
                 log={log} 
@@ -834,9 +834,9 @@ const TradeLogItem = ({ log, krwRate, onSelectSymbol }: {
     return krw.toLocaleString('ko-KR', { maximumFractionDigits: 0 });
   };
   
-  // 사유 표시 (가능하면 항상 노출해서 "왜 청산됐는지" 확인 가능)
-  const showReason = Boolean(log.reason);
-
+  // 사유 표시 (cancel, error, pending만)
+  const showReason = ['cancel', 'error', 'pending'].includes(log.action);
+  
   return (
     <div 
       onClick={() => onSelectSymbol?.(log.symbol)}

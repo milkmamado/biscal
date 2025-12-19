@@ -1,6 +1,6 @@
 /**
- * ⚡ HFT 스캘핑 종목 스크리닝 훅
- * SOLUSDT 전용 초고빈도 스캘핑
+ * 종목 자동 스크리닝 훅
+ * 프로 스캘퍼 시스템: 다중 시간대 + 프라이스 액션 + 모멘텀 합의 기반
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { 
@@ -18,9 +18,6 @@ import {
 } from './useProDirection';
 import { addScreeningLog, clearScreeningLogs } from '@/components/ScreeningLogPanel';
 
-// ⚡ HFT 타겟: 5종목 (ETH, SOL, XRP, DOGE, SUI)
-const HFT_TARGET_SYMBOLS = ['ETHUSDT', 'SOLUSDT', 'XRPUSDT', 'DOGEUSDT', 'SUIUSDT'];
-
 interface TickerData {
   symbol: string;
   price: number;
@@ -29,23 +26,23 @@ interface TickerData {
   volatilityRange: number;
 }
 
-// 스크리닝 기준 (SOLUSDT 최적화)
+// 스크리닝 기준
 interface ScreeningCriteria {
-  minVolume: number;
-  minVolatility: number;
-  maxVolatility: number;
-  minPrice: number;
-  maxPrice: number;
-  spreadThreshold: number;
+  minVolume: number;         // 최소 거래량 (USD)
+  minVolatility: number;     // 최소 일중 변동성 (%)
+  maxVolatility: number;     // 최대 일중 변동성 (%)
+  minPrice: number;          // 최소 가격
+  maxPrice: number;          // 최대 가격
+  spreadThreshold: number;   // 스프레드 임계값 (%)
 }
 
 const DEFAULT_CRITERIA: ScreeningCriteria = {
-  minVolume: 50_000_000,     // $50M 이상 (SOL은 대량 거래량)
-  minVolatility: 0.5,        // 0.5% 이상
-  maxVolatility: 5,          // 5% 이하 (HFT 최적)
-  minPrice: 10,              // $10 이상
-  maxPrice: 500,             // $500 이하
-  spreadThreshold: 0.08,     // 0.08% 이하 스프레드
+  minVolume: 10_000_000,    // $10M 이상 (완화)
+  minVolatility: 1,          // 1% 이상 (완화)
+  maxVolatility: 20,         // 20% 이하 (완화)
+  minPrice: 0.001,           // $0.001 이상 (완화)
+  maxPrice: 500,             // $500 이하 (완화)
+  spreadThreshold: 0.1,      // 0.1% 이하 스프레드
 };
 
 // 변동성 스코어 계산
@@ -141,7 +138,7 @@ export function useCoinScreening(tickers: TickerData[], criteria: Partial<Screen
     tickersRef.current = tickers;
   }, [tickers]);
   
-  // ⚡ HFT 스크리닝: SOLUSDT 전용
+  // 종목 스크리닝 함수
   const runScreening = useCallback(async () => {
     if (!isMountedRef.current) return;
     if (isScanningRef.current) return;
@@ -151,33 +148,35 @@ export function useCoinScreening(tickers: TickerData[], criteria: Partial<Screen
 
     isScanningRef.current = true;
     setIsScanning(true);
+
+    const fullCriteria = criteriaRef.current;
     
     // UI 로그 초기화 및 시작
     clearScreeningLogs();
-    addScreeningLog('start', `⚡ HFT 스캔: ${HFT_TARGET_SYMBOLS.join(', ')}`);
+    addScreeningLog('start', '스크리닝 시작');
 
     try {
-      // ⚡ 타겟 코인들만 찾기
-      const targetTickers = currentTickers.filter(t => HFT_TARGET_SYMBOLS.includes(t.symbol));
+      // 1차 필터링: 기본 조건
+      const eligible = currentTickers.filter(t => 
+        t.price >= fullCriteria.minPrice &&
+        t.price <= fullCriteria.maxPrice &&
+        t.volume >= fullCriteria.minVolume &&
+        t.volatilityRange >= fullCriteria.minVolatility &&
+        t.volatilityRange <= fullCriteria.maxVolatility
+      );
       
-      if (targetTickers.length === 0) {
-        addScreeningLog('reject', `타겟 코인 티커 없음`);
-        isScanningRef.current = false;
-        setIsScanning(false);
-        return;
-      }
+      addScreeningLog('filter', `1차 필터 통과: ${eligible.length}/${currentTickers.length}개`);
+
+      // 변동성 스코어 기준 정렬
+      const scored = eligible
+        .map(t => ({
+          ...t,
+          volatilityScore: calculateVolatilityScore(t.volatilityRange, t.volume),
+        }))
+        .sort((a, b) => b.volatilityScore - a.volatilityScore)
+        .slice(0, 20); // 상위 20개만
       
-      targetTickers.forEach(t => {
-        addScreeningLog('filter', `🎯 ${t.symbol} 분석 | $${t.price.toFixed(2)}`);
-      });
-      
-      // 타겟 코인들 분석
-      const scored = targetTickers.map(ticker => ({
-        ...ticker,
-        volatilityScore: 100,
-      }));
-      
-      addScreeningLog('filter', `🎯 분석 대상: ${scored.map(s => s.symbol.replace('USDT', '')).join(', ')}`);
+      addScreeningLog('filter', `분석 대상: ${scored.slice(0, 8).map(s => s.symbol.replace('USDT', '')).join(', ')}${scored.length > 8 ? '...' : ''}`)
 
       // 2차 분석: 기술적 지표 + ATR
       const analyzed: ScreenedSymbol[] = [];
@@ -306,17 +305,17 @@ export function useCoinScreening(tickers: TickerData[], criteria: Partial<Screen
     }
   }, []);
   
-  // ⚡ 주기적 스캔 (15초 - HFT 최적화)
+  // 주기적 스캔 (30초)
   useEffect(() => {
     isMountedRef.current = true;
     
     // 초기 스캔
     const initialDelay = setTimeout(() => {
       runScreening();
-    }, 1000);
+    }, 2000);
     
-    // ⚡ 15초 간격 스캔 (기존 30초 → 15초)
-    scanIntervalRef.current = setInterval(runScreening, 15000);
+    // 30초 간격 스캔
+    scanIntervalRef.current = setInterval(runScreening, 30000);
     
     return () => {
       isMountedRef.current = false;
