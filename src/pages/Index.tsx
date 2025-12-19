@@ -272,15 +272,19 @@ const Index = () => {
   // 손절/익절 예정 가격 계산 (고정 %)
   const position = autoTrading.state.currentPosition;
   const stopLossPrice = position ? (
-    position.side === 'long'
-      ? position.entryPrice * (1 - 0.003)  // -0.3%
-      : position.entryPrice * (1 + 0.003)
+    position.takeProfitState?.breakEvenActivated
+      ? (position.side === 'long'
+          ? position.entryPrice * (1 + 0.0002)  // 브레이크이븐: +0.02%
+          : position.entryPrice * (1 - 0.0002))
+      : (position.side === 'long'
+          ? position.entryPrice * (1 - 0.0025)  // -0.25%
+          : position.entryPrice * (1 + 0.0025))
   ) : undefined;
   
   const takeProfitPrice = position ? (
     position.side === 'long'
-      ? position.entryPrice * (1 + 0.004)  // +0.4%
-      : position.entryPrice * (1 - 0.004)
+      ? position.entryPrice * (1 + 0.0025)  // +0.25%
+      : position.entryPrice * (1 - 0.0025)
   ) : undefined;
 
   return (
