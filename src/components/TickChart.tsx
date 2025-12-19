@@ -742,7 +742,7 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
           backgroundImage: `url(${cyberpunkGirl})`,
           backgroundSize: 'cover',
           backgroundPosition: 'center right',
-          opacity: 0.35,
+          opacity: 0.40,
         }}
       />
       {/* 그라데이션 오버레이 */}
