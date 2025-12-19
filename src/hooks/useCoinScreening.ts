@@ -1,6 +1,6 @@
 /**
  * 종목 자동 스크리닝 훅
- * 거래량, 변동성, 유동성 기반 최적 종목 선정
+ * 프로 스캘퍼 시스템: 다중 시간대 + 프라이스 액션 + 모멘텀 합의 기반
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { 
@@ -11,6 +11,11 @@ import {
   TradingSignal,
   TechnicalIndicators
 } from './useTechnicalIndicators';
+import { 
+  getProDirection, 
+  checkForbiddenConditions,
+  ProDirectionResult 
+} from './useProDirection';
 
 interface TickerData {
   symbol: string;
@@ -105,6 +110,7 @@ export interface ScreenedSymbol {
   signal: TradingSignal | null;
   indicators: TechnicalIndicators | null;
   rank: number;
+  proDirection?: ProDirectionResult; // 🆕 프로 방향 분석 결과
 }
 
 export function useCoinScreening(tickers: TickerData[], criteria: Partial<ScreeningCriteria> = {}) {
@@ -186,35 +192,70 @@ export function useCoinScreening(tickers: TickerData[], criteria: Partial<Screen
 
           // ADX 시장 환경 필터 - 횡보장 차단
           if (indicators.adx < 15) continue;
+          
+          // 🆕 진입 금지 조건 체크
+          const forbidden = await checkForbiddenConditions(t.symbol, indicators, t.price);
+          if (!forbidden.allowed) {
+            console.log(`[Screening] ${t.symbol} 진입 금지: ${forbidden.reason}`);
+            continue;
+          }
 
-          // 시그널 체크
+          // 시그널 체크 (기존 로직)
           const longCheck = checkLongSignal(indicators, t.price);
           const shortCheck = checkShortSignal(indicators, t.price);
 
           let signal: TradingSignal | null = null;
+          let proDirection: ProDirectionResult | undefined;
 
-          if (longCheck.valid) {
-            signal = {
-              symbol: t.symbol,
-              direction: 'long',
-              strength: longCheck.strength,
-              price: t.price,
-              reasons: longCheck.reasons,
-              indicators,
-              timestamp: Date.now(),
-            };
-            signals.push(signal);
-          } else if (shortCheck.valid) {
-            signal = {
-              symbol: t.symbol,
-              direction: 'short',
-              strength: shortCheck.strength,
-              price: t.price,
-              reasons: shortCheck.reasons,
-              indicators,
-              timestamp: Date.now(),
-            };
-            signals.push(signal);
+          if (longCheck.valid || shortCheck.valid) {
+            // 🆕 프로 방향 분석 (기존 시그널이 있을 때만)
+            proDirection = await getProDirection(t.symbol);
+            
+            // 프로 시스템 합의 체크
+            if (proDirection.position === 'NO_TRADE') {
+              console.log(`[Screening] ${t.symbol} 프로 시스템 NO_TRADE: ${proDirection.reason}`);
+              // 시그널은 있지만 프로 합의 실패 → 스킵
+              continue;
+            }
+            
+            // 프로 방향과 기존 시그널 방향 일치 확인
+            if (proDirection.position === 'LONG' && longCheck.valid) {
+              signal = {
+                symbol: t.symbol,
+                direction: 'long',
+                strength: longCheck.strength,
+                price: t.price,
+                reasons: [
+                  `🎯 프로 합의 (${proDirection.confidence.toFixed(0)}%)`,
+                  `MTF: ${proDirection.details.mtf.reason}`,
+                  ...longCheck.reasons.slice(0, 2),
+                ],
+                indicators,
+                timestamp: Date.now(),
+              };
+              signals.push(signal);
+              console.log(`✅ [PRO] ${t.symbol} LONG 합의 완료! 신뢰도: ${proDirection.confidence.toFixed(0)}%`);
+            } else if (proDirection.position === 'SHORT' && shortCheck.valid) {
+              signal = {
+                symbol: t.symbol,
+                direction: 'short',
+                strength: shortCheck.strength,
+                price: t.price,
+                reasons: [
+                  `🎯 프로 합의 (${proDirection.confidence.toFixed(0)}%)`,
+                  `MTF: ${proDirection.details.mtf.reason}`,
+                  ...shortCheck.reasons.slice(0, 2),
+                ],
+                indicators,
+                timestamp: Date.now(),
+              };
+              signals.push(signal);
+              console.log(`✅ [PRO] ${t.symbol} SHORT 합의 완료! 신뢰도: ${proDirection.confidence.toFixed(0)}%`);
+            } else {
+              // 프로 방향과 기존 시그널 불일치
+              console.log(`[Screening] ${t.symbol} 방향 불일치 - 프로: ${proDirection.position}, 시그널: ${longCheck.valid ? 'LONG' : 'SHORT'}`);
+              continue;
+            }
           }
 
           analyzed.push({
@@ -227,6 +268,7 @@ export function useCoinScreening(tickers: TickerData[], criteria: Partial<Screen
             signal,
             indicators,
             rank: analyzed.length + 1,
+            proDirection, // 🆕 프로 방향 분석 결과
           });
 
         } catch (err) {
