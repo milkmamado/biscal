@@ -177,4 +177,129 @@
     background-size: 200% 100%;
     animation: shimmer 1.5s infinite;
   }
+
+  /* Neon Text Effects */
+  .neon-text {
+    text-shadow: 
+      0 0 5px currentColor,
+      0 0 10px currentColor,
+      0 0 20px currentColor,
+      0 0 40px currentColor;
+  }
+
+  .neon-text-cyan {
+    color: #00ffff;
+    text-shadow: 
+      0 0 5px #00ffff,
+      0 0 10px #00ffff,
+      0 0 20px #00ffff,
+      0 0 40px #00ffff,
+      0 0 80px #00ffff;
+  }
+
+  .neon-text-pink {
+    color: #ff00ff;
+    text-shadow: 
+      0 0 5px #ff00ff,
+      0 0 10px #ff00ff,
+      0 0 20px #ff00ff,
+      0 0 40px #ff00ff;
+  }
+
+  .neon-text-green {
+    color: #00ff88;
+    text-shadow: 
+      0 0 5px #00ff88,
+      0 0 10px #00ff88,
+      0 0 20px #00ff88,
+      0 0 40px #00ff88;
+  }
+
+  .neon-text-red {
+    color: #ff4444;
+    text-shadow: 
+      0 0 5px #ff4444,
+      0 0 10px #ff4444,
+      0 0 20px #ff4444,
+      0 0 40px #ff4444;
+  }
+
+  .neon-text-gold {
+    color: #ffd700;
+    text-shadow: 
+      0 0 5px #ffd700,
+      0 0 10px #ffd700,
+      0 0 20px #ffd700,
+      0 0 40px #ffa500;
+  }
+
+  /* Neon Box Glow */
+  .neon-box-cyan {
+    box-shadow: 
+      0 0 5px rgba(0, 255, 255, 0.5),
+      0 0 10px rgba(0, 255, 255, 0.3),
+      0 0 20px rgba(0, 255, 255, 0.2),
+      inset 0 0 10px rgba(0, 255, 255, 0.1);
+    border: 1px solid rgba(0, 255, 255, 0.5);
+  }
+
+  .neon-box-green {
+    box-shadow: 
+      0 0 5px rgba(0, 255, 136, 0.5),
+      0 0 10px rgba(0, 255, 136, 0.3),
+      0 0 20px rgba(0, 255, 136, 0.2),
+      inset 0 0 10px rgba(0, 255, 136, 0.1);
+    border: 1px solid rgba(0, 255, 136, 0.5);
+  }
+
+  .neon-box-red {
+    box-shadow: 
+      0 0 5px rgba(255, 68, 68, 0.5),
+      0 0 10px rgba(255, 68, 68, 0.3),
+      0 0 20px rgba(255, 68, 68, 0.2),
+      inset 0 0 10px rgba(255, 68, 68, 0.1);
+    border: 1px solid rgba(255, 68, 68, 0.5);
+  }
+
+  /* Neon Pulse Animation */
+  @keyframes neon-pulse {
+    0%, 100% {
+      text-shadow: 
+        0 0 5px currentColor,
+        0 0 10px currentColor,
+        0 0 20px currentColor;
+      opacity: 1;
+    }
+    50% {
+      text-shadow: 
+        0 0 10px currentColor,
+        0 0 20px currentColor,
+        0 0 40px currentColor,
+        0 0 80px currentColor;
+      opacity: 0.9;
+    }
+  }
+
+  .neon-pulse {
+    animation: neon-pulse 2s ease-in-out infinite;
+  }
+
+  /* Neon Flicker Animation */
+  @keyframes neon-flicker {
+    0%, 19%, 21%, 23%, 25%, 54%, 56%, 100% {
+      opacity: 1;
+      text-shadow: 
+        0 0 5px currentColor,
+        0 0 10px currentColor,
+        0 0 20px currentColor;
+    }
+    20%, 24%, 55% {
+      opacity: 0.6;
+      text-shadow: none;
+    }
+  }
+
+  .neon-flicker {
+    animation: neon-flicker 3s linear infinite;
+  }
 }

@@ -76,16 +76,28 @@ const DualChartPanel = ({
           />
         </div>
         
-        {/* Cyber Pigeon Area */}
-        <div className="h-10 bg-gradient-to-b from-[#0a0a0a] to-[#0d0d1a] border-t border-cyan-500/10 relative overflow-hidden shrink-0">
+        {/* Cyber Pigeon Area - 네온 효과 강화 */}
+        <div className="h-24 bg-gradient-to-b from-[#0a0a0a] via-[#0a0512] to-[#0d0d1a] border-t border-cyan-500/20 relative overflow-hidden shrink-0">
+          {/* 강화된 네온 그라데이션 배경 */}
+          <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/5 via-purple-500/5 to-pink-500/5" />
+          
+          {/* 네온 글로우 라인 - 상단 */}
+          <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-cyan-400/60 to-transparent" />
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-cyan-400/20 to-transparent blur-sm" />
+          
           <CyberPigeon />
+          
+          {/* 그리드 패턴 */}
           <div 
-            className="absolute inset-0 opacity-5"
+            className="absolute inset-0 opacity-[0.03]"
             style={{
-              backgroundImage: 'linear-gradient(rgba(0,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(0,255,255,0.1) 1px, transparent 1px)',
+              backgroundImage: 'linear-gradient(rgba(0,255,255,0.3) 1px, transparent 1px), linear-gradient(90deg, rgba(0,255,255,0.3) 1px, transparent 1px)',
               backgroundSize: '20px 20px',
             }}
           />
+          
+          {/* 네온 글로우 라인 - 하단 */}
+          <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-pink-500/40 to-transparent" />
         </div>
       </div>
     </div>
