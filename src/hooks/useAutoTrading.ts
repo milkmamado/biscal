@@ -1028,15 +1028,23 @@ export function useAutoTrading({
         );
 
         // 🆕 외부 청산 감지: 앱에서 추적 중인 포지션이 바이낸스에 없으면 정리
+        // ⚠️ 단, 진입 후 10초 이내는 API 지연으로 오탐 가능 → 무시
         if (state.currentPosition && !activePosition) {
-          console.log(`⚠️ [syncPositions] 외부 청산 감지: ${state.currentPosition.symbol} 포지션이 바이낸스에 없음`);
-          toast.warning(`⚠️ ${state.currentPosition.symbol.replace('USDT', '')} 포지션이 외부에서 청산됨`);
-          setState(prev => ({
-            ...prev,
-            currentPosition: null,
-            currentSymbol: null,
-            statusMessage: '🔍 기술적 분석 기반 스캔 중...',
-          }));
+          const timeSinceEntry = Date.now() - state.currentPosition.entryTime;
+          
+          // 진입 후 10초 이내면 sync 무시 (API 지연 대응)
+          if (timeSinceEntry < 10000) {
+            console.log(`⏳ [syncPositions] 진입 직후 ${(timeSinceEntry / 1000).toFixed(1)}초 - sync 무시`);
+          } else {
+            console.log(`⚠️ [syncPositions] 외부 청산 감지: ${state.currentPosition.symbol} 포지션이 바이낸스에 없음 (${(timeSinceEntry / 1000).toFixed(0)}초 경과)`);
+            toast.warning(`⚠️ ${state.currentPosition.symbol.replace('USDT', '')} 포지션이 외부에서 청산됨`);
+            setState(prev => ({
+              ...prev,
+              currentPosition: null,
+              currentSymbol: null,
+              statusMessage: '🔍 기술적 분석 기반 스캔 중...',
+            }));
+          }
         }
         
         // 🆕 심볼 불일치 감지: 다른 심볼 포지션이 열려있으면 전환
