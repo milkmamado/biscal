@@ -31,8 +31,7 @@ interface TickChartProps {
 
 const MAX_CANDLES = 200;
 const CANVAS_PADDING = 40;
-const VOLUME_HEIGHT_RATIO = 0.12; // 거래량 영역 비율
-const MACD_HEIGHT_RATIO = 0.12; // MACD 영역 비율
+const VOLUME_HEIGHT_RATIO = 0.15; // 거래량 영역 비율 (MACD 제거로 더 커짐)
 const BB_PERIOD = 20; // 볼린저 밴드 기간
 const BB_STD_DEV = 2; // 표준편차 배수
 
@@ -448,8 +447,7 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
     
     const width = rect.width;
     const volumeHeight = chartHeight * VOLUME_HEIGHT_RATIO;
-    const macdHeight = chartHeight * MACD_HEIGHT_RATIO;
-    const priceChartHeight = chartHeight - volumeHeight - macdHeight - CANVAS_PADDING;
+    const priceChartHeight = chartHeight - volumeHeight - CANVAS_PADDING;
     
     // 배경
     ctx.fillStyle = '#0a0a0a';
@@ -525,20 +523,13 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
       ctx.fillText(formatPrice(price), width - 2, y + 3);
     }
     
-    // 거래량/가격 구분선
+    // 거래량 구분선
     const volumeStartY = priceChartHeight + CANVAS_PADDING / 2;
-    const macdStartY = volumeStartY + volumeHeight;
     
     ctx.strokeStyle = 'rgba(255,255,255,0.2)';
     ctx.beginPath();
     ctx.moveTo(CANVAS_PADDING, volumeStartY);
     ctx.lineTo(width - 10, volumeStartY);
-    ctx.stroke();
-    
-    // MACD/거래량 구분선
-    ctx.beginPath();
-    ctx.moveTo(CANVAS_PADDING, macdStartY);
-    ctx.lineTo(width - 10, macdStartY);
     ctx.stroke();
     
     // 봉차트와 거래량 그리기
@@ -643,57 +634,7 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
       }
     });
     
-    // === MACD 히스토그램 ===
-    const macdData = calculateMACD(displayCandles);
-    let maxMacdAbs = 0;
-    macdData.forEach(m => {
-      if (m) maxMacdAbs = Math.max(maxMacdAbs, Math.abs(m.histogram));
-    });
-    
-    if (maxMacdAbs > 0) {
-      const macdCenterY = macdStartY + macdHeight / 2;
-      const macdMaxBarHeight = (macdHeight / 2) - 5;
-      
-      // MACD 중앙선 (0 라인)
-      ctx.strokeStyle = 'rgba(255,255,255,0.15)';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(CANVAS_PADDING, macdCenterY);
-      ctx.lineTo(width - 50, macdCenterY);
-      ctx.stroke();
-      
-      // MACD 라벨
-      ctx.fillStyle = 'rgba(255,255,255,0.4)';
-      ctx.font = '9px monospace';
-      ctx.textAlign = 'left';
-      ctx.fillText('MACD', CANVAS_PADDING + 2, macdStartY + 10);
-      
-      // 히스토그램 바
-      displayCandles.forEach((candle, i) => {
-        const macd = macdData[i];
-        if (!macd) return;
-        
-        const x = CANVAS_PADDING + (i * candleSpacing) + (candleSpacing / 2);
-        const barHeight = (macd.histogram / maxMacdAbs) * macdMaxBarHeight;
-        
-        // 색상: 양수 증가/감소, 음수 증가/감소 4가지 케이스
-        const prevMacd = i > 0 ? macdData[i - 1] : null;
-        const isPositive = macd.histogram >= 0;
-        const isIncreasing = prevMacd ? macd.histogram > prevMacd.histogram : true;
-        
-        if (isPositive) {
-          ctx.fillStyle = isIncreasing ? 'rgba(34, 197, 94, 0.9)' : 'rgba(34, 197, 94, 0.5)'; // 녹색
-        } else {
-          ctx.fillStyle = isIncreasing ? 'rgba(239, 68, 68, 0.5)' : 'rgba(239, 68, 68, 0.9)'; // 빨강
-        }
-        
-        if (barHeight >= 0) {
-          ctx.fillRect(x - candleWidth / 2, macdCenterY - barHeight, candleWidth, barHeight);
-        } else {
-          ctx.fillRect(x - candleWidth / 2, macdCenterY, candleWidth, -barHeight);
-        }
-      });
-    }
+    // (MACD 제거됨)
     
     // 진입가 표시 (녹색 점선)
     if (entryPrice && entryPrice >= adjustedMin && entryPrice <= adjustedMax) {
