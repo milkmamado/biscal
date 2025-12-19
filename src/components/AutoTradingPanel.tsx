@@ -208,12 +208,32 @@ const AutoTradingPanel = ({
     }
   }, [refreshTrigger]);
   
-  // 현재 포지션 PnL
+  // 현재 포지션 PnL (이전 값 유지)
+  const [lastValidPnL, setLastValidPnL] = useState(0);
+  
   const currentPnL = useMemo(() => {
-    if (!currentPosition || !currentPrice) return 0;
+    if (!currentPosition) {
+      return 0;
+    }
+    // currentPrice가 없거나 0이면 이전 값 유지
+    if (!currentPrice || currentPrice === 0) {
+      return lastValidPnL;
+    }
     const direction = currentPosition.side === 'long' ? 1 : -1;
     const priceDiff = (currentPrice - currentPosition.entryPrice) * direction;
     return priceDiff * currentPosition.remainingQuantity;
+  }, [currentPosition, currentPrice, lastValidPnL]);
+  
+  // 유효한 PnL 값 업데이트
+  useEffect(() => {
+    if (currentPosition && currentPrice && currentPrice > 0) {
+      const direction = currentPosition.side === 'long' ? 1 : -1;
+      const priceDiff = (currentPrice - currentPosition.entryPrice) * direction;
+      const newPnL = priceDiff * currentPosition.remainingQuantity;
+      setLastValidPnL(newPnL);
+    } else if (!currentPosition) {
+      setLastValidPnL(0);
+    }
   }, [currentPosition, currentPrice]);
   
   const winRate = todayStats.trades > 0 
