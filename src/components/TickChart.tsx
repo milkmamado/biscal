@@ -32,8 +32,6 @@ interface TickChartProps {
 
 const MAX_CANDLES = 200;
 const CANVAS_PADDING = 40;
-const VOLUME_HEIGHT_RATIO = 0.15; // 거래량 영역 비율 (MACD 제거로 더 커짐)
-const BB_PERIOD = 20; // 볼린저 밴드 기간
 const BB_STD_DEV = 2; // 표준편차 배수
 
 // MACD 계산
@@ -75,36 +73,6 @@ const calculateMACD = (candles: Candle[], fastPeriod = 12, slowPeriod = 26, sign
       macd: macdLine[i],
       signal: signalLine[i],
       histogram: macdLine[i] - signalLine[i],
-    };
-  });
-};
-
-// 볼린저 밴드 계산
-interface BollingerBand {
-  middle: number;
-  upper: number;
-  lower: number;
-}
-
-const calculateBollingerBands = (candles: Candle[], period: number = BB_PERIOD, stdDev: number = BB_STD_DEV): (BollingerBand | null)[] => {
-  return candles.map((_, index) => {
-    if (index < period - 1) return null;
-    
-    // 최근 period개 종가
-    const closes = candles.slice(index - period + 1, index + 1).map(c => c.close);
-    
-    // SMA 계산
-    const sma = closes.reduce((sum, c) => sum + c, 0) / period;
-    
-    // 표준편차 계산
-    const squaredDiffs = closes.map(c => Math.pow(c - sma, 2));
-    const variance = squaredDiffs.reduce((sum, d) => sum + d, 0) / period;
-    const std = Math.sqrt(variance);
-    
-    return {
-      middle: sma,
-      upper: sma + stdDev * std,
-      lower: sma - stdDev * std,
     };
   });
 };
@@ -447,8 +415,7 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
     ctx.scale(dpr, dpr);
     
     const width = rect.width;
-    const volumeHeight = chartHeight * VOLUME_HEIGHT_RATIO;
-    const priceChartHeight = chartHeight - volumeHeight - CANVAS_PADDING;
+    const priceChartHeight = chartHeight - CANVAS_PADDING;
     
     // 배경 (캔버스는 반투명으로 칠해서 뒤 배경 이미지가 보이게)
     ctx.clearRect(0, 0, width, chartHeight);
@@ -480,24 +447,12 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
       return;
     }
     
-    // 볼린저 밴드 계산
-    const bbData = calculateBollingerBands(displayCandles);
-    
-    // 가격 범위 계산 (볼린저 밴드 포함)
+    // 가격 범위 계산
     let minPrice = Infinity;
     let maxPrice = -Infinity;
-    let maxVolume = 0;
-    displayCandles.forEach((c, i) => {
+    displayCandles.forEach((c) => {
       minPrice = Math.min(minPrice, c.low);
       maxPrice = Math.max(maxPrice, c.high);
-      maxVolume = Math.max(maxVolume, c.volume);
-      
-      // 볼린저 밴드도 범위에 포함
-      const bb = bbData[i];
-      if (bb) {
-        minPrice = Math.min(minPrice, bb.lower);
-        maxPrice = Math.max(maxPrice, bb.upper);
-      }
     });
     
     const priceRange = maxPrice - minPrice || 1;
@@ -506,9 +461,9 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
     const adjustedMax = maxPrice + pricePadding;
     const adjustedRange = adjustedMax - adjustedMin;
     
-    // Y축 그리드 및 가격 레이블
-    ctx.strokeStyle = 'rgba(255,255,255,0.1)';
-    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    // Y축 그리드 및 가격 레이블 (사이버펑크 스타일)
+    ctx.strokeStyle = 'rgba(0, 255, 255, 0.15)';
+    ctx.fillStyle = 'rgba(0, 255, 255, 0.7)';
     ctx.font = '10px monospace';
     ctx.textAlign = 'right';
     
@@ -525,87 +480,28 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
       ctx.fillText(formatPrice(price), width - 2, y + 3);
     }
     
-    // 거래량 구분선
-    const volumeStartY = priceChartHeight + CANVAS_PADDING / 2;
-    
-    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
-    ctx.beginPath();
-    ctx.moveTo(CANVAS_PADDING, volumeStartY);
-    ctx.lineTo(width - 10, volumeStartY);
-    ctx.stroke();
-    
-    // 봉차트와 거래량 그리기
+    // 봉차트 그리기 (사이버펑크 스타일)
     const chartWidth = width - CANVAS_PADDING - 50;
-    const candleWidth = Math.max(2, Math.floor(chartWidth / displayCandles.length) - 2);
+    const candleWidth = Math.max(3, Math.floor(chartWidth / displayCandles.length) - 2);
     const candleSpacing = chartWidth / displayCandles.length;
-    
-    // === 볼린저 밴드 그리기 (봉차트 뒤에 먼저 그림) ===
-    const getY = (price: number) => CANVAS_PADDING / 2 + ((adjustedMax - price) / adjustedRange) * priceChartHeight;
-    
-    // 상단 밴드
-    ctx.strokeStyle = 'rgba(156, 163, 175, 0.6)'; // gray-400
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    let started = false;
-    bbData.forEach((bb, index) => {
-      if (!bb) return;
-      const x = CANVAS_PADDING + (index * candleSpacing) + (candleSpacing / 2);
-      if (!started) {
-        ctx.moveTo(x, getY(bb.upper));
-        started = true;
-      } else {
-        ctx.lineTo(x, getY(bb.upper));
-      }
-    });
-    ctx.stroke();
-    
-    // 중간선 (SMA)
-    ctx.strokeStyle = 'rgba(251, 191, 36, 0.7)'; // amber-400
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    started = false;
-    bbData.forEach((bb, index) => {
-      if (!bb) return;
-      const x = CANVAS_PADDING + (index * candleSpacing) + (candleSpacing / 2);
-      if (!started) {
-        ctx.moveTo(x, getY(bb.middle));
-        started = true;
-      } else {
-        ctx.lineTo(x, getY(bb.middle));
-      }
-    });
-    ctx.stroke();
-    
-    // 하단 밴드
-    ctx.strokeStyle = 'rgba(156, 163, 175, 0.6)'; // gray-400
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    started = false;
-    bbData.forEach((bb, index) => {
-      if (!bb) return;
-      const x = CANVAS_PADDING + (index * candleSpacing) + (candleSpacing / 2);
-      if (!started) {
-        ctx.moveTo(x, getY(bb.lower));
-        started = true;
-      } else {
-        ctx.lineTo(x, getY(bb.lower));
-      }
-    });
-    ctx.stroke();
     
     // === 변동성 급등 캔들 감지 ===
     const highVolatilityFlags = detectHighVolatilityCandles(displayCandles);
     
-    // === 봉차트 그리기 ===
+    // === 사이버펑크 스타일 봉차트 그리기 ===
     displayCandles.forEach((candle, index) => {
       const x = CANVAS_PADDING + (index * candleSpacing) + (candleSpacing / 2);
       const isUp = candle.close >= candle.open;
       const isHighVolatility = highVolatilityFlags[index];
+      const isLastCandle = index === displayCandles.length - 1;
       
-      // 색상 - 변동성 급등 캔들은 노란색/주황색으로 강조
-      const bullColor = isHighVolatility ? '#fbbf24' : '#ef4444'; // 급등: amber-400, 일반: 빨간색
-      const bearColor = isHighVolatility ? '#f97316' : '#3b82f6'; // 급등: orange-500, 일반: 파란색
+      // 사이버펑크 네온 색상
+      const bullColor = isHighVolatility ? '#ffff00' : '#00ff88'; // 급등: 옐로우, 일반: 사이버 그린
+      const bearColor = isHighVolatility ? '#ff6600' : '#ff0088'; // 급등: 오렌지, 일반: 사이버 핑크
       const color = isUp ? bullColor : bearColor;
+      const glowColor = isUp 
+        ? (isHighVolatility ? 'rgba(255, 255, 0, 0.6)' : 'rgba(0, 255, 136, 0.5)') 
+        : (isHighVolatility ? 'rgba(255, 102, 0, 0.6)' : 'rgba(255, 0, 136, 0.5)');
       
       // === 가격 봉 ===
       const openY = CANVAS_PADDING / 2 + ((adjustedMax - candle.open) / adjustedRange) * priceChartHeight;
@@ -613,27 +509,44 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
       const highY = CANVAS_PADDING / 2 + ((adjustedMax - candle.high) / adjustedRange) * priceChartHeight;
       const lowY = CANVAS_PADDING / 2 + ((adjustedMax - candle.low) / adjustedRange) * priceChartHeight;
       
-      // 심지 그리기
+      // 네온 글로우 효과
+      ctx.shadowColor = glowColor;
+      ctx.shadowBlur = isLastCandle ? 15 : (isHighVolatility ? 12 : 8);
+      
+      // 심지 그리기 (네온 스타일)
       ctx.strokeStyle = color;
-      ctx.lineWidth = 1;
+      ctx.lineWidth = isLastCandle ? 2 : 1.5;
       ctx.beginPath();
       ctx.moveTo(x, highY);
       ctx.lineTo(x, lowY);
       ctx.stroke();
       
-      // 몸통 그리기
+      // 몸통 그리기 (네온 글로우 + 그라데이션)
       const bodyTop = Math.min(openY, closeY);
-      const bodyHeight = Math.max(1, Math.abs(closeY - openY));
-      ctx.fillStyle = color;
+      const bodyHeight = Math.max(2, Math.abs(closeY - openY));
+      
+      // 그라데이션 몸통
+      const gradient = ctx.createLinearGradient(x - candleWidth / 2, bodyTop, x + candleWidth / 2, bodyTop + bodyHeight);
+      if (isUp) {
+        gradient.addColorStop(0, isHighVolatility ? '#ffff00' : '#00ff88');
+        gradient.addColorStop(0.5, isHighVolatility ? '#cccc00' : '#00cc66');
+        gradient.addColorStop(1, isHighVolatility ? '#ffff00' : '#00ff88');
+      } else {
+        gradient.addColorStop(0, isHighVolatility ? '#ff6600' : '#ff0088');
+        gradient.addColorStop(0.5, isHighVolatility ? '#cc4400' : '#cc0066');
+        gradient.addColorStop(1, isHighVolatility ? '#ff6600' : '#ff0088');
+      }
+      
+      ctx.fillStyle = gradient;
       ctx.fillRect(x - candleWidth / 2, bodyTop, candleWidth, bodyHeight);
       
-      // === 거래량 바 ===
-      if (maxVolume > 0) {
-        const volumeBarHeight = (candle.volume / maxVolume) * (volumeHeight - 10);
-        const volumeY = volumeStartY + volumeHeight - volumeBarHeight - 5;
-        ctx.fillStyle = isUp ? 'rgba(239, 68, 68, 0.5)' : 'rgba(59, 130, 246, 0.5)';
-        ctx.fillRect(x - candleWidth / 2, volumeY, candleWidth, volumeBarHeight);
-      }
+      // 몸통 테두리 (더 선명한 네온 효과)
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x - candleWidth / 2, bodyTop, candleWidth, bodyHeight);
+      
+      // 글로우 리셋
+      ctx.shadowBlur = 0;
     });
     
     // (MACD 제거됨)
