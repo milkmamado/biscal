@@ -31,12 +31,12 @@ interface ScreeningCriteria {
 }
 
 const DEFAULT_CRITERIA: ScreeningCriteria = {
-  minVolume: 50_000_000,    // $50M 이상
-  minVolatility: 3,          // 3% 이상
-  maxVolatility: 15,         // 15% 이하
-  minPrice: 0.01,            // $0.01 이상
-  maxPrice: 100,             // $100 이하 (레버리지 고려)
-  spreadThreshold: 0.05,     // 0.05% 이하 스프레드
+  minVolume: 10_000_000,    // $10M 이상 (완화)
+  minVolatility: 1,          // 1% 이상 (완화)
+  maxVolatility: 20,         // 20% 이하 (완화)
+  minPrice: 0.001,           // $0.001 이상 (완화)
+  maxPrice: 500,             // $500 이하 (완화)
+  spreadThreshold: 0.1,      // 0.1% 이하 스프레드
 };
 
 // 변동성 스코어 계산
@@ -85,8 +85,8 @@ async function checkATRVolatility(symbol: string): Promise<{ atr: number; atrPer
     const currentPrice = klines[klines.length - 1].close;
     const atrPercent = (atr / currentPrice) * 100;
     
-    // 5분봉 ATR 0.5% - 1.5% 범위가 최적
-    const isOptimal = atrPercent >= 0.3 && atrPercent <= 2;
+    // 5분봉 ATR 범위 완화
+    const isOptimal = atrPercent >= 0.1 && atrPercent <= 5;
     
     return { atr, atrPercent, isOptimal };
   } catch {
@@ -175,8 +175,8 @@ export function useCoinScreening(tickers: TickerData[], criteria: Partial<Screen
           const indicators = calculateAllIndicators(klines);
           if (!indicators) continue;
           
-          // 🆕 ADX 시장 환경 필터 - 횡보장 차단
-          if (indicators.adx < 20) continue;
+          // 🆕 ADX 시장 환경 필터 - 횡보장 차단 (조건 완화)
+          if (indicators.adx < 15) continue;
           
           // 시그널 체크
           const longCheck = checkLongSignal(indicators, t.price);
