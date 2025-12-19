@@ -282,6 +282,18 @@ const Index = () => {
       ? position.entryPrice * (1 + 0.003)  // 1단계 익절 +0.3%
       : position.entryPrice * (1 - 0.003)
   ) : undefined;
+  
+  const takeProfit2Price = position ? (
+    position.side === 'long'
+      ? position.entryPrice * (1 + 0.008)  // 2단계 익절 +0.8%
+      : position.entryPrice * (1 - 0.008)
+  ) : undefined;
+  
+  const takeProfit3Price = position ? (
+    position.side === 'long'
+      ? position.entryPrice * (1 + 0.015)  // 3단계 익절 +1.5%
+      : position.entryPrice * (1 - 0.015)
+  ) : undefined;
 
   return (
     <div className="min-h-screen bg-background p-2">
@@ -295,6 +307,8 @@ const Index = () => {
               entryPrice={autoTrading.state.currentPosition?.entryPrice}
               stopLossPrice={stopLossPrice}
               takeProfitPrice={takeProfitPrice}
+              takeProfit2Price={takeProfit2Price}
+              takeProfit3Price={takeProfit3Price}
               positionSide={autoTrading.state.currentPosition?.side}
               onSelectSymbol={setSelectedSymbol}
             />
