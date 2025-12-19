@@ -11,6 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import TradingRecordModal from './TradingRecordModal';
 import BacktestModal from './BacktestModal';
 import OrderBookWallIndicator from './OrderBookWallIndicator';
+import ScreeningLogPanel from './ScreeningLogPanel';
 
 // 스캘핑 시간대 적합도 데이터
 const getScalpingRating = () => {
@@ -649,19 +650,20 @@ const AutoTradingPanel = ({
         </div>
       )}
       
-      {/* Trade Logs */}
-      <div className="relative z-10 px-3 py-2 flex-1 flex flex-col min-h-0">
-        <div className="flex items-center gap-1.5 px-2 mb-2">
+      {/* Trade Logs - 최근 3개만 표시 */}
+      <div className="relative z-10 px-3 py-2">
+        <div className="flex items-center gap-1.5 px-2 mb-1.5">
           <Activity className="w-4 h-4 text-cyan-400" />
           <span className="text-xs text-cyan-400/70 font-medium">매매 로그</span>
+          <span className="text-[10px] text-gray-500">({tradeLogs.length})</span>
         </div>
-        <div className="overflow-y-auto space-y-1.5 flex-1" style={{ maxHeight: tradeLogs.length > 8 ? '160px' : 'auto' }}>
+        <div className="space-y-1">
           {tradeLogs.length === 0 ? (
-            <div className="text-center py-4 text-xs text-gray-500">
-              {isEnabled ? '🔍 기술적 분석 시그널 대기 중...' : '자동매매를 시작하세요'}
+            <div className="text-center py-2 text-xs text-gray-500">
+              {isEnabled ? '🔍 시그널 대기 중...' : '자동매매를 시작하세요'}
             </div>
           ) : (
-            tradeLogs.slice(0, 50).map((log) => (
+            tradeLogs.slice(0, 3).map((log) => (
               <TradeLogItem 
                 key={log.id} 
                 log={log} 
@@ -673,34 +675,18 @@ const AutoTradingPanel = ({
         </div>
       </div>
       
-      {/* Scalping Suitability Indicator */}
-      <ScalpingIndicator />
-
-      {/* Scan Status (debug-friendly) */}
+      {/* Screening Log Panel - 매매 로그 아래로 이동 */}
       {isEnabled && scanStatus && (
-        <div className="relative z-10 mx-3 mt-2 px-3 py-2 rounded-md" style={{
-          background: 'rgba(0, 255, 255, 0.05)',
-          border: '1px solid rgba(0, 255, 255, 0.15)',
-        }}>
-          <div className="flex items-center justify-between text-[10px] text-gray-500">
-            <span>
-              스캔: <span className="text-cyan-400">{scanStatus.isScanning ? '분석중' : '대기'}</span>
-            </span>
-            <span>
-              후보 <span className="text-cyan-400">{scanStatus.tickersCount}</span>
-            </span>
-            <span>
-              통과 <span className="text-cyan-400">{scanStatus.screenedCount}</span>
-            </span>
-            <span>
-              시그널 <span className="text-cyan-400">{scanStatus.signalsCount}</span>
-            </span>
-          </div>
-          <div className="mt-1 text-[10px] text-gray-500 text-center">
-            최근 스캔: {scanStatus.lastScanTime ? new Date(scanStatus.lastScanTime).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '-'}
-          </div>
+        <div className="relative z-10 px-3 py-2">
+          <ScreeningLogPanel 
+            isScanning={scanStatus.isScanning} 
+            signalsCount={scanStatus.signalsCount} 
+          />
         </div>
       )}
+      
+      {/* Scalping Suitability Indicator */}
+      <ScalpingIndicator />
       
       {/* Status Message */}
       <div className="relative z-10 mx-3 mb-3 px-3 py-2 rounded-md text-xs font-medium text-center" style={{
