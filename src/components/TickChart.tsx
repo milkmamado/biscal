@@ -702,7 +702,7 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
       {/* 飛蛾赴火 사이버 나방 효과 (우측 상단 가로 배치) */}
       {mothVisible && (
         <div 
-          className="absolute right-32 top-20 z-[5] flex items-center gap-5 pointer-events-none"
+          className="absolute right-[140px] top-[90px] z-[5] flex items-center gap-5 pointer-events-none"
           style={{
             opacity: mothPhase === 0 ? 0 : mothPhase === 1 ? 1 : 0,
             transform: `scale(${mothPhase === 1 ? 1 : 0.9})`,
