@@ -320,52 +320,67 @@ export interface TradingSignal {
   timestamp: number;
 }
 
-// 롱 시그널 체크
+// 추세 방향 체크 (EMA 기반)
+export function checkTrendDirection(indicators: TechnicalIndicators): 'bullish' | 'bearish' | 'neutral' {
+  const emaDiff = ((indicators.ema8 - indicators.ema21) / indicators.ema21) * 100;
+  
+  // EMA8 > EMA21이고 0.05% 이상 차이 → 상승 추세
+  if (emaDiff > 0.05) return 'bullish';
+  // EMA8 < EMA21이고 0.05% 이상 차이 → 하락 추세
+  if (emaDiff < -0.05) return 'bearish';
+  return 'neutral';
+}
+
+// 롱 시그널 체크 (추세 필터 + 강화된 조건)
 export function checkLongSignal(indicators: TechnicalIndicators, price: number): { valid: boolean; strength: 'weak' | 'medium' | 'strong'; reasons: string[] } {
   const reasons: string[] = [];
   let score = 0;
   
+  // 🆕 추세 방향 필터: 하락 추세에서는 Long 차단
+  const trend = checkTrendDirection(indicators);
+  if (trend === 'bearish') {
+    return { valid: false, strength: 'weak', reasons: ['하락 추세 - Long 차단'] };
+  }
+  
   // 1. RSI < 30 (과매도) - 핵심
   if (indicators.rsi < 30) {
     reasons.push(`RSI 과매도 (${indicators.rsi.toFixed(1)})`);
-    score += 2;
-  } else if (indicators.rsi < 40) {
+    score += 3; // 점수 상향
+  } else if (indicators.rsi < 35) {
     reasons.push(`RSI 약세 (${indicators.rsi.toFixed(1)})`);
     score += 1;
   }
   
-  // 2. EMA 골든크로스 (EMA8 > EMA21)
-  if (indicators.ema8 > indicators.ema21) {
+  // 2. EMA 상승 추세 (골든크로스)
+  if (trend === 'bullish') {
     const crossStrength = ((indicators.ema8 - indicators.ema21) / indicators.ema21) * 100;
-    if (crossStrength > 0.1) {
-      reasons.push(`EMA 골든크로스 (+${crossStrength.toFixed(2)}%)`);
-      score += 2;
-    }
+    reasons.push(`EMA 상승추세 (+${crossStrength.toFixed(2)}%)`);
+    score += 2;
   }
   
-  // 3. MACD 히스토그램 상승 전환
+  // 3. MACD 상승 전환 (더 엄격)
   if (indicators.macdHistogram > 0 && indicators.macd > indicators.macdSignal) {
     reasons.push('MACD 상승 전환');
     score += 2;
   }
   
-  // 4. 볼린저밴드 하단 터치
+  // 4. 볼린저밴드 하단 터치 (더 엄격: 0.2% 이내)
   const lowerBandDist = ((price - indicators.lowerBand) / indicators.lowerBand) * 100;
-  if (lowerBandDist <= 0.3) {
+  if (lowerBandDist <= 0.2) {
     reasons.push(`BB 하단 터치 (${lowerBandDist.toFixed(2)}%)`);
     score += 2;
   }
   
-  // 5. 거래량 200% 이상
-  if (indicators.volumeRatio >= 2.0) {
-    reasons.push(`거래량 급증 (${(indicators.volumeRatio * 100).toFixed(0)}%)`);
+  // 5. 거래량 150% 이상 (하향)
+  if (indicators.volumeRatio >= 1.5) {
+    reasons.push(`거래량 증가 (${(indicators.volumeRatio * 100).toFixed(0)}%)`);
     score += 1;
   }
   
-  // 6. ADX > 20 (강한 추세)
-  if (indicators.adx > 20) {
+  // 6. ADX > 25 (강한 추세) - 기준 상향
+  if (indicators.adx > 25) {
     reasons.push(`강한 추세 (ADX ${indicators.adx.toFixed(1)})`);
-    score += 1;
+    score += 2;
   }
   
   // 7. Williams %R < -80 (과매도)
@@ -380,68 +395,72 @@ export function checkLongSignal(indicators: TechnicalIndicators, price: number):
     score += 1;
   }
   
-  // 9. 스토캐스틱 과매도
-  if (indicators.stochK < 20 && indicators.stochD < 20) {
-    reasons.push(`스토캐스틱 과매도 (%K ${indicators.stochK.toFixed(1)})`);
-    score += 1;
+  // 9. 스토캐스틱 과매도 + 상승 전환
+  if (indicators.stochK < 20 && indicators.stochK > indicators.stochD) {
+    reasons.push(`스토캐스틱 반등 (%K ${indicators.stochK.toFixed(1)})`);
+    score += 2;
   }
   
-  // 최소 3개 이상 조건 충족 필요
-  const valid = reasons.length >= 3 && score >= 5;
+  // 🆕 최소 4개 이상 조건 충족 + 점수 7점 이상 필요 (기준 강화)
+  const valid = reasons.length >= 4 && score >= 7;
   
   let strength: 'weak' | 'medium' | 'strong' = 'weak';
-  if (score >= 8) strength = 'strong';
-  else if (score >= 6) strength = 'medium';
+  if (score >= 11) strength = 'strong';
+  else if (score >= 8) strength = 'medium';
   
   return { valid, strength, reasons };
 }
 
-// 숏 시그널 체크
+// 숏 시그널 체크 (추세 필터 + 강화된 조건)
 export function checkShortSignal(indicators: TechnicalIndicators, price: number): { valid: boolean; strength: 'weak' | 'medium' | 'strong'; reasons: string[] } {
   const reasons: string[] = [];
   let score = 0;
   
+  // 🆕 추세 방향 필터: 상승 추세에서는 Short 차단
+  const trend = checkTrendDirection(indicators);
+  if (trend === 'bullish') {
+    return { valid: false, strength: 'weak', reasons: ['상승 추세 - Short 차단'] };
+  }
+  
   // 1. RSI > 70 (과매수) - 핵심
   if (indicators.rsi > 70) {
     reasons.push(`RSI 과매수 (${indicators.rsi.toFixed(1)})`);
-    score += 2;
-  } else if (indicators.rsi > 60) {
+    score += 3; // 점수 상향
+  } else if (indicators.rsi > 65) {
     reasons.push(`RSI 강세 (${indicators.rsi.toFixed(1)})`);
     score += 1;
   }
   
-  // 2. EMA 데드크로스 (EMA8 < EMA21)
-  if (indicators.ema8 < indicators.ema21) {
+  // 2. EMA 하락 추세 (데드크로스)
+  if (trend === 'bearish') {
     const crossStrength = ((indicators.ema21 - indicators.ema8) / indicators.ema21) * 100;
-    if (crossStrength > 0.1) {
-      reasons.push(`EMA 데드크로스 (-${crossStrength.toFixed(2)}%)`);
-      score += 2;
-    }
+    reasons.push(`EMA 하락추세 (-${crossStrength.toFixed(2)}%)`);
+    score += 2;
   }
   
-  // 3. MACD 히스토그램 하락 전환
+  // 3. MACD 하락 전환 (더 엄격)
   if (indicators.macdHistogram < 0 && indicators.macd < indicators.macdSignal) {
     reasons.push('MACD 하락 전환');
     score += 2;
   }
   
-  // 4. 볼린저밴드 상단 터치
+  // 4. 볼린저밴드 상단 터치 (더 엄격: 0.2% 이내)
   const upperBandDist = ((indicators.upperBand - price) / indicators.upperBand) * 100;
-  if (upperBandDist <= 0.3) {
+  if (upperBandDist <= 0.2) {
     reasons.push(`BB 상단 터치 (${upperBandDist.toFixed(2)}%)`);
     score += 2;
   }
   
-  // 5. 거래량 200% 이상
-  if (indicators.volumeRatio >= 2.0) {
-    reasons.push(`거래량 급증 (${(indicators.volumeRatio * 100).toFixed(0)}%)`);
+  // 5. 거래량 150% 이상 (하향)
+  if (indicators.volumeRatio >= 1.5) {
+    reasons.push(`거래량 증가 (${(indicators.volumeRatio * 100).toFixed(0)}%)`);
     score += 1;
   }
   
-  // 6. ADX > 20 (강한 추세)
-  if (indicators.adx > 20) {
+  // 6. ADX > 25 (강한 추세) - 기준 상향
+  if (indicators.adx > 25) {
     reasons.push(`강한 추세 (ADX ${indicators.adx.toFixed(1)})`);
-    score += 1;
+    score += 2;
   }
   
   // 7. Williams %R > -20 (과매수)
@@ -456,18 +475,18 @@ export function checkShortSignal(indicators: TechnicalIndicators, price: number)
     score += 1;
   }
   
-  // 9. 스토캐스틱 과매수
-  if (indicators.stochK > 80 && indicators.stochD > 80) {
-    reasons.push(`스토캐스틱 과매수 (%K ${indicators.stochK.toFixed(1)})`);
-    score += 1;
+  // 9. 스토캐스틱 과매수 + 하락 전환
+  if (indicators.stochK > 80 && indicators.stochK < indicators.stochD) {
+    reasons.push(`스토캐스틱 하락 (%K ${indicators.stochK.toFixed(1)})`);
+    score += 2;
   }
   
-  // 최소 3개 이상 조건 충족 필요
-  const valid = reasons.length >= 3 && score >= 5;
+  // 🆕 최소 4개 이상 조건 충족 + 점수 7점 이상 필요 (기준 강화)
+  const valid = reasons.length >= 4 && score >= 7;
   
   let strength: 'weak' | 'medium' | 'strong' = 'weak';
-  if (score >= 8) strength = 'strong';
-  else if (score >= 6) strength = 'medium';
+  if (score >= 11) strength = 'strong';
+  else if (score >= 8) strength = 'medium';
   
   return { valid, strength, reasons };
 }
