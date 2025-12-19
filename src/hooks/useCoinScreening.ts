@@ -221,65 +221,39 @@ export function useCoinScreening(tickers: TickerData[], criteria: Partial<Screen
             continue;
           }
 
-          // 시그널 체크 (기존 로직)
-          const longCheck = checkLongSignal(indicators, t.price);
-          const shortCheck = checkShortSignal(indicators, t.price);
-
+          // 🆕 MTF 중심 단순화: 볼린저/RSI 체크 제거, MTF 합의만으로 진입
           let signal: TradingSignal | null = null;
           let proDirection: ProDirectionResult | undefined;
 
-          if (longCheck.valid || shortCheck.valid) {
-            const signalType = longCheck.valid ? 'LONG' : 'SHORT';
-            addScreeningLog('signal', `${signalType} 시그널 감지 → 프로 분석중`, t.symbol);
-            
-            // 🆕 프로 방향 분석 (기존 시그널이 있을 때만)
-            proDirection = await getProDirection(t.symbol);
-            
-            // 프로 시스템 합의 체크
-            if (proDirection.position === 'NO_TRADE') {
-              addScreeningLog('reject', `PRO NO_TRADE: ${proDirection.reason}`, t.symbol);
-              continue;
-            }
-            
-            // 프로 방향과 기존 시그널 방향 일치 확인
-            if (proDirection.position === 'LONG' && longCheck.valid) {
-              signal = {
-                symbol: t.symbol,
-                direction: 'long',
-                strength: longCheck.strength,
-                price: t.price,
-                reasons: [
-                  `🎯 프로 합의 (${proDirection.confidence.toFixed(0)}%)`,
-                  `MTF: ${proDirection.details.mtf.reason}`,
-                  ...longCheck.reasons.slice(0, 2),
-                ],
-                indicators,
-                timestamp: Date.now(),
-              };
-              signals.push(signal);
-              addScreeningLog('approve', `LONG 합의 완료! (${proDirection.confidence.toFixed(0)}%)`, t.symbol);
-            } else if (proDirection.position === 'SHORT' && shortCheck.valid) {
-              signal = {
-                symbol: t.symbol,
-                direction: 'short',
-                strength: shortCheck.strength,
-                price: t.price,
-                reasons: [
-                  `🎯 프로 합의 (${proDirection.confidence.toFixed(0)}%)`,
-                  `MTF: ${proDirection.details.mtf.reason}`,
-                  ...shortCheck.reasons.slice(0, 2),
-                ],
-                indicators,
-                timestamp: Date.now(),
-              };
-              signals.push(signal);
-              addScreeningLog('approve', `SHORT 합의 완료! (${proDirection.confidence.toFixed(0)}%)`, t.symbol);
-            } else {
-              // 프로 방향과 기존 시그널 불일치
-              addScreeningLog('reject', `방향 불일치 (PRO: ${proDirection.position}, 시그널: ${signalType})`, t.symbol);
-              continue;
-            }
+          // MTF 분석 먼저 실행
+          addScreeningLog('signal', `MTF 추세 분석중...`, t.symbol);
+          proDirection = await getProDirection(t.symbol);
+          
+          // MTF 합의가 있으면 바로 진입 (볼린저/RSI 체크 생략)
+          if (proDirection.position === 'NO_TRADE') {
+            addScreeningLog('reject', `MTF 불일치: ${proDirection.reason}`, t.symbol);
+            continue;
           }
+          
+          // MTF 합의 → 해당 방향으로 시그널 생성
+          const direction = proDirection.position === 'LONG' ? 'long' : 'short';
+          const strength = proDirection.confidence >= 70 ? 'strong' : proDirection.confidence >= 50 ? 'medium' : 'weak';
+          
+          signal = {
+            symbol: t.symbol,
+            direction,
+            strength,
+            price: t.price,
+            reasons: [
+              `🎯 MTF 합의 (${proDirection.confidence.toFixed(0)}%)`,
+              `${proDirection.details.mtf.reason}`,
+              `모멘텀: ${proDirection.details.momentum.reason}`,
+            ],
+            indicators,
+            timestamp: Date.now(),
+          };
+          signals.push(signal);
+          addScreeningLog('approve', `${direction.toUpperCase()} 진입! MTF(${proDirection.confidence.toFixed(0)}%)`, t.symbol);
 
           analyzed.push({
             symbol: t.symbol,
