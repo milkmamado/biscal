@@ -43,7 +43,7 @@ const getScalpingRating = () => {
   }
 };
 
-const LEVERAGE_OPTIONS = [1, 5, 10];
+const LEVERAGE_OPTIONS = [1, 5, 10, 15, 20];
 
 interface AutoTradingPanelProps {
   state: AutoTradingState;
