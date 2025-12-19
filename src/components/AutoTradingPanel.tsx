@@ -655,7 +655,7 @@ const AutoTradingPanel = ({
           <Activity className="w-4 h-4 text-cyan-400" />
           <span className="text-xs text-cyan-400/70 font-medium">매매 로그</span>
         </div>
-        <div className="overflow-y-auto space-y-1.5 max-h-[160px]">
+        <div className="overflow-y-auto space-y-1.5 flex-1" style={{ maxHeight: tradeLogs.length > 8 ? '160px' : 'auto' }}>
           {tradeLogs.length === 0 ? (
             <div className="text-center py-4 text-xs text-gray-500">
               {isEnabled ? '🔍 기술적 분석 시그널 대기 중...' : '자동매매를 시작하세요'}
