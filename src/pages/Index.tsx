@@ -116,24 +116,24 @@ const Index = () => {
       const lastAttempt = prevSignalsRef.current.get(signalKey);
       if (lastAttempt && now - lastAttempt < retryCooldownMs) continue;
 
-      // 🆕 오더북 벽 필터 체크
-      if (signal.direction === 'long') {
-        const blockCheck = shouldBlockLongEntry();
-        if (blockCheck.blocked) {
-          prevSignalsRef.current.set(signalKey, now);
-          console.log(`🚫 오더북 벽으로 롱 진입 차단: ${blockCheck.reason}`);
-          toast.warning(`🚫 ${signal.symbol} 롱 차단: ${blockCheck.reason}`);
-          continue;
-        }
-      } else {
-        const blockCheck = shouldBlockShortEntry();
-        if (blockCheck.blocked) {
-          prevSignalsRef.current.set(signalKey, now);
-          console.log(`🚫 오더북 벽으로 숏 진입 차단: ${blockCheck.reason}`);
-          toast.warning(`🚫 ${signal.symbol} 숏 차단: ${blockCheck.reason}`);
-          continue;
-        }
-      }
+      // 🆕 오더북 벽 필터 체크 (임시 비활성화)
+      // if (signal.direction === 'long') {
+      //   const blockCheck = shouldBlockLongEntry();
+      //   if (blockCheck.blocked) {
+      //     prevSignalsRef.current.set(signalKey, now);
+      //     console.log(`🚫 오더북 벽으로 롱 진입 차단: ${blockCheck.reason}`);
+      //     toast.warning(`🚫 ${signal.symbol} 롱 차단: ${blockCheck.reason}`);
+      //     continue;
+      //   }
+      // } else {
+      //   const blockCheck = shouldBlockShortEntry();
+      //   if (blockCheck.blocked) {
+      //     prevSignalsRef.current.set(signalKey, now);
+      //     console.log(`🚫 오더북 벽으로 숏 진입 차단: ${blockCheck.reason}`);
+      //     toast.warning(`🚫 ${signal.symbol} 숏 차단: ${blockCheck.reason}`);
+      //     continue;
+      //   }
+      // }
 
       console.log(`🔥 Technical signal: ${signal.symbol} ${signal.direction} (${signal.strength})`, signal.reasons.slice(0, 3));
 
