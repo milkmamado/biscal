@@ -128,16 +128,16 @@ const CONFIG = {
   MAX_CONSECUTIVE_LOSSES: 5, // 연속 5회 손실
   LOSS_COOLDOWN_MINUTES: 60, // 1시간 휴식
   
-  // 진입 조건
+  // 진입 조건 (🆕 강화)
   MIN_SIGNAL_STRENGTH: 'medium' as const, // 최소 시그널 강도
-  ENTRY_COOLDOWN_MS: 60000,  // 진입 간 쿨다운 1분
+  ENTRY_COOLDOWN_MS: 90000,  // 진입 간 쿨다운 1.5분 (기존 1분 → 1.5분)
   
   // 변동성 필터
-  MIN_ATR_PERCENT: 0.2,      // 최소 ATR 퍼센트
-  MAX_ATR_PERCENT: 2.0,      // 최대 ATR 퍼센트
+  MIN_ATR_PERCENT: 0.15,     // 최소 ATR 퍼센트 (기존 0.2 → 0.15)
+  MAX_ATR_PERCENT: 2.5,      // 최대 ATR 퍼센트 (기존 2.0 → 2.5)
   
   // 시장 환경 필터
-  MIN_ADX_FOR_TREND: 20,     // 최소 ADX - 횡보장 필터
+  MIN_ADX_FOR_TREND: 25,     // 최소 ADX - 횡보장 필터 (기존 20 → 25 강화)
   
   // 동적 포지션 사이징
   BASE_RISK_PERCENT: 1.0,    // 기본 리스크 퍼센트
@@ -766,18 +766,22 @@ export function useAutoTrading({
       let lastCandleTime = Date.now();
       
       if (klines && klines.length >= 2) {
-        // 전봉 (마지막에서 두번째 봉) 기준
+        // 전봉 (마지막에서 두번째 봉) 기준 + 🆕 ATR 기반 여유폭 추가
         const prevCandle = klines[klines.length - 2];
         lastCandleTime = prevCandle.closeTime;
         
+        // ATR의 50%를 여유폭으로 추가 (최소 0.3%)
+        const atrBuffer = Math.max(indicators.atr * 0.5, currentPrice * 0.003);
+        
         if (side === 'long') {
-          // 롱: 전봉 저가가 손절 기준
-          initialStopLoss = prevCandle.low;
+          // 롱: 전봉 저가 - ATR 여유폭
+          initialStopLoss = prevCandle.low - atrBuffer;
         } else {
-          // 숏: 전봉 고가가 손절 기준
-          initialStopLoss = prevCandle.high;
+          // 숏: 전봉 고가 + ATR 여유폭
+          initialStopLoss = prevCandle.high + atrBuffer;
         }
-        console.log(`[executeEntry] 초기 손절가 설정: ${side === 'long' ? '전봉 저가' : '전봉 고가'} = ${initialStopLoss.toFixed(4)}`);
+        const slPercent = (Math.abs(currentPrice - initialStopLoss) / currentPrice * 100).toFixed(2);
+        console.log(`[executeEntry] 초기 손절가 설정: ${side === 'long' ? '전봉 저가' : '전봉 고가'} ± ATR버퍼 = ${initialStopLoss.toFixed(4)} (${slPercent}%)`);
       }
       
       // 🆕 ATR 기반 동적 포지션 사이징
