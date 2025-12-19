@@ -739,8 +739,8 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
         <div 
           className="absolute z-[3] pointer-events-none"
           style={{
-            right: '22%',
-            top: '28%',
+            right: '12%',
+            top: '18%',
             opacity: tearsPhase === 0 ? 0 : tearsPhase === 3 ? 0 : 1,
             transition: 'opacity 0.5s ease-out',
           }}
