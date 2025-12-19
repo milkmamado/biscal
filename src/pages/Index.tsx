@@ -322,6 +322,8 @@ const Index = () => {
               onManualClose={handleManualClose}
               onSkipSignal={autoTrading.skipSignal}
               onSwapSignal={autoTrading.swapSignalDirection}
+              onToggleLossProtection={autoTrading.toggleLossProtection}
+              onClearCooldown={autoTrading.clearCooldown}
               currentPrice={currentAutoPrice}
               krwRate={krwRate}
               leverage={leverage}

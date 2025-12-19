@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { cn } from '@/lib/utils';
-import { Bot, TrendingUp, TrendingDown, Activity, Clock, AlertTriangle, Star, RefreshCw, Wallet, LogOut } from 'lucide-react';
+import { Bot, TrendingUp, TrendingDown, Activity, Clock, AlertTriangle, Star, RefreshCw, Wallet, LogOut, Shield, ShieldOff } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { AutoTradingState, AutoTradeLog } from '@/hooks/useAutoTrading';
@@ -50,6 +50,8 @@ interface AutoTradingPanelProps {
   onManualClose?: () => void;
   onSkipSignal?: () => void;
   onSwapSignal?: () => void;
+  onToggleLossProtection?: () => void;
+  onClearCooldown?: () => void;
   currentPrice?: number;
   krwRate: number;
   leverage: number;
@@ -65,6 +67,8 @@ const AutoTradingPanel = ({
   onManualClose,
   onSkipSignal,
   onSwapSignal,
+  onToggleLossProtection,
+  onClearCooldown,
   currentPrice = 0,
   krwRate,
   leverage,
@@ -73,7 +77,7 @@ const AutoTradingPanel = ({
   onBalanceChange,
   refreshTrigger = 0,
 }: AutoTradingPanelProps) => {
-  const { isEnabled, isProcessing, currentPosition, pendingSignal, todayStats, tradeLogs, cooldownUntil } = state;
+  const { isEnabled, isProcessing, currentPosition, pendingSignal, todayStats, tradeLogs, cooldownUntil, lossProtectionEnabled } = state;
   const { user, signOut } = useAuth();
   const { getBalances, getIncomeHistory } = useBinanceApi();
   
@@ -266,11 +270,28 @@ const AutoTradingPanel = ({
           )}
         </div>
         <div className="flex items-center gap-2">
+          {/* 연속 손실 보호 토글 */}
+          <button
+            onClick={onToggleLossProtection}
+            className={cn(
+              "p-1 rounded transition-colors",
+              lossProtectionEnabled 
+                ? "bg-amber-500/20 text-amber-500 hover:bg-amber-500/30" 
+                : "hover:bg-secondary/50 text-muted-foreground hover:text-foreground"
+            )}
+            title={lossProtectionEnabled ? "연속 손실 보호 ON (5연패시 60분 휴식)" : "연속 손실 보호 OFF"}
+          >
+            {lossProtectionEnabled ? <Shield className="w-4 h-4" /> : <ShieldOff className="w-4 h-4" />}
+          </button>
           {cooldownRemaining && (
-            <span className="text-[10px] text-yellow-500 flex items-center gap-1">
+            <button 
+              onClick={onClearCooldown}
+              className="text-[10px] text-yellow-500 flex items-center gap-1 hover:bg-yellow-500/20 px-1.5 py-0.5 rounded"
+              title="클릭하여 휴식 해제"
+            >
               <Clock className="w-3 h-3" />
               {cooldownRemaining}
-            </span>
+            </button>
           )}
           <Switch
             checked={isEnabled}
