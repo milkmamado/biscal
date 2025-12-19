@@ -69,10 +69,9 @@ const DualChartPanel = ({
             </button>
           ))}
         </div>
-        <div className="flex-1 min-h-0 relative" style={{ minHeight: '500px' }}>
+        <div className="flex-1 min-h-0 relative">
           <TickChart 
             symbol={symbol}
-            height={500} 
             interval={interval}
             entryPrice={hasPosition ? entryPrice : undefined}
             stopLossPrice={hasPosition ? stopLossPrice : undefined}
