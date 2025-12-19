@@ -827,10 +827,63 @@ export function useAutoTrading({
           Math.abs(parseFloat(p.positionAmt)) > 0
         );
 
+        // 🆕 외부 청산 감지: 앱에서 추적 중인 포지션이 바이낸스에 없으면 정리
+        if (state.currentPosition && !activePosition) {
+          console.log(`⚠️ [syncPositions] 외부 청산 감지: ${state.currentPosition.symbol} 포지션이 바이낸스에 없음`);
+          toast.warning(`⚠️ ${state.currentPosition.symbol.replace('USDT', '')} 포지션이 외부에서 청산됨`);
+          setState(prev => ({
+            ...prev,
+            currentPosition: null,
+            currentSymbol: null,
+            statusMessage: '🔍 기술적 분석 기반 스캔 중...',
+          }));
+        }
+        
+        // 🆕 심볼 불일치 감지: 다른 심볼 포지션이 열려있으면 전환
+        if (state.currentPosition && activePosition && state.currentPosition.symbol !== activePosition.symbol) {
+          console.log(`🔄 [syncPositions] 심볼 변경 감지: ${state.currentPosition.symbol} → ${activePosition.symbol}`);
+          const positionAmt = parseFloat(activePosition.positionAmt);
+          const side = positionAmt > 0 ? 'long' : 'short';
+          const entryPrice = parseFloat(activePosition.entryPrice);
+          
+          const defaultIndicators: TechnicalIndicators = {
+            rsi: 50, ema8: entryPrice, ema21: entryPrice,
+            macd: 0, macdSignal: 0, macdHistogram: 0,
+            upperBand: entryPrice * 1.02, lowerBand: entryPrice * 0.98, sma20: entryPrice,
+            adx: 25, cci: 0, stochK: 50, stochD: 50, williamsR: -50,
+            atr: entryPrice * 0.005, volumeRatio: 1,
+          };
+          
+          toast.info(`🔄 포지션 전환: ${activePosition.symbol.replace('USDT', '')} ${side === 'long' ? '롱' : '숏'}`);
+          setState(prev => ({
+            ...prev,
+            currentPosition: {
+              symbol: activePosition.symbol,
+              side,
+              entryPrice,
+              initialQuantity: Math.abs(positionAmt),
+              remainingQuantity: Math.abs(positionAmt),
+              entryTime: Date.now(),
+              atr: entryPrice * 0.005,
+              takeProfitState: {
+                tpHit: false,
+                breakEvenActivated: false,
+                breakEvenActivatedAt: null,
+              },
+              indicators: defaultIndicators,
+              maxPnlPercent: 0,
+            },
+            currentSymbol: activePosition.symbol,
+          }));
+        }
+
+        // 새 포지션 동기화 (앱에 없을 때)
         if (activePosition && !state.currentPosition) {
           const positionAmt = parseFloat(activePosition.positionAmt);
           const side = positionAmt > 0 ? 'long' : 'short';
           const entryPrice = parseFloat(activePosition.entryPrice);
+          
+          console.log(`📥 [syncPositions] 기존 포지션 동기화: ${activePosition.symbol} ${side}`);
 
           // 기본 인디케이터 (동기화용)
           const defaultIndicators: TechnicalIndicators = {
