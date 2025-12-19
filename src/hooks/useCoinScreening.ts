@@ -112,13 +112,19 @@ export function useCoinScreening(tickers: TickerData[], criteria: Partial<Screen
   const [activeSignals, setActiveSignals] = useState<TradingSignal[]>([]);
   const [isScanning, setIsScanning] = useState(false);
   const [lastScanTime, setLastScanTime] = useState(0);
-  
+
   const tickersRef = useRef<TickerData[]>([]);
   const isMountedRef = useRef(true);
   const scanIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  
-  // Merge criteria
-  const fullCriteria = { ...DEFAULT_CRITERIA, ...criteria };
+
+  // 🆕 refs (interval/async에서 최신 상태 보장)
+  const isScanningRef = useRef(false);
+  const criteriaRef = useRef<ScreeningCriteria>({ ...DEFAULT_CRITERIA, ...criteria });
+
+  // criteria 업데이트 (기본값 + 오버라이드)
+  useEffect(() => {
+    criteriaRef.current = { ...DEFAULT_CRITERIA, ...criteria };
+  }, [criteria]);
   
   // Update tickers ref
   useEffect(() => {
@@ -128,13 +134,16 @@ export function useCoinScreening(tickers: TickerData[], criteria: Partial<Screen
   // 종목 스크리닝 함수
   const runScreening = useCallback(async () => {
     if (!isMountedRef.current) return;
-    if (isScanning) return;
-    
+    if (isScanningRef.current) return;
+
     const currentTickers = tickersRef.current;
     if (currentTickers.length === 0) return;
-    
+
+    isScanningRef.current = true;
     setIsScanning(true);
-    
+
+    const fullCriteria = criteriaRef.current;
+
     try {
       // 1차 필터링: 기본 조건
       const eligible = currentTickers.filter(t => 
@@ -144,7 +153,7 @@ export function useCoinScreening(tickers: TickerData[], criteria: Partial<Screen
         t.volatilityRange >= fullCriteria.minVolatility &&
         t.volatilityRange <= fullCriteria.maxVolatility
       );
-      
+
       // 변동성 스코어 기준 정렬
       const scored = eligible
         .map(t => ({
@@ -153,37 +162,37 @@ export function useCoinScreening(tickers: TickerData[], criteria: Partial<Screen
         }))
         .sort((a, b) => b.volatilityScore - a.volatilityScore)
         .slice(0, 20); // 상위 20개만
-      
+
       // 2차 분석: 기술적 지표 + ATR
       const analyzed: ScreenedSymbol[] = [];
       const signals: TradingSignal[] = [];
-      
+
       for (let i = 0; i < scored.length; i++) {
         if (!isMountedRef.current) break;
-        
+
         const t = scored[i];
-        
+
         try {
           // ATR 체크
           const atrData = await checkATRVolatility(t.symbol);
           if (!atrData.isOptimal) continue;
-          
+
           // 5분봉 기술적 분석
           const klines = await fetch5mKlines(t.symbol, 50);
           if (!klines || klines.length < 30) continue;
-          
+
           const indicators = calculateAllIndicators(klines);
           if (!indicators) continue;
-          
-          // 🆕 ADX 시장 환경 필터 - 횡보장 차단 (조건 완화)
+
+          // ADX 시장 환경 필터 - 횡보장 차단
           if (indicators.adx < 15) continue;
-          
+
           // 시그널 체크
           const longCheck = checkLongSignal(indicators, t.price);
           const shortCheck = checkShortSignal(indicators, t.price);
-          
+
           let signal: TradingSignal | null = null;
-          
+
           if (longCheck.valid) {
             signal = {
               symbol: t.symbol,
@@ -207,7 +216,7 @@ export function useCoinScreening(tickers: TickerData[], criteria: Partial<Screen
             };
             signals.push(signal);
           }
-          
+
           analyzed.push({
             symbol: t.symbol,
             price: t.price,
@@ -219,35 +228,36 @@ export function useCoinScreening(tickers: TickerData[], criteria: Partial<Screen
             indicators,
             rank: analyzed.length + 1,
           });
-          
+
         } catch (err) {
           console.error(`Screening error for ${t.symbol}:`, err);
         }
-        
+
         // API 부하 방지
         if (i < scored.length - 1) {
           await new Promise(resolve => setTimeout(resolve, 100));
         }
       }
-      
+
       if (!isMountedRef.current) return;
-      
+
       // 시그널 강도 기준 정렬
       signals.sort((a, b) => {
         const strengthOrder = { strong: 3, medium: 2, weak: 1 };
         return strengthOrder[b.strength] - strengthOrder[a.strength];
       });
-      
+
       setScreenedSymbols(analyzed);
       setActiveSignals(signals);
       setLastScanTime(Date.now());
-      
+
     } catch (error) {
       console.error('Screening error:', error);
     } finally {
+      isScanningRef.current = false;
       setIsScanning(false);
     }
-  }, [isScanning, fullCriteria]);
+  }, []);
   
   // 주기적 스캔 (30초)
   useEffect(() => {

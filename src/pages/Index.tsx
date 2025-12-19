@@ -72,28 +72,25 @@ const Index = () => {
     }));
   
   // 기술적 분석 기반 종목 스크리닝
-  const { activeSignals, isScanning } = useCoinScreening(tickersForScreening);
-  
-  // 이전 시그널 추적 (중복 진입 방지)
-  const prevSignalsRef = useRef<Set<string>>(new Set());
+  const { activeSignals, isScanning, screenedSymbols, lastScanTime } = useCoinScreening(tickersForScreening);
+
+  // 이전 시그널 추적 (재시도 쿨다운 기반)
+  const prevSignalsRef = useRef<Map<string, number>>(new Map());
   const justEnabledRef = useRef(false);
   
-  // 자동매매 켜질 때 기존 시그널 무시하도록 처리
+  // 자동매매 켜질 때: 2초간만 신규 처리 지연 (기존 시그널을 Set에 박아버리면 영영 재시도 불가)
   useEffect(() => {
     if (autoTrading.state.isEnabled) {
-      // 자동매매 켜지면 현재 시그널들을 "이미 본 것"으로 처리
       justEnabledRef.current = true;
-      const currentSignalKeys = new Set(activeSignals.map(s => `${s.symbol}-${s.direction}`));
-      prevSignalsRef.current = currentSignalKeys;
-      
-      // 2초 후부터 새 시그널 감지 시작
+      prevSignalsRef.current = new Map();
+
       const timer = setTimeout(() => {
         justEnabledRef.current = false;
       }, 2000);
       return () => clearTimeout(timer);
-    } else {
-      prevSignalsRef.current = new Set();
     }
+
+    prevSignalsRef.current = new Map();
   }, [autoTrading.state.isEnabled]);
   
   // 기술적 분석 시그널 감지 시 자동매매 트리거
@@ -101,27 +98,29 @@ const Index = () => {
     if (!autoTrading.state.isEnabled) return;
     if (justEnabledRef.current) return; // 방금 켜졌으면 대기
     if (activeSignals.length === 0) return;
-    
+
     // 포지션 보유 중이거나 대기 중이면 새 시그널 무시
     if (autoTrading.state.currentPosition) return;
     if (autoTrading.state.pendingSignal) return;
-    
-    // 새로운 시그널만 처리
-    const currentSignalKeys = new Set(activeSignals.map(s => `${s.symbol}-${s.direction}`));
-    
+
+    const now = Date.now();
+    const retryCooldownMs = 2 * 60 * 1000; // 동일 시그널 2분 재시도 쿨다운
+
     for (const signal of activeSignals) {
       const signalKey = `${signal.symbol}-${signal.direction}`;
-      
-      // 이미 처리한 시그널이면 무시
-      if (prevSignalsRef.current.has(signalKey)) continue;
-      
+
       // medium 이상만 처리
       if (signal.strength === 'weak') continue;
-      
+
+      // 동일 시그널 재시도 쿨다운
+      const lastAttempt = prevSignalsRef.current.get(signalKey);
+      if (lastAttempt && now - lastAttempt < retryCooldownMs) continue;
+
       // 🆕 오더북 벽 필터 체크
       if (signal.direction === 'long') {
         const blockCheck = shouldBlockLongEntry();
         if (blockCheck.blocked) {
+          prevSignalsRef.current.set(signalKey, now);
           console.log(`🚫 오더북 벽으로 롱 진입 차단: ${blockCheck.reason}`);
           toast.warning(`🚫 ${signal.symbol} 롱 차단: ${blockCheck.reason}`);
           continue;
@@ -129,14 +128,17 @@ const Index = () => {
       } else {
         const blockCheck = shouldBlockShortEntry();
         if (blockCheck.blocked) {
+          prevSignalsRef.current.set(signalKey, now);
           console.log(`🚫 오더북 벽으로 숏 진입 차단: ${blockCheck.reason}`);
           toast.warning(`🚫 ${signal.symbol} 숏 차단: ${blockCheck.reason}`);
           continue;
         }
       }
-      
+
       console.log(`🔥 Technical signal: ${signal.symbol} ${signal.direction} (${signal.strength})`, signal.reasons.slice(0, 3));
-      
+
+      prevSignalsRef.current.set(signalKey, now);
+
       // 자동매매 진입 실행 (새로운 기술적 분석 시그널 사용)
       autoTrading.handleTechnicalSignal(
         signal.symbol,
@@ -146,13 +148,11 @@ const Index = () => {
         signal.reasons,
         signal.indicators
       );
-      
+
       // 진입한 종목으로 차트 전환
       setSelectedSymbol(signal.symbol);
       break; // 한 번에 하나만 처리
     }
-    
-    prevSignalsRef.current = currentSignalKeys;
   }, [activeSignals, autoTrading.state.isEnabled, autoTrading.state.currentPosition, autoTrading.state.pendingSignal, shouldBlockLongEntry, shouldBlockShortEntry]);
   
   // 포지션 보유 중이거나 대기 중일 때 해당 종목 차트 유지
@@ -328,6 +328,13 @@ const Index = () => {
               onSelectSymbol={setSelectedSymbol}
               onBalanceChange={handleBalanceChange}
               refreshTrigger={refreshTrigger}
+              scanStatus={{
+                isScanning,
+                tickersCount: tickersForScreening.length,
+                screenedCount: screenedSymbols.length,
+                signalsCount: activeSignals.length,
+                lastScanTime,
+              }}
             />
           </div>
         </div>

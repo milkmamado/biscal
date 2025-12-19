@@ -59,6 +59,13 @@ interface AutoTradingPanelProps {
   onSelectSymbol?: (symbol: string) => void;
   onBalanceChange?: (balance: number) => void;
   refreshTrigger?: number;
+  scanStatus?: {
+    isScanning: boolean;
+    tickersCount: number;
+    screenedCount: number;
+    signalsCount: number;
+    lastScanTime: number;
+  };
 }
 
 const AutoTradingPanel = ({ 
@@ -76,6 +83,7 @@ const AutoTradingPanel = ({
   onSelectSymbol,
   onBalanceChange,
   refreshTrigger = 0,
+  scanStatus,
 }: AutoTradingPanelProps) => {
   const { isEnabled, isProcessing, currentPosition, pendingSignal, todayStats, tradeLogs, cooldownUntil, lossProtectionEnabled } = state;
   const { user, signOut } = useAuth();
@@ -576,6 +584,29 @@ const AutoTradingPanel = ({
       
       {/* Scalping Suitability Indicator */}
       <ScalpingIndicator />
+
+      {/* Scan Status (debug-friendly) */}
+      {isEnabled && scanStatus && (
+        <div className="mx-3 mt-2 px-3 py-2 rounded-md border border-border/50 bg-secondary/20">
+          <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+            <span>
+              스캔: <span className="text-foreground">{scanStatus.isScanning ? '분석중' : '대기'}</span>
+            </span>
+            <span>
+              후보 <span className="text-foreground">{scanStatus.tickersCount}</span>
+            </span>
+            <span>
+              통과 <span className="text-foreground">{scanStatus.screenedCount}</span>
+            </span>
+            <span>
+              시그널 <span className="text-foreground">{scanStatus.signalsCount}</span>
+            </span>
+          </div>
+          <div className="mt-1 text-[10px] text-muted-foreground text-center">
+            최근 스캔: {scanStatus.lastScanTime ? new Date(scanStatus.lastScanTime).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '-'}
+          </div>
+        </div>
+      )}
       
       {/* Status Message */}
       <div className={cn(
