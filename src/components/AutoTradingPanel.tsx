@@ -261,20 +261,46 @@ const AutoTradingPanel = ({
   const dailyPnLPercentStr = dailyPnLPercent.toFixed(2);
   
   return (
-    <div className="bg-card border border-border rounded-lg overflow-hidden flex flex-col w-full h-full">
+    <div className="relative overflow-hidden rounded-lg flex flex-col w-full h-full" style={{
+      background: 'linear-gradient(180deg, rgba(10,10,15,0.95) 0%, rgba(5,5,10,0.98) 100%)',
+      border: '1px solid rgba(0, 255, 255, 0.2)',
+      boxShadow: '0 0 20px rgba(0, 255, 255, 0.1), inset 0 0 30px rgba(0, 0, 0, 0.5)',
+    }}>
+      {/* 사이버펑크 배경 그리드 효과 */}
+      <div className="absolute inset-0 opacity-5" style={{
+        backgroundImage: `
+          linear-gradient(rgba(0, 255, 255, 0.3) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(0, 255, 255, 0.3) 1px, transparent 1px)
+        `,
+        backgroundSize: '20px 20px',
+      }} />
+      
       {/* Header */}
       <div className={cn(
-        "px-4 py-3 border-b border-border flex items-center justify-between",
-        isEnabled ? "bg-green-500/10" : "bg-secondary/50"
-      )}>
+        "relative z-10 px-4 py-3 flex items-center justify-between",
+        isEnabled 
+          ? "border-b border-cyan-500/30" 
+          : "border-b border-border/30"
+      )} style={{
+        background: isEnabled 
+          ? 'linear-gradient(90deg, rgba(0, 255, 136, 0.15) 0%, rgba(0, 255, 255, 0.1) 100%)'
+          : 'rgba(20, 20, 30, 0.5)',
+      }}>
         <div className="flex items-center gap-2">
           <Bot className={cn(
             "w-5 h-5",
-            isEnabled ? "text-green-500" : "text-muted-foreground"
-          )} />
-          <span className="font-semibold text-sm tracking-wide">System Trading</span>
+            isEnabled ? "text-cyan-400" : "text-gray-500"
+          )} style={{
+            filter: isEnabled ? 'drop-shadow(0 0 8px rgba(0, 255, 255, 0.8))' : 'none',
+          }} />
+          <span className="font-bold text-sm tracking-widest uppercase" style={{
+            color: isEnabled ? '#00ffff' : '#888',
+            textShadow: isEnabled ? '0 0 10px rgba(0, 255, 255, 0.8)' : 'none',
+          }}>System Trading</span>
           {isProcessing && (
-            <div className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" />
+            <div className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse" style={{
+              boxShadow: '0 0 10px rgba(255, 255, 0, 0.8)',
+            }} />
           )}
         </div>
         <div className="flex items-center gap-2">
@@ -282,11 +308,15 @@ const AutoTradingPanel = ({
           <button
             onClick={onToggleLossProtection}
             className={cn(
-              "p-1 rounded transition-colors",
+              "p-1.5 rounded transition-all",
               lossProtectionEnabled 
-                ? "bg-amber-500/20 text-amber-500 hover:bg-amber-500/30" 
-                : "hover:bg-secondary/50 text-muted-foreground hover:text-foreground"
+                ? "text-amber-400" 
+                : "text-gray-500 hover:text-gray-300"
             )}
+            style={{
+              background: lossProtectionEnabled ? 'rgba(255, 191, 0, 0.2)' : 'transparent',
+              boxShadow: lossProtectionEnabled ? '0 0 10px rgba(255, 191, 0, 0.4)' : 'none',
+            }}
             title={lossProtectionEnabled ? "연속 손실 보호 ON (5연패시 60분 휴식)" : "연속 손실 보호 OFF"}
           >
             {lossProtectionEnabled ? <Shield className="w-4 h-4" /> : <ShieldOff className="w-4 h-4" />}
@@ -294,7 +324,11 @@ const AutoTradingPanel = ({
           {cooldownRemaining && (
             <button 
               onClick={onClearCooldown}
-              className="text-[10px] text-yellow-500 flex items-center gap-1 hover:bg-yellow-500/20 px-1.5 py-0.5 rounded"
+              className="text-[10px] text-yellow-400 flex items-center gap-1 px-2 py-1 rounded"
+              style={{
+                background: 'rgba(255, 255, 0, 0.1)',
+                border: '1px solid rgba(255, 255, 0, 0.3)',
+              }}
               title="클릭하여 휴식 해제"
             >
               <Clock className="w-3 h-3" />
@@ -304,11 +338,17 @@ const AutoTradingPanel = ({
           <Switch
             checked={isEnabled}
             onCheckedChange={onToggle}
-            className="data-[state=checked]:bg-green-500"
+            className="data-[state=checked]:bg-cyan-500"
+            style={{
+              boxShadow: isEnabled ? '0 0 10px rgba(0, 255, 255, 0.5)' : 'none',
+            }}
           />
           <button
             onClick={handleSignOut}
-            className="p-1 rounded hover:bg-secondary/50 text-muted-foreground hover:text-foreground transition-colors"
+            className="p-1.5 rounded text-gray-500 hover:text-pink-400 transition-colors"
+            style={{
+              background: 'rgba(255, 0, 136, 0.1)',
+            }}
             title="로그아웃"
           >
             <LogOut className="w-4 h-4" />
@@ -317,33 +357,44 @@ const AutoTradingPanel = ({
       </div>
       
       {/* Balance Section */}
-      <div className="px-3 py-2 border-b border-border bg-secondary/20">
+      <div className="relative z-10 px-3 py-3" style={{
+        background: 'linear-gradient(180deg, rgba(0, 255, 255, 0.05) 0%, transparent 100%)',
+        borderBottom: '1px solid rgba(0, 255, 255, 0.15)',
+      }}>
         <div className="grid grid-cols-2 gap-2">
           <div>
             <div className="flex items-center gap-1">
-              <Wallet className="w-4 h-4 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground">잔고</span>
-              <button onClick={fetchRealBalance} className="p-0.5 hover:bg-secondary rounded">
-                <RefreshCw className={cn("w-3 h-3 text-muted-foreground", balanceLoading && "animate-spin")} />
+              <Wallet className="w-4 h-4 text-cyan-400" />
+              <span className="text-xs text-cyan-400/70">잔고</span>
+              <button onClick={fetchRealBalance} className="p-0.5 hover:bg-cyan-500/20 rounded">
+                <RefreshCw className={cn("w-3 h-3 text-cyan-400", balanceLoading && "animate-spin")} />
               </button>
             </div>
-            <div className="text-base font-bold font-mono">{balanceLoading ? '...' : `₩${formatKRW(balanceUSD)}`}</div>
+            <div className="text-lg font-bold font-mono text-cyan-300" style={{
+              textShadow: '0 0 10px rgba(0, 255, 255, 0.5)',
+            }}>{balanceLoading ? '...' : `₩${formatKRW(balanceUSD)}`}</div>
           </div>
           <div className="text-right">
-            <span className="text-xs text-muted-foreground">수익률</span>
+            <span className="text-xs text-pink-400/70">수익률</span>
             <div className={cn(
-              "text-base font-bold font-mono",
-              dailyPnLPercent >= 5 ? "text-green-400" : 
-              dailyPnLPercent >= 0 ? "text-red-400" : "text-blue-400"
-            )}>
+              "text-lg font-bold font-mono"
+            )} style={{
+              color: dailyPnLPercent >= 0 ? '#00ff88' : '#ff0088',
+              textShadow: dailyPnLPercent >= 0 ? '0 0 10px rgba(0, 255, 136, 0.6)' : '0 0 10px rgba(255, 0, 136, 0.6)',
+            }}>
               {dailyPnL >= 0 ? '+' : ''}{dailyPnLPercentStr}%
             </div>
           </div>
         </div>
-        <div className="flex items-center justify-between mt-2 pt-2 border-t border-border/30">
+        <div className="flex items-center justify-between mt-2 pt-2" style={{
+          borderTop: '1px solid rgba(0, 255, 255, 0.1)',
+        }}>
           <div>
-            <span className="text-[10px] text-muted-foreground">실현손익</span>
-            <div className={cn("text-sm font-mono font-semibold", todayRealizedPnL >= 0 ? "text-red-400" : "text-blue-400")}>
+            <span className="text-[10px] text-gray-500">실현손익</span>
+            <div className="text-sm font-mono font-semibold" style={{
+              color: todayRealizedPnL >= 0 ? '#00ff88' : '#ff0088',
+              textShadow: todayRealizedPnL >= 0 ? '0 0 8px rgba(0, 255, 136, 0.5)' : '0 0 8px rgba(255, 0, 136, 0.5)',
+            }}>
               {todayRealizedPnL >= 0 ? '+' : ''}₩{formatKRW(todayRealizedPnL)}
             </div>
           </div>
@@ -360,9 +411,12 @@ const AutoTradingPanel = ({
       </div>
       
       {/* Leverage Setting */}
-      <div className="px-4 py-2 border-b border-border bg-secondary/30">
+      <div className="relative z-10 px-4 py-2" style={{
+        background: 'rgba(20, 20, 30, 0.5)',
+        borderBottom: '1px solid rgba(0, 255, 255, 0.1)',
+      }}>
         <div className="flex items-center justify-between">
-          <span className="text-xs text-muted-foreground">레버리지</span>
+          <span className="text-xs text-cyan-400/70">레버리지</span>
           <div className="flex gap-1.5">
             {LEVERAGE_OPTIONS.map((lev) => (
               <button
@@ -370,12 +424,19 @@ const AutoTradingPanel = ({
                 onClick={() => onLeverageChange(lev)}
                 disabled={isEnabled || !!currentPosition}
                 className={cn(
-                  "px-3 py-1 text-xs font-mono rounded transition-colors",
-                  leverage === lev 
-                    ? "bg-primary text-primary-foreground" 
-                    : "bg-secondary hover:bg-secondary/80",
+                  "px-3 py-1 text-xs font-mono rounded transition-all",
                   (isEnabled || currentPosition) && "opacity-50 cursor-not-allowed"
                 )}
+                style={{
+                  background: leverage === lev 
+                    ? 'linear-gradient(180deg, rgba(0, 255, 255, 0.3) 0%, rgba(0, 255, 255, 0.1) 100%)'
+                    : 'rgba(40, 40, 60, 0.5)',
+                  border: leverage === lev 
+                    ? '1px solid rgba(0, 255, 255, 0.5)'
+                    : '1px solid rgba(100, 100, 120, 0.3)',
+                  color: leverage === lev ? '#00ffff' : '#888',
+                  boxShadow: leverage === lev ? '0 0 10px rgba(0, 255, 255, 0.3)' : 'none',
+                }}
               >
                 {lev}x
               </button>
@@ -385,26 +446,29 @@ const AutoTradingPanel = ({
       </div>
       
       {/* Today Stats */}
-      <div className="px-4 py-3 border-b border-border bg-secondary/20">
+      <div className="relative z-10 px-4 py-3" style={{
+        background: 'rgba(15, 15, 25, 0.5)',
+        borderBottom: '1px solid rgba(0, 255, 255, 0.1)',
+      }}>
         <div className="grid grid-cols-3 gap-3 text-center">
           <div>
-            <p className="text-xs text-muted-foreground">거래</p>
-            <p className="text-base font-bold font-mono">{todayStats.trades}</p>
+            <p className="text-xs text-gray-500">거래</p>
+            <p className="text-base font-bold font-mono text-cyan-300">{todayStats.trades}</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">승/패</p>
+            <p className="text-xs text-gray-500">승/패</p>
             <p className="text-base font-bold font-mono">
-              <span className="text-green-500">{todayStats.wins}</span>
-              /
-              <span className="text-red-500">{todayStats.losses}</span>
+              <span style={{ color: '#00ff88', textShadow: '0 0 8px rgba(0, 255, 136, 0.5)' }}>{todayStats.wins}</span>
+              <span className="text-gray-600">/</span>
+              <span style={{ color: '#ff0088', textShadow: '0 0 8px rgba(255, 0, 136, 0.5)' }}>{todayStats.losses}</span>
             </p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">승률</p>
-            <p className={cn(
-              "text-base font-bold font-mono",
-              parseFloat(winRate) >= 50 ? "text-green-500" : "text-red-500"
-            )}>
+            <p className="text-xs text-gray-500">승률</p>
+            <p className="text-base font-bold font-mono" style={{
+              color: parseFloat(winRate) >= 50 ? '#00ff88' : '#ff0088',
+              textShadow: parseFloat(winRate) >= 50 ? '0 0 8px rgba(0, 255, 136, 0.5)' : '0 0 8px rgba(255, 0, 136, 0.5)',
+            }}>
               {winRate}%
             </p>
           </div>
@@ -419,23 +483,33 @@ const AutoTradingPanel = ({
       
       {/* Pending Signal */}
       {pendingSignal && !currentPosition && (
-        <div className="px-4 py-3 border-b border-border bg-yellow-500/10">
+        <div className="relative z-10 px-4 py-3" style={{
+          background: 'linear-gradient(90deg, rgba(255, 255, 0, 0.1) 0%, rgba(255, 200, 0, 0.05) 100%)',
+          borderBottom: '1px solid rgba(255, 255, 0, 0.2)',
+        }}>
           <div className="flex items-center justify-between">
             <div 
               className="flex items-center gap-2 cursor-pointer hover:opacity-80"
               onClick={() => onSelectSymbol?.(pendingSignal.symbol)}
             >
-              <Clock className="w-4 h-4 text-yellow-500 animate-pulse" />
-              <span className="font-semibold text-sm text-yellow-500">
+              <Clock className="w-4 h-4 text-yellow-400 animate-pulse" style={{
+                filter: 'drop-shadow(0 0 6px rgba(255, 255, 0, 0.8))',
+              }} />
+              <span className="font-semibold text-sm" style={{
+                color: '#ffff00',
+                textShadow: '0 0 8px rgba(255, 255, 0, 0.6)',
+              }}>
                 {pendingSignal.symbol} {pendingSignal.direction === 'short' ? '숏' : '롱'} 대기
               </span>
               {/* 시그널 강도 배지 */}
-              <span className={cn(
-                "text-[9px] px-1.5 py-0.5 rounded font-semibold",
-                pendingSignal.strength === 'strong' ? "bg-green-500/20 text-green-400" :
-                pendingSignal.strength === 'medium' ? "bg-yellow-500/20 text-yellow-400" :
-                "bg-gray-500/20 text-gray-400"
-              )}>
+              <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold" style={{
+                background: pendingSignal.strength === 'strong' ? 'rgba(0, 255, 136, 0.2)' :
+                  pendingSignal.strength === 'medium' ? 'rgba(255, 255, 0, 0.2)' : 'rgba(100, 100, 100, 0.2)',
+                color: pendingSignal.strength === 'strong' ? '#00ff88' :
+                  pendingSignal.strength === 'medium' ? '#ffff00' : '#888',
+                border: `1px solid ${pendingSignal.strength === 'strong' ? 'rgba(0, 255, 136, 0.4)' :
+                  pendingSignal.strength === 'medium' ? 'rgba(255, 255, 0, 0.4)' : 'rgba(100, 100, 100, 0.4)'}`,
+              }}>
                 {pendingSignal.strength === 'strong' ? '강함' : pendingSignal.strength === 'medium' ? '보통' : '약함'}
               </span>
             </div>
@@ -445,7 +519,12 @@ const AutoTradingPanel = ({
                   size="sm"
                   variant="outline"
                   onClick={onSwapSignal}
-                  className="h-6 px-2 text-[10px] border-blue-500/50 text-blue-400 hover:bg-blue-500/20"
+                  className="h-6 px-2 text-[10px]"
+                  style={{
+                    background: 'rgba(0, 255, 255, 0.1)',
+                    border: '1px solid rgba(0, 255, 255, 0.3)',
+                    color: '#00ffff',
+                  }}
                 >
                   🔄
                 </Button>
@@ -454,20 +533,29 @@ const AutoTradingPanel = ({
                 size="sm"
                 variant="outline"
                 onClick={onSkipSignal}
-                className="h-6 px-2 text-[10px] border-yellow-500/50 text-yellow-500 hover:bg-yellow-500/20"
+                className="h-6 px-2 text-[10px]"
+                style={{
+                  background: 'rgba(255, 0, 136, 0.1)',
+                  border: '1px solid rgba(255, 0, 136, 0.3)',
+                  color: '#ff0088',
+                }}
               >
                 패스
               </Button>
             </div>
           </div>
-          <div className="mt-1 text-[10px] text-muted-foreground">
+          <div className="mt-1 text-[10px] text-gray-400">
             시그널 @ ${pendingSignal.signalPrice.toFixed(4)} | 봉 완성 대기 중
           </div>
           {/* 시그널 근거 표시 */}
           {pendingSignal.reasons && pendingSignal.reasons.length > 0 && (
             <div className="mt-1.5 flex flex-wrap gap-1">
               {pendingSignal.reasons.slice(0, 3).map((reason, idx) => (
-                <span key={idx} className="text-[9px] px-1.5 py-0.5 bg-secondary/50 rounded text-muted-foreground">
+                <span key={idx} className="text-[9px] px-1.5 py-0.5 rounded" style={{
+                  background: 'rgba(0, 255, 255, 0.1)',
+                  border: '1px solid rgba(0, 255, 255, 0.2)',
+                  color: '#00cccc',
+                }}>
                   {reason}
                 </span>
               ))}
@@ -478,48 +566,65 @@ const AutoTradingPanel = ({
       
       {/* Current Position */}
       {currentPosition && (
-        <div className={cn(
-          "px-4 py-3 border-b border-border",
-          currentPosition.side === 'long' ? "bg-red-500/5" : "bg-blue-500/5"
-        )}>
+        <div className="relative z-10 px-4 py-3" style={{
+          background: currentPosition.side === 'long' 
+            ? 'linear-gradient(90deg, rgba(0, 255, 136, 0.1) 0%, transparent 100%)'
+            : 'linear-gradient(90deg, rgba(255, 0, 136, 0.1) 0%, transparent 100%)',
+          borderBottom: `1px solid ${currentPosition.side === 'long' ? 'rgba(0, 255, 136, 0.2)' : 'rgba(255, 0, 136, 0.2)'}`,
+        }}>
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
               {currentPosition.side === 'long' ? (
-                <TrendingUp className="w-4 h-4 text-red-500" />
+                <TrendingUp className="w-4 h-4" style={{ color: '#00ff88', filter: 'drop-shadow(0 0 6px rgba(0, 255, 136, 0.8))' }} />
               ) : (
-                <TrendingDown className="w-4 h-4 text-blue-500" />
+                <TrendingDown className="w-4 h-4" style={{ color: '#ff0088', filter: 'drop-shadow(0 0 6px rgba(255, 0, 136, 0.8))' }} />
               )}
-              <span className="font-semibold text-sm">
+              <span className="font-semibold text-sm" style={{
+                color: currentPosition.side === 'long' ? '#00ff88' : '#ff0088',
+                textShadow: currentPosition.side === 'long' ? '0 0 8px rgba(0, 255, 136, 0.5)' : '0 0 8px rgba(255, 0, 136, 0.5)',
+              }}>
                 {currentPosition.symbol.replace('USDT', '')} {currentPosition.side === 'long' ? '롱' : '숏'}
               </span>
             </div>
-            <span className={cn(
-              "text-sm font-bold font-mono",
-              currentPnL >= 0 ? "text-green-500" : "text-red-500"
-            )}>
+            <span className="text-sm font-bold font-mono" style={{
+              color: currentPnL >= 0 ? '#00ff88' : '#ff0088',
+              textShadow: currentPnL >= 0 ? '0 0 10px rgba(0, 255, 136, 0.6)' : '0 0 10px rgba(255, 0, 136, 0.6)',
+            }}>
               {currentPnL >= 0 ? '+' : ''}₩{formatKRW(currentPnL)}
             </span>
           </div>
-          <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+          <div className="flex items-center justify-between text-[10px] text-gray-400">
             <span>진입가: ${formatPrice(currentPosition.entryPrice)}</span>
             <span>수량: {currentPosition.remainingQuantity.toFixed(4)}</span>
           </div>
           {/* 익절/손절 목표 */}
           <div className="mt-2 flex items-center gap-2 flex-wrap">
-            <span className="text-[10px] text-muted-foreground">목표:</span>
-            <span className="text-[11px] px-2 py-1 rounded bg-green-500/20 text-green-400 font-mono">
+            <span className="text-[10px] text-gray-500">목표:</span>
+            <span className="text-[11px] px-2 py-1 rounded font-mono" style={{
+              background: 'rgba(0, 255, 136, 0.15)',
+              border: '1px solid rgba(0, 255, 136, 0.3)',
+              color: '#00ff88',
+            }}>
               TP +0.25%
             </span>
             {currentPosition.takeProfitState?.breakEvenActivated ? (
-              <span className="text-[11px] px-2 py-1 rounded bg-blue-500/20 text-blue-400 font-mono">
+              <span className="text-[11px] px-2 py-1 rounded font-mono" style={{
+                background: 'rgba(0, 255, 255, 0.15)',
+                border: '1px solid rgba(0, 255, 255, 0.3)',
+                color: '#00ffff',
+              }}>
                 BE +0.02%
               </span>
             ) : (
-              <span className="text-[11px] px-2 py-1 rounded bg-red-500/20 text-red-400 font-mono">
+              <span className="text-[11px] px-2 py-1 rounded font-mono" style={{
+                background: 'rgba(255, 0, 136, 0.15)',
+                border: '1px solid rgba(255, 0, 136, 0.3)',
+                color: '#ff0088',
+              }}>
                 SL -0.25%
               </span>
             )}
-            <span className="text-[10px] text-muted-foreground">
+            <span className="text-[10px] text-gray-500">
               {currentPosition.takeProfitState?.breakEvenActivated ? '(브레이크이븐)' : '(30초 보호)'}
             </span>
           </div>
@@ -530,6 +635,11 @@ const AutoTradingPanel = ({
                 size="sm"
                 onClick={onManualClose}
                 className="w-full h-8 text-sm font-semibold"
+                style={{
+                  background: 'linear-gradient(90deg, rgba(255, 0, 136, 0.8) 0%, rgba(255, 50, 100, 0.8) 100%)',
+                  border: '1px solid rgba(255, 0, 136, 0.5)',
+                  boxShadow: '0 0 15px rgba(255, 0, 136, 0.4)',
+                }}
                 disabled={isProcessing}
               >
                 {isProcessing ? '처리중...' : '즉시 청산'}
@@ -540,15 +650,15 @@ const AutoTradingPanel = ({
       )}
       
       {/* Trade Logs */}
-      <div className="px-3 py-2 flex-1 flex flex-col min-h-0">
+      <div className="relative z-10 px-3 py-2 flex-1 flex flex-col min-h-0">
         <div className="flex items-center gap-1.5 px-2 mb-2">
-          <Activity className="w-4 h-4 text-muted-foreground" />
-          <span className="text-xs text-muted-foreground font-medium">매매 로그</span>
+          <Activity className="w-4 h-4 text-cyan-400" />
+          <span className="text-xs text-cyan-400/70 font-medium">매매 로그</span>
         </div>
         <div className="overflow-y-auto space-y-1.5 max-h-[160px]">
           {tradeLogs.length === 0 ? (
-            <div className="text-center py-4 text-xs text-muted-foreground">
-              {isEnabled ? '기술적 분석 시그널 대기 중...' : '자동매매를 시작하세요'}
+            <div className="text-center py-4 text-xs text-gray-500">
+              {isEnabled ? '🔍 기술적 분석 시그널 대기 중...' : '자동매매를 시작하세요'}
             </div>
           ) : (
             tradeLogs.slice(0, 50).map((log) => (
@@ -568,42 +678,55 @@ const AutoTradingPanel = ({
 
       {/* Scan Status (debug-friendly) */}
       {isEnabled && scanStatus && (
-        <div className="mx-3 mt-2 px-3 py-2 rounded-md border border-border/50 bg-secondary/20">
-          <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+        <div className="relative z-10 mx-3 mt-2 px-3 py-2 rounded-md" style={{
+          background: 'rgba(0, 255, 255, 0.05)',
+          border: '1px solid rgba(0, 255, 255, 0.15)',
+        }}>
+          <div className="flex items-center justify-between text-[10px] text-gray-500">
             <span>
-              스캔: <span className="text-foreground">{scanStatus.isScanning ? '분석중' : '대기'}</span>
+              스캔: <span className="text-cyan-400">{scanStatus.isScanning ? '분석중' : '대기'}</span>
             </span>
             <span>
-              후보 <span className="text-foreground">{scanStatus.tickersCount}</span>
+              후보 <span className="text-cyan-400">{scanStatus.tickersCount}</span>
             </span>
             <span>
-              통과 <span className="text-foreground">{scanStatus.screenedCount}</span>
+              통과 <span className="text-cyan-400">{scanStatus.screenedCount}</span>
             </span>
             <span>
-              시그널 <span className="text-foreground">{scanStatus.signalsCount}</span>
+              시그널 <span className="text-cyan-400">{scanStatus.signalsCount}</span>
             </span>
           </div>
-          <div className="mt-1 text-[10px] text-muted-foreground text-center">
+          <div className="mt-1 text-[10px] text-gray-500 text-center">
             최근 스캔: {scanStatus.lastScanTime ? new Date(scanStatus.lastScanTime).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '-'}
           </div>
         </div>
       )}
       
       {/* Status Message */}
-      <div className={cn(
-        "mx-3 mb-3 px-3 py-2 rounded-md text-xs font-medium text-center",
-        state.currentPosition ? "bg-green-500/10 text-green-400 border border-green-500/30" :
-        state.pendingSignal ? "bg-yellow-500/10 text-yellow-400 border border-yellow-500/30" :
-        isEnabled ? "bg-blue-500/10 text-blue-400 border border-blue-500/30" :
-        "bg-secondary/50 text-muted-foreground border border-border"
-      )}>
+      <div className="relative z-10 mx-3 mb-3 px-3 py-2 rounded-md text-xs font-medium text-center" style={{
+        background: state.currentPosition ? 'rgba(0, 255, 136, 0.1)' :
+          state.pendingSignal ? 'rgba(255, 255, 0, 0.1)' :
+          isEnabled ? 'rgba(0, 255, 255, 0.1)' : 'rgba(50, 50, 70, 0.5)',
+        border: `1px solid ${state.currentPosition ? 'rgba(0, 255, 136, 0.3)' :
+          state.pendingSignal ? 'rgba(255, 255, 0, 0.3)' :
+          isEnabled ? 'rgba(0, 255, 255, 0.3)' : 'rgba(100, 100, 120, 0.3)'}`,
+        color: state.currentPosition ? '#00ff88' :
+          state.pendingSignal ? '#ffff00' :
+          isEnabled ? '#00ffff' : '#888',
+        textShadow: state.currentPosition ? '0 0 8px rgba(0, 255, 136, 0.5)' :
+          state.pendingSignal ? '0 0 8px rgba(255, 255, 0, 0.5)' :
+          isEnabled ? '0 0 8px rgba(0, 255, 255, 0.5)' : 'none',
+      }}>
         {state.statusMessage || (isEnabled ? '🔍 기술적 분석 스캔 중...' : '자동매매를 시작하세요')}
       </div>
       
       {/* Warning */}
       {!isEnabled && (
-        <div className="px-4 py-2 bg-yellow-500/10 border-t border-yellow-500/20">
-          <div className="flex items-center gap-2 text-[10px] text-yellow-600">
+        <div className="relative z-10 px-4 py-2" style={{
+          background: 'rgba(255, 200, 0, 0.1)',
+          borderTop: '1px solid rgba(255, 200, 0, 0.2)',
+        }}>
+          <div className="flex items-center gap-2 text-[10px]" style={{ color: '#ffcc00' }}>
             <AlertTriangle className="w-3 h-3" />
             <span>자동매매 비활성화 상태</span>
           </div>
@@ -624,12 +747,24 @@ const ScalpingIndicator = () => {
     return () => clearInterval(interval);
   }, []);
   
+  const getStarColor = (stars: number) => {
+    if (stars >= 4) return '#00ff88';
+    if (stars >= 2) return '#ffff00';
+    return '#ff0088';
+  };
+  
   return (
-    <div className="mx-3 px-3 py-2 bg-secondary/30 rounded-md border border-border/50">
+    <div className="relative z-10 mx-3 px-3 py-2 rounded-md" style={{
+      background: 'rgba(0, 255, 255, 0.05)',
+      border: '1px solid rgba(0, 255, 255, 0.15)',
+    }}>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5">
-          <span className="text-[10px] text-muted-foreground">스캘핑 적합도</span>
-          <span className={cn("text-[10px] font-semibold", rating.color)}>
+          <span className="text-[10px] text-gray-500">스캘핑 적합도</span>
+          <span className="text-[10px] font-semibold" style={{
+            color: getStarColor(rating.stars),
+            textShadow: `0 0 6px ${getStarColor(rating.stars)}80`,
+          }}>
             {rating.label}
           </span>
         </div>
@@ -637,17 +772,19 @@ const ScalpingIndicator = () => {
           {[1, 2, 3, 4, 5].map((i) => (
             <Star
               key={i}
-              className={cn(
-                "w-3 h-3",
-                i <= rating.stars ? "text-yellow-500 fill-yellow-500" : "text-gray-600"
-              )}
+              className="w-3 h-3"
+              style={{
+                color: i <= rating.stars ? getStarColor(rating.stars) : '#333',
+                fill: i <= rating.stars ? getStarColor(rating.stars) : 'transparent',
+                filter: i <= rating.stars ? `drop-shadow(0 0 4px ${getStarColor(rating.stars)}80)` : 'none',
+              }}
             />
           ))}
         </div>
       </div>
-      <div className="flex items-center gap-3 mt-1 text-[9px] text-muted-foreground">
-        <span>거래량: <span className={rating.color}>{rating.volume}</span></span>
-        <span>변동성: <span className={rating.color}>{rating.volatility}</span></span>
+      <div className="flex items-center gap-3 mt-1 text-[9px] text-gray-500">
+        <span>거래량: <span style={{ color: getStarColor(rating.stars) }}>{rating.volume}</span></span>
+        <span>변동성: <span style={{ color: getStarColor(rating.stars) }}>{rating.volatility}</span></span>
       </div>
     </div>
   );
@@ -717,30 +854,34 @@ const TradeLogItem = ({ log, krwRate, onSelectSymbol }: {
   return (
     <div 
       onClick={() => onSelectSymbol?.(log.symbol)}
-      className={cn(
-        "px-3 py-2 rounded text-xs cursor-pointer hover:ring-1 hover:ring-primary/50 transition-all",
-        log.action === 'error' ? "bg-red-500/10" : 
-        log.action === 'cancel' ? "bg-yellow-500/10" :
-        log.action === 'pending' ? "bg-blue-500/10" :
-        "bg-secondary/50"
-      )}
+      className="px-3 py-2 rounded text-xs cursor-pointer transition-all"
+      style={{
+        background: log.action === 'error' ? 'rgba(255, 0, 136, 0.1)' : 
+          log.action === 'cancel' ? 'rgba(255, 255, 0, 0.1)' :
+          log.action === 'pending' ? 'rgba(0, 255, 255, 0.1)' :
+          'rgba(30, 30, 45, 0.5)',
+        border: `1px solid ${log.action === 'error' ? 'rgba(255, 0, 136, 0.2)' : 
+          log.action === 'cancel' ? 'rgba(255, 255, 0, 0.2)' :
+          log.action === 'pending' ? 'rgba(0, 255, 255, 0.2)' :
+          'rgba(0, 255, 255, 0.1)'}`,
+      }}
     >
       <div className="flex items-center gap-2">
         <span className="text-sm">{getActionIcon()}</span>
-        <span className="text-muted-foreground">{formatTime(log.timestamp)}</span>
-        <span className="font-semibold text-primary">{log.symbol.replace('USDT', '')}</span>
-        <span>{getActionText()}</span>
+        <span className="text-gray-500">{formatTime(log.timestamp)}</span>
+        <span className="font-semibold" style={{ color: '#00ffff' }}>{log.symbol.replace('USDT', '')}</span>
+        <span className="text-gray-400">{getActionText()}</span>
         {log.pnl !== undefined && (
-          <span className={cn(
-            "font-mono ml-auto font-semibold",
-            log.pnl >= 0 ? "text-green-500" : "text-red-500"
-          )}>
+          <span className="font-mono ml-auto font-semibold" style={{
+            color: log.pnl >= 0 ? '#00ff88' : '#ff0088',
+            textShadow: log.pnl >= 0 ? '0 0 6px rgba(0, 255, 136, 0.5)' : '0 0 6px rgba(255, 0, 136, 0.5)',
+          }}>
             {log.pnl >= 0 ? '+' : ''}₩{formatKRW(log.pnl)}
           </span>
         )}
       </div>
       {showReason && log.reason && (
-        <div className="mt-1 ml-6 text-[10px] text-muted-foreground truncate">
+        <div className="mt-1 ml-6 text-[10px] text-gray-500 truncate">
           → {log.reason}
         </div>
       )}
