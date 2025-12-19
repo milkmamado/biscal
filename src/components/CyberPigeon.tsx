@@ -1,257 +1,205 @@
 import { useEffect, useState } from 'react';
 
-interface Chaser {
-  id: number;
-  x: number;
-  y: number;
-  type: 'bikini' | 'michael' | 'jason';
-}
-
 const CyberPigeon = () => {
-  const [chasers, setChasers] = useState<Chaser[]>([]);
-  const [runFrame, setRunFrame] = useState(0);
+  const [glitchFrame, setGlitchFrame] = useState(0);
+  const [flicker, setFlicker] = useState(false);
 
-  // 캐릭터들 생성
+  // 글리치 애니메이션
   useEffect(() => {
-    const createChasers = () => {
-      const baseY = 55 + Math.random() * 10;
-      const newChasers: Chaser[] = [
-        { id: Date.now() + 1, x: -30, y: baseY, type: 'bikini' },
-        { id: Date.now() + 2, x: -55, y: baseY + 5, type: 'michael' },
-        { id: Date.now() + 3, x: -80, y: baseY + 2, type: 'jason' },
-      ];
-      setChasers(prev => [...prev.slice(-6), ...newChasers]);
-    };
-
-    createChasers();
-    const interval = setInterval(createChasers, 15000 + Math.random() * 5000);
-    return () => clearInterval(interval);
+    const glitchInterval = setInterval(() => {
+      setGlitchFrame(prev => (prev + 1) % 10);
+    }, 150);
+    return () => clearInterval(glitchInterval);
   }, []);
 
-  // 캐릭터 이동
+  // 깜빡임 효과
   useEffect(() => {
-    const moveInterval = setInterval(() => {
-      setChasers(prev =>
-        prev
-          .map(c => ({ ...c, x: c.x + 0.25 }))
-          .filter(c => c.x < 110)
-      );
-    }, 50);
-    return () => clearInterval(moveInterval);
+    const flickerInterval = setInterval(() => {
+      if (Math.random() > 0.7) {
+        setFlicker(true);
+        setTimeout(() => setFlicker(false), 50 + Math.random() * 100);
+      }
+    }, 2000);
+    return () => clearInterval(flickerInterval);
   }, []);
 
-  // 달리기 애니메이션
-  useEffect(() => {
-    const runInterval = setInterval(() => {
-      setRunFrame(prev => (prev + 1) % 4);
-    }, 120);
-    return () => clearInterval(runInterval);
-  }, []);
-
-  const renderChaser = (chaser: Chaser) => {
-    const legOffset = runFrame % 2 === 0 ? 0 : 4;
-    const armSwing = runFrame % 2 === 0 ? -3 : 3;
-
-    if (chaser.type === 'bikini') {
-      // 비키니 여성 - 금발 + 핑크 비키니
-      return (
-        <svg width="60" height="100" viewBox="0 0 60 100" className="drop-shadow-[0_0_10px_rgba(255,105,180,0.9)]">
-          {/* 금발 머리카락 */}
-          <rect x="18" y="0" width="24" height="6" fill="#FFD700" />
-          <rect x="15" y="6" width="30" height="6" fill="#FFD700" />
-          <rect x="12" y="12" width="10" height="24" fill="#FFD700" />
-          <rect x="38" y="12" width="10" height="24" fill="#FFD700" />
-          
-          {/* 얼굴 */}
-          <rect x="18" y="6" width="24" height="22" fill="#FFD5C2" />
-          
-          {/* 눈 */}
-          <rect x="21" y="12" width="6" height="5" fill="#4169E1" />
-          <rect x="33" y="12" width="6" height="5" fill="#4169E1" />
-          <rect x="23" y="14" width="3" height="2" fill="#000" />
-          <rect x="35" y="14" width="3" height="2" fill="#000" />
-          
-          {/* 속눈썹 */}
-          <rect x="21" y="11" width="6" height="1" fill="#000" />
-          <rect x="33" y="11" width="6" height="1" fill="#000" />
-          
-          {/* 입 (놀란 표정) */}
-          <rect x="26" y="22" width="8" height="4" fill="#FF6B6B" />
-          
-          {/* 목 */}
-          <rect x="24" y="28" width="12" height="6" fill="#FFD5C2" />
-          
-          {/* 비키니 상의 - 핫핑크 */}
-          <rect x="15" y="34" width="12" height="10" fill="#FF1493" />
-          <rect x="33" y="34" width="12" height="10" fill="#FF1493" />
-          <rect x="27" y="36" width="6" height="3" fill="#FF1493" />
-          
-          {/* 몸통 (배) */}
-          <rect x="18" y="44" width="24" height="12" fill="#FFD5C2" />
-          
-          {/* 비키니 하의 - 핫핑크 */}
-          <rect x="18" y="56" width="24" height="10" fill="#FF1493" />
-          
-          {/* 팔 (달리는 동작) */}
-          <rect x={6 + armSwing} y="34" width="9" height="22" fill="#FFD5C2" />
-          <rect x={45 - armSwing} y="34" width="9" height="22" fill="#FFD5C2" />
-          
-          {/* 다리 (달리는 동작) */}
-          <rect x="18" y={66 + legOffset} width="9" height="24" fill="#FFD5C2" />
-          <rect x="33" y={66 - legOffset + 4} width="9" height="24" fill="#FFD5C2" />
-          
-          {/* 하이힐 */}
-          <rect x="15" y={90 + legOffset} width="12" height="6" fill="#FF1493" />
-          <rect x="12" y={93 + legOffset} width="6" height="5" fill="#FF1493" />
-          <rect x="33" y={90 - legOffset + 4} width="12" height="6" fill="#FF1493" />
-          <rect x="42" y={93 - legOffset + 4} width="6" height="5" fill="#FF1493" />
-        </svg>
-      );
-    }
-
-    if (chaser.type === 'michael') {
-      // 마이클 마이어스 - 특징적인 하얀 마스크 + 검은 눈 + 칼
-      return (
-        <svg width="66" height="110" viewBox="0 0 66 110" className="drop-shadow-[0_0_10px_rgba(200,200,200,0.8)]">
-          {/* 갈색 머리카락 */}
-          <rect x="15" y="0" width="36" height="9" fill="#3D2314" />
-          <rect x="12" y="6" width="9" height="15" fill="#3D2314" />
-          <rect x="45" y="6" width="9" height="15" fill="#3D2314" />
-          
-          {/* 하얀 마스크 - 핵심 특징! */}
-          <rect x="15" y="6" width="36" height="33" fill="#F5F5F0" />
-          
-          {/* 검은 눈구멍 - 무표정한 공포 */}
-          <rect x="20" y="15" width="9" height="8" fill="#000000" />
-          <rect x="38" y="15" width="9" height="8" fill="#000000" />
-          
-          {/* 코 그림자 */}
-          <rect x="30" y="21" width="6" height="9" fill="#E5E5E0" />
-          
-          {/* 입 (무표정) */}
-          <rect x="24" y="32" width="18" height="3" fill="#CCCCCC" />
-          
-          {/* 목 */}
-          <rect x="24" y="39" width="18" height="6" fill="#F5F5F0" />
-          
-          {/* 네이비 점프수트 상체 */}
-          <rect x="12" y="45" width="42" height="27" fill="#1C3A5F" />
-          
-          {/* 팔 (점프수트) */}
-          <rect x={3 + armSwing} y="45" width="12" height="27" fill="#1C3A5F" />
-          <rect x={51 - armSwing} y="45" width="12" height="27" fill="#1C3A5F" />
-          
-          {/* 손 */}
-          <rect x={3 + armSwing} y="69" width="9" height="9" fill="#F5F5F0" />
-          <rect x={54 - armSwing} y="69" width="9" height="9" fill="#F5F5F0" />
-          
-          {/* 큰 부엌칼! */}
-          <rect x={57 - armSwing} y="57" width="6" height="30" fill="#C0C0C0" />
-          <rect x={55 - armSwing} y="84" width="9" height="9" fill="#4A3728" />
-          
-          {/* 네이비 점프수트 하체 */}
-          <rect x="15" y={72 + legOffset} width="15" height="24" fill="#1C3A5F" />
-          <rect x="36" y={72 - legOffset + 4} width="15" height="24" fill="#1C3A5F" />
-          
-          {/* 검은 부츠 */}
-          <rect x="12" y={96 + legOffset} width="18" height="9" fill="#000000" />
-          <rect x="36" y={96 - legOffset + 4} width="18" height="9" fill="#000000" />
-        </svg>
-      );
-    }
-
-    if (chaser.type === 'jason') {
-      // 제이슨 보히스 - 하키마스크 + 빨간 삼각형 표시 + 마체테
-      return (
-        <svg width="72" height="118" viewBox="0 0 72 118" className="drop-shadow-[0_0_12px_rgba(139,0,0,0.8)]">
-          {/* 대머리 (마스크 위) */}
-          <rect x="21" y="0" width="30" height="9" fill="#8B7355" />
-          
-          {/* 하키 마스크 - 베이지/아이보리 */}
-          <rect x="15" y="6" width="42" height="36" fill="#F5DEB3" />
-          
-          {/* 마스크 구멍들 */}
-          <rect x="12" y="12" width="6" height="6" fill="#000" />
-          <rect x="54" y="12" width="6" height="6" fill="#000" />
-          <rect x="12" y="24" width="6" height="6" fill="#000" />
-          <rect x="54" y="24" width="6" height="6" fill="#000" />
-          
-          {/* 눈구멍 - 삼각형 모양 */}
-          <rect x="21" y="15" width="9" height="9" fill="#000" />
-          <rect x="42" y="15" width="9" height="9" fill="#000" />
-          
-          {/* 빨간 삼각형 표시 - 제이슨의 상징! */}
-          <rect x="32" y="9" width="9" height="3" fill="#8B0000" />
-          <rect x="33" y="12" width="6" height="3" fill="#8B0000" />
-          <rect x="35" y="15" width="3" height="3" fill="#8B0000" />
-          
-          {/* 코 구멍 */}
-          <rect x="32" y="24" width="3" height="5" fill="#8B7355" />
-          <rect x="38" y="24" width="3" height="5" fill="#8B7355" />
-          
-          {/* 입 통풍구 */}
-          <rect x="27" y="33" width="18" height="6" fill="#4A3728" />
-          <rect x="30" y="35" width="3" height="3" fill="#000" />
-          <rect x="36" y="35" width="3" height="3" fill="#000" />
-          
-          {/* 목 */}
-          <rect x="27" y="42" width="18" height="6" fill="#8B7355" />
-          
-          {/* 낡은 재킷 - 올리브/카키 */}
-          <rect x="9" y="48" width="54" height="30" fill="#556B2F" />
-          <rect x="30" y="48" width="12" height="30" fill="#4A5D23" />
-          
-          {/* 팔 */}
-          <rect x={0 + armSwing} y="48" width="12" height="30" fill="#556B2F" />
-          <rect x={60 - armSwing} y="48" width="12" height="30" fill="#556B2F" />
-          
-          {/* 손 */}
-          <rect x={0 + armSwing} y="75" width="9" height="9" fill="#8B7355" />
-          <rect x={63 - armSwing} y="75" width="9" height="9" fill="#8B7355" />
-          
-          {/* 마체테! - 더 크고 무서운 */}
-          <rect x={66 - armSwing} y="48" width="6" height="45" fill="#A9A9A9" />
-          <rect x={64 - armSwing} y="45" width="9" height="6" fill="#A9A9A9" />
-          <rect x={66 - armSwing} y="90" width="6" height="12" fill="#4A3728" />
-          
-          {/* 피 묻은 얼룩 */}
-          <rect x="18" y="57" width="6" height="6" fill="#8B0000" />
-          <rect x="48" y="66" width="5" height="8" fill="#8B0000" />
-          
-          {/* 다리 */}
-          <rect x="15" y={78 + legOffset} width="18" height="27" fill="#2F4F4F" />
-          <rect x="39" y={78 - legOffset + 4} width="18" height="27" fill="#2F4F4F" />
-          
-          {/* 부츠 */}
-          <rect x="12" y={102 + legOffset} width="21" height="9" fill="#000000" />
-          <rect x="39" y={102 - legOffset + 4} width="21" height="9" fill="#000000" />
-        </svg>
-      );
-    }
-
-    return null;
-  };
+  const glitchOffset = glitchFrame % 2 === 0 ? 0 : (Math.random() - 0.5) * 2;
 
   return (
     <div className="absolute inset-0 overflow-hidden pointer-events-none">
-      {/* 캐릭터들 */}
-      {chasers.map((chaser) => (
-        <div
-          key={chaser.id}
-          className="absolute transition-transform"
+      {/* 메인 네온 문구 */}
+      <div 
+        className="absolute top-[15%] left-1/2 -translate-x-1/2"
+        style={{
+          transform: `translateX(-50%) translateX(${glitchOffset}px)`,
+          opacity: flicker ? 0.3 : 1,
+        }}
+      >
+        {/* 일본어 메인 텍스트 */}
+        <div className="relative">
+          {/* 글로우 레이어들 */}
+          <div className="absolute inset-0 blur-xl text-cyan-400 text-5xl md:text-7xl font-bold tracking-wider opacity-60">
+            未来は今
+          </div>
+          <div className="absolute inset-0 blur-md text-cyan-300 text-5xl md:text-7xl font-bold tracking-wider opacity-80">
+            未来は今
+          </div>
+          
+          {/* 메인 텍스트 */}
+          <h1 
+            className="relative text-5xl md:text-7xl font-bold tracking-wider"
+            style={{
+              color: '#00f5ff',
+              textShadow: `
+                0 0 5px #00f5ff,
+                0 0 10px #00f5ff,
+                0 0 20px #00f5ff,
+                0 0 40px #0ff,
+                0 0 80px #0ff,
+                ${glitchFrame % 3 === 0 ? '3px 0 #ff00ff, -3px 0 #00ffff' : '0 0 transparent'}
+              `,
+            }}
+          >
+            未来は今
+          </h1>
+          
+          {/* 서브 텍스트 */}
+          <p 
+            className="text-center text-lg md:text-xl mt-3 tracking-[0.5em] uppercase"
+            style={{
+              color: '#ff00ff',
+              textShadow: `
+                0 0 5px #ff00ff,
+                0 0 10px #ff00ff,
+                0 0 20px #ff00ff
+              `,
+            }}
+          >
+            The Future is Now
+          </p>
+        </div>
+      </div>
+
+      {/* 부가 한자 문구들 - 왼쪽 */}
+      <div 
+        className="absolute top-[40%] left-[5%] writing-mode-vertical"
+        style={{
+          writingMode: 'vertical-rl',
+          opacity: flicker ? 0.5 : 0.7,
+        }}
+      >
+        <span 
+          className="text-2xl md:text-3xl font-bold tracking-[0.3em]"
           style={{
-            left: `${chaser.x}%`,
-            top: `${chaser.y}%`,
-            transform: `scale(${chaser.type === 'jason' ? 1 : chaser.type === 'michael' ? 0.95 : 0.9})`,
-            zIndex: chaser.type === 'jason' ? 3 : chaser.type === 'michael' ? 2 : 1,
+            color: '#ff6b9d',
+            textShadow: `
+              0 0 5px #ff6b9d,
+              0 0 15px #ff6b9d,
+              0 0 30px #ff1493
+            `,
           }}
         >
-          {renderChaser(chaser)}
+          電脳都市
+        </span>
+      </div>
+
+      {/* 부가 한자 문구들 - 오른쪽 */}
+      <div 
+        className="absolute top-[35%] right-[5%]"
+        style={{
+          writingMode: 'vertical-rl',
+          opacity: flicker ? 0.5 : 0.7,
+        }}
+      >
+        <span 
+          className="text-2xl md:text-3xl font-bold tracking-[0.3em]"
+          style={{
+            color: '#7b68ee',
+            textShadow: `
+              0 0 5px #7b68ee,
+              0 0 15px #7b68ee,
+              0 0 30px #9370db
+            `,
+          }}
+        >
+          無限大
+        </span>
+      </div>
+
+      {/* 하단 네온 슬로건 */}
+      <div 
+        className="absolute bottom-[15%] left-1/2 -translate-x-1/2"
+        style={{
+          transform: `translateX(-50%) translateX(${-glitchOffset}px)`,
+        }}
+      >
+        <div className="flex gap-6 md:gap-12 items-center">
+          <span 
+            className="text-xl md:text-2xl"
+            style={{
+              color: '#00ff88',
+              textShadow: '0 0 10px #00ff88, 0 0 20px #00ff88',
+            }}
+          >
+            夢
+          </span>
+          <span className="text-cyan-500/50">●</span>
+          <span 
+            className="text-xl md:text-2xl"
+            style={{
+              color: '#ffff00',
+              textShadow: '0 0 10px #ffff00, 0 0 20px #ffff00',
+            }}
+          >
+            希望
+          </span>
+          <span className="text-cyan-500/50">●</span>
+          <span 
+            className="text-xl md:text-2xl"
+            style={{
+              color: '#ff6600',
+              textShadow: '0 0 10px #ff6600, 0 0 20px #ff6600',
+            }}
+          >
+            革命
+          </span>
         </div>
-      ))}
-      
+      </div>
+
+      {/* 글리치 라인들 */}
+      {glitchFrame % 5 === 0 && (
+        <>
+          <div 
+            className="absolute h-[2px] bg-cyan-400/80 blur-[1px]"
+            style={{
+              top: `${20 + Math.random() * 60}%`,
+              left: 0,
+              right: 0,
+              opacity: 0.6,
+            }}
+          />
+          <div 
+            className="absolute h-[1px] bg-magenta-400/60"
+            style={{
+              top: `${30 + Math.random() * 40}%`,
+              left: 0,
+              right: 0,
+              background: 'linear-gradient(90deg, transparent, #ff00ff, transparent)',
+            }}
+          />
+        </>
+      )}
+
+      {/* 스캔라인 오버레이 */}
+      <div 
+        className="absolute inset-0 pointer-events-none opacity-[0.03]"
+        style={{
+          background: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,255,255,0.1) 2px, rgba(0,255,255,0.1) 4px)',
+        }}
+      />
+
       {/* 하단 네온 라인 데코레이션 */}
-      <div className="absolute bottom-1 left-4 right-4 h-px bg-gradient-to-r from-transparent via-cyan-500/20 to-transparent" />
+      <div className="absolute bottom-1 left-4 right-4 h-px bg-gradient-to-r from-transparent via-cyan-500/30 to-transparent" />
     </div>
   );
 };
