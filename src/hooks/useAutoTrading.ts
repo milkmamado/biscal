@@ -114,93 +114,115 @@ interface UseAutoTradingProps {
   }) => Promise<void>;
 }
 
-// 설정값
+// ⚡ HFT 스캘핑 설정값 (SOLUSDT 전용)
 const CONFIG = {
-  // 익절/손절 (기본값) - 동적 TP로 대체됨
-  TP_PERCENT: 0.25,          // 기본 TP (약한 추세)
-  SL_PERCENT: 0.25,          // -0.25% 도달 시 전량 손절 (최종 방어선)
+  // 🎯 타겟 코인 (SOLUSDT 전용)
+  TARGET_SYMBOL: 'SOLUSDT',
   
-  // 🆕 동적 익절 설정 (ADX + 모멘텀 기반) - 상향 조정
-  DYNAMIC_TP: {
-    // 약한 추세: ADX < 30 또는 연속 캔들 3개 미만
-    WEAK: {
-      TP_PERCENT: 0.30,      // +0.30% 고정 익절 (기존 0.20%)
-      USE_TRAILING: false,
-      TRAILING_ACTIVATION: 0.20,  // 사용 안함
-      TRAILING_DISTANCE: 0.10,    // 사용 안함
-    },
-    // 중간 추세: ADX 30-40 또는 연속 캔들 3개
-    MEDIUM: {
-      TP_PERCENT: 0.45,      // +0.45% 1차 익절 (기존 0.30%)
-      USE_TRAILING: true,
-      TRAILING_ACTIVATION: 0.35,  // +0.35% 도달 시 트레일링 시작
-      TRAILING_DISTANCE: 0.12,    // 고점 대비 -0.12%에서 청산
-    },
-    // 강한 추세: ADX 40+ AND 연속 캔들 4개+
-    STRONG: {
-      TP_PERCENT: 0.70,      // +0.70% 까지 홀딩 가능 (기존 0.50%)
-      USE_TRAILING: true,
-      TRAILING_ACTIVATION: 0.30,  // +0.30% 도달 시 트레일링 시작
-      TRAILING_DISTANCE: 0.10,    // 고점 대비 -0.10%에서 청산
-    },
+  // 💰 3단계 분할 익절 시스템
+  TAKE_PROFIT_LEVELS: [
+    { triggerPct: 0.08, closePct: 60, timeoutSec: 30 },   // +0.08% → 60% 청산
+    { triggerPct: 0.15, closePct: 30, timeoutSec: 60 },   // +0.15% → 30% 청산  
+    { triggerPct: 0.28, closePct: 10, timeoutSec: 120 },  // +0.28% → 10% 청산 (러너)
+  ],
+  
+  // ⏱️ 시간 기반 익절 (HFT 핵심)
+  TIME_BASED_TP: {
+    PROFIT_30S: { timeSec: 30, minProfitPct: 0.06, closePct: 50 },  // 30초 후 +0.06%면 50% 청산
+    PROFIT_60S: { timeSec: 60, minProfitPct: 0.04, closePct: 50 },  // 60초 후 +0.04%면 50% 청산  
+    PROFIT_90S: { timeSec: 90, minProfitPct: 0.02, closePct: 100 }, // 90초 후 +0.02%면 전량 청산
   },
   
-  // 🆕 다단계 조기 손절 (슬리피지 방지)
+  // 🛡️ Ultra Tight 손절
+  SL_PERCENT: 0.06,          // -0.06% 전량 손절 (최종 방어선)
+  
+  // ⚡ 초고속 조기 손절 (HFT 핵심)
   EARLY_SL: {
-    STAGE1_SEC: 30,          // 1단계: 30초 이내
-    STAGE1_PERCENT: 0.15,    // -0.15% 이상 손실 시
+    STAGE1_SEC: 10,          // 1단계: 10초 이내
+    STAGE1_PERCENT: 0.03,    // -0.03% 도달 시
     STAGE1_REDUCE: 0.5,      // 50% 청산
     
-    STAGE2_SEC: 60,          // 2단계: 60초 이내
-    STAGE2_PERCENT: 0.20,    // -0.20% 이상 손실 시
-    STAGE2_REDUCE: 0.75,     // 75% 청산
+    STAGE2_SEC: 30,          // 2단계: 30초 이내
+    STAGE2_PERCENT: 0.04,    // -0.04% 도달 시
+    STAGE2_REDUCE: 1.0,      // 전량 청산
   },
   
-  // 🆕 오더북 긴급 탈출
+  // 🛡️ 브레이크이븐 시스템
+  BREAKEVEN_TRIGGER: 0.05,   // +0.05% 도달 시 브레이크이븐 활성화
+  BREAKEVEN_SL: 0.01,        // 브레이크이븐 시 손절을 +0.01%로 이동
+  BREAKEVEN_TRAIL: 0.02,     // 0.02% 간격으로 추적
+  BREAKEVEN_TIMEOUT_SEC: 90, // 브레이크이븐 후 90초 내 TP 미도달 시 수익 확정 청산
+  
+  // 🚨 오더북 긴급 탈출
   ORDERBOOK_EMERGENCY: {
-    IMBALANCE_THRESHOLD: 40,  // 불균형 40% 이상 시 경고
-    EXIT_THRESHOLD: 50,       // 불균형 50% 이상 시 즉시 탈출
+    IMBALANCE_THRESHOLD: 2.0,   // 불균형 2.0배 이상 시 경고
+    EXIT_THRESHOLD: 2.0,        // 불균형 2.0배 이상 + 손실 시 즉시 탈출
+    VOLUME_DROP_THRESHOLD: 0.3, // 거래량 70% 감소 시
+    SPREAD_THRESHOLD: 0.0015,   // 스프레드 0.15% 이상 시
   },
   
-  // 브레이크이븐 설정 - 상향 조정
-  BREAKEVEN_TRIGGER: 0.20,   // +0.20% 도달 시 브레이크이븐 활성화 (기존 0.15%)
-  BREAKEVEN_SL: 0.03,        // 브레이크이븐 시 손절을 +0.03%로 (수수료 커버)
-  BREAKEVEN_TIMEOUT_SEC: 180, // 브레이크이븐 후 3분 내 TP 미도달 시 수익 확정 청산 (기존 2분)
+  // ⏱️ 체류시간 관리 (Ultra Fast Rotation)
+  HOLD_TIME: {
+    MIN_SEC: 10,             // 최소 10초
+    TARGET_SEC: 45,          // 평균 45초
+    MAX_SEC: 120,            // 최대 2분 (절대 초과 금지)
+    MAX_PROFITABLE_SEC: 180, // 수익 시 최대 3분
+    MAX_UNPROFITABLE_SEC: 90, // 손실 시 최대 1.5분
+  },
   
-  // 진입 후 보호 시간 (손절 체크 안함) - 조기 손절 시스템으로 대체
-  ENTRY_PROTECTION_SEC: 0,   // 🆕 보호 없음 (조기 손절이 대신함)
+  // 진입 후 보호 시간 (없음)
+  ENTRY_PROTECTION_SEC: 0,
   
   // 거래당 최대 손실 제한
-  MAX_LOSS_PER_TRADE_USD: 0.4, // 거래당 최대 손실 $0.4 (시드 1만원 기준 약 4%)
+  MAX_LOSS_PER_TRADE_USD: 0.5,
   
-  // 타임 스탑
-  TIME_STOP_MINUTES: 15,     // 15분 타임 스탑
+  // 연속 손실 관리
+  MAX_CONSECUTIVE_LOSSES: 5,
+  LOSS_COOLDOWN_MINUTES: 30,  // 30분 휴식
   
-  // 연속 손실 관리 (전체)
-  MAX_CONSECUTIVE_LOSSES: 5, // 연속 5회 손실
-  LOSS_COOLDOWN_MINUTES: 60, // 1시간 휴식
+  // 코인별 연속 손절 방지 (SOLUSDT 전용이므로 동일)
+  COIN_MAX_CONSECUTIVE_LOSSES: 3,
+  COIN_COOLDOWN_MINUTES: 15,
   
-  // 코인별 연속 손절 방지
-  COIN_MAX_CONSECUTIVE_LOSSES: 2,  // 같은 코인 2연속 손절 시
-  COIN_COOLDOWN_MINUTES: 30,       // 해당 코인 30분 쿨다운
+  // 진입 조건 (완화)
+  MIN_SIGNAL_STRENGTH: 'weak' as const,  // 약한 시그널도 진입 허용
+  ENTRY_COOLDOWN_MS: 15000,  // 진입 간 쿨다운 15초로 단축
   
-  // 진입 조건
-  MIN_SIGNAL_STRENGTH: 'medium' as const, // 최소 시그널 강도
-  ENTRY_COOLDOWN_MS: 60000,  // 진입 간 쿨다운 1분
+  // 변동성 필터 (HFT 최적)
+  MIN_ATR_PERCENT: 0.5,      // 최소 0.5%
+  MAX_ATR_PERCENT: 3.0,      // 최대 3.0%
   
-  // 변동성 필터
-  MIN_ATR_PERCENT: 0.2,      // 최소 ATR 퍼센트
-  MAX_ATR_PERCENT: 2.0,      // 최대 ATR 퍼센트
+  // 시장 환경 필터 (완화)
+  MIN_ADX_FOR_TREND: 15,     // ADX 15 이상이면 진입
   
-  // 시장 환경 필터
-  MIN_ADX_FOR_TREND: 20,     // 최소 ADX - 횡보장 필터
+  // 오더북 요구사항
+  ORDERBOOK_REQUIREMENTS: {
+    BID_ASK_IMBALANCE: 1.3,  // 1.3:1 이상 불균형
+    SPREAD_MAX: 0.0008,      // 0.08% 이하 스프레드
+    DEPTH_MIN: 100000,       // 최소 $100K 깊이
+  },
   
   // 동적 포지션 사이징
-  BASE_RISK_PERCENT: 1.0,    // 기본 리스크 퍼센트
+  BASE_RISK_PERCENT: 2.0,    // 기본 리스크 2%
   ATR_POSITION_MULTIPLIER: {
-    LOW: 1.2,                // 낮은 변동성 → 큰 포지션
+    LOW: 1.3,                // 낮은 변동성 → 큰 포지션
     MEDIUM: 1.0,             // 보통 변동성 → 기본 포지션
-    HIGH: 0.7,               // 높은 변동성 → 작은 포지션
+    HIGH: 0.6,               // 높은 변동성 → 작은 포지션
+  },
+  
+  // 🎯 동적 익절 조정 (ATR 기반)
+  DYNAMIC_TP_ADJUSTMENT: {
+    HIGH_VOLATILITY_MULT: 1.4,  // ATR > 1.5% → 목표가 40% 확대
+    LOW_VOLATILITY_MULT: 0.7,   // ATR < 0.8% → 목표가 30% 축소
+  },
+  
+  // 레거시 호환 (사용 안함)
+  TP_PERCENT: 0.08,
+  TIME_STOP_MINUTES: 2,
+  DYNAMIC_TP: {
+    WEAK: { TP_PERCENT: 0.08, USE_TRAILING: false, TRAILING_ACTIVATION: 0.05, TRAILING_DISTANCE: 0.03 },
+    MEDIUM: { TP_PERCENT: 0.15, USE_TRAILING: true, TRAILING_ACTIVATION: 0.10, TRAILING_DISTANCE: 0.04 },
+    STRONG: { TP_PERCENT: 0.28, USE_TRAILING: true, TRAILING_ACTIVATION: 0.15, TRAILING_DISTANCE: 0.05 },
   },
 };
 
@@ -496,13 +518,13 @@ export function useAutoTrading({
     }
   }, [state.currentPosition, state.todayStats, placeMarketOrder, getPositions, krwRate, leverage, addLog, onTradeComplete, logTrade]);
 
-  // TP/SL 체크 (스마트 손절 시스템 + 브레이크이븐)
+  // ⚡ HFT 스타일 TP/SL 체크 (3단계 분할 익절 + 시간 기반 익절)
   const checkTpSl = useCallback(async (
     currentPrice: number, 
     _tpPercent: number = 0.3, 
     _slPercent: number = 0.5, 
     currentVolumeRatio?: number,
-    orderbookImbalance?: number // 🆕 오더북 불균형 (-100 ~ +100)
+    orderbookImbalance?: number
   ) => {
     if (!state.currentPosition) return;
     if (processingRef.current) return;
@@ -516,73 +538,85 @@ export function useAutoTrading({
     // 진입 후 경과 시간 (초)
     const holdTimeSec = (Date.now() - position.entryTime) / 1000;
     
-    // 📊 실시간 손익 로그 (조기 손절 단계 표시)
-    const pnlRounded = Math.round(pnlPercent * 10) / 10;
+    // 📊 실시간 손익 로그
+    const pnlRounded = Math.round(pnlPercent * 100) / 100;
     const beStatus = tpState.breakEvenActivated ? ' [BE]' : '';
     const earlySlStatus = position.earlySLStage > 0 ? ` [ESL${position.earlySLStage}]` : '';
-    const obStatus = orderbookImbalance !== undefined ? ` OB:${orderbookImbalance > 0 ? '+' : ''}${orderbookImbalance.toFixed(0)}%` : '';
-    console.log(`[TP/SL] ${position.symbol} ${position.side.toUpperCase()}${beStatus}${earlySlStatus} | ${holdTimeSec.toFixed(0)}초 | 손익: ${pnlRounded >= 0 ? '+' : ''}${pnlRounded.toFixed(1)}%${obStatus}`);
+    console.log(`⚡ [HFT] ${position.symbol} ${position.side.toUpperCase()}${beStatus}${earlySlStatus} | ${holdTimeSec.toFixed(0)}s | PnL: ${pnlRounded >= 0 ? '+' : ''}${pnlRounded.toFixed(2)}%`);
     
-    // 🆕 최고 수익률 업데이트 (브레이크이븐용)
+    // 최고 수익률 업데이트
     if (pnlPercent > position.maxPnlPercent) {
       setState(prev => {
         if (!prev.currentPosition) return prev;
         return {
           ...prev,
-          currentPosition: {
-            ...prev.currentPosition,
-            maxPnlPercent: pnlPercent,
-          },
+          currentPosition: { ...prev.currentPosition, maxPnlPercent: pnlPercent },
         };
       });
     }
     
-    // 상태 메시지 업데이트 (추세 강도 표시)
-    const trendIcon = position.trendStrength === 'STRONG' ? '🔥' : position.trendStrength === 'MEDIUM' ? '📈' : '📊';
-    const trailingStatus = position.trailingActivated ? ' [TR]' : '';
+    // 상태 메시지 업데이트
     setState(prev => ({
       ...prev,
-      statusMessage: `${trendIcon} ${position.symbol.replace('USDT', '')} ${position.side === 'long' ? '롱' : '숏'}${beStatus}${earlySlStatus}${trailingStatus} | ${pnlRounded >= 0 ? '+' : ''}${pnlRounded.toFixed(1)}%`,
+      statusMessage: `⚡ SOL ${position.side === 'long' ? '롱' : '숏'}${beStatus} | ${holdTimeSec.toFixed(0)}s | ${pnlRounded >= 0 ? '+' : ''}${pnlRounded.toFixed(2)}%`,
     }));
 
     // ============================================
-    // 🆕 1단계: 오더북 긴급 탈출 (가장 빠른 반응)
+    // 🚨 1. 강제 청산 시간 체크 (최우선)
+    // ============================================
+    const { HOLD_TIME } = CONFIG;
+    
+    // 어떤 경우든 최대 체류시간 초과 시 강제 청산
+    if (holdTimeSec >= HOLD_TIME.MAX_SEC) {
+      console.log(`⏱️ [HFT] 최대 체류시간 초과! ${holdTimeSec.toFixed(0)}s >= ${HOLD_TIME.MAX_SEC}s`);
+      toast.warning(`⏱️ 최대 ${HOLD_TIME.MAX_SEC}초 도달! 강제 청산`);
+      await closePosition(pnlPercent > 0 ? 'tp' : 'sl', currentPrice);
+      return;
+    }
+    
+    // 손실 시 90초 이상이면 강제 청산
+    if (pnlPercent < 0 && holdTimeSec >= HOLD_TIME.MAX_UNPROFITABLE_SEC) {
+      console.log(`⏱️ [HFT] 손실 상태 체류시간 초과! ${holdTimeSec.toFixed(0)}s`);
+      toast.warning(`⏱️ 손실 ${HOLD_TIME.MAX_UNPROFITABLE_SEC}초! 손절`);
+      await closePosition('sl', currentPrice);
+      return;
+    }
+
+    // ============================================
+    // 🚨 2. 오더북 긴급 탈출
     // ============================================
     if (orderbookImbalance !== undefined && pnlPercent < 0) {
       const isLong = position.side === 'long';
       const dangerousImbalance = isLong 
-        ? orderbookImbalance < -CONFIG.ORDERBOOK_EMERGENCY.EXIT_THRESHOLD  // 롱인데 매도 압력
-        : orderbookImbalance > CONFIG.ORDERBOOK_EMERGENCY.EXIT_THRESHOLD;  // 숏인데 매수 압력
+        ? orderbookImbalance < -CONFIG.ORDERBOOK_EMERGENCY.EXIT_THRESHOLD
+        : orderbookImbalance > CONFIG.ORDERBOOK_EMERGENCY.EXIT_THRESHOLD;
       
       if (dangerousImbalance) {
-        console.log(`🚨 [스마트손절] 오더북 긴급 탈출! 불균형: ${orderbookImbalance.toFixed(0)}%, 손실: ${pnlPercent.toFixed(2)}%`);
-        toast.warning(`🚨 오더북 긴급 탈출! 불균형 ${Math.abs(orderbookImbalance).toFixed(0)}%`);
+        console.log(`🚨 [HFT] 오더북 긴급 탈출! 불균형: ${orderbookImbalance.toFixed(1)}x`);
+        toast.warning(`🚨 오더북 압력! 긴급 탈출`);
         await closePosition('sl', currentPrice);
         return;
       }
     }
 
     // ============================================
-    // 🆕 2단계: 다단계 조기 손절 (슬리피지 방지)
+    // ⚡ 3. 초고속 조기 손절 (HFT 핵심)
     // ============================================
     if (pnlPercent < 0 && !tpState.breakEvenActivated) {
       const { EARLY_SL } = CONFIG;
       
-      // 1단계: 30초 내 -0.15% → 50% 청산
+      // 1단계: 10초 내 -0.03% → 50% 청산
       if (holdTimeSec <= EARLY_SL.STAGE1_SEC && 
           pnlPercent <= -EARLY_SL.STAGE1_PERCENT && 
           position.earlySLStage < 1) {
-        console.log(`⚡ [스마트손절] 1단계 발동! ${holdTimeSec.toFixed(0)}초, ${pnlPercent.toFixed(2)}% → 50% 청산`);
-        toast.warning(`⚡ 조기 손절 1단계! ${pnlPercent.toFixed(2)}% (50% 청산)`);
+        console.log(`⚡ [HFT] 조기손절 1단계! ${holdTimeSec.toFixed(0)}s, ${pnlPercent.toFixed(3)}%`);
+        toast.warning(`⚡ ${EARLY_SL.STAGE1_SEC}초 내 -${EARLY_SL.STAGE1_PERCENT}%! 50% 청산`);
         
-        // 50% 분할 청산
         const reduceQty = position.remainingQuantity * EARLY_SL.STAGE1_REDUCE;
         const orderSide = position.side === 'long' ? 'SELL' : 'BUY';
         
         try {
           await placeMarketOrder(position.symbol, orderSide, reduceQty, true, currentPrice);
-          
-          // 남은 수량 업데이트 & 단계 기록
           setState(prev => {
             if (!prev.currentPosition) return prev;
             return {
@@ -600,22 +634,21 @@ export function useAutoTrading({
         return;
       }
       
-      // 2단계: 60초 내 -0.20% → 75% 청산 (1단계 이후)
+      // 2단계: 30초 내 -0.04% → 전량 청산
       if (holdTimeSec <= EARLY_SL.STAGE2_SEC && 
-          pnlPercent <= -EARLY_SL.STAGE2_PERCENT && 
-          position.earlySLStage === 1) {
-        console.log(`⚡ [스마트손절] 2단계 발동! ${holdTimeSec.toFixed(0)}초, ${pnlPercent.toFixed(2)}% → 남은 전량 청산`);
-        toast.error(`⚡ 조기 손절 2단계! ${pnlPercent.toFixed(2)}% (전량 청산)`);
+          pnlPercent <= -EARLY_SL.STAGE2_PERCENT) {
+        console.log(`⚡ [HFT] 조기손절 2단계! ${holdTimeSec.toFixed(0)}s, ${pnlPercent.toFixed(3)}%`);
+        toast.error(`⚡ ${EARLY_SL.STAGE2_SEC}초 내 -${EARLY_SL.STAGE2_PERCENT}%! 전량 청산`);
         await closePosition('sl', currentPrice);
         return;
       }
     }
 
     // ============================================
-    // 브레이크이븐 활성화 체크 (+0.15% 도달 시)
+    // 🛡️ 4. 브레이크이븐 시스템 (+0.05% 도달 시)
     // ============================================
     if (!tpState.breakEvenActivated && pnlPercent >= CONFIG.BREAKEVEN_TRIGGER) {
-      console.log(`🛡️ [checkTpSl] 브레이크이븐 활성화: ${pnlPercent.toFixed(2)}% >= ${CONFIG.BREAKEVEN_TRIGGER}%`);
+      console.log(`🛡️ [HFT] 브레이크이븐 활성화: +${pnlPercent.toFixed(3)}%`);
       setState(prev => {
         if (!prev.currentPosition) return prev;
         return {
@@ -630,80 +663,170 @@ export function useAutoTrading({
           },
         };
       });
-      toast.info(`🛡️ 브레이크이븐 활성화! 손절이 +${CONFIG.BREAKEVEN_SL}%로 이동`);
+      toast.info(`🛡️ BE 활성화! 손절 → +${CONFIG.BREAKEVEN_SL}%`);
     }
 
-    // 브레이크이븐 타임아웃 체크 (2분 내 TP 미도달 시 수익 확정 청산)
+    // 브레이크이븐 타임아웃 (90초 후 수익 확정)
     if (tpState.breakEvenActivated && tpState.breakEvenActivatedAt) {
       const beElapsedSec = (Date.now() - tpState.breakEvenActivatedAt) / 1000;
       if (beElapsedSec >= CONFIG.BREAKEVEN_TIMEOUT_SEC && pnlPercent > 0) {
-        console.log(`⏱️ [checkTpSl] BE 타임아웃 수익 확정: ${beElapsedSec.toFixed(0)}초 경과, 현재 수익 +${pnlPercent.toFixed(2)}%`);
-        toast.success(`⏱️ 2분 타임아웃! +${pnlPercent.toFixed(2)}% 수익 확정 청산`);
+        console.log(`⏱️ [HFT] BE 타임아웃! +${pnlPercent.toFixed(3)}% 확정`);
+        toast.success(`⏱️ BE ${CONFIG.BREAKEVEN_TIMEOUT_SEC}초! +${pnlPercent.toFixed(2)}% 익절`);
         await closePosition('tp', currentPrice);
         return;
       }
     }
 
     // ============================================
-    // 3단계: 기존 손절 (최종 방어선)
+    // 🛑 5. 최종 손절 (-0.06%)
     // ============================================
     const effectiveSL = tpState.breakEvenActivated ? CONFIG.BREAKEVEN_SL : -CONFIG.SL_PERCENT;
     if (pnlPercent <= effectiveSL) {
       if (tpState.breakEvenActivated) {
-        console.log(`🛡️ [checkTpSl] 브레이크이븐 청산: ${pnlPercent.toFixed(2)}% <= +${CONFIG.BREAKEVEN_SL}%`);
+        console.log(`🛡️ [HFT] BE 청산: ${pnlPercent.toFixed(3)}%`);
         await closePosition('tp', currentPrice);
       } else {
-        console.log(`🛑 [checkTpSl] 최종 손절: ${pnlPercent.toFixed(2)}% <= -${CONFIG.SL_PERCENT}%`);
+        console.log(`🛑 [HFT] 최종 손절: ${pnlPercent.toFixed(3)}% <= -${CONFIG.SL_PERCENT}%`);
         await closePosition('sl', currentPrice);
       }
       return;
     }
 
-    // 타임 스탑 체크 (15분 보유 + 손실)
-    const holdTimeMin = holdTimeSec / 60;
-    if (holdTimeMin >= CONFIG.TIME_STOP_MINUTES && pnlPercent < 0) {
-      await closePosition('time', currentPrice);
+    // ============================================
+    // ⏱️ 6. 시간 기반 익절 (HFT 핵심)
+    // ============================================
+    const { TIME_BASED_TP } = CONFIG;
+    
+    // 30초 후 +0.06%면 50% 청산
+    if (holdTimeSec >= TIME_BASED_TP.PROFIT_30S.timeSec && 
+        pnlPercent >= TIME_BASED_TP.PROFIT_30S.minProfitPct &&
+        position.remainingQuantity === position.initialQuantity) {
+      console.log(`⏱️ [HFT] 30초 익절! +${pnlPercent.toFixed(3)}% (50% 청산)`);
+      toast.success(`⏱️ 30초 +${pnlPercent.toFixed(2)}%! 50% 익절`);
+      
+      const reduceQty = position.remainingQuantity * 0.5;
+      const orderSide = position.side === 'long' ? 'SELL' : 'BUY';
+      
+      try {
+        await placeMarketOrder(position.symbol, orderSide, reduceQty, true, currentPrice);
+        setState(prev => {
+          if (!prev.currentPosition) return prev;
+          return {
+            ...prev,
+            currentPosition: {
+              ...prev.currentPosition,
+              remainingQuantity: prev.currentPosition.remainingQuantity - reduceQty,
+            },
+          };
+        });
+      } catch (err) {
+        console.error('시간 기반 익절 실패:', err);
+      }
+      return;
+    }
+    
+    // 60초 후 +0.04%면 50% 청산
+    if (holdTimeSec >= TIME_BASED_TP.PROFIT_60S.timeSec && 
+        pnlPercent >= TIME_BASED_TP.PROFIT_60S.minProfitPct &&
+        position.remainingQuantity > position.initialQuantity * 0.4) {
+      console.log(`⏱️ [HFT] 60초 익절! +${pnlPercent.toFixed(3)}%`);
+      toast.success(`⏱️ 60초 +${pnlPercent.toFixed(2)}%! 익절`);
+      
+      const reduceQty = position.remainingQuantity * 0.5;
+      const orderSide = position.side === 'long' ? 'SELL' : 'BUY';
+      
+      try {
+        await placeMarketOrder(position.symbol, orderSide, reduceQty, true, currentPrice);
+        setState(prev => {
+          if (!prev.currentPosition) return prev;
+          return {
+            ...prev,
+            currentPosition: {
+              ...prev.currentPosition,
+              remainingQuantity: prev.currentPosition.remainingQuantity - reduceQty,
+            },
+          };
+        });
+      } catch (err) {
+        console.error('시간 기반 익절 실패:', err);
+      }
+      return;
+    }
+    
+    // 90초 후 +0.02%면 전량 청산
+    if (holdTimeSec >= TIME_BASED_TP.PROFIT_90S.timeSec && 
+        pnlPercent >= TIME_BASED_TP.PROFIT_90S.minProfitPct) {
+      console.log(`⏱️ [HFT] 90초 익절! +${pnlPercent.toFixed(3)}% (전량)`);
+      toast.success(`⏱️ 90초 +${pnlPercent.toFixed(2)}%! 전량 익절`);
+      await closePosition('tp', currentPrice);
       return;
     }
 
     // ============================================
-    // 🆕 동적 익절 시스템 (ADX + 캔들 모멘텀 기반)
+    // 💰 7. 3단계 분할 익절 (고정 TP)
     // ============================================
-    const trendConfig = CONFIG.DYNAMIC_TP[position.trendStrength];
-    const trendLabel = position.trendStrength === 'STRONG' ? '🔥강함' : position.trendStrength === 'MEDIUM' ? '📈중간' : '📊약함';
+    const tpLevels = CONFIG.TAKE_PROFIT_LEVELS;
     
-    // 트레일링 활성화 체크
-    if (trendConfig.USE_TRAILING && !position.trailingActivated && pnlPercent >= trendConfig.TRAILING_ACTIVATION) {
-      console.log(`🎯 [동적TP] ${trendLabel} 트레일링 활성화! +${pnlPercent.toFixed(2)}% >= +${trendConfig.TRAILING_ACTIVATION}%`);
-      toast.info(`🎯 트레일링 활성화! (${trendLabel}) 고점 추적 시작`);
-      setState(prev => {
-        if (!prev.currentPosition) return prev;
-        return {
-          ...prev,
-          currentPosition: {
-            ...prev.currentPosition,
-            trailingActivated: true,
-          },
-        };
-      });
-    }
-    
-    // 트레일링 스탑 체크 (고점 대비 하락 시 청산)
-    if (position.trailingActivated && trendConfig.USE_TRAILING) {
-      const dropFromMax = position.maxPnlPercent - pnlPercent;
+    // 1차 익절: +0.08% → 60% 청산
+    if (pnlPercent >= tpLevels[0].triggerPct && 
+        position.remainingQuantity >= position.initialQuantity * 0.9) {
+      console.log(`💰 [HFT] 1차 익절! +${pnlPercent.toFixed(3)}% (60% 청산)`);
+      toast.success(`💰 1차 익절! +${pnlPercent.toFixed(2)}%`);
       
-      if (dropFromMax >= trendConfig.TRAILING_DISTANCE && pnlPercent > 0) {
-        console.log(`🎯 [동적TP] 트레일링 청산! 고점 +${position.maxPnlPercent.toFixed(2)}% → 현재 +${pnlPercent.toFixed(2)}% (하락폭: ${dropFromMax.toFixed(2)}%)`);
-        toast.success(`🎯 트레일링 익절! +${pnlPercent.toFixed(2)}% (고점 대비 -${dropFromMax.toFixed(2)}%)`);
-        await closePosition('tp', currentPrice);
-        return;
+      const reduceQty = position.initialQuantity * (tpLevels[0].closePct / 100);
+      const orderSide = position.side === 'long' ? 'SELL' : 'BUY';
+      
+      try {
+        await placeMarketOrder(position.symbol, orderSide, reduceQty, true, currentPrice);
+        setState(prev => {
+          if (!prev.currentPosition) return prev;
+          return {
+            ...prev,
+            currentPosition: {
+              ...prev.currentPosition,
+              remainingQuantity: prev.currentPosition.remainingQuantity - reduceQty,
+              takeProfitState: { ...prev.currentPosition.takeProfitState, tpHit: true },
+            },
+          };
+        });
+      } catch (err) {
+        console.error('1차 익절 실패:', err);
       }
+      return;
     }
     
-    // 고정 TP 체크 (트레일링 미사용 시 또는 TP_PERCENT 도달 시)
-    if (!tpState.tpHit && pnlPercent >= trendConfig.TP_PERCENT) {
-      console.log(`🎯 [동적TP] ${trendLabel} 목표가 도달! +${pnlPercent.toFixed(2)}% >= +${trendConfig.TP_PERCENT}%`);
-      toast.success(`🎯 ${trendLabel} 익절! +${pnlPercent.toFixed(2)}%`);
+    // 2차 익절: +0.15% → 30% 청산
+    if (pnlPercent >= tpLevels[1].triggerPct && 
+        position.remainingQuantity > position.initialQuantity * 0.35 &&
+        position.remainingQuantity < position.initialQuantity * 0.5) {
+      console.log(`💰 [HFT] 2차 익절! +${pnlPercent.toFixed(3)}% (30% 청산)`);
+      toast.success(`💰 2차 익절! +${pnlPercent.toFixed(2)}%`);
+      
+      const reduceQty = position.initialQuantity * (tpLevels[1].closePct / 100);
+      const orderSide = position.side === 'long' ? 'SELL' : 'BUY';
+      
+      try {
+        await placeMarketOrder(position.symbol, orderSide, reduceQty, true, currentPrice);
+        setState(prev => {
+          if (!prev.currentPosition) return prev;
+          return {
+            ...prev,
+            currentPosition: {
+              ...prev.currentPosition,
+              remainingQuantity: prev.currentPosition.remainingQuantity - reduceQty,
+            },
+          };
+        });
+      } catch (err) {
+        console.error('2차 익절 실패:', err);
+      }
+      return;
+    }
+    
+    // 3차 익절: +0.28% → 러너 10% 청산
+    if (pnlPercent >= tpLevels[2].triggerPct && position.remainingQuantity > 0) {
+      console.log(`💰 [HFT] 3차 익절! +${pnlPercent.toFixed(3)}% (러너 전량 청산)`);
+      toast.success(`🎯 러너 익절! +${pnlPercent.toFixed(2)}%`);
       await closePosition('tp', currentPrice);
       return;
     }
