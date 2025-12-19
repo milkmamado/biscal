@@ -699,86 +699,123 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
         }}
       />
       
-      {/* 飛蛾赴火 나방 효과 (우측 상단 가로 배치) */}
+      {/* 飛蛾赴火 사이버 나방 효과 (우측 상단 가로 배치) */}
       {mothVisible && (
         <div 
-          className="absolute right-14 top-12 z-[5] flex items-center gap-4 pointer-events-none"
+          className="absolute right-32 top-20 z-[5] flex items-center gap-5 pointer-events-none"
           style={{
             opacity: mothPhase === 0 ? 0 : mothPhase === 1 ? 1 : 0,
             transform: `scale(${mothPhase === 1 ? 1 : 0.9})`,
             transition: 'opacity 0.5s ease-out, transform 0.5s ease-out',
           }}
         >
-          {/* 나방 SVG */}
+          {/* 사이버펑크 나방 SVG */}
           <div 
             className="relative"
             style={{
-              animation: 'float 2s ease-in-out infinite',
+              animation: 'float 2.5s ease-in-out infinite',
             }}
           >
             <svg 
-              width="44" 
-              height="44" 
+              width="56" 
+              height="56" 
               viewBox="0 0 100 100" 
               className="drop-shadow-lg"
               style={{
-                filter: 'drop-shadow(0 0 15px #ff6600) drop-shadow(0 0 30px #ff4400)',
+                filter: 'drop-shadow(0 0 20px #ff6600) drop-shadow(0 0 40px #ff4400) drop-shadow(0 0 8px #00ffff)',
               }}
             >
-              {/* 나방 몸통 */}
-              <ellipse cx="50" cy="50" rx="6" ry="15" fill="#ff8844" />
+              {/* 기계적 몸통 - 육각형 */}
+              <polygon points="50,32 56,40 56,60 50,68 44,60 44,40" fill="#1a1a2e" stroke="#ff6600" strokeWidth="1.5" />
+              <line x1="50" y1="35" x2="50" y2="65" stroke="#ff4400" strokeWidth="1" opacity="0.8" />
               
-              {/* 왼쪽 날개 */}
-              <path 
-                d="M44 40 Q20 25 15 50 Q20 75 44 60 Q40 50 44 40" 
-                fill="url(#mothWingGradient)"
-                style={{
-                  transformOrigin: '44px 50px',
-                  animation: 'wingFlap 0.15s ease-in-out infinite alternate',
-                }}
-              />
+              {/* 코어 발광 */}
+              <circle cx="50" cy="50" r="4" fill="#ff4400">
+                <animate attributeName="opacity" values="1;0.5;1" dur="0.5s" repeatCount="indefinite" />
+              </circle>
+              <circle cx="50" cy="50" r="6" fill="none" stroke="#ff6600" strokeWidth="0.5" opacity="0.6" />
               
-              {/* 오른쪽 날개 */}
-              <path 
-                d="M56 40 Q80 25 85 50 Q80 75 56 60 Q60 50 56 40" 
-                fill="url(#mothWingGradient)"
-                style={{
-                  transformOrigin: '56px 50px',
-                  animation: 'wingFlap 0.15s ease-in-out infinite alternate-reverse',
-                }}
-              />
+              {/* 왼쪽 날개 - 날카로운 기계 날개 */}
+              <g style={{ transformOrigin: '44px 50px', animation: 'wingFlap 0.12s ease-in-out infinite alternate' }}>
+                <polygon 
+                  points="44,42 10,25 5,50 10,75 44,58" 
+                  fill="url(#cyberWingGradient)" 
+                  stroke="#00ffff" 
+                  strokeWidth="0.5"
+                  opacity="0.9"
+                />
+                {/* 날개 회로 패턴 */}
+                <line x1="40" y1="45" x2="15" y2="35" stroke="#00ffff" strokeWidth="0.5" opacity="0.7" />
+                <line x1="40" y1="50" x2="10" y2="50" stroke="#00ffff" strokeWidth="0.5" opacity="0.7" />
+                <line x1="40" y1="55" x2="15" y2="65" stroke="#00ffff" strokeWidth="0.5" opacity="0.7" />
+                {/* 날개 노드 */}
+                <circle cx="20" cy="40" r="2" fill="#ff00ff" opacity="0.8">
+                  <animate attributeName="opacity" values="0.8;0.3;0.8" dur="0.8s" repeatCount="indefinite" />
+                </circle>
+                <circle cx="15" cy="55" r="2" fill="#00ffff" opacity="0.8">
+                  <animate attributeName="opacity" values="0.3;0.8;0.3" dur="0.8s" repeatCount="indefinite" />
+                </circle>
+              </g>
               
-              {/* 날개 무늬 */}
-              <circle cx="30" cy="45" r="6" fill="#ffcc00" opacity="0.8" />
-              <circle cx="70" cy="45" r="6" fill="#ffcc00" opacity="0.8" />
-              <circle cx="25" cy="55" r="4" fill="#ff00ff" opacity="0.6" />
-              <circle cx="75" cy="55" r="4" fill="#ff00ff" opacity="0.6" />
+              {/* 오른쪽 날개 - 날카로운 기계 날개 */}
+              <g style={{ transformOrigin: '56px 50px', animation: 'wingFlap 0.12s ease-in-out infinite alternate-reverse' }}>
+                <polygon 
+                  points="56,42 90,25 95,50 90,75 56,58" 
+                  fill="url(#cyberWingGradient)" 
+                  stroke="#00ffff" 
+                  strokeWidth="0.5"
+                  opacity="0.9"
+                />
+                {/* 날개 회로 패턴 */}
+                <line x1="60" y1="45" x2="85" y2="35" stroke="#00ffff" strokeWidth="0.5" opacity="0.7" />
+                <line x1="60" y1="50" x2="90" y2="50" stroke="#00ffff" strokeWidth="0.5" opacity="0.7" />
+                <line x1="60" y1="55" x2="85" y2="65" stroke="#00ffff" strokeWidth="0.5" opacity="0.7" />
+                {/* 날개 노드 */}
+                <circle cx="80" cy="40" r="2" fill="#ff00ff" opacity="0.8">
+                  <animate attributeName="opacity" values="0.8;0.3;0.8" dur="0.8s" repeatCount="indefinite" />
+                </circle>
+                <circle cx="85" cy="55" r="2" fill="#00ffff" opacity="0.8">
+                  <animate attributeName="opacity" values="0.3;0.8;0.3" dur="0.8s" repeatCount="indefinite" />
+                </circle>
+              </g>
               
-              {/* 더듬이 */}
-              <path d="M47 35 Q43 25 40 18" stroke="#ff8844" strokeWidth="2" fill="none" />
-              <path d="M53 35 Q57 25 60 18" stroke="#ff8844" strokeWidth="2" fill="none" />
-              <circle cx="40" cy="18" r="3" fill="#ffcc00" />
-              <circle cx="60" cy="18" r="3" fill="#ffcc00" />
+              {/* 기계 더듬이 - 안테나 스타일 */}
+              <line x1="47" y1="35" x2="35" y2="15" stroke="#ff6600" strokeWidth="1.5" />
+              <line x1="53" y1="35" x2="65" y2="15" stroke="#ff6600" strokeWidth="1.5" />
+              <polygon points="35,15 32,10 38,10" fill="#ff4400" />
+              <polygon points="65,15 62,10 68,10" fill="#ff4400" />
+              {/* 안테나 신호 */}
+              <circle cx="35" cy="12" r="3" fill="none" stroke="#ff4400" strokeWidth="0.5" opacity="0.5">
+                <animate attributeName="r" values="3;6;3" dur="1s" repeatCount="indefinite" />
+                <animate attributeName="opacity" values="0.5;0;0.5" dur="1s" repeatCount="indefinite" />
+              </circle>
+              <circle cx="65" cy="12" r="3" fill="none" stroke="#ff4400" strokeWidth="0.5" opacity="0.5">
+                <animate attributeName="r" values="3;6;3" dur="1s" repeatCount="indefinite" />
+                <animate attributeName="opacity" values="0.5;0;0.5" dur="1s" repeatCount="indefinite" />
+              </circle>
               
               {/* 그라디언트 정의 */}
               <defs>
-                <linearGradient id="mothWingGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#ff6600" />
-                  <stop offset="50%" stopColor="#ff4400" />
-                  <stop offset="100%" stopColor="#cc2200" />
+                <linearGradient id="cyberWingGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#ff6600" stopOpacity="0.8" />
+                  <stop offset="30%" stopColor="#ff4400" stopOpacity="0.6" />
+                  <stop offset="70%" stopColor="#cc2200" stopOpacity="0.4" />
+                  <stop offset="100%" stopColor="#1a1a2e" stopOpacity="0.3" />
                 </linearGradient>
               </defs>
             </svg>
             
-            {/* 불꽃 파티클 */}
-            <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
-              {[0, 1, 2].map((i) => (
+            {/* 엔진 불꽃 이펙트 */}
+            <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 flex gap-0.5">
+              {[0, 1, 2, 3, 4].map((i) => (
                 <div 
                   key={i}
-                  className="w-1 h-2.5 rounded-full"
+                  className="rounded-sm"
                   style={{
-                    background: 'linear-gradient(to top, #ff6600, #ffcc00)',
-                    animation: `flameFlicker ${0.3 + i * 0.1}s ease-in-out infinite alternate`,
+                    width: i === 2 ? '3px' : '2px',
+                    height: i === 2 ? '12px' : '8px',
+                    background: `linear-gradient(to top, ${i === 2 ? '#ff4400' : '#ff6600'}, #ffcc00, transparent)`,
+                    animation: `flameFlicker ${0.2 + i * 0.05}s ease-in-out infinite alternate`,
                     opacity: 0.9,
                   }}
                 />
@@ -787,7 +824,7 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
           </div>
 
           {/* 한자 문구 - 가로 배열 */}
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5">
             {['飛', '蛾', '赴', '火'].map((char, index) => (
               <span 
                 key={char}
@@ -807,24 +844,43 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
             ))}
           </div>
 
-          {/* 구분선 */}
+          {/* 구분선 - 사이버 스타일 */}
           <div 
-            className="w-px h-8"
+            className="w-px h-10 relative"
             style={{
-              background: 'linear-gradient(to bottom, transparent, #ff6600, transparent)',
-            }}
-          />
-
-          {/* 부제 */}
-          <span 
-            className="text-[10px] tracking-widest font-mono"
-            style={{
-              color: '#ffaa44',
-              textShadow: '0 0 5px #ff6600, 0 0 10px #ff4400',
+              background: 'linear-gradient(to bottom, transparent, #00ffff, #ff6600, transparent)',
             }}
           >
-            INTO THE FLAME
-          </span>
+            <div 
+              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rotate-45"
+              style={{
+                background: '#ff6600',
+                boxShadow: '0 0 8px #ff6600',
+              }}
+            />
+          </div>
+
+          {/* 부제 */}
+          <div className="flex flex-col items-start gap-0.5">
+            <span 
+              className="text-[10px] tracking-widest font-mono"
+              style={{
+                color: '#00ffff',
+                textShadow: '0 0 5px #00ffff, 0 0 10px #00ffff',
+              }}
+            >
+              INTO THE
+            </span>
+            <span 
+              className="text-sm tracking-wider font-bold"
+              style={{
+                color: '#ff4400',
+                textShadow: '0 0 8px #ff4400, 0 0 20px #ff2200',
+              }}
+            >
+              FLAME
+            </span>
+          </div>
         </div>
       )}
       
