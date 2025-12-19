@@ -687,10 +687,11 @@ export function useAutoTrading({
     }
 
     // ============================================
-    // 🛑 5. 최종 손절 (-0.06%)
+    // 🛑 5. 최종 손절 (-0.20%) - 진입 보호 적용
     // ============================================
     const effectiveSL = tpState.breakEvenActivated ? CONFIG.BREAKEVEN_SL : -CONFIG.SL_PERCENT;
-    if (pnlPercent <= effectiveSL) {
+    // 진입 보호 시간 동안은 최종 손절도 스킵 (단, 브레이크이븐은 예외)
+    if (!isEntryProtected && pnlPercent <= effectiveSL) {
       if (tpState.breakEvenActivated) {
         console.log(`🛡️ [HFT] BE 청산: ${pnlPercent.toFixed(3)}%`);
         await closePosition('tp', currentPrice);
