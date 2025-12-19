@@ -18,8 +18,8 @@ import {
 } from './useProDirection';
 import { addScreeningLog, clearScreeningLogs } from '@/components/ScreeningLogPanel';
 
-// ⚡ HFT 타겟: ETH/SOL (BTC 제외 - 시드 부족)
-const HFT_TARGET_SYMBOLS = ['ETHUSDT', 'SOLUSDT'];
+// ⚡ HFT 타겟: 5종목 (ETH, SOL, XRP, DOGE, SUI)
+const HFT_TARGET_SYMBOLS = ['ETHUSDT', 'SOLUSDT', 'XRPUSDT', 'DOGEUSDT', 'SUIUSDT'];
 
 interface TickerData {
   symbol: string;
