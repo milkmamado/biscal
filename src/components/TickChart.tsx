@@ -141,7 +141,7 @@ const getIntervalString = (seconds: number): string => {
   return '1d';
 };
 
-const TickChart = ({ symbol, orderBook = null, isConnected = false, height = 400, interval = 60, entryPrice, stopLossPrice, takeProfitPrice, takeProfit2Price, takeProfit3Price, positionSide }: TickChartProps) => {
+const TickChart = ({ symbol, orderBook = null, isConnected = false, height, interval = 60, entryPrice, stopLossPrice, takeProfitPrice, takeProfit2Price, takeProfit3Price, positionSide }: TickChartProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [candles, setCandles] = useState<Candle[]>([]);
@@ -150,6 +150,7 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height = 400
   const [displaySymbol, setDisplaySymbol] = useState(symbol); // 현재 표시 중인 심볼
   const [currentPriceDisplay, setCurrentPriceDisplay] = useState(0); // 현재가 표시용
   const [klineConnected, setKlineConnected] = useState(false);
+  const [containerHeight, setContainerHeight] = useState(height || 400);
 
   const lastCandleTimeRef = useRef<number>(0);
   const currentCandleRef = useRef<Candle | null>(null);
@@ -160,6 +161,25 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height = 400
   const klineWsRef = useRef<WebSocket | null>(null);
   const klineReconnectTimeoutRef = useRef<number | null>(null);
   const klineConnIdRef = useRef(0);
+  
+  // 컨테이너 높이 동적 감지
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    
+    const updateHeight = () => {
+      const rect = container.getBoundingClientRect();
+      if (rect.height > 100) {
+        setContainerHeight(rect.height);
+      }
+    };
+    
+    updateHeight();
+    const resizeObserver = new ResizeObserver(updateHeight);
+    resizeObserver.observe(container);
+    
+    return () => resizeObserver.disconnect();
+  }, []);
   
   // 줌 인/아웃
   const handleZoomIn = useCallback(() => {
@@ -421,14 +441,14 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height = 400
     // 캔버스 크기 설정
     const rect = container.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
+    const chartHeight = containerHeight;
     canvas.width = rect.width * dpr;
-    canvas.height = height * dpr;
+    canvas.height = chartHeight * dpr;
     canvas.style.width = `${rect.width}px`;
-    canvas.style.height = `${height}px`;
+    canvas.style.height = `${chartHeight}px`;
     ctx.scale(dpr, dpr);
     
     const width = rect.width;
-    const chartHeight = height;
     const volumeHeight = chartHeight * VOLUME_HEIGHT_RATIO;
     const macdHeight = chartHeight * MACD_HEIGHT_RATIO;
     const priceChartHeight = chartHeight - volumeHeight - macdHeight - CANVAS_PADDING;
@@ -814,7 +834,7 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height = 400
       ctx.setLineDash([]);
     }
     
-  }, [candles, height, isConnected, loading, visibleCount, entryPrice, stopLossPrice, takeProfitPrice, takeProfit2Price, takeProfit3Price]);
+  }, [candles, containerHeight, isConnected, loading, visibleCount, entryPrice, stopLossPrice, takeProfitPrice, takeProfit2Price, takeProfit3Price]);
   
   // 가격 포맷팅
   const formatPrice = (price: number): string => {
@@ -832,8 +852,7 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height = 400
     <div ref={containerRef} className="w-full h-full relative">
       <canvas 
         ref={canvasRef} 
-        className="w-full"
-        style={{ height: `${height}px` }}
+        className="w-full h-full absolute inset-0"
       />
       
       {/* 심볼명 + 현재가 (좌측 상단) */}
