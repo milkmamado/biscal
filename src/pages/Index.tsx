@@ -6,7 +6,6 @@ import { useAutoTrading } from '@/hooks/useAutoTrading';
 import { useCoinScreening } from '@/hooks/useCoinScreening';
 import { useTickerWebSocket } from '@/hooks/useTickerWebSocket';
 import { useWakeLock } from '@/hooks/useWakeLock';
-import { useOrderBookWall } from '@/hooks/useOrderBookWall';
 import { supabase } from '@/integrations/supabase/client';
 import DualChartPanel from '@/components/DualChartPanel';
 import AutoTradingPanel from '@/components/AutoTradingPanel';
@@ -53,10 +52,6 @@ const Index = () => {
   
   // 자동매매 중 절전 방지 (백그라운드 탭에서도 안정적 동작)
   useWakeLock(autoTrading.state.isEnabled);
-  
-  // 오더북 벽 분석 (100ms 실시간)
-  const currentWallSymbol = autoTrading.state.pendingSignal?.symbol || autoTrading.state.currentPosition?.symbol || null;
-  const { analysis: orderBookAnalysis, shouldBlockLongEntry, shouldBlockShortEntry } = useOrderBookWall(currentWallSymbol, autoTrading.state.isEnabled);
 
   // 종목 스크리닝용 티커 데이터 준비
   const tickersForScreening = tickers
@@ -116,25 +111,6 @@ const Index = () => {
       const lastAttempt = prevSignalsRef.current.get(signalKey);
       if (lastAttempt && now - lastAttempt < retryCooldownMs) continue;
 
-      // 🆕 오더북 벽 필터 체크
-      if (signal.direction === 'long') {
-        const blockCheck = shouldBlockLongEntry();
-        if (blockCheck.blocked) {
-          prevSignalsRef.current.set(signalKey, now);
-          console.log(`🚫 오더북 벽으로 롱 진입 차단: ${blockCheck.reason}`);
-          toast.warning(`🚫 ${signal.symbol} 롱 차단: ${blockCheck.reason}`);
-          continue;
-        }
-      } else {
-        const blockCheck = shouldBlockShortEntry();
-        if (blockCheck.blocked) {
-          prevSignalsRef.current.set(signalKey, now);
-          console.log(`🚫 오더북 벽으로 숏 진입 차단: ${blockCheck.reason}`);
-          toast.warning(`🚫 ${signal.symbol} 숏 차단: ${blockCheck.reason}`);
-          continue;
-        }
-      }
-
       console.log(`🔥 Technical signal: ${signal.symbol} ${signal.direction} (${signal.strength})`, signal.reasons.slice(0, 3));
 
       prevSignalsRef.current.set(signalKey, now);
@@ -153,7 +129,7 @@ const Index = () => {
       setSelectedSymbol(signal.symbol);
       break; // 한 번에 하나만 처리
     }
-  }, [activeSignals, autoTrading.state.isEnabled, autoTrading.state.currentPosition, autoTrading.state.pendingSignal, shouldBlockLongEntry, shouldBlockShortEntry]);
+  }, [activeSignals, autoTrading.state.isEnabled, autoTrading.state.currentPosition, autoTrading.state.pendingSignal]);
   
   // 포지션 보유 중이거나 대기 중일 때 해당 종목 차트 유지
   useEffect(() => {
@@ -164,7 +140,7 @@ const Index = () => {
     }
   }, [autoTrading.state.currentPosition?.symbol, autoTrading.state.pendingSignal?.symbol]);
   
-  // 현재 가격으로 TP/SL 체크 (오더북 불균형 포함)
+  // 현재 가격으로 TP/SL 체크
   useEffect(() => {
     if (!autoTrading.state.currentPosition) return;
     
@@ -172,10 +148,8 @@ const Index = () => {
     const ticker = tickers.find(t => t.symbol === position.symbol);
     if (!ticker) return;
     
-    // 🆕 오더북 불균형 데이터 전달 (스마트 손절용)
-    const orderbookImbalance = orderBookAnalysis?.imbalance;
-    autoTrading.checkTpSl(ticker.price, 0.3, 0.5, undefined, orderbookImbalance);
-  }, [tickers, autoTrading.state.currentPosition, orderBookAnalysis?.imbalance]);
+    autoTrading.checkTpSl(ticker.price, 0.3, 0.5);
+  }, [tickers, autoTrading.state.currentPosition]);
 
   // Fetch USD/KRW rate
   useEffect(() => {
