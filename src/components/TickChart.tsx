@@ -122,9 +122,6 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
   const [mothVisible, setMothVisible] = useState(false);
   const [mothPhase, setMothPhase] = useState(0);
   
-  // 사이버 눈물 효과 상태
-  const [tearsVisible, setTearsVisible] = useState(false);
-  const [tearsPhase, setTearsPhase] = useState(0);
 
   const lastCandleTimeRef = useRef<number>(0);
   const currentCandleRef = useRef<Candle | null>(null);
@@ -183,36 +180,8 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
     return () => clearInterval(mothInterval);
   }, []);
 
-  // 사이버 눈물 효과
-  useEffect(() => {
-    const tearsInterval = setInterval(() => {
-      setTearsVisible(true);
-      setTearsPhase(0);
-      
-      // 눈물 시작
-      setTimeout(() => setTearsPhase(1), 100);
-      
-      // 눈물 흐르는 중
-      setTimeout(() => setTearsPhase(2), 2000);
-      
-      // 사라지기 시작
-      setTimeout(() => setTearsPhase(3), 4000);
-      
-      // 완전히 사라짐
-      setTimeout(() => {
-        setTearsVisible(false);
-        setTearsPhase(0);
-      }, 4500);
-    }, 12000);
 
-    // 초기 표시 (나방보다 늦게)
-    setTimeout(() => {
-      setTearsVisible(true);
-      setTearsPhase(1);
-    }, 4000);
 
-    return () => clearInterval(tearsInterval);
-  }, []);
 
   // 줌 인/아웃
   const handleZoomIn = useCallback(() => {
@@ -734,63 +703,6 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
         }}
       />
       
-      {/* 사이버 눈물 효과 - 일러스트 눈 위치 */}
-      {tearsVisible && (
-        <div 
-          className="absolute z-[3] pointer-events-none"
-          style={{
-            right: '51%',
-            top: '42%',
-            opacity: tearsPhase === 0 ? 0 : tearsPhase === 3 ? 0 : 1,
-            transition: 'opacity 0.5s ease-out',
-          }}
-        >
-          {/* 왼쪽 눈 눈물 */}
-          <div className="relative">
-            {/* 눈물 방울 1 */}
-            <div 
-              className="absolute w-[3px] rounded-full"
-              style={{
-                left: '0px',
-                height: tearsPhase >= 1 ? '40px' : '0px',
-                background: 'linear-gradient(to bottom, transparent, #00ffff, #ff00ff, transparent)',
-                boxShadow: '0 0 8px #00ffff, 0 0 15px #00ffff',
-                transition: 'height 2s ease-out',
-                animation: tearsPhase >= 1 ? 'tearDrop 2s ease-in-out infinite' : 'none',
-              }}
-            />
-            {/* 눈물 방울 2 - 약간 지연 */}
-            <div 
-              className="absolute w-[2px] rounded-full"
-              style={{
-                left: '8px',
-                height: tearsPhase >= 2 ? '30px' : '0px',
-                background: 'linear-gradient(to bottom, transparent, #ff00ff, #00ffff, transparent)',
-                boxShadow: '0 0 6px #ff00ff, 0 0 12px #ff00ff',
-                transition: 'height 1.5s ease-out',
-                animation: tearsPhase >= 2 ? 'tearDrop 2.5s ease-in-out infinite 0.5s' : 'none',
-              }}
-            />
-            {/* 눈물 파티클 */}
-            {tearsPhase >= 1 && (
-              <div className="absolute top-10 left-0 flex flex-col gap-2">
-                {[0, 1, 2].map((i) => (
-                  <div
-                    key={i}
-                    className="w-1 h-1 rounded-full"
-                    style={{
-                      background: i % 2 === 0 ? '#00ffff' : '#ff00ff',
-                      boxShadow: `0 0 4px ${i % 2 === 0 ? '#00ffff' : '#ff00ff'}`,
-                      animation: `tearParticle ${1.5 + i * 0.3}s ease-in-out infinite ${i * 0.2}s`,
-                      opacity: 0.8,
-                    }}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
       
       {/* 飛蛾赴火 사이버 나방 효과 (우측 상단 가로 배치) */}
       {mothVisible && (
