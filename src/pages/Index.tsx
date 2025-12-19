@@ -271,11 +271,8 @@ const Index = () => {
     
   // 손절/익절 예정 가격 계산
   const position = autoTrading.state.currentPosition;
-  const stopLossPrice = position ? (
-    position.side === 'long'
-      ? position.entryPrice * (1 - (leverage >= 10 ? 0.004 : leverage >= 5 ? 0.006 : 0.01))  // 레버리지별 SL%
-      : position.entryPrice * (1 + (leverage >= 10 ? 0.004 : leverage >= 5 ? 0.006 : 0.01))
-  ) : undefined;
+  // 🆕 전봉 기반 동적 손절가 사용
+  const stopLossPrice = position?.stopLossPrice;
   
   const takeProfitPrice = position ? (
     position.side === 'long'
