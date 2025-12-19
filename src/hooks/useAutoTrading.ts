@@ -114,14 +114,13 @@ interface UseAutoTradingProps {
   }) => Promise<void>;
 }
 
-// ⚡ HFT 스캘핑 설정값 (BTC/ETH/SOL)
+// ⚡ HFT 스캘핑 설정값 (ETH/SOL - BTC 제외)
 const CONFIG = {
-  // 🎯 타겟 코인들
-  TARGET_SYMBOLS: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'],
+  // 🎯 타겟 코인들 (BTC 제외 - 시드 부족)
+  TARGET_SYMBOLS: ['ETHUSDT', 'SOLUSDT'],
   
   // 🎚️ 코인별 레버리지 설정
   LEVERAGE_BY_COIN: {
-    'BTCUSDT': { default: 15, options: [10, 15, 20] },
     'ETHUSDT': { default: 12, options: [10, 12, 15, 20] },
     'SOLUSDT': { default: 8, options: [5, 8, 10, 15, 20] },
   } as Record<string, { default: number; options: number[] }>,
