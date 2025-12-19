@@ -834,9 +834,9 @@ const TradeLogItem = ({ log, krwRate, onSelectSymbol }: {
     return krw.toLocaleString('ko-KR', { maximumFractionDigits: 0 });
   };
   
-  // 사유 표시 (cancel, error, pending만)
-  const showReason = ['cancel', 'error', 'pending'].includes(log.action);
-  
+  // 사유 표시 (가능하면 항상 노출해서 "왜 청산됐는지" 확인 가능)
+  const showReason = Boolean(log.reason);
+
   return (
     <div 
       onClick={() => onSelectSymbol?.(log.symbol)}
