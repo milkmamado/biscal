@@ -153,7 +153,8 @@ export async function analyzeMTF(symbol: string): Promise<MTFAnalysis> {
     result.trend5m = getTrendDirection(indicators5m, price5m);
     result.trend1m = getTrendDirection(indicators1m, price1m);
     
-    // 추세 합의 체크
+    // 추세 합의 체크 (C 옵션: NEUTRAL 허용)
+    // 완전 합의: 둘 다 같은 방향
     if (result.trend15m === 'BULLISH' && result.trend5m === 'BULLISH') {
       result.aligned = true;
       result.direction = 'LONG';
@@ -162,7 +163,27 @@ export async function analyzeMTF(symbol: string): Promise<MTFAnalysis> {
       result.aligned = true;
       result.direction = 'SHORT';
       result.reason = '15분+5분 하락 추세 합의';
-    } else {
+    }
+    // NEUTRAL 허용: 한쪽이 NEUTRAL이고 다른 쪽이 강한 신호일 때
+    else if (result.trend15m === 'BULLISH' && result.trend5m === 'NEUTRAL') {
+      result.aligned = true;
+      result.direction = 'LONG';
+      result.reason = '15분 상승 + 5분 중립 (NEUTRAL 허용)';
+    } else if (result.trend15m === 'NEUTRAL' && result.trend5m === 'BULLISH') {
+      result.aligned = true;
+      result.direction = 'LONG';
+      result.reason = '15분 중립 + 5분 상승 (NEUTRAL 허용)';
+    } else if (result.trend15m === 'BEARISH' && result.trend5m === 'NEUTRAL') {
+      result.aligned = true;
+      result.direction = 'SHORT';
+      result.reason = '15분 하락 + 5분 중립 (NEUTRAL 허용)';
+    } else if (result.trend15m === 'NEUTRAL' && result.trend5m === 'BEARISH') {
+      result.aligned = true;
+      result.direction = 'SHORT';
+      result.reason = '15분 중립 + 5분 하락 (NEUTRAL 허용)';
+    }
+    // 반대 방향이거나 둘 다 NEUTRAL
+    else {
       result.aligned = false;
       result.direction = 'NO_TRADE';
       result.reason = `시간대 불일치 (15m: ${result.trend15m}, 5m: ${result.trend5m})`;
