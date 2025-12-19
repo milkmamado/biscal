@@ -293,50 +293,48 @@ const Index = () => {
   ) : undefined;
 
   return (
-    <div className="min-h-screen bg-background p-2">
-      <div className="max-w-[1920px] mx-auto">
-        <div className="grid grid-cols-12 gap-2 items-stretch">
-          {/* Left - Chart */}
-          <div className="col-span-12 lg:col-span-7 xl:col-span-8 order-2 lg:order-1">
-            <DualChartPanel 
-              symbol={selectedSymbol} 
-              hasPosition={!!autoTrading.state.currentPosition}
-              entryPrice={autoTrading.state.currentPosition?.entryPrice}
-              stopLossPrice={stopLossPrice}
-              takeProfitPrice={takeProfitPrice}
-              takeProfit2Price={takeProfit2Price}
-              takeProfit3Price={takeProfit3Price}
-              positionSide={autoTrading.state.currentPosition?.side}
-              onSelectSymbol={setSelectedSymbol}
-            />
-          </div>
+    <div className="h-screen bg-background p-1 overflow-hidden flex flex-col">
+      <div className="flex-1 min-h-0 grid grid-cols-12 gap-1">
+        {/* Left - Chart */}
+        <div className="col-span-8 flex flex-col min-h-0">
+          <DualChartPanel 
+            symbol={selectedSymbol} 
+            hasPosition={!!autoTrading.state.currentPosition}
+            entryPrice={autoTrading.state.currentPosition?.entryPrice}
+            stopLossPrice={stopLossPrice}
+            takeProfitPrice={takeProfitPrice}
+            takeProfit2Price={takeProfit2Price}
+            takeProfit3Price={takeProfit3Price}
+            positionSide={autoTrading.state.currentPosition?.side}
+            onSelectSymbol={setSelectedSymbol}
+          />
+        </div>
 
-          {/* Right - System Trading Panel */}
-          <div className="col-span-12 lg:col-span-5 xl:col-span-4 order-1 lg:order-2 flex">
-            <AutoTradingPanel
-              state={autoTrading.state}
-              onToggle={autoTrading.toggleAutoTrading}
-              onManualClose={handleManualClose}
-              onSkipSignal={autoTrading.skipSignal}
-              onSwapSignal={autoTrading.swapSignalDirection}
-              onToggleLossProtection={autoTrading.toggleLossProtection}
-              onClearCooldown={autoTrading.clearCooldown}
-              currentPrice={currentAutoPrice}
-              krwRate={krwRate}
-              leverage={leverage}
-              onLeverageChange={setLeverage}
-              onSelectSymbol={setSelectedSymbol}
-              onBalanceChange={handleBalanceChange}
-              refreshTrigger={refreshTrigger}
-              scanStatus={{
-                isScanning,
-                tickersCount: tickersForScreening.length,
-                screenedCount: screenedSymbols.length,
-                signalsCount: activeSignals.length,
-                lastScanTime,
-              }}
-            />
-          </div>
+        {/* Right - System Trading Panel */}
+        <div className="col-span-4 flex flex-col min-h-0 overflow-auto">
+          <AutoTradingPanel
+            state={autoTrading.state}
+            onToggle={autoTrading.toggleAutoTrading}
+            onManualClose={handleManualClose}
+            onSkipSignal={autoTrading.skipSignal}
+            onSwapSignal={autoTrading.swapSignalDirection}
+            onToggleLossProtection={autoTrading.toggleLossProtection}
+            onClearCooldown={autoTrading.clearCooldown}
+            currentPrice={currentAutoPrice}
+            krwRate={krwRate}
+            leverage={leverage}
+            onLeverageChange={setLeverage}
+            onSelectSymbol={setSelectedSymbol}
+            onBalanceChange={handleBalanceChange}
+            refreshTrigger={refreshTrigger}
+            scanStatus={{
+              isScanning,
+              tickersCount: tickersForScreening.length,
+              screenedCount: screenedSymbols.length,
+              signalsCount: activeSignals.length,
+              lastScanTime,
+            }}
+          />
         </div>
       </div>
     </div>
