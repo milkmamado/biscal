@@ -356,14 +356,14 @@ export function checkLongSignal(indicators: TechnicalIndicators, price: number):
     score += 2;
   }
   
-  // 5. 거래량 150% 이상
-  if (indicators.volumeRatio >= 1.5) {
+  // 5. 거래량 200% 이상
+  if (indicators.volumeRatio >= 2.0) {
     reasons.push(`거래량 급증 (${(indicators.volumeRatio * 100).toFixed(0)}%)`);
     score += 1;
   }
   
-  // 6. ADX > 25 (강한 추세)
-  if (indicators.adx > 25) {
+  // 6. ADX > 20 (강한 추세)
+  if (indicators.adx > 20) {
     reasons.push(`강한 추세 (ADX ${indicators.adx.toFixed(1)})`);
     score += 1;
   }
@@ -432,14 +432,14 @@ export function checkShortSignal(indicators: TechnicalIndicators, price: number)
     score += 2;
   }
   
-  // 5. 거래량 150% 이상
-  if (indicators.volumeRatio >= 1.5) {
+  // 5. 거래량 200% 이상
+  if (indicators.volumeRatio >= 2.0) {
     reasons.push(`거래량 급증 (${(indicators.volumeRatio * 100).toFixed(0)}%)`);
     score += 1;
   }
   
-  // 6. ADX > 25 (강한 추세)
-  if (indicators.adx > 25) {
+  // 6. ADX > 20 (강한 추세)
+  if (indicators.adx > 20) {
     reasons.push(`강한 추세 (ADX ${indicators.adx.toFixed(1)})`);
     score += 1;
   }
