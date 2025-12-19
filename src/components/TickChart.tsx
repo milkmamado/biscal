@@ -699,13 +699,13 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
         }}
       />
       
-      {/* 飛蛾赴火 나방 효과 (오른쪽 배경) */}
+      {/* 飛蛾赴火 나방 효과 (우측 상단 가로 배치) */}
       {mothVisible && (
         <div 
-          className="absolute right-8 top-1/2 -translate-y-1/2 z-[5] flex flex-col items-center gap-2 pointer-events-none"
+          className="absolute right-14 top-12 z-[5] flex items-center gap-4 pointer-events-none"
           style={{
             opacity: mothPhase === 0 ? 0 : mothPhase === 1 ? 1 : 0,
-            transform: `translateY(-50%) scale(${mothPhase === 1 ? 1 : 0.9})`,
+            transform: `scale(${mothPhase === 1 ? 1 : 0.9})`,
             transition: 'opacity 0.5s ease-out, transform 0.5s ease-out',
           }}
         >
@@ -717,8 +717,8 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
             }}
           >
             <svg 
-              width="48" 
-              height="48" 
+              width="44" 
+              height="44" 
               viewBox="0 0 100 100" 
               className="drop-shadow-lg"
               style={{
@@ -771,11 +771,11 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
             </svg>
             
             {/* 불꽃 파티클 */}
-            <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 flex gap-1">
+            <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
               {[0, 1, 2].map((i) => (
                 <div 
                   key={i}
-                  className="w-1.5 h-3 rounded-full"
+                  className="w-1 h-2.5 rounded-full"
                   style={{
                     background: 'linear-gradient(to top, #ff6600, #ffcc00)',
                     animation: `flameFlicker ${0.3 + i * 0.1}s ease-in-out infinite alternate`,
@@ -786,12 +786,12 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
             </div>
           </div>
 
-          {/* 한자 문구 - 세로 배열 */}
-          <div className="flex flex-col items-center gap-0.5 mt-1">
+          {/* 한자 문구 - 가로 배열 */}
+          <div className="flex items-center gap-1">
             {['飛', '蛾', '赴', '火'].map((char, index) => (
               <span 
                 key={char}
-                className="text-2xl font-bold"
+                className="text-3xl font-bold"
                 style={{
                   color: index === 3 ? '#ff4400' : '#ff8844',
                   textShadow: `
@@ -807,9 +807,17 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
             ))}
           </div>
 
+          {/* 구분선 */}
+          <div 
+            className="w-px h-8"
+            style={{
+              background: 'linear-gradient(to bottom, transparent, #ff6600, transparent)',
+            }}
+          />
+
           {/* 부제 */}
           <span 
-            className="text-[9px] tracking-widest font-mono mt-1"
+            className="text-[10px] tracking-widest font-mono"
             style={{
               color: '#ffaa44',
               textShadow: '0 0 5px #ff6600, 0 0 10px #ff4400',
