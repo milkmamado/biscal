@@ -49,6 +49,7 @@ interface PendingSignal {
 interface TakeProfitState {
   tpHit: boolean; // 익절 완료 여부
   breakEvenActivated: boolean; // 브레이크이븐 활성화 여부
+  breakEvenActivatedAt: number | null; // 브레이크이븐 활성화 시간
 }
 
 // 코인별 연속 손절 기록
@@ -119,6 +120,7 @@ const CONFIG = {
   // 브레이크이븐 설정
   BREAKEVEN_TRIGGER: 0.15,   // +0.15% 도달 시 브레이크이븐 활성화
   BREAKEVEN_SL: 0.02,        // 브레이크이븐 시 손절을 +0.02%로 (약간의 수수료 커버)
+  BREAKEVEN_TIMEOUT_SEC: 120, // 브레이크이븐 후 2분 내 TP 미도달 시 수익 확정 청산
   
   // 진입 후 보호 시간 (손절 체크 안함)
   ENTRY_PROTECTION_SEC: 30,  // 진입 후 30초간 손절 보호
@@ -458,11 +460,23 @@ export function useAutoTrading({
             takeProfitState: {
               ...prev.currentPosition.takeProfitState,
               breakEvenActivated: true,
+              breakEvenActivatedAt: Date.now(),
             },
           },
         };
       });
-      toast.info(`🛡️ 브레이크이븐 활성화! 손절이 +${CONFIG.BREAKEVEN_SL}%로 이동`);
+      toast.info(`🛡️ 브레이크이븐 활성화! 손절이 +${CONFIG.BREAKEVEN_SL}%로 이동 (2분 내 TP 미도달 시 수익 확정)`);
+    }
+
+    // 🆕 브레이크이븐 타임아웃 체크 (2분 내 TP 미도달 시 수익 확정 청산)
+    if (tpState.breakEvenActivated && tpState.breakEvenActivatedAt) {
+      const beElapsedSec = (Date.now() - tpState.breakEvenActivatedAt) / 1000;
+      if (beElapsedSec >= CONFIG.BREAKEVEN_TIMEOUT_SEC && pnlPercent > 0) {
+        console.log(`⏱️ [checkTpSl] BE 타임아웃 수익 확정: ${beElapsedSec.toFixed(0)}초 경과, 현재 수익 +${pnlPercent.toFixed(2)}%`);
+        toast.success(`⏱️ 2분 타임아웃! +${pnlPercent.toFixed(2)}% 수익 확정 청산`);
+        await closePosition('tp', currentPrice);
+        return;
+      }
     }
 
     // 1. 손절 체크 - 브레이크이븐 여부에 따라 다른 기준 적용
@@ -727,6 +741,7 @@ export function useAutoTrading({
         takeProfitState: {
           tpHit: false,
           breakEvenActivated: false,
+          breakEvenActivatedAt: null,
         },
         indicators,
         maxPnlPercent: 0,
@@ -831,6 +846,7 @@ export function useAutoTrading({
               takeProfitState: {
                 tpHit: false,
                 breakEvenActivated: false,
+                breakEvenActivatedAt: null,
               },
               indicators: defaultIndicators,
               maxPnlPercent: 0,
