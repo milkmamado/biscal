@@ -71,7 +71,9 @@ interface Position {
   takeProfitState: TakeProfitState;
   indicators: TechnicalIndicators;
   maxPnlPercent: number; // 최고 수익률 기록 (브레이크이븐용)
-  earlySLStage: number; // 🆕 조기 손절 단계 (0: 없음, 1: 1단계 발동, 2: 2단계 발동)
+  earlySLStage: number; // 조기 손절 단계 (0: 없음, 1: 1단계 발동, 2: 2단계 발동)
+  trendStrength: TrendStrength; // 🆕 진입 시점 추세 강도
+  trailingActivated: boolean; // 🆕 트레일링 활성화 여부
 }
 
 export interface AutoTradingState {
@@ -114,9 +116,34 @@ interface UseAutoTradingProps {
 
 // 설정값
 const CONFIG = {
-  // 익절/손절 (고정 %) - 손익비 1:1
-  TP_PERCENT: 0.25,          // +0.25% 도달 시 전량 익절
+  // 익절/손절 (기본값) - 동적 TP로 대체됨
+  TP_PERCENT: 0.25,          // 기본 TP (약한 추세)
   SL_PERCENT: 0.25,          // -0.25% 도달 시 전량 손절 (최종 방어선)
+  
+  // 🆕 동적 익절 설정 (ADX + 모멘텀 기반)
+  DYNAMIC_TP: {
+    // 약한 추세: ADX < 30 또는 연속 캔들 3개 미만
+    WEAK: {
+      TP_PERCENT: 0.20,      // +0.20% 고정 익절
+      USE_TRAILING: false,
+      TRAILING_ACTIVATION: 0.15,  // 사용 안함
+      TRAILING_DISTANCE: 0.10,    // 사용 안함
+    },
+    // 중간 추세: ADX 30-40 또는 연속 캔들 3개
+    MEDIUM: {
+      TP_PERCENT: 0.30,      // +0.30% 1차 익절
+      USE_TRAILING: true,
+      TRAILING_ACTIVATION: 0.25,  // +0.25% 도달 시 트레일링 시작
+      TRAILING_DISTANCE: 0.12,    // 고점 대비 -0.12%에서 청산
+    },
+    // 강한 추세: ADX 40+ AND 연속 캔들 4개+
+    STRONG: {
+      TP_PERCENT: 0.50,      // +0.50% 까지 홀딩 가능
+      USE_TRAILING: true,
+      TRAILING_ACTIVATION: 0.20,  // +0.20% 도달 시 트레일링 시작
+      TRAILING_DISTANCE: 0.10,    // 고점 대비 -0.10%에서 청산
+    },
+  },
   
   // 🆕 다단계 조기 손절 (슬리피지 방지)
   EARLY_SL: {
@@ -176,6 +203,45 @@ const CONFIG = {
     HIGH: 0.7,               // 높은 변동성 → 작은 포지션
   },
 };
+
+// 🆕 추세 강도 판단 함수
+type TrendStrength = 'WEAK' | 'MEDIUM' | 'STRONG';
+
+function calculateTrendStrength(indicators: TechnicalIndicators, klines?: Kline[]): TrendStrength {
+  const adx = indicators.adx;
+  
+  // 연속 캔들 카운트 (최근 5개)
+  let consecutiveBullish = 0;
+  let consecutiveBearish = 0;
+  
+  if (klines && klines.length >= 5) {
+    const recent5 = klines.slice(-5);
+    for (const k of recent5) {
+      if (k.close > k.open) {
+        consecutiveBullish++;
+        consecutiveBearish = 0;
+      } else {
+        consecutiveBearish++;
+        consecutiveBullish = 0;
+      }
+    }
+  }
+  
+  const consecutiveCandles = Math.max(consecutiveBullish, consecutiveBearish);
+  
+  // 강한 추세: ADX 40+ AND 연속 캔들 4개+
+  if (adx >= 40 && consecutiveCandles >= 4) {
+    return 'STRONG';
+  }
+  
+  // 중간 추세: ADX 30+ OR 연속 캔들 3개+
+  if (adx >= 30 || consecutiveCandles >= 3) {
+    return 'MEDIUM';
+  }
+  
+  // 약한 추세
+  return 'WEAK';
+}
 
 // 분 타임스탬프
 function getMinuteTimestamp() {
@@ -471,10 +537,12 @@ export function useAutoTrading({
       });
     }
     
-    // 상태 메시지 업데이트
+    // 상태 메시지 업데이트 (추세 강도 표시)
+    const trendIcon = position.trendStrength === 'STRONG' ? '🔥' : position.trendStrength === 'MEDIUM' ? '📈' : '📊';
+    const trailingStatus = position.trailingActivated ? ' [TR]' : '';
     setState(prev => ({
       ...prev,
-      statusMessage: `📊 ${position.symbol.replace('USDT', '')} ${position.side === 'long' ? '롱' : '숏'}${beStatus}${earlySlStatus} | ${pnlRounded >= 0 ? '+' : ''}${pnlRounded.toFixed(1)}%`,
+      statusMessage: `${trendIcon} ${position.symbol.replace('USDT', '')} ${position.side === 'long' ? '롱' : '숏'}${beStatus}${earlySlStatus}${trailingStatus} | ${pnlRounded >= 0 ? '+' : ''}${pnlRounded.toFixed(1)}%`,
     }));
 
     // ============================================
@@ -598,8 +666,44 @@ export function useAutoTrading({
       return;
     }
 
-    // 전량 익절 체크 (+0.25%)
-    if (!tpState.tpHit && pnlPercent >= CONFIG.TP_PERCENT) {
+    // ============================================
+    // 🆕 동적 익절 시스템 (ADX + 캔들 모멘텀 기반)
+    // ============================================
+    const trendConfig = CONFIG.DYNAMIC_TP[position.trendStrength];
+    const trendLabel = position.trendStrength === 'STRONG' ? '🔥강함' : position.trendStrength === 'MEDIUM' ? '📈중간' : '📊약함';
+    
+    // 트레일링 활성화 체크
+    if (trendConfig.USE_TRAILING && !position.trailingActivated && pnlPercent >= trendConfig.TRAILING_ACTIVATION) {
+      console.log(`🎯 [동적TP] ${trendLabel} 트레일링 활성화! +${pnlPercent.toFixed(2)}% >= +${trendConfig.TRAILING_ACTIVATION}%`);
+      toast.info(`🎯 트레일링 활성화! (${trendLabel}) 고점 추적 시작`);
+      setState(prev => {
+        if (!prev.currentPosition) return prev;
+        return {
+          ...prev,
+          currentPosition: {
+            ...prev.currentPosition,
+            trailingActivated: true,
+          },
+        };
+      });
+    }
+    
+    // 트레일링 스탑 체크 (고점 대비 하락 시 청산)
+    if (position.trailingActivated && trendConfig.USE_TRAILING) {
+      const dropFromMax = position.maxPnlPercent - pnlPercent;
+      
+      if (dropFromMax >= trendConfig.TRAILING_DISTANCE && pnlPercent > 0) {
+        console.log(`🎯 [동적TP] 트레일링 청산! 고점 +${position.maxPnlPercent.toFixed(2)}% → 현재 +${pnlPercent.toFixed(2)}% (하락폭: ${dropFromMax.toFixed(2)}%)`);
+        toast.success(`🎯 트레일링 익절! +${pnlPercent.toFixed(2)}% (고점 대비 -${dropFromMax.toFixed(2)}%)`);
+        await closePosition('tp', currentPrice);
+        return;
+      }
+    }
+    
+    // 고정 TP 체크 (트레일링 미사용 시 또는 TP_PERCENT 도달 시)
+    if (!tpState.tpHit && pnlPercent >= trendConfig.TP_PERCENT) {
+      console.log(`🎯 [동적TP] ${trendLabel} 목표가 도달! +${pnlPercent.toFixed(2)}% >= +${trendConfig.TP_PERCENT}%`);
+      toast.success(`🎯 ${trendLabel} 익절! +${pnlPercent.toFixed(2)}%`);
       await closePosition('tp', currentPrice);
       return;
     }
@@ -846,7 +950,9 @@ export function useAutoTrading({
         },
         indicators,
         maxPnlPercent: 0,
-        earlySLStage: 0, // 🆕 조기 손절 초기화
+        earlySLStage: 0,
+        trendStrength: calculateTrendStrength(indicators), // 🆕 진입 시점 추세 강도
+        trailingActivated: false, // 🆕 트레일링 초기화
       };
 
       setState(prev => ({
@@ -967,7 +1073,9 @@ export function useAutoTrading({
               },
               indicators: defaultIndicators,
               maxPnlPercent: 0,
-              earlySLStage: 0, // 🆕
+              earlySLStage: 0,
+              trendStrength: 'MEDIUM', // 동기화된 포지션은 기본값
+              trailingActivated: false,
             },
             currentSymbol: activePosition.symbol,
           }));
@@ -1008,7 +1116,9 @@ export function useAutoTrading({
               },
               indicators: defaultIndicators,
               maxPnlPercent: 0,
-              earlySLStage: 0, // 🆕
+              earlySLStage: 0,
+              trendStrength: 'MEDIUM', // 동기화된 포지션은 기본값
+              trailingActivated: false,
             },
             currentSymbol: activePosition.symbol,
           }));
