@@ -105,30 +105,44 @@ export const useTradingLogs = () => {
     leverage: number;
     pnlUsd: number;
   }) => {
+    const timestamp = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    
+    console.log(`📤 [DB 전송 시작] ${timestamp} | ${trade.symbol} ${trade.side} | 진입: $${trade.entryPrice.toFixed(4)} → 청산: $${trade.exitPrice.toFixed(4)} | 수량: ${trade.quantity} | 레버리지: ${trade.leverage}x | PnL: $${trade.pnlUsd.toFixed(6)}`);
+    
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const today = getTodayDate();
-
-      const { error } = await supabase
-        .from('daily_trading_logs')
-        .insert({
-          user_id: user.id,
-          trade_date: today,
-          symbol: trade.symbol,
-          side: trade.side,
-          entry_price: trade.entryPrice,
-          exit_price: trade.exitPrice,
-          quantity: trade.quantity,
-          leverage: trade.leverage,
-          pnl_usd: trade.pnlUsd,
-        });
-
-      if (error) {
-        console.error('Failed to log trade:', error);
+      if (!user) {
+        console.error('❌ [DB 전송 실패] 사용자 인증 없음');
         return;
       }
+
+      const today = getTodayDate();
+      
+      const insertData = {
+        user_id: user.id,
+        trade_date: today,
+        symbol: trade.symbol,
+        side: trade.side,
+        entry_price: trade.entryPrice,
+        exit_price: trade.exitPrice,
+        quantity: trade.quantity,
+        leverage: trade.leverage,
+        pnl_usd: trade.pnlUsd,
+      };
+      
+      console.log(`📋 [DB 전송 데이터]`, JSON.stringify(insertData));
+
+      const { data, error } = await supabase
+        .from('daily_trading_logs')
+        .insert(insertData)
+        .select();
+
+      if (error) {
+        console.error(`❌ [DB 전송 실패] ${timestamp} | ${trade.symbol}`, error);
+        return;
+      }
+
+      console.log(`✅ [DB 저장 완료] ${timestamp} | ${trade.symbol} ${trade.side} | PnL: $${trade.pnlUsd.toFixed(6)} | ID: ${data?.[0]?.id || 'unknown'}`);
 
       // Update local stats immediately
       setDailyStats(prev => {
@@ -144,7 +158,7 @@ export const useTradingLogs = () => {
         };
       });
     } catch (error) {
-      console.error('Error logging trade:', error);
+      console.error(`❌ [DB 전송 에러] ${timestamp} | ${trade.symbol}`, error);
     }
   }, []);
 

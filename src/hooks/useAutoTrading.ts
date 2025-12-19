@@ -498,6 +498,10 @@ export function useAutoTrading({
         `${isWin ? '✅' : '❌'} ${reasonText} | ${pnl >= 0 ? '+' : ''}₩${pnlKRW.toLocaleString()}`
       );
 
+      // 📊 DB 저장 호출
+      const closeTimestamp = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      console.log(`📊 [closePosition] DB 저장 호출 시점: ${closeTimestamp} | ${position.symbol} ${position.side} | 진입: $${actualEntryPrice.toFixed(4)} → 청산: $${currentPrice.toFixed(4)} | PnL: $${pnl.toFixed(6)} | 체류: ${holdTimeSec}초`);
+      
       if (logTrade) {
         logTrade({
           symbol: position.symbol,
@@ -508,6 +512,8 @@ export function useAutoTrading({
           leverage,
           pnlUsd: pnl,
         });
+      } else {
+        console.warn(`⚠️ [closePosition] logTrade 함수 없음 - DB 저장 스킵됨!`);
       }
 
       onTradeComplete?.();
@@ -1167,13 +1173,33 @@ export function useAutoTrading({
         // ⚠️ 단, 진입 후 10초 이내는 API 지연으로 오탐 가능 → 무시
         if (state.currentPosition && !activePosition) {
           const timeSinceEntry = Date.now() - state.currentPosition.entryTime;
+          const pos = state.currentPosition;
           
           // 진입 후 10초 이내면 sync 무시 (API 지연 대응)
           if (timeSinceEntry < 10000) {
             console.log(`⏳ [syncPositions] 진입 직후 ${(timeSinceEntry / 1000).toFixed(1)}초 - sync 무시`);
           } else {
-            console.log(`⚠️ [syncPositions] 외부 청산 감지: ${state.currentPosition.symbol} 포지션이 바이낸스에 없음 (${(timeSinceEntry / 1000).toFixed(0)}초 경과)`);
-            toast.warning(`⚠️ ${state.currentPosition.symbol.replace('USDT', '')} 포지션이 외부에서 청산됨`);
+            const holdTimeSec = (timeSinceEntry / 1000).toFixed(0);
+            console.log(`⚠️ [syncPositions] 외부 청산 감지: ${pos.symbol} 포지션이 바이낸스에 없음 (${holdTimeSec}초 경과)`);
+            toast.warning(`⚠️ ${pos.symbol.replace('USDT', '')} 포지션이 외부에서 청산됨 (${holdTimeSec}초)`);
+            
+            // 📊 외부 청산도 DB에 기록 (추정 손익 = 0으로 기록, 실제 값은 바이낸스 조회 필요)
+            console.log(`📊 [syncPositions] 외부 청산 DB 기록 시도: ${pos.symbol} ${pos.side} | 진입가: $${pos.entryPrice.toFixed(4)} | 체류: ${holdTimeSec}초`);
+            if (logTrade) {
+              // 외부 청산은 청산가를 알 수 없으므로 진입가=청산가로 기록 (PnL 0)
+              // 실제 손익은 바이낸스 Income History에서 확인 필요
+              logTrade({
+                symbol: pos.symbol,
+                side: pos.side,
+                entryPrice: pos.entryPrice,
+                exitPrice: pos.entryPrice, // 청산가 불명 → 진입가로 대체
+                quantity: pos.remainingQuantity,
+                leverage,
+                pnlUsd: 0, // 외부 청산은 손익 추정 불가
+              });
+              console.log(`✅ [syncPositions] 외부 청산 DB 기록 완료 (PnL 추정 불가 → 0으로 기록)`);
+            }
+            
             setState(prev => ({
               ...prev,
               currentPosition: null,
