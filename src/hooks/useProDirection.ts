@@ -535,46 +535,33 @@ export async function getProDirection(symbol: string): Promise<ProDirectionResul
     result.details.momentum = momentum;
     result.votes.momentum = momentum.direction;
     
-    // === 투표 집계 ===
-    const votes = {
-      LONG: 0,
-      SHORT: 0,
-      NO_TRADE: 0,
-    };
+    // === MTF 중심 단순화: MTF 합의가 있으면 바로 진입 ===
+    // 모멘텀/PriceAction은 신뢰도 점수에만 반영
     
-    // MTF는 가중치 2 (더 중요)
-    if (mtf.direction === 'LONG') votes.LONG += 2;
-    else if (mtf.direction === 'SHORT') votes.SHORT += 2;
-    else votes.NO_TRADE += 2;
+    let confidenceBonus = 0;
     
-    // 프라이스 액션
-    if (priceAction.direction === 'LONG') votes.LONG += 1;
-    else if (priceAction.direction === 'SHORT') votes.SHORT += 1;
-    else votes.NO_TRADE += 1;
+    // MTF 합의 → 기본 신뢰도 60%
+    result.position = mtf.direction;
+    let baseConfidence = 60;
     
-    // 모멘텀
-    if (momentum.direction === 'LONG') votes.LONG += 1;
-    else if (momentum.direction === 'SHORT') votes.SHORT += 1;
-    else votes.NO_TRADE += 1;
-    
-    // 총 4점 중 최소 3점 이상 필요 (MTF 2점 + 나머지 1점 이상)
-    const totalVotes = votes.LONG + votes.SHORT + votes.NO_TRADE; // 항상 4
-    
-    if (votes.LONG >= 3) {
-      result.position = 'LONG';
-      result.confidence = (votes.LONG / totalVotes) * 100;
-      result.reason = '롱 합의 (MTF + 추가 확인)';
-    } else if (votes.SHORT >= 3) {
-      result.position = 'SHORT';
-      result.confidence = (votes.SHORT / totalVotes) * 100;
-      result.reason = '숏 합의 (MTF + 추가 확인)';
-    } else {
-      result.position = 'NO_TRADE';
-      result.confidence = 0;
-      result.reason = `합의 부족 (롱: ${votes.LONG}, 숏: ${votes.SHORT})`;
+    // 모멘텀이 같은 방향이면 +20%
+    if (momentum.direction === mtf.direction) {
+      confidenceBonus += 20;
+    }
+    // 모멘텀이 반대 방향이면 -10%
+    else if (momentum.direction !== 'NO_TRADE' && momentum.direction !== mtf.direction) {
+      confidenceBonus -= 10;
     }
     
-    console.log(`[PRO] ${symbol} 투표: LONG=${votes.LONG} SHORT=${votes.SHORT} → ${result.position} (${result.confidence.toFixed(0)}%)`);
+    // PriceAction이 확인되면 +20%
+    if (priceAction.confirmed && priceAction.direction === mtf.direction) {
+      confidenceBonus += 20;
+    }
+    
+    result.confidence = Math.min(100, Math.max(30, baseConfidence + confidenceBonus));
+    result.reason = `MTF 합의 (${mtf.reason})`;
+    
+    console.log(`[PRO] ${symbol} MTF=${mtf.direction} 모멘텀=${momentum.direction} PA=${priceAction.direction} → ${result.position} (${result.confidence.toFixed(0)}%)`);
     
   } catch (error) {
     console.error('[PRO] 분석 실패:', error);
