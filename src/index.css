@@ -334,4 +334,32 @@
       transform: translateY(-5px) rotate(2deg);
     }
   }
+
+  /* 사이버 눈물 떨어지는 효과 */
+  @keyframes tearDrop {
+    0%, 100% {
+      transform: translateY(0) scaleY(1);
+      opacity: 0.9;
+    }
+    50% {
+      transform: translateY(5px) scaleY(1.1);
+      opacity: 1;
+    }
+  }
+
+  /* 눈물 파티클 떨어지는 효과 */
+  @keyframes tearParticle {
+    0% {
+      transform: translateY(0);
+      opacity: 0.8;
+    }
+    50% {
+      transform: translateY(15px);
+      opacity: 1;
+    }
+    100% {
+      transform: translateY(30px);
+      opacity: 0;
+    }
+  }
 }
