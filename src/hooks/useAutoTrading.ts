@@ -61,9 +61,6 @@ interface Position {
   atr: number;
   takeProfitState: TakeProfitState;
   indicators: TechnicalIndicators;
-  // 전봉 기반 동적 손절
-  stopLossPrice: number;       // 현재 손절 기준가
-  lastCandleTime: number;      // 마지막 확인한 봉 시간
 }
 
 export interface AutoTradingState {
@@ -106,12 +103,12 @@ interface UseAutoTradingProps {
 
 // 설정값
 const CONFIG = {
-  // 익절 (전량 즉시 익절)
+  // 익절/손절 (고정 %)
   TP_PERCENT: 0.2,           // +0.2% 도달 시 전량 익절
+  SL_PERCENT: 0.15,          // -0.15% 도달 시 전량 손절
   
   // 타임 스탑
   TIME_STOP_MINUTES: 15,     // 15분 타임 스탑
-  VOLUME_STOP_RATIO: 0.5,    // 거래량 50% 감소 시 청산
   
   // 연속 손실 관리
   MAX_CONSECUTIVE_LOSSES: 5, // 연속 5회 손실
@@ -368,8 +365,7 @@ export function useAutoTrading({
     
     // 📊 실시간 손익 로그
     const pnlRounded = Math.round(pnlPercent * 10) / 10;
-    const slPercent = ((Math.abs(position.stopLossPrice - position.entryPrice) / position.entryPrice) * 100).toFixed(2);
-    console.log(`[TP/SL] ${position.symbol} ${position.side.toUpperCase()} | 현재: ${currentPrice.toFixed(4)} | 진입: ${position.entryPrice.toFixed(4)} | SL: ${position.stopLossPrice.toFixed(4)} (-${slPercent}%) | 손익: ${pnlRounded >= 0 ? '+' : ''}${pnlRounded.toFixed(1)}%`);
+    console.log(`[TP/SL] ${position.symbol} ${position.side.toUpperCase()} | 현재: ${currentPrice.toFixed(4)} | 진입: ${position.entryPrice.toFixed(4)} | TP: +${CONFIG.TP_PERCENT}% | SL: -${CONFIG.SL_PERCENT}% | 손익: ${pnlRounded >= 0 ? '+' : ''}${pnlRounded.toFixed(1)}%`);
     
     // 상태 메시지 업데이트
     setState(prev => ({
@@ -377,30 +373,17 @@ export function useAutoTrading({
       statusMessage: `📊 ${position.symbol.replace('USDT', '')} ${position.side === 'long' ? '롱' : '숏'} | ${pnlRounded >= 0 ? '+' : ''}${pnlRounded.toFixed(1)}%`,
     }));
 
-    // 1. 전봉 기반 손절 체크
-    if (position.side === 'long' && currentPrice < position.stopLossPrice) {
-      console.log(`🛑 [checkTpSl] 전봉 저가 이탈 손절: ${currentPrice.toFixed(4)} < ${position.stopLossPrice.toFixed(4)}`);
-      await closePosition('sl', currentPrice);
-      return;
-    }
-    if (position.side === 'short' && currentPrice > position.stopLossPrice) {
-      console.log(`🛑 [checkTpSl] 전봉 고가 이탈 손절: ${currentPrice.toFixed(4)} > ${position.stopLossPrice.toFixed(4)}`);
+    // 1. 고정 % 손절 체크 (-0.15%)
+    if (pnlPercent <= -CONFIG.SL_PERCENT) {
+      console.log(`🛑 [checkTpSl] 손절: ${pnlPercent.toFixed(2)}% <= -${CONFIG.SL_PERCENT}%`);
       await closePosition('sl', currentPrice);
       return;
     }
 
-    // 2. 타임 스탑 체크
+    // 2. 타임 스탑 체크 (15분 보유 + 손실)
     const holdTime = (Date.now() - position.entryTime) / 60000;
     if (holdTime >= CONFIG.TIME_STOP_MINUTES && pnlPercent < 0) {
       await closePosition('time', currentPrice);
-      return;
-    }
-    
-    // 3. 볼륨 스톱 체크 (거래량 50% 감소 시)
-    if (currentVolumeRatio !== undefined && currentVolumeRatio < CONFIG.VOLUME_STOP_RATIO && pnlPercent < 0) {
-      console.log(`[checkTpSl] 볼륨 스톱 발동: 거래량 ${(currentVolumeRatio * 100).toFixed(0)}% < ${CONFIG.VOLUME_STOP_RATIO * 100}%`);
-      await closePosition('sl', currentPrice);
-      toast.warning('📉 거래량 급감으로 청산');
       return;
     }
 
@@ -408,68 +391,6 @@ export function useAutoTrading({
     if (!tpState.tpHit && pnlPercent >= CONFIG.TP_PERCENT) {
       await closePosition('tp', currentPrice);
       return;
-    }
-    
-    // 6. 🆕 전봉 기반 동적 손절선 업데이트 (5분마다 체크)
-    const now = Date.now();
-    const fiveMinMs = 5 * 60 * 1000;
-    const currentCandleStart = Math.floor(now / fiveMinMs) * fiveMinMs;
-    
-    // 새로운 5분봉이 완성되었는지 체크
-    if (currentCandleStart > position.lastCandleTime) {
-      try {
-        const klines = await fetch5mKlines(position.symbol, 3);
-        if (klines && klines.length >= 2) {
-          const prevCandle = klines[klines.length - 2]; // 직전 완성된 봉
-          
-          if (position.side === 'long') {
-            // 롱: 새 전봉 저가가 기존 손절가보다 높으면 업데이트 (유리한 방향)
-            if (prevCandle.low > position.stopLossPrice) {
-              console.log(`[checkTpSl] 손절선 상향: ${position.stopLossPrice.toFixed(4)} → ${prevCandle.low.toFixed(4)}`);
-              setState(prev => ({
-                ...prev,
-                currentPosition: prev.currentPosition ? {
-                  ...prev.currentPosition,
-                  stopLossPrice: prevCandle.low,
-                  lastCandleTime: currentCandleStart,
-                } : null,
-              }));
-            } else {
-              // 손절가는 유지하되 시간만 업데이트
-              setState(prev => ({
-                ...prev,
-                currentPosition: prev.currentPosition ? {
-                  ...prev.currentPosition,
-                  lastCandleTime: currentCandleStart,
-                } : null,
-              }));
-            }
-          } else {
-            // 숏: 새 전봉 고가가 기존 손절가보다 낮으면 업데이트 (유리한 방향)
-            if (prevCandle.high < position.stopLossPrice) {
-              console.log(`[checkTpSl] 손절선 하향: ${position.stopLossPrice.toFixed(4)} → ${prevCandle.high.toFixed(4)}`);
-              setState(prev => ({
-                ...prev,
-                currentPosition: prev.currentPosition ? {
-                  ...prev.currentPosition,
-                  stopLossPrice: prevCandle.high,
-                  lastCandleTime: currentCandleStart,
-                } : null,
-              }));
-            } else {
-              setState(prev => ({
-                ...prev,
-                currentPosition: prev.currentPosition ? {
-                  ...prev.currentPosition,
-                  lastCandleTime: currentCandleStart,
-                } : null,
-              }));
-            }
-          }
-        }
-      } catch (error) {
-        console.error('[checkTpSl] 손절선 업데이트 실패:', error);
-      }
     }
   }, [state.currentPosition, closePosition]);
 
@@ -695,8 +616,6 @@ export function useAutoTrading({
           tpHit: false,
         },
         indicators,
-        stopLossPrice: initialStopLoss,
-        lastCandleTime,
       };
 
       setState(prev => ({

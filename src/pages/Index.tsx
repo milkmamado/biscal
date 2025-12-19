@@ -269,27 +269,18 @@ const Index = () => {
     ? tickers.find(t => t.symbol === autoTrading.state.currentPosition?.symbol)?.price || 0
     : 0;
     
-  // 손절/익절 예정 가격 계산
+  // 손절/익절 예정 가격 계산 (고정 %)
   const position = autoTrading.state.currentPosition;
-  // 🆕 전봉 기반 동적 손절가 사용
-  const stopLossPrice = position?.stopLossPrice;
+  const stopLossPrice = position ? (
+    position.side === 'long'
+      ? position.entryPrice * (1 - 0.0015)  // -0.15%
+      : position.entryPrice * (1 + 0.0015)
+  ) : undefined;
   
   const takeProfitPrice = position ? (
     position.side === 'long'
-      ? position.entryPrice * (1 + 0.003)  // 1단계 익절 +0.3%
-      : position.entryPrice * (1 - 0.003)
-  ) : undefined;
-  
-  const takeProfit2Price = position ? (
-    position.side === 'long'
-      ? position.entryPrice * (1 + 0.008)  // 2단계 익절 +0.8%
-      : position.entryPrice * (1 - 0.008)
-  ) : undefined;
-  
-  const takeProfit3Price = position ? (
-    position.side === 'long'
-      ? position.entryPrice * (1 + 0.015)  // 3단계 익절 +1.5%
-      : position.entryPrice * (1 - 0.015)
+      ? position.entryPrice * (1 + 0.002)  // +0.2%
+      : position.entryPrice * (1 - 0.002)
   ) : undefined;
 
   return (
@@ -303,8 +294,6 @@ const Index = () => {
             entryPrice={autoTrading.state.currentPosition?.entryPrice}
             stopLossPrice={stopLossPrice}
             takeProfitPrice={takeProfitPrice}
-            takeProfit2Price={takeProfit2Price}
-            takeProfit3Price={takeProfit3Price}
             positionSide={autoTrading.state.currentPosition?.side}
             onSelectSymbol={setSelectedSymbol}
           />
