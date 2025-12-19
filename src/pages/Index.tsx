@@ -56,7 +56,7 @@ const Index = () => {
   
   // 오더북 벽 분석 (100ms 실시간)
   const currentWallSymbol = autoTrading.state.pendingSignal?.symbol || autoTrading.state.currentPosition?.symbol || null;
-  const { shouldBlockLongEntry, shouldBlockShortEntry } = useOrderBookWall(currentWallSymbol, autoTrading.state.isEnabled);
+  const { analysis: orderBookAnalysis, shouldBlockLongEntry, shouldBlockShortEntry } = useOrderBookWall(currentWallSymbol, autoTrading.state.isEnabled);
 
   // 종목 스크리닝용 티커 데이터 준비
   const tickersForScreening = tickers
@@ -164,7 +164,7 @@ const Index = () => {
     }
   }, [autoTrading.state.currentPosition?.symbol, autoTrading.state.pendingSignal?.symbol]);
   
-  // 현재 가격으로 TP/SL 체크
+  // 현재 가격으로 TP/SL 체크 (오더북 불균형 포함)
   useEffect(() => {
     if (!autoTrading.state.currentPosition) return;
     
@@ -172,9 +172,10 @@ const Index = () => {
     const ticker = tickers.find(t => t.symbol === position.symbol);
     if (!ticker) return;
     
-    // 3단계 익절 시스템 사용
-    autoTrading.checkTpSl(ticker.price);
-  }, [tickers, autoTrading.state.currentPosition]);
+    // 🆕 오더북 불균형 데이터 전달 (스마트 손절용)
+    const orderbookImbalance = orderBookAnalysis?.imbalance;
+    autoTrading.checkTpSl(ticker.price, 0.3, 0.5, undefined, orderbookImbalance);
+  }, [tickers, autoTrading.state.currentPosition, orderBookAnalysis?.imbalance]);
 
   // Fetch USD/KRW rate
   useEffect(() => {
