@@ -261,7 +261,7 @@ const AutoTradingPanel = ({
   const dailyPnLPercentStr = dailyPnLPercent.toFixed(2);
   
   return (
-    <div className="bg-card border border-border rounded-lg overflow-hidden flex flex-col w-full">
+    <div className="bg-card border border-border rounded-lg overflow-hidden flex flex-col w-full h-full">
       {/* Header */}
       <div className={cn(
         "px-4 py-3 border-b border-border flex items-center justify-between",

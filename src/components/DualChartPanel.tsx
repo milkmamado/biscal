@@ -50,7 +50,7 @@ const DualChartPanel = ({
   }, [symbol]);
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full min-h-0">
       {/* Chart Area */}
       <div className="bg-card border border-border rounded overflow-hidden flex flex-col flex-1 min-h-0">
         <div className="px-2 py-1 bg-secondary/50 border-b border-border flex items-center gap-0.5 flex-wrap shrink-0">
@@ -83,9 +83,8 @@ const DualChartPanel = ({
         </div>
         
         {/* Cyber Pigeon Area */}
-        <div className="h-12 bg-gradient-to-b from-[#0a0a0a] to-[#0d0d1a] border-t border-cyan-500/10 relative overflow-hidden">
+        <div className="h-10 bg-gradient-to-b from-[#0a0a0a] to-[#0d0d1a] border-t border-cyan-500/10 relative overflow-hidden shrink-0">
           <CyberPigeon />
-          {/* 배경 그리드 패턴 */}
           <div 
             className="absolute inset-0 opacity-5"
             style={{
