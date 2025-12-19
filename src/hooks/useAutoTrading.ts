@@ -139,45 +139,45 @@ const CONFIG = {
     PROFIT_90S: { timeSec: 90, minProfitPct: 0.02, closePct: 100 }, // 90초 후 +0.02%면 전량 청산
   },
   
-  // 🛡️ Ultra Tight 손절
-  SL_PERCENT: 0.06,          // -0.06% 전량 손절 (최종 방어선)
+  // 🛡️ 손절 기준 (완화됨)
+  SL_PERCENT: 0.20,          // -0.20% 전량 손절 (최종 방어선) - 기존 0.06%에서 완화
   
-  // ⚡ 초고속 조기 손절 (HFT 핵심)
+  // ⚡ 조기 손절 (완화됨 - 진입 직후 손절 방지)
   EARLY_SL: {
-    STAGE1_SEC: 10,          // 1단계: 10초 이내
-    STAGE1_PERCENT: 0.03,    // -0.03% 도달 시
+    STAGE1_SEC: 20,          // 1단계: 20초 이내 (기존 10초)
+    STAGE1_PERCENT: 0.10,    // -0.10% 도달 시 (기존 0.03%)
     STAGE1_REDUCE: 0.5,      // 50% 청산
     
-    STAGE2_SEC: 30,          // 2단계: 30초 이내
-    STAGE2_PERCENT: 0.04,    // -0.04% 도달 시
+    STAGE2_SEC: 45,          // 2단계: 45초 이내 (기존 30초)
+    STAGE2_PERCENT: 0.15,    // -0.15% 도달 시 (기존 0.04%)
     STAGE2_REDUCE: 1.0,      // 전량 청산
   },
   
-  // 🛡️ 브레이크이븐 시스템
-  BREAKEVEN_TRIGGER: 0.05,   // +0.05% 도달 시 브레이크이븐 활성화
-  BREAKEVEN_SL: 0.01,        // 브레이크이븐 시 손절을 +0.01%로 이동
-  BREAKEVEN_TRAIL: 0.02,     // 0.02% 간격으로 추적
-  BREAKEVEN_TIMEOUT_SEC: 90, // 브레이크이븐 후 90초 내 TP 미도달 시 수익 확정 청산
+  // 🛡️ 브레이크이븐 시스템 (완화됨)
+  BREAKEVEN_TRIGGER: 0.10,   // +0.10% 도달 시 브레이크이븐 활성화 (기존 0.05%)
+  BREAKEVEN_SL: 0.02,        // 브레이크이븐 시 손절을 +0.02%로 이동 (기존 0.01%)
+  BREAKEVEN_TRAIL: 0.03,     // 0.03% 간격으로 추적 (기존 0.02%)
+  BREAKEVEN_TIMEOUT_SEC: 120, // 브레이크이븐 후 120초 내 TP 미도달 시 수익 확정 (기존 90초)
   
   // 🚨 오더북 긴급 탈출
   ORDERBOOK_EMERGENCY: {
-    IMBALANCE_THRESHOLD: 2.0,   // 불균형 2.0배 이상 시 경고
-    EXIT_THRESHOLD: 2.0,        // 불균형 2.0배 이상 + 손실 시 즉시 탈출
+    IMBALANCE_THRESHOLD: 2.5,   // 불균형 2.5배 이상 시 경고 (기존 2.0)
+    EXIT_THRESHOLD: 2.5,        // 불균형 2.5배 이상 + 손실 시 즉시 탈출 (기존 2.0)
     VOLUME_DROP_THRESHOLD: 0.3, // 거래량 70% 감소 시
-    SPREAD_THRESHOLD: 0.0015,   // 스프레드 0.15% 이상 시
+    SPREAD_THRESHOLD: 0.002,    // 스프레드 0.2% 이상 시 (기존 0.15%)
   },
   
-  // ⏱️ 체류시간 관리 (Ultra Fast Rotation)
+  // ⏱️ 체류시간 관리 (여유있게 조정)
   HOLD_TIME: {
-    MIN_SEC: 10,             // 최소 10초
-    TARGET_SEC: 45,          // 평균 45초
-    MAX_SEC: 120,            // 최대 2분 (절대 초과 금지)
-    MAX_PROFITABLE_SEC: 180, // 수익 시 최대 3분
-    MAX_UNPROFITABLE_SEC: 90, // 손실 시 최대 1.5분
+    MIN_SEC: 15,             // 최소 15초 (기존 10초)
+    TARGET_SEC: 60,          // 평균 60초 (기존 45초)
+    MAX_SEC: 180,            // 최대 3분 (기존 2분)
+    MAX_PROFITABLE_SEC: 240, // 수익 시 최대 4분 (기존 3분)
+    MAX_UNPROFITABLE_SEC: 120, // 손실 시 최대 2분 (기존 1.5분)
   },
   
-  // 진입 후 보호 시간 (없음)
-  ENTRY_PROTECTION_SEC: 0,
+  // 진입 후 보호 시간 (신규 추가!)
+  ENTRY_PROTECTION_SEC: 10,   // 진입 후 10초간 손절 보호
   
   // 거래당 최대 손실 제한
   MAX_LOSS_PER_TRADE_USD: 0.5,
@@ -606,12 +606,18 @@ export function useAutoTrading({
     }
 
     // ============================================
-    // ⚡ 3. 초고속 조기 손절 (HFT 핵심)
+    // ⚡ 3. 조기 손절 (진입 보호 시간 적용)
     // ============================================
+    // 🛡️ 진입 보호: 처음 10초간은 손절하지 않음
+    if (holdTimeSec < CONFIG.ENTRY_PROTECTION_SEC) {
+      // 진입 보호 시간 - 손절 스킵
+      return;
+    }
+    
     if (pnlPercent < 0 && !tpState.breakEvenActivated) {
       const { EARLY_SL } = CONFIG;
       
-      // 1단계: 10초 내 -0.03% → 50% 청산
+      // 1단계: 20초 내 -0.10% → 50% 청산
       if (holdTimeSec <= EARLY_SL.STAGE1_SEC && 
           pnlPercent <= -EARLY_SL.STAGE1_PERCENT && 
           position.earlySLStage < 1) {
@@ -640,7 +646,7 @@ export function useAutoTrading({
         return;
       }
       
-      // 2단계: 30초 내 -0.04% → 전량 청산
+      // 2단계: 45초 내 -0.15% → 전량 청산
       if (holdTimeSec <= EARLY_SL.STAGE2_SEC && 
           pnlPercent <= -EARLY_SL.STAGE2_PERCENT) {
         console.log(`⚡ [HFT] 조기손절 2단계! ${holdTimeSec.toFixed(0)}s, ${pnlPercent.toFixed(3)}%`);
