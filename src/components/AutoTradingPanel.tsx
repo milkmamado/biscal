@@ -504,12 +504,16 @@ const AutoTradingPanel = ({
             <span>진입가: ${formatPrice(currentPosition.entryPrice)}</span>
             <span>수량: {currentPosition.remainingQuantity.toFixed(4)}</span>
           </div>
-          {/* 익절 목표 */}
-          <div className="mt-2 flex items-center gap-2">
-            <span className="text-[10px] text-muted-foreground">익절 목표:</span>
+          {/* 익절/손절 목표 */}
+          <div className="mt-2 flex items-center gap-2 flex-wrap">
+            <span className="text-[10px] text-muted-foreground">목표:</span>
             <span className="text-[11px] px-2 py-1 rounded bg-green-500/20 text-green-400 font-mono">
-              +0.2% 전량 청산
+              TP +0.4%
             </span>
+            <span className="text-[11px] px-2 py-1 rounded bg-red-500/20 text-red-400 font-mono">
+              SL -0.3%
+            </span>
+            <span className="text-[10px] text-muted-foreground">(30초 보호)</span>
           </div>
           <div className="flex gap-2 mt-2">
             {onManualClose && (
