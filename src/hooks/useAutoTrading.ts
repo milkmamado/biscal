@@ -120,27 +120,27 @@ const CONFIG = {
   TP_PERCENT: 0.25,          // 기본 TP (약한 추세)
   SL_PERCENT: 0.25,          // -0.25% 도달 시 전량 손절 (최종 방어선)
   
-  // 🆕 동적 익절 설정 (ADX + 모멘텀 기반)
+  // 🆕 동적 익절 설정 (ADX + 모멘텀 기반) - 상향 조정
   DYNAMIC_TP: {
     // 약한 추세: ADX < 30 또는 연속 캔들 3개 미만
     WEAK: {
-      TP_PERCENT: 0.20,      // +0.20% 고정 익절
+      TP_PERCENT: 0.30,      // +0.30% 고정 익절 (기존 0.20%)
       USE_TRAILING: false,
-      TRAILING_ACTIVATION: 0.15,  // 사용 안함
+      TRAILING_ACTIVATION: 0.20,  // 사용 안함
       TRAILING_DISTANCE: 0.10,    // 사용 안함
     },
     // 중간 추세: ADX 30-40 또는 연속 캔들 3개
     MEDIUM: {
-      TP_PERCENT: 0.30,      // +0.30% 1차 익절
+      TP_PERCENT: 0.45,      // +0.45% 1차 익절 (기존 0.30%)
       USE_TRAILING: true,
-      TRAILING_ACTIVATION: 0.25,  // +0.25% 도달 시 트레일링 시작
+      TRAILING_ACTIVATION: 0.35,  // +0.35% 도달 시 트레일링 시작
       TRAILING_DISTANCE: 0.12,    // 고점 대비 -0.12%에서 청산
     },
     // 강한 추세: ADX 40+ AND 연속 캔들 4개+
     STRONG: {
-      TP_PERCENT: 0.50,      // +0.50% 까지 홀딩 가능
+      TP_PERCENT: 0.70,      // +0.70% 까지 홀딩 가능 (기존 0.50%)
       USE_TRAILING: true,
-      TRAILING_ACTIVATION: 0.20,  // +0.20% 도달 시 트레일링 시작
+      TRAILING_ACTIVATION: 0.30,  // +0.30% 도달 시 트레일링 시작
       TRAILING_DISTANCE: 0.10,    // 고점 대비 -0.10%에서 청산
     },
   },
@@ -162,10 +162,10 @@ const CONFIG = {
     EXIT_THRESHOLD: 50,       // 불균형 50% 이상 시 즉시 탈출
   },
   
-  // 브레이크이븐 설정
-  BREAKEVEN_TRIGGER: 0.15,   // +0.15% 도달 시 브레이크이븐 활성화
-  BREAKEVEN_SL: 0.02,        // 브레이크이븐 시 손절을 +0.02%로 (약간의 수수료 커버)
-  BREAKEVEN_TIMEOUT_SEC: 120, // 브레이크이븐 후 2분 내 TP 미도달 시 수익 확정 청산
+  // 브레이크이븐 설정 - 상향 조정
+  BREAKEVEN_TRIGGER: 0.20,   // +0.20% 도달 시 브레이크이븐 활성화 (기존 0.15%)
+  BREAKEVEN_SL: 0.03,        // 브레이크이븐 시 손절을 +0.03%로 (수수료 커버)
+  BREAKEVEN_TIMEOUT_SEC: 180, // 브레이크이븐 후 3분 내 TP 미도달 시 수익 확정 청산 (기존 2분)
   
   // 진입 후 보호 시간 (손절 체크 안함) - 조기 손절 시스템으로 대체
   ENTRY_PROTECTION_SEC: 0,   // 🆕 보호 없음 (조기 손절이 대신함)
