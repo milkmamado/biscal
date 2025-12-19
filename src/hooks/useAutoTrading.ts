@@ -71,6 +71,7 @@ interface Position {
   takeProfitState: TakeProfitState;
   indicators: TechnicalIndicators;
   maxPnlPercent: number; // 최고 수익률 기록 (브레이크이븐용)
+  earlySLStage: number; // 🆕 조기 손절 단계 (0: 없음, 1: 1단계 발동, 2: 2단계 발동)
 }
 
 export interface AutoTradingState {
@@ -115,15 +116,32 @@ interface UseAutoTradingProps {
 const CONFIG = {
   // 익절/손절 (고정 %) - 손익비 1:1
   TP_PERCENT: 0.25,          // +0.25% 도달 시 전량 익절
-  SL_PERCENT: 0.25,          // -0.25% 도달 시 전량 손절
+  SL_PERCENT: 0.25,          // -0.25% 도달 시 전량 손절 (최종 방어선)
+  
+  // 🆕 다단계 조기 손절 (슬리피지 방지)
+  EARLY_SL: {
+    STAGE1_SEC: 30,          // 1단계: 30초 이내
+    STAGE1_PERCENT: 0.15,    // -0.15% 이상 손실 시
+    STAGE1_REDUCE: 0.5,      // 50% 청산
+    
+    STAGE2_SEC: 60,          // 2단계: 60초 이내
+    STAGE2_PERCENT: 0.20,    // -0.20% 이상 손실 시
+    STAGE2_REDUCE: 0.75,     // 75% 청산
+  },
+  
+  // 🆕 오더북 긴급 탈출
+  ORDERBOOK_EMERGENCY: {
+    IMBALANCE_THRESHOLD: 40,  // 불균형 40% 이상 시 경고
+    EXIT_THRESHOLD: 50,       // 불균형 50% 이상 시 즉시 탈출
+  },
   
   // 브레이크이븐 설정
   BREAKEVEN_TRIGGER: 0.15,   // +0.15% 도달 시 브레이크이븐 활성화
   BREAKEVEN_SL: 0.02,        // 브레이크이븐 시 손절을 +0.02%로 (약간의 수수료 커버)
   BREAKEVEN_TIMEOUT_SEC: 120, // 브레이크이븐 후 2분 내 TP 미도달 시 수익 확정 청산
   
-  // 진입 후 보호 시간 (손절 체크 안함)
-  ENTRY_PROTECTION_SEC: 30,  // 진입 후 30초간 손절 보호
+  // 진입 후 보호 시간 (손절 체크 안함) - 조기 손절 시스템으로 대체
+  ENTRY_PROTECTION_SEC: 0,   // 🆕 보호 없음 (조기 손절이 대신함)
   
   // 거래당 최대 손실 제한
   MAX_LOSS_PER_TRADE_USD: 0.4, // 거래당 최대 손실 $0.4 (시드 1만원 기준 약 4%)
@@ -412,8 +430,14 @@ export function useAutoTrading({
     }
   }, [state.currentPosition, state.todayStats, placeMarketOrder, getPositions, krwRate, leverage, addLog, onTradeComplete, logTrade]);
 
-  // TP/SL 체크 (3단계 익절 + 전봉 기반 동적 손절)
-  const checkTpSl = useCallback(async (currentPrice: number, _tpPercent: number = 0.3, _slPercent: number = 0.5, currentVolumeRatio?: number) => {
+  // TP/SL 체크 (스마트 손절 시스템 + 브레이크이븐)
+  const checkTpSl = useCallback(async (
+    currentPrice: number, 
+    _tpPercent: number = 0.3, 
+    _slPercent: number = 0.5, 
+    currentVolumeRatio?: number,
+    orderbookImbalance?: number // 🆕 오더북 불균형 (-100 ~ +100)
+  ) => {
     if (!state.currentPosition) return;
     if (processingRef.current) return;
 
@@ -423,10 +447,15 @@ export function useAutoTrading({
     const pnlPercent = (priceDiff / position.entryPrice) * 100;
     const tpState = position.takeProfitState;
     
-    // 📊 실시간 손익 로그
+    // 진입 후 경과 시간 (초)
+    const holdTimeSec = (Date.now() - position.entryTime) / 1000;
+    
+    // 📊 실시간 손익 로그 (조기 손절 단계 표시)
     const pnlRounded = Math.round(pnlPercent * 10) / 10;
     const beStatus = tpState.breakEvenActivated ? ' [BE]' : '';
-    console.log(`[TP/SL] ${position.symbol} ${position.side.toUpperCase()}${beStatus} | 현재: ${currentPrice.toFixed(4)} | 진입: ${position.entryPrice.toFixed(4)} | TP: +${CONFIG.TP_PERCENT}% | SL: ${tpState.breakEvenActivated ? '+' + CONFIG.BREAKEVEN_SL : '-' + CONFIG.SL_PERCENT}% | 손익: ${pnlRounded >= 0 ? '+' : ''}${pnlRounded.toFixed(1)}%`);
+    const earlySlStatus = position.earlySLStage > 0 ? ` [ESL${position.earlySLStage}]` : '';
+    const obStatus = orderbookImbalance !== undefined ? ` OB:${orderbookImbalance > 0 ? '+' : ''}${orderbookImbalance.toFixed(0)}%` : '';
+    console.log(`[TP/SL] ${position.symbol} ${position.side.toUpperCase()}${beStatus}${earlySlStatus} | ${holdTimeSec.toFixed(0)}초 | 손익: ${pnlRounded >= 0 ? '+' : ''}${pnlRounded.toFixed(1)}%${obStatus}`);
     
     // 🆕 최고 수익률 업데이트 (브레이크이븐용)
     if (pnlPercent > position.maxPnlPercent) {
@@ -445,14 +474,78 @@ export function useAutoTrading({
     // 상태 메시지 업데이트
     setState(prev => ({
       ...prev,
-      statusMessage: `📊 ${position.symbol.replace('USDT', '')} ${position.side === 'long' ? '롱' : '숏'}${beStatus} | ${pnlRounded >= 0 ? '+' : ''}${pnlRounded.toFixed(1)}%`,
+      statusMessage: `📊 ${position.symbol.replace('USDT', '')} ${position.side === 'long' ? '롱' : '숏'}${beStatus}${earlySlStatus} | ${pnlRounded >= 0 ? '+' : ''}${pnlRounded.toFixed(1)}%`,
     }));
 
-    // 진입 후 경과 시간 (초)
-    const holdTimeSec = (Date.now() - position.entryTime) / 1000;
-    const isProtected = holdTimeSec < CONFIG.ENTRY_PROTECTION_SEC;
+    // ============================================
+    // 🆕 1단계: 오더북 긴급 탈출 (가장 빠른 반응)
+    // ============================================
+    if (orderbookImbalance !== undefined && pnlPercent < 0) {
+      const isLong = position.side === 'long';
+      const dangerousImbalance = isLong 
+        ? orderbookImbalance < -CONFIG.ORDERBOOK_EMERGENCY.EXIT_THRESHOLD  // 롱인데 매도 압력
+        : orderbookImbalance > CONFIG.ORDERBOOK_EMERGENCY.EXIT_THRESHOLD;  // 숏인데 매수 압력
+      
+      if (dangerousImbalance) {
+        console.log(`🚨 [스마트손절] 오더북 긴급 탈출! 불균형: ${orderbookImbalance.toFixed(0)}%, 손실: ${pnlPercent.toFixed(2)}%`);
+        toast.warning(`🚨 오더북 긴급 탈출! 불균형 ${Math.abs(orderbookImbalance).toFixed(0)}%`);
+        await closePosition('sl', currentPrice);
+        return;
+      }
+    }
 
-    // 🆕 브레이크이븐 활성화 체크 (+0.15% 도달 시)
+    // ============================================
+    // 🆕 2단계: 다단계 조기 손절 (슬리피지 방지)
+    // ============================================
+    if (pnlPercent < 0 && !tpState.breakEvenActivated) {
+      const { EARLY_SL } = CONFIG;
+      
+      // 1단계: 30초 내 -0.15% → 50% 청산
+      if (holdTimeSec <= EARLY_SL.STAGE1_SEC && 
+          pnlPercent <= -EARLY_SL.STAGE1_PERCENT && 
+          position.earlySLStage < 1) {
+        console.log(`⚡ [스마트손절] 1단계 발동! ${holdTimeSec.toFixed(0)}초, ${pnlPercent.toFixed(2)}% → 50% 청산`);
+        toast.warning(`⚡ 조기 손절 1단계! ${pnlPercent.toFixed(2)}% (50% 청산)`);
+        
+        // 50% 분할 청산
+        const reduceQty = position.remainingQuantity * EARLY_SL.STAGE1_REDUCE;
+        const orderSide = position.side === 'long' ? 'SELL' : 'BUY';
+        
+        try {
+          await placeMarketOrder(position.symbol, orderSide, reduceQty, true, currentPrice);
+          
+          // 남은 수량 업데이트 & 단계 기록
+          setState(prev => {
+            if (!prev.currentPosition) return prev;
+            return {
+              ...prev,
+              currentPosition: {
+                ...prev.currentPosition,
+                remainingQuantity: prev.currentPosition.remainingQuantity - reduceQty,
+                earlySLStage: 1,
+              },
+            };
+          });
+        } catch (err) {
+          console.error('조기 손절 1단계 실패:', err);
+        }
+        return;
+      }
+      
+      // 2단계: 60초 내 -0.20% → 75% 청산 (1단계 이후)
+      if (holdTimeSec <= EARLY_SL.STAGE2_SEC && 
+          pnlPercent <= -EARLY_SL.STAGE2_PERCENT && 
+          position.earlySLStage === 1) {
+        console.log(`⚡ [스마트손절] 2단계 발동! ${holdTimeSec.toFixed(0)}초, ${pnlPercent.toFixed(2)}% → 남은 전량 청산`);
+        toast.error(`⚡ 조기 손절 2단계! ${pnlPercent.toFixed(2)}% (전량 청산)`);
+        await closePosition('sl', currentPrice);
+        return;
+      }
+    }
+
+    // ============================================
+    // 브레이크이븐 활성화 체크 (+0.15% 도달 시)
+    // ============================================
     if (!tpState.breakEvenActivated && pnlPercent >= CONFIG.BREAKEVEN_TRIGGER) {
       console.log(`🛡️ [checkTpSl] 브레이크이븐 활성화: ${pnlPercent.toFixed(2)}% >= ${CONFIG.BREAKEVEN_TRIGGER}%`);
       setState(prev => {
@@ -469,10 +562,10 @@ export function useAutoTrading({
           },
         };
       });
-      toast.info(`🛡️ 브레이크이븐 활성화! 손절이 +${CONFIG.BREAKEVEN_SL}%로 이동 (2분 내 TP 미도달 시 수익 확정)`);
+      toast.info(`🛡️ 브레이크이븐 활성화! 손절이 +${CONFIG.BREAKEVEN_SL}%로 이동`);
     }
 
-    // 🆕 브레이크이븐 타임아웃 체크 (2분 내 TP 미도달 시 수익 확정 청산)
+    // 브레이크이븐 타임아웃 체크 (2분 내 TP 미도달 시 수익 확정 청산)
     if (tpState.breakEvenActivated && tpState.breakEvenActivatedAt) {
       const beElapsedSec = (Date.now() - tpState.breakEvenActivatedAt) / 1000;
       if (beElapsedSec >= CONFIG.BREAKEVEN_TIMEOUT_SEC && pnlPercent > 0) {
@@ -483,32 +576,34 @@ export function useAutoTrading({
       }
     }
 
-    // 1. 손절 체크 - 브레이크이븐 여부에 따라 다른 기준 적용
+    // ============================================
+    // 3단계: 기존 손절 (최종 방어선)
+    // ============================================
     const effectiveSL = tpState.breakEvenActivated ? CONFIG.BREAKEVEN_SL : -CONFIG.SL_PERCENT;
-    if (!isProtected && pnlPercent <= effectiveSL) {
+    if (pnlPercent <= effectiveSL) {
       if (tpState.breakEvenActivated) {
         console.log(`🛡️ [checkTpSl] 브레이크이븐 청산: ${pnlPercent.toFixed(2)}% <= +${CONFIG.BREAKEVEN_SL}%`);
-        await closePosition('tp', currentPrice); // 브레이크이븐은 익절로 처리
+        await closePosition('tp', currentPrice);
       } else {
-        console.log(`🛑 [checkTpSl] 손절: ${pnlPercent.toFixed(2)}% <= -${CONFIG.SL_PERCENT}%`);
+        console.log(`🛑 [checkTpSl] 최종 손절: ${pnlPercent.toFixed(2)}% <= -${CONFIG.SL_PERCENT}%`);
         await closePosition('sl', currentPrice);
       }
       return;
     }
 
-    // 2. 타임 스탑 체크 (15분 보유 + 손실)
+    // 타임 스탑 체크 (15분 보유 + 손실)
     const holdTimeMin = holdTimeSec / 60;
     if (holdTimeMin >= CONFIG.TIME_STOP_MINUTES && pnlPercent < 0) {
       await closePosition('time', currentPrice);
       return;
     }
 
-    // 3. 전량 익절 체크 (+0.25%) - 익절은 보호 없이 즉시
+    // 전량 익절 체크 (+0.25%)
     if (!tpState.tpHit && pnlPercent >= CONFIG.TP_PERCENT) {
       await closePosition('tp', currentPrice);
       return;
     }
-  }, [state.currentPosition, closePosition]);
+  }, [state.currentPosition, closePosition, placeMarketOrder]);
 
   // 시그널 핸들러 (기술적 분석 기반)
   const handleSignal = useCallback(async (
@@ -751,6 +846,7 @@ export function useAutoTrading({
         },
         indicators,
         maxPnlPercent: 0,
+        earlySLStage: 0, // 🆕 조기 손절 초기화
       };
 
       setState(prev => ({
@@ -871,6 +967,7 @@ export function useAutoTrading({
               },
               indicators: defaultIndicators,
               maxPnlPercent: 0,
+              earlySLStage: 0, // 🆕
             },
             currentSymbol: activePosition.symbol,
           }));
@@ -911,6 +1008,7 @@ export function useAutoTrading({
               },
               indicators: defaultIndicators,
               maxPnlPercent: 0,
+              earlySLStage: 0, // 🆕
             },
             currentSymbol: activePosition.symbol,
           }));
