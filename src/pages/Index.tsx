@@ -273,14 +273,14 @@ const Index = () => {
   const position = autoTrading.state.currentPosition;
   const stopLossPrice = position ? (
     position.side === 'long'
-      ? position.entryPrice * (1 - 0.0015)  // -0.15%
-      : position.entryPrice * (1 + 0.0015)
+      ? position.entryPrice * (1 - 0.003)  // -0.3%
+      : position.entryPrice * (1 + 0.003)
   ) : undefined;
   
   const takeProfitPrice = position ? (
     position.side === 'long'
-      ? position.entryPrice * (1 + 0.002)  // +0.2%
-      : position.entryPrice * (1 - 0.002)
+      ? position.entryPrice * (1 + 0.004)  // +0.4%
+      : position.entryPrice * (1 - 0.004)
   ) : undefined;
 
   return (

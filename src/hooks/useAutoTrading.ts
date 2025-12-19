@@ -104,8 +104,11 @@ interface UseAutoTradingProps {
 // 설정값
 const CONFIG = {
   // 익절/손절 (고정 %)
-  TP_PERCENT: 0.2,           // +0.2% 도달 시 전량 익절
-  SL_PERCENT: 0.15,          // -0.15% 도달 시 전량 손절
+  TP_PERCENT: 0.4,           // +0.4% 도달 시 전량 익절
+  SL_PERCENT: 0.3,           // -0.3% 도달 시 전량 손절
+  
+  // 진입 후 보호 시간 (손절 체크 안함)
+  ENTRY_PROTECTION_SEC: 30,  // 진입 후 30초간 손절 보호
   
   // 타임 스탑
   TIME_STOP_MINUTES: 15,     // 15분 타임 스탑
@@ -373,21 +376,25 @@ export function useAutoTrading({
       statusMessage: `📊 ${position.symbol.replace('USDT', '')} ${position.side === 'long' ? '롱' : '숏'} | ${pnlRounded >= 0 ? '+' : ''}${pnlRounded.toFixed(1)}%`,
     }));
 
-    // 1. 고정 % 손절 체크 (-0.15%)
-    if (pnlPercent <= -CONFIG.SL_PERCENT) {
+    // 진입 후 경과 시간 (초)
+    const holdTimeSec = (Date.now() - position.entryTime) / 1000;
+    const isProtected = holdTimeSec < CONFIG.ENTRY_PROTECTION_SEC;
+
+    // 1. 고정 % 손절 체크 (-0.3%) - 진입 후 30초간 보호
+    if (!isProtected && pnlPercent <= -CONFIG.SL_PERCENT) {
       console.log(`🛑 [checkTpSl] 손절: ${pnlPercent.toFixed(2)}% <= -${CONFIG.SL_PERCENT}%`);
       await closePosition('sl', currentPrice);
       return;
     }
 
     // 2. 타임 스탑 체크 (15분 보유 + 손실)
-    const holdTime = (Date.now() - position.entryTime) / 60000;
-    if (holdTime >= CONFIG.TIME_STOP_MINUTES && pnlPercent < 0) {
+    const holdTimeMin = holdTimeSec / 60;
+    if (holdTimeMin >= CONFIG.TIME_STOP_MINUTES && pnlPercent < 0) {
       await closePosition('time', currentPrice);
       return;
     }
 
-    // 3. 전량 익절 체크 (+0.2%)
+    // 3. 전량 익절 체크 (+0.4%) - 익절은 보호 없이 즉시
     if (!tpState.tpHit && pnlPercent >= CONFIG.TP_PERCENT) {
       await closePosition('tp', currentPrice);
       return;
