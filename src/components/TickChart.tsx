@@ -117,6 +117,10 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
   const [currentPriceDisplay, setCurrentPriceDisplay] = useState(0); // 현재가 표시용
   const [klineConnected, setKlineConnected] = useState(false);
   const [containerHeight, setContainerHeight] = useState(height || 400);
+  
+  // 나방 효과 상태
+  const [mothVisible, setMothVisible] = useState(false);
+  const [mothPhase, setMothPhase] = useState(0);
 
   const lastCandleTimeRef = useRef<number>(0);
   const currentCandleRef = useRef<Candle | null>(null);
@@ -147,6 +151,34 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
     return () => resizeObserver.disconnect();
   }, []);
   
+  // 나방 나타났다 사라지는 효과
+  useEffect(() => {
+    const mothInterval = setInterval(() => {
+      setMothVisible(true);
+      setMothPhase(0);
+      
+      // 페이드인
+      setTimeout(() => setMothPhase(1), 100);
+      
+      // 사라지기 시작
+      setTimeout(() => setMothPhase(2), 5000);
+      
+      // 완전히 사라짐
+      setTimeout(() => {
+        setMothVisible(false);
+        setMothPhase(0);
+      }, 5500);
+    }, 10000);
+
+    // 초기 표시
+    setTimeout(() => {
+      setMothVisible(true);
+      setMothPhase(1);
+    }, 2000);
+
+    return () => clearInterval(mothInterval);
+  }, []);
+
   // 줌 인/아웃
   const handleZoomIn = useCallback(() => {
     setVisibleCount(prev => Math.max(20, prev - 10));
@@ -666,6 +698,127 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
           background: 'linear-gradient(135deg, rgba(10,10,10,0.25) 0%, rgba(10,10,20,0.15) 50%, rgba(10,10,10,0.25) 100%)',
         }}
       />
+      
+      {/* 飛蛾赴火 나방 효과 (오른쪽 배경) */}
+      {mothVisible && (
+        <div 
+          className="absolute right-8 top-1/2 -translate-y-1/2 z-[5] flex flex-col items-center gap-2 pointer-events-none"
+          style={{
+            opacity: mothPhase === 0 ? 0 : mothPhase === 1 ? 1 : 0,
+            transform: `translateY(-50%) scale(${mothPhase === 1 ? 1 : 0.9})`,
+            transition: 'opacity 0.5s ease-out, transform 0.5s ease-out',
+          }}
+        >
+          {/* 나방 SVG */}
+          <div 
+            className="relative"
+            style={{
+              animation: 'float 2s ease-in-out infinite',
+            }}
+          >
+            <svg 
+              width="48" 
+              height="48" 
+              viewBox="0 0 100 100" 
+              className="drop-shadow-lg"
+              style={{
+                filter: 'drop-shadow(0 0 15px #ff6600) drop-shadow(0 0 30px #ff4400)',
+              }}
+            >
+              {/* 나방 몸통 */}
+              <ellipse cx="50" cy="50" rx="6" ry="15" fill="#ff8844" />
+              
+              {/* 왼쪽 날개 */}
+              <path 
+                d="M44 40 Q20 25 15 50 Q20 75 44 60 Q40 50 44 40" 
+                fill="url(#mothWingGradient)"
+                style={{
+                  transformOrigin: '44px 50px',
+                  animation: 'wingFlap 0.15s ease-in-out infinite alternate',
+                }}
+              />
+              
+              {/* 오른쪽 날개 */}
+              <path 
+                d="M56 40 Q80 25 85 50 Q80 75 56 60 Q60 50 56 40" 
+                fill="url(#mothWingGradient)"
+                style={{
+                  transformOrigin: '56px 50px',
+                  animation: 'wingFlap 0.15s ease-in-out infinite alternate-reverse',
+                }}
+              />
+              
+              {/* 날개 무늬 */}
+              <circle cx="30" cy="45" r="6" fill="#ffcc00" opacity="0.8" />
+              <circle cx="70" cy="45" r="6" fill="#ffcc00" opacity="0.8" />
+              <circle cx="25" cy="55" r="4" fill="#ff00ff" opacity="0.6" />
+              <circle cx="75" cy="55" r="4" fill="#ff00ff" opacity="0.6" />
+              
+              {/* 더듬이 */}
+              <path d="M47 35 Q43 25 40 18" stroke="#ff8844" strokeWidth="2" fill="none" />
+              <path d="M53 35 Q57 25 60 18" stroke="#ff8844" strokeWidth="2" fill="none" />
+              <circle cx="40" cy="18" r="3" fill="#ffcc00" />
+              <circle cx="60" cy="18" r="3" fill="#ffcc00" />
+              
+              {/* 그라디언트 정의 */}
+              <defs>
+                <linearGradient id="mothWingGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#ff6600" />
+                  <stop offset="50%" stopColor="#ff4400" />
+                  <stop offset="100%" stopColor="#cc2200" />
+                </linearGradient>
+              </defs>
+            </svg>
+            
+            {/* 불꽃 파티클 */}
+            <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 flex gap-1">
+              {[0, 1, 2].map((i) => (
+                <div 
+                  key={i}
+                  className="w-1.5 h-3 rounded-full"
+                  style={{
+                    background: 'linear-gradient(to top, #ff6600, #ffcc00)',
+                    animation: `flameFlicker ${0.3 + i * 0.1}s ease-in-out infinite alternate`,
+                    opacity: 0.9,
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* 한자 문구 - 세로 배열 */}
+          <div className="flex flex-col items-center gap-0.5 mt-1">
+            {['飛', '蛾', '赴', '火'].map((char, index) => (
+              <span 
+                key={char}
+                className="text-2xl font-bold"
+                style={{
+                  color: index === 3 ? '#ff4400' : '#ff8844',
+                  textShadow: `
+                    0 0 5px ${index === 3 ? '#ff4400' : '#ff6600'},
+                    0 0 15px ${index === 3 ? '#ff2200' : '#ff4400'},
+                    0 0 30px ${index === 3 ? '#ff0000' : '#ff2200'},
+                    0 0 50px ${index === 3 ? '#cc0000' : '#cc2200'}
+                  `,
+                }}
+              >
+                {char}
+              </span>
+            ))}
+          </div>
+
+          {/* 부제 */}
+          <span 
+            className="text-[9px] tracking-widest font-mono mt-1"
+            style={{
+              color: '#ffaa44',
+              textShadow: '0 0 5px #ff6600, 0 0 10px #ff4400',
+            }}
+          >
+            INTO THE FLAME
+          </span>
+        </div>
+      )}
       
       <canvas 
         ref={canvasRef} 
