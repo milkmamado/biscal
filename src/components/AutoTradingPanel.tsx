@@ -663,7 +663,7 @@ const AutoTradingPanel = ({
               {isEnabled ? '🔍 시그널 대기 중...' : '자동매매를 시작하세요'}
             </div>
           ) : (
-            tradeLogs.slice(0, 3).map((log) => (
+            tradeLogs.slice(0, 6).map((log) => (
               <TradeLogItem 
                 key={log.id} 
                 log={log} 
