@@ -287,8 +287,21 @@ const Index = () => {
     <div className="min-h-screen bg-background p-2">
       <div className="max-w-[1920px] mx-auto">
         <div className="grid grid-cols-12 gap-2 items-stretch">
-          {/* Left - Auto Trading Panel (더 넓게) */}
-          <div className="col-span-12 lg:col-span-5 xl:col-span-4 flex">
+          {/* Left - Chart */}
+          <div className="col-span-12 lg:col-span-7 xl:col-span-8 order-2 lg:order-1">
+            <DualChartPanel 
+              symbol={selectedSymbol} 
+              hasPosition={!!autoTrading.state.currentPosition}
+              entryPrice={autoTrading.state.currentPosition?.entryPrice}
+              stopLossPrice={stopLossPrice}
+              takeProfitPrice={takeProfitPrice}
+              positionSide={autoTrading.state.currentPosition?.side}
+              onSelectSymbol={setSelectedSymbol}
+            />
+          </div>
+
+          {/* Right - System Trading Panel */}
+          <div className="col-span-12 lg:col-span-5 xl:col-span-4 order-1 lg:order-2 flex">
             <AutoTradingPanel
               state={autoTrading.state}
               onToggle={autoTrading.toggleAutoTrading}
@@ -304,19 +317,6 @@ const Index = () => {
               onSelectSymbol={setSelectedSymbol}
               onBalanceChange={handleBalanceChange}
               refreshTrigger={refreshTrigger}
-            />
-          </div>
-
-          {/* Center - Chart (더 작게) */}
-          <div className="col-span-12 lg:col-span-7 xl:col-span-8">
-            <DualChartPanel 
-              symbol={selectedSymbol} 
-              hasPosition={!!autoTrading.state.currentPosition}
-              entryPrice={autoTrading.state.currentPosition?.entryPrice}
-              stopLossPrice={stopLossPrice}
-              takeProfitPrice={takeProfitPrice}
-              positionSide={autoTrading.state.currentPosition?.side}
-              onSelectSymbol={setSelectedSymbol}
             />
           </div>
         </div>
