@@ -11,6 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import DualChartPanel from '@/components/DualChartPanel';
 import AutoTradingPanel from '@/components/AutoTradingPanel';
 import ApiKeySetup from '@/components/ApiKeySetup';
+import ScreeningLogPanel from '@/components/ScreeningLogPanel';
 import { toast } from 'sonner';
 
 const Index = () => {
@@ -305,7 +306,13 @@ const Index = () => {
         </div>
 
         {/* Right - System Trading Panel */}
-        <div className="col-span-4 flex flex-col min-h-0 overflow-auto">
+        <div className="col-span-4 flex flex-col min-h-0 overflow-auto gap-1">
+          {/* 스크리닝 로그 패널 */}
+          <ScreeningLogPanel 
+            isScanning={isScanning} 
+            signalsCount={activeSignals.length} 
+          />
+          
           <AutoTradingPanel
             state={autoTrading.state}
             onToggle={autoTrading.toggleAutoTrading}

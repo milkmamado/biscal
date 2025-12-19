@@ -16,6 +16,7 @@ import {
   checkForbiddenConditions,
   ProDirectionResult 
 } from './useProDirection';
+import { addScreeningLog, clearScreeningLogs } from '@/components/ScreeningLogPanel';
 
 interface TickerData {
   symbol: string;
@@ -149,9 +150,10 @@ export function useCoinScreening(tickers: TickerData[], criteria: Partial<Screen
     setIsScanning(true);
 
     const fullCriteria = criteriaRef.current;
-    const scanStartTime = new Date().toLocaleTimeString('ko-KR');
     
-    console.log(`\n🔍 ========== 종목 스크리닝 시작 [${scanStartTime}] ==========`);
+    // UI 로그 초기화 및 시작
+    clearScreeningLogs();
+    addScreeningLog('start', '스크리닝 시작');
 
     try {
       // 1차 필터링: 기본 조건
@@ -163,7 +165,7 @@ export function useCoinScreening(tickers: TickerData[], criteria: Partial<Screen
         t.volatilityRange <= fullCriteria.maxVolatility
       );
       
-      console.log(`📊 1차 필터 통과: ${eligible.length}개 / 전체 ${currentTickers.length}개`);
+      addScreeningLog('filter', `1차 필터 통과: ${eligible.length}/${currentTickers.length}개`);
 
       // 변동성 스코어 기준 정렬
       const scored = eligible
@@ -174,7 +176,7 @@ export function useCoinScreening(tickers: TickerData[], criteria: Partial<Screen
         .sort((a, b) => b.volatilityScore - a.volatilityScore)
         .slice(0, 20); // 상위 20개만
       
-      console.log(`📈 분석 대상: ${scored.map(s => s.symbol.replace('USDT', '')).join(', ')}`)
+      addScreeningLog('filter', `분석 대상: ${scored.slice(0, 8).map(s => s.symbol.replace('USDT', '')).join(', ')}${scored.length > 8 ? '...' : ''}`)
 
       // 2차 분석: 기술적 지표 + ATR
       const analyzed: ScreenedSymbol[] = [];
@@ -189,33 +191,33 @@ export function useCoinScreening(tickers: TickerData[], criteria: Partial<Screen
           // ATR 체크
           const atrData = await checkATRVolatility(t.symbol);
           if (!atrData.isOptimal) {
-            console.log(`   ❌ ${t.symbol} → ATR 부적합 (${atrData.atrPercent.toFixed(2)}%)`);
+            addScreeningLog('reject', `ATR 부적합 (${atrData.atrPercent.toFixed(2)}%)`, t.symbol);
             continue;
           }
 
           // 5분봉 기술적 분석
           const klines = await fetch5mKlines(t.symbol, 50);
           if (!klines || klines.length < 30) {
-            console.log(`   ❌ ${t.symbol} → 캔들 데이터 부족`);
+            addScreeningLog('reject', '캔들 데이터 부족', t.symbol);
             continue;
           }
 
           const indicators = calculateAllIndicators(klines);
           if (!indicators) {
-            console.log(`   ❌ ${t.symbol} → 지표 계산 실패`);
+            addScreeningLog('reject', '지표 계산 실패', t.symbol);
             continue;
           }
 
           // ADX 시장 환경 필터 - 횡보장 차단
           if (indicators.adx < 15) {
-            console.log(`   ❌ ${t.symbol} → 횡보장 (ADX ${indicators.adx.toFixed(1)})`);
+            addScreeningLog('reject', `횡보장 (ADX ${indicators.adx.toFixed(1)})`, t.symbol);
             continue;
           }
           
           // 🆕 진입 금지 조건 체크
           const forbidden = await checkForbiddenConditions(t.symbol, indicators, t.price);
           if (!forbidden.allowed) {
-            console.log(`   ❌ ${t.symbol} → ${forbidden.reason}`);
+            addScreeningLog('reject', forbidden.reason, t.symbol);
             continue;
           }
 
@@ -228,14 +230,14 @@ export function useCoinScreening(tickers: TickerData[], criteria: Partial<Screen
 
           if (longCheck.valid || shortCheck.valid) {
             const signalType = longCheck.valid ? 'LONG' : 'SHORT';
-            console.log(`   🔎 ${t.symbol} → ${signalType} 시그널 감지, 프로 분석 중...`);
+            addScreeningLog('signal', `${signalType} 시그널 감지 → 프로 분석중`, t.symbol);
             
             // 🆕 프로 방향 분석 (기존 시그널이 있을 때만)
             proDirection = await getProDirection(t.symbol);
             
             // 프로 시스템 합의 체크
             if (proDirection.position === 'NO_TRADE') {
-              console.log(`   ❌ ${t.symbol} → 프로 NO_TRADE: ${proDirection.reason}`);
+              addScreeningLog('reject', `PRO NO_TRADE: ${proDirection.reason}`, t.symbol);
               continue;
             }
             
@@ -255,7 +257,7 @@ export function useCoinScreening(tickers: TickerData[], criteria: Partial<Screen
                 timestamp: Date.now(),
               };
               signals.push(signal);
-              console.log(`   ✅ ${t.symbol} → LONG 진입 합의! (신뢰도 ${proDirection.confidence.toFixed(0)}%)`);
+              addScreeningLog('approve', `LONG 합의 완료! (${proDirection.confidence.toFixed(0)}%)`, t.symbol);
             } else if (proDirection.position === 'SHORT' && shortCheck.valid) {
               signal = {
                 symbol: t.symbol,
@@ -271,10 +273,10 @@ export function useCoinScreening(tickers: TickerData[], criteria: Partial<Screen
                 timestamp: Date.now(),
               };
               signals.push(signal);
-              console.log(`   ✅ ${t.symbol} → SHORT 진입 합의! (신뢰도 ${proDirection.confidence.toFixed(0)}%)`);
+              addScreeningLog('approve', `SHORT 합의 완료! (${proDirection.confidence.toFixed(0)}%)`, t.symbol);
             } else {
               // 프로 방향과 기존 시그널 불일치
-              console.log(`   ❌ ${t.symbol} → 방향 불일치 (프로: ${proDirection.position}, 시그널: ${signalType})`);
+              addScreeningLog('reject', `방향 불일치 (PRO: ${proDirection.position}, 시그널: ${signalType})`, t.symbol);
               continue;
             }
           }
@@ -315,14 +317,11 @@ export function useCoinScreening(tickers: TickerData[], criteria: Partial<Screen
       setLastScanTime(Date.now());
       
       // 스크리닝 결과 요약
-      console.log(`\n📋 ========== 스크리닝 완료 ==========`);
-      console.log(`   분석 완료: ${analyzed.length}개 종목`);
       if (signals.length > 0) {
-        console.log(`   🚀 진입 시그널: ${signals.map(s => `${s.symbol.replace('USDT', '')} ${s.direction.toUpperCase()}`).join(', ')}`);
+        addScreeningLog('complete', `완료! 시그널: ${signals.map(s => `${s.symbol.replace('USDT', '')} ${s.direction.toUpperCase()}`).join(', ')}`);
       } else {
-        console.log(`   ⏸️ 진입 조건 충족 종목 없음 - 대기 중`);
+        addScreeningLog('complete', `완료 - 진입 조건 충족 종목 없음 (${analyzed.length}개 분석)`);
       }
-      console.log(`=========================================\n`);
 
     } catch (error) {
       console.error('Screening error:', error);
