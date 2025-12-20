@@ -360,7 +360,7 @@ const AutoTradingPanel = ({
               background: majorCoinMode ? 'rgba(255, 215, 0, 0.2)' : 'transparent',
               boxShadow: majorCoinMode ? '0 0 10px rgba(255, 215, 0, 0.4)' : 'none',
             }}
-            title={majorCoinMode ? "🏆 메이저 코인 모드 (BTC, ETH 등)" : "잡코인 모드 (저가 알트코인)"}
+            title={majorCoinMode ? "메이저 코인 모드 (BTC, ETH 등)" : "잡코인 모드 (저가 알트코인)"}
           >
             <Crown className="w-4 h-4" />
           </button>

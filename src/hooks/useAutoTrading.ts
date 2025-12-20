@@ -308,7 +308,7 @@ export function useAutoTrading({
     cooldownUntil: null,
     lossProtectionEnabled: false, // 기본값 OFF
     tpPercent: 0.3,
-    statusMessage: majorCoinMode ? '🏆 메이저 코인 자동매매 비활성화' : '자동매매 비활성화',
+    statusMessage: majorCoinMode ? '메이저 코인 자동매매 비활성화' : '자동매매 비활성화',
     scanningProgress: '',
     // 🤖 AI 분석 기본값
     aiAnalysis: null,
@@ -380,7 +380,7 @@ export function useAutoTrading({
   const toggleAutoTrading = useCallback(() => {
     setState(prev => {
       const newEnabled = !prev.isEnabled;
-      const modeLabel = majorCoinModeRef.current ? '🏆 메이저 코인' : '🎯 잡코인';
+      const modeLabel = majorCoinModeRef.current ? '메이저 코인' : '잡코인';
       if (newEnabled) {
         initAudio();
         toast.success(`🤖 ${modeLabel} 스캘핑 시스템 시작`);
@@ -391,7 +391,7 @@ export function useAutoTrading({
         ...prev,
         isEnabled: newEnabled,
         pendingSignal: null,
-        statusMessage: newEnabled ? `🔍 ${modeLabel} 스캔 중...` : (majorCoinModeRef.current ? '🏆 메이저 코인 자동매매 비활성화' : '자동매매 비활성화'),
+        statusMessage: newEnabled ? `${modeLabel} 스캔 중...` : (majorCoinModeRef.current ? '메이저 코인 자동매매 비활성화' : '자동매매 비활성화'),
         scanningProgress: '',
       };
     });

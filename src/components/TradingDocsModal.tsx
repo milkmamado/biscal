@@ -99,7 +99,7 @@ const TRADING_RULES = {
 
 const TradingDocsModal = ({ majorCoinMode = false }: TradingDocsModalProps) => {
   const [open, setOpen] = useState(false);
-  const modeLabel = majorCoinMode ? '🏆 메이저 코인' : '🎯 잡코인';
+  const modeLabel = majorCoinMode ? '메이저 코인' : '잡코인';
 
   const sections = [
     { key: 'STRATEGY', icon: TrendingUp, color: 'text-primary' },
