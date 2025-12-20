@@ -678,8 +678,15 @@ export function usePyramidTrading({
     // ===== 분할 익절 체크 =====
     const tpConfig = getStageTPConfig(position.currentStage);
     if ('targets' in tpConfig) {
+      const firstTarget = tpConfig.targets[0];
+      // 매 10초마다 로그 (디버깅용)
+      if (Math.floor(holdTimeSec) % 10 === 0) {
+        console.log(`[TP체크] ${position.symbol} 현재 PnL: ${pnlPercent.toFixed(3)}% | TP목표: +${firstTarget.percent}% | 수수료차감: -0.10%`);
+      }
+      
       for (const target of tpConfig.targets) {
         if (pnlPercent >= target.percent && !position.partialCloses.includes(target.closeRatio)) {
+          console.log(`✅ [익절 트리거] ${pnlPercent.toFixed(3)}% >= +${target.percent}%`);
           if (target.closeRatio >= 1) {
             // 전량 청산
             await closePosition('tp', currentPrice);
@@ -1011,6 +1018,15 @@ export function usePyramidTrading({
 
     // ===== 불타기 체크 (수익시) =====
     const pyramidCheck = shouldPyramidUp(position.currentStage, pnlPercent, currentType);
+    
+    // 디버깅 로그 (매번 출력)
+    if (position.currentStage < 3) {
+      const nextStageCondition = PYRAMID_CONFIG.PYRAMID_UP.conditions[nextStage];
+      if (nextStageCondition) {
+        console.log(`[불타기체크] ${position.symbol} Stage ${position.currentStage} → ${nextStage} | PnL: ${pnlPercent.toFixed(3)}% | 필요: +${nextStageCondition.profitRequired}% | 시간: ${holdTimeMin.toFixed(1)}분`);
+      }
+    }
+    
     if (pyramidCheck.should) {
       // 연속 캔들 조건 체크 (불타기 전용)
       const requiredCandles = PYRAMID_CONFIG.STAGE_CANDLE_REQUIRED[nextStage] || 0;
