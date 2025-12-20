@@ -11,6 +11,7 @@ import DualChartPanel from '@/components/DualChartPanel';
 import AutoTradingPanel from '@/components/AutoTradingPanel';
 import ApiKeySetup from '@/components/ApiKeySetup';
 import { toast } from 'sonner';
+import { getScreeningLogs, ScreeningLog } from '@/components/ScreeningLogPanel';
 
 const Index = () => {
   const [selectedSymbol, setSelectedSymbol] = useState('BTCUSDT');
@@ -20,7 +21,16 @@ const Index = () => {
   const [krwRate, setKrwRate] = useState(1380);
   const [leverage, setLeverage] = useState(10);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
-  const [majorCoinMode, setMajorCoinMode] = useState(true); // 🆕 메이저 코인 모드 (기본값 ON)
+  const [majorCoinMode, setMajorCoinMode] = useState(true);
+  const [screeningLogs, setScreeningLogs] = useState<ScreeningLog[]>([]);
+
+  // 🆕 스크리닝 로그 실시간 업데이트
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setScreeningLogs(getScreeningLogs());
+    }, 500);
+    return () => clearInterval(interval);
+  }, []);
 
   const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
@@ -265,6 +275,7 @@ const Index = () => {
             takeProfitPrice={takeProfitPrice}
             positionSide={autoTrading.state.currentPosition?.side}
             onSelectSymbol={setSelectedSymbol}
+            screeningLogs={screeningLogs}
           />
         </div>
 

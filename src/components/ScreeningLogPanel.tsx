@@ -40,6 +40,11 @@ export const clearScreeningLogs = () => {
   globalSetLogs?.([]);
 };
 
+// 🆕 현재 로그 가져오기 (외부에서 사용)
+export const getScreeningLogs = (): ScreeningLog[] => {
+  return [...globalLogs];
+};
+
 const ScreeningLogPanel = ({ isScanning, signalsCount }: ScreeningLogPanelProps) => {
   const [logs, setLogs] = useState<ScreeningLog[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
