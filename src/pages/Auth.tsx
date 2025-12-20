@@ -413,13 +413,23 @@ export default function Auth() {
               <div className="space-y-3">
                 <Button 
                   onClick={() => navigate('/')}
-                  className="w-full h-16 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-mono font-bold tracking-wider transition-all duration-300 shadow-lg shadow-cyan-500/25 hover:shadow-cyan-400/40"
+                  className="w-full h-20 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-mono font-bold tracking-wider transition-all duration-300 shadow-lg shadow-cyan-500/25 hover:shadow-cyan-400/40"
                 >
-                  <div className="flex items-center gap-3">
-                    <TrendingUp className="h-5 w-5" />
+                  <div className="flex items-center gap-4">
+                    <TrendingUp className="h-6 w-6" />
                     <div className="text-left">
-                      <div className="text-sm">LIVE TRADING</div>
-                      <div className="text-[10px] opacity-70 font-normal">실물 거래</div>
+                      <div className="flex items-center gap-2 text-lg tracking-[0.2em]">
+                        {['飛', '蛾', '赴', '火'].map((char, i) => (
+                          <span 
+                            key={i} 
+                            className="neon-text-cyan"
+                            style={{ animationDelay: `${i * 0.1}s` }}
+                          >
+                            {char}
+                          </span>
+                        ))}
+                      </div>
+                      <div className="text-[10px] opacity-70 font-normal tracking-wider">LIVE TRADING</div>
                     </div>
                   </div>
                 </Button>
