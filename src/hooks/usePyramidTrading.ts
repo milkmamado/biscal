@@ -1092,7 +1092,7 @@ export function usePyramidTrading({
     toast.info('시그널 스킵됨');
   }, [state.pendingSignal]);
 
-  // ===== TP/SL 가격 계산 =====
+  // ===== TP/SL 가격 계산 (수수료 반영) =====
   const calculateTpSlPrices = useCallback(() => {
     if (!state.currentPosition) return { tpPrice: 0, slPrice: 0 };
 
@@ -1100,12 +1100,15 @@ export function usePyramidTrading({
     const tpConfig = getStageTPConfig(position.currentStage);
     const slPercent = getStageSL(position.currentStage);
 
-    // 첫 번째 TP 타겟
+    // 첫 번째 TP 타겟 + 왕복 수수료 반영
     const firstTarget = 'targets' in tpConfig ? tpConfig.targets[0].percent : 0.5;
+    const totalFee = PYRAMID_CONFIG.FEE_RATE * 2; // 왕복 수수료 0.10%
+    const adjustedTP = firstTarget + totalFee; // 수수료 반영된 실제 TP
+    const adjustedSL = slPercent - totalFee; // 수수료 반영된 실제 SL
 
     const direction = position.side === 'long' ? 1 : -1;
-    const tpPrice = position.avgPrice * (1 + (firstTarget / 100) * direction);
-    const slPrice = position.avgPrice * (1 - (slPercent / 100) * direction);
+    const tpPrice = position.avgPrice * (1 + (adjustedTP / 100) * direction);
+    const slPrice = position.avgPrice * (1 - (adjustedSL / 100) * direction);
 
     return { tpPrice, slPrice };
   }, [state.currentPosition]);
