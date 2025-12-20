@@ -1,6 +1,7 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { fetchSymbolPrecision, roundQuantity, roundPrice } from '@/lib/binance';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 
 // VPS 직접 호출 (Edge Function 우회로 ~300ms 단축)
 const VPS_DIRECT_URL = 'https://api.biscal.me/api/direct';
@@ -39,17 +40,65 @@ export interface BinanceAccountInfo {
   positions: BinancePosition[];
 }
 
-export const useBinanceApi = () => {
+interface UseBinanceApiOptions {
+  isTestnet?: boolean;
+}
+
+export const useBinanceApi = (options: UseBinanceApiOptions = {}) => {
+  const { isTestnet = false } = options;
+  
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ipError, setIpError] = useState<string | null>(null);
   const [apiLatency, setApiLatency] = useState<number>(0);
   const latencyHistoryRef = useRef<number[]>([]);
   const { user } = useAuth();
+  
+  // 테스트넷 API 키 캐시
+  const [testnetKeys, setTestnetKeys] = useState<{ apiKey: string; apiSecret: string } | null>(null);
+  
+  // 테스트넷 모드일 때 DB에서 API 키 가져오기
+  useEffect(() => {
+    const fetchTestnetKeys = async () => {
+      if (!isTestnet || !user) {
+        setTestnetKeys(null);
+        return;
+      }
+      
+      try {
+        const { data } = await supabase
+          .from('user_api_keys')
+          .select('api_key, api_secret')
+          .eq('user_id', user.id)
+          .eq('is_testnet', true)
+          .single();
+        
+        if (data) {
+          setTestnetKeys({
+            apiKey: data.api_key,
+            apiSecret: data.api_secret,
+          });
+          console.log('[useBinanceApi] Testnet keys loaded');
+        }
+      } catch (err) {
+        console.error('[useBinanceApi] Failed to fetch testnet keys:', err);
+      }
+    };
+    
+    fetchTestnetKeys();
+  }, [isTestnet, user]);
 
   // VPS 직접 호출 (Edge Function 우회)
   const callVpsDirect = useCallback(async (action: string, params: Record<string, any> = {}): Promise<any> => {
     const startTime = performance.now();
+    
+    // 테스트넷일 경우 API 키와 플래그 추가
+    const body: Record<string, any> = { action, params };
+    if (isTestnet && testnetKeys) {
+      body.isTestnet = true;
+      body.testnetApiKey = testnetKeys.apiKey;
+      body.testnetApiSecret = testnetKeys.apiSecret;
+    }
     
     const response = await fetch(VPS_DIRECT_URL, {
       method: 'POST',
@@ -57,11 +106,11 @@ export const useBinanceApi = () => {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${VPS_AUTH_TOKEN}`,
       },
-      body: JSON.stringify({ action, params }),
+      body: JSON.stringify(body),
     });
     
     const latency = Math.round(performance.now() - startTime);
-    console.log(`[VPS Direct] ${action}: ${latency}ms`);
+    console.log(`[VPS Direct${isTestnet ? ' TESTNET' : ''}] ${action}: ${latency}ms`);
     
     // 최근 10개 레이턴시의 평균 계산
     latencyHistoryRef.current.push(latency);
@@ -78,11 +127,17 @@ export const useBinanceApi = () => {
     }
     
     return response.json();
-  }, []);
+  }, [isTestnet, testnetKeys]);
 
   const callBinanceApi = useCallback(async (action: string, params: Record<string, any> = {}, retryCount: number = 0): Promise<any> => {
     // Skip API call if user is not logged in
     if (!user) {
+      return null;
+    }
+    
+    // 테스트넷 모드인데 키가 아직 로드되지 않았으면 대기
+    if (isTestnet && !testnetKeys) {
+      console.log('[useBinanceApi] Waiting for testnet keys...');
       return null;
     }
     
@@ -139,7 +194,7 @@ export const useBinanceApi = () => {
     } finally {
       setLoading(false);
     }
-  }, [user, callVpsDirect]);
+  }, [user, callVpsDirect, isTestnet, testnetKeys]);
 
   const getAccountInfo = useCallback(async (): Promise<BinanceAccountInfo> => {
     return callBinanceApi('getAccountInfo');
@@ -248,6 +303,11 @@ export const useBinanceApi = () => {
       if (!user) {
         return null;
       }
+      
+      // 테스트넷 모드인데 키가 아직 로드되지 않았으면 대기
+      if (isTestnet && !testnetKeys) {
+        return null;
+      }
 
       setLoading(true);
       setError(null);
@@ -308,7 +368,7 @@ export const useBinanceApi = () => {
         setLoading(false);
       }
     },
-    [user, callVpsDirect]
+    [user, callVpsDirect, isTestnet, testnetKeys]
   );
 
   return {
@@ -316,6 +376,7 @@ export const useBinanceApi = () => {
     error,
     ipError,
     apiLatency,
+    isTestnetReady: !isTestnet || !!testnetKeys,
     callBinanceApi,
     getAccountInfo,
     getBalances,

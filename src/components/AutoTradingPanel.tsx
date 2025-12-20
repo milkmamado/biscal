@@ -66,6 +66,7 @@ interface AutoTradingPanelProps {
     signalsCount: number;
     lastScanTime: number;
   };
+  isTestnet?: boolean; // 테스트넷 모드
 }
 
 const AutoTradingPanel = ({ 
@@ -84,10 +85,11 @@ const AutoTradingPanel = ({
   onBalanceChange,
   refreshTrigger = 0,
   scanStatus,
+  isTestnet = false,
 }: AutoTradingPanelProps) => {
   const { isEnabled, isProcessing, currentPosition, pendingSignal, todayStats, tradeLogs, cooldownUntil, lossProtectionEnabled } = state;
   const { user, signOut } = useAuth();
-  const { getBalances, getIncomeHistory } = useBinanceApi();
+  const { getBalances, getIncomeHistory, isTestnetReady } = useBinanceApi({ isTestnet });
   
   const handleSignOut = async () => {
     await signOut();
