@@ -109,6 +109,7 @@ export interface PyramidTradeLog {
 export interface DailyRiskStats {
   tradeCount: number;
   fullPositionCount: number;      // 5단계 올인 횟수
+  averageDownCount: number;       // 일일 물타기 횟수
   consecutiveLosses: number;
   dailyPnL: number;
   dailyPnLPercent: number;
@@ -188,6 +189,7 @@ export function usePyramidTrading({
     dailyRisk: {
       tradeCount: 0,
       fullPositionCount: 0,
+      averageDownCount: 0,
       consecutiveLosses: 0,
       dailyPnL: 0,
       dailyPnLPercent: 0,
@@ -313,6 +315,71 @@ export function usePyramidTrading({
       return 0;
     }
   }, []);
+
+  // ===== 반대 캔들 분석 (물타기 필터용) =====
+  const analyzeOppositeCandles = useCallback(async (
+    symbol: string,
+    direction: 'long' | 'short'
+  ): Promise<number> => {
+    try {
+      const klines = await fetch1mKlines(symbol, 10);
+      if (!klines || klines.length < 3) return 0;
+
+      let count = 0;
+      // 반대 방향 캔들 카운트
+      for (let i = klines.length - 2; i >= 0; i--) {
+        const candle = klines[i];
+        const isBullish = candle.close > candle.open;
+        const isBearish = candle.close < candle.open;
+
+        // 롱 포지션이면 하락 캔들이 반대
+        if (direction === 'long' && isBearish) count++;
+        else if (direction === 'short' && isBullish) count++;
+        else break;
+      }
+      return count;
+    } catch {
+      return 0;
+    }
+  }, []);
+
+  // ===== 물타기 안전 필터 체크 =====
+  const checkAveragingDownSafety = useCallback(async (
+    position: PyramidPosition,
+    dailyAvgDownCount: number
+  ): Promise<{ safe: boolean; reason: string }> => {
+    const filters = PYRAMID_CONFIG.AVERAGING_DOWN.safetyFilters;
+
+    // 1. 일일 물타기 횟수 제한
+    if (dailyAvgDownCount >= filters.maxDailyAverageDown) {
+      return { safe: false, reason: `일일 물타기 한도 도달 (${filters.maxDailyAverageDown}회)` };
+    }
+
+    // 2. RSI 과매도 체크
+    if (filters.requireRsiOversold) {
+      const rsi = position.indicators.rsi;
+      if (rsi > filters.rsiThreshold) {
+        return { safe: false, reason: `RSI ${rsi.toFixed(1)} > ${filters.rsiThreshold} (과매도 아님)` };
+      }
+    }
+
+    // 3. ADX 하락 중 체크 (현재 ADX vs 이전 - 단순 임계값으로 대체)
+    if (filters.blockOnAdxFalling) {
+      const adx = position.indicators.adx;
+      // ADX가 25 미만이면 추세 약화로 간주
+      if (adx < 25) {
+        return { safe: false, reason: `ADX ${adx.toFixed(1)} < 25 (추세 약화)` };
+      }
+    }
+
+    // 4. 반대 캔들 연속 체크
+    const oppositeCount = await analyzeOppositeCandles(position.symbol, position.side);
+    if (oppositeCount >= filters.blockOnOppositeCandles) {
+      return { safe: false, reason: `반대 캔들 ${oppositeCount}개 연속 (추세 역행)` };
+    }
+
+    return { safe: true, reason: '물타기 조건 충족' };
+  }, [analyzeOppositeCandles]);
 
   // ===== 분할 청산 실행 =====
   const executePartialClose = useCallback(async (
@@ -963,6 +1030,13 @@ export function usePyramidTrading({
     // ===== 물타기 체크 (손실시) =====
     const avgDownCheck = shouldAverageDown(position.currentStage, pnlPercent, currentType);
     if (avgDownCheck.should) {
+      // 🛡️ 물타기 안전 필터 체크
+      const safetyCheck = await checkAveragingDownSafety(position, state.dailyRisk.averageDownCount);
+      if (!safetyCheck.safe) {
+        console.log(`🛡️ [물타기 차단] ${safetyCheck.reason}`);
+        return;
+      }
+
       // 물타기 효과 미리 계산
       const stagePercent = PYRAMID_CONFIG.STAGE_SIZE_PERCENT / 100;
       const newQty = (balanceUSD * stagePercent * PYRAMID_CONFIG.LEVERAGE) / currentPrice;
@@ -974,11 +1048,21 @@ export function usePyramidTrading({
       );
 
       console.log(`💧 [물타기] ${nextStage}단계 진입! ${avgDownCheck.reason} (손실 ${pnlPercent.toFixed(2)}%, 평단 개선 ${improvementPercent.toFixed(2)}%)`);
+      
+      // 물타기 횟수 증가
+      setState(prev => ({
+        ...prev,
+        dailyRisk: {
+          ...prev.dailyRisk,
+          averageDownCount: prev.dailyRisk.averageDownCount + 1,
+        },
+      }));
+
       await executePyramidEntry(position.symbol, position.side, currentPrice, position.indicators, nextStage);
       return;
     }
 
-  }, [state.currentPosition, state.dailyRisk, balanceUSD, calculatePnLPercent, analyzeConsecutiveCandles, executePyramidEntry]);
+  }, [state.currentPosition, state.dailyRisk, balanceUSD, calculatePnLPercent, analyzeConsecutiveCandles, checkAveragingDownSafety, executePyramidEntry]);
 
   // ===== 시그널 스킵 =====
   const skipSignal = useCallback(() => {
@@ -1097,6 +1181,7 @@ export function usePyramidTrading({
           dailyRisk: {
             tradeCount: 0,
             fullPositionCount: 0,
+            averageDownCount: 0,
             consecutiveLosses: 0,
             dailyPnL: 0,
             dailyPnLPercent: 0,
