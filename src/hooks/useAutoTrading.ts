@@ -20,6 +20,11 @@ import {
   TechnicalIndicators,
   Kline,
 } from './useTechnicalIndicators';
+import { 
+  getTradingConfig, 
+  isMajorCoin,
+  getCoinTier,
+} from '@/lib/majorCoins';
 
 export interface AutoTradeLog {
   id: string;
@@ -113,6 +118,7 @@ interface UseAutoTradingProps {
     pnlUsd: number;
   }) => Promise<void>;
   isTestnet?: boolean; // 테스트넷 모드
+  majorCoinMode?: boolean; // 🆕 메이저 코인 모드
 }
 
 // 설정값
@@ -262,6 +268,7 @@ export function useAutoTrading({
   initialStats,
   logTrade,
   isTestnet = false,
+  majorCoinMode = false, // 🆕 메이저 코인 모드
 }: UseAutoTradingProps) {
   const { user } = useAuth();
   const {
@@ -272,6 +279,14 @@ export function useAutoTrading({
     setLeverage,
     isTestnetReady,
   } = useBinanceApi({ isTestnet });
+
+  // 🆕 메이저 코인 모드에 따른 동적 설정
+  const tradingConfig = getTradingConfig(majorCoinMode);
+  const majorCoinModeRef = useRef(majorCoinMode);
+  
+  useEffect(() => {
+    majorCoinModeRef.current = majorCoinMode;
+  }, [majorCoinMode]);
 
   const [state, setState] = useState<AutoTradingState>({
     isEnabled: false,
@@ -285,7 +300,7 @@ export function useAutoTrading({
     cooldownUntil: null,
     lossProtectionEnabled: false, // 기본값 OFF
     tpPercent: 0.3,
-    statusMessage: '자동매매 비활성화',
+    statusMessage: majorCoinMode ? '🏆 메이저 코인 자동매매 비활성화' : '자동매매 비활성화',
     scanningProgress: '',
   });
 
@@ -330,9 +345,10 @@ export function useAutoTrading({
   const toggleAutoTrading = useCallback(() => {
     setState(prev => {
       const newEnabled = !prev.isEnabled;
+      const modeLabel = majorCoinModeRef.current ? '🏆 메이저 코인' : '🎯 잡코인';
       if (newEnabled) {
         initAudio();
-        toast.success('🤖 고급 스캘핑 시스템 시작');
+        toast.success(`🤖 ${modeLabel} 스캘핑 시스템 시작`);
       } else {
         toast.info('자동매매 중지');
       }
@@ -340,7 +356,7 @@ export function useAutoTrading({
         ...prev,
         isEnabled: newEnabled,
         pendingSignal: null,
-        statusMessage: newEnabled ? '🔍 기술적 분석 기반 스캔 중...' : '자동매매 비활성화',
+        statusMessage: newEnabled ? `🔍 ${modeLabel} 스캔 중...` : (majorCoinModeRef.current ? '🏆 메이저 코인 자동매매 비활성화' : '자동매매 비활성화'),
         scanningProgress: '',
       };
     });
@@ -520,8 +536,11 @@ export function useAutoTrading({
     const priceDiff = (currentPrice - position.entryPrice) * direction;
     const pnlPercentRaw = (priceDiff / position.entryPrice) * 100;
     
+    // 🆕 현재 심볼이 메이저 코인인지 확인하여 동적 설정 사용
+    const currentConfig = getTradingConfig(isMajorCoin(position.symbol) && majorCoinModeRef.current);
+    
     // 🆕 수수료 반영 손익 (진입 0.05% + 청산 0.05% = 0.10%)
-    const totalFeePercent = CONFIG.FEE_RATE * 2; // 왕복 수수료
+    const totalFeePercent = currentConfig.FEE_RATE * 2; // 왕복 수수료
     const pnlPercent = pnlPercentRaw - totalFeePercent; // 수수료 차감된 실제 손익
     
     const tpState = position.takeProfitState;
@@ -579,22 +598,22 @@ export function useAutoTrading({
     // 🆕 2단계: 다단계 조기 손절 (슬리피지 방지)
     // ============================================
     if (pnlPercent < 0 && !tpState.breakEvenActivated) {
-      const { EARLY_SL } = CONFIG;
+      const earlySL = currentConfig.EARLY_SL;
       
-      // 🆕 진입 직후 보호 시간 (5초간 조기 손절 면제)
-      if (holdTimeSec < EARLY_SL.GRACE_PERIOD_SEC) {
+      // 🆕 진입 직후 보호 시간 (조기 손절 면제)
+      if (holdTimeSec < earlySL.GRACE_PERIOD_SEC) {
         // 보호 기간 중에는 조기 손절 스킵 (단, 최종 손절은 여전히 적용됨)
-        console.log(`[조기손절] ${holdTimeSec.toFixed(1)}초 - 보호 기간 중 (${EARLY_SL.GRACE_PERIOD_SEC}초까지 면제)`);
+        console.log(`[조기손절] ${holdTimeSec.toFixed(1)}초 - 보호 기간 중 (${earlySL.GRACE_PERIOD_SEC}초까지 면제)`);
       } else {
-        // 1단계: 20초 내 -0.10% → 50% 청산
-        if (holdTimeSec <= EARLY_SL.STAGE1_SEC && 
-            pnlPercent <= -EARLY_SL.STAGE1_PERCENT && 
+        // 1단계: 조기 손절
+        if (holdTimeSec <= earlySL.STAGE1_SEC && 
+            pnlPercent <= -earlySL.STAGE1_PERCENT && 
             position.earlySLStage < 1) {
           console.log(`⚡ [스마트손절] 1단계 발동! ${holdTimeSec.toFixed(0)}초, ${pnlPercent.toFixed(2)}% → 50% 청산`);
           toast.warning(`⚡ 조기 손절 1단계! ${pnlPercent.toFixed(2)}% (50% 청산)`);
           
           // 50% 분할 청산
-          const reduceQty = position.remainingQuantity * EARLY_SL.STAGE1_REDUCE;
+          const reduceQty = position.remainingQuantity * earlySL.STAGE1_REDUCE;
           const orderSide = position.side === 'long' ? 'SELL' : 'BUY';
           
           try {
@@ -618,9 +637,9 @@ export function useAutoTrading({
           return;
         }
         
-        // 2단계: 40초 내 -0.15% → 전량 청산 (1단계 이후)
-        if (holdTimeSec <= EARLY_SL.STAGE2_SEC && 
-            pnlPercent <= -EARLY_SL.STAGE2_PERCENT && 
+        // 2단계: 조기 손절 (1단계 이후)
+        if (holdTimeSec <= earlySL.STAGE2_SEC && 
+            pnlPercent <= -earlySL.STAGE2_PERCENT && 
             position.earlySLStage === 1) {
           console.log(`⚡ [스마트손절] 2단계 발동! ${holdTimeSec.toFixed(0)}초, ${pnlPercent.toFixed(2)}% → 남은 전량 청산`);
           toast.error(`⚡ 조기 손절 2단계! ${pnlPercent.toFixed(2)}% (전량 청산)`);
@@ -636,9 +655,9 @@ export function useAutoTrading({
     // 🆕 BE 활성화 조건 도달 시 즉시 플래그 설정 (다음 틱 대기 없음)
     let isBeActiveNow = tpState.breakEvenActivated;
     
-    if (!tpState.breakEvenActivated && pnlPercent >= CONFIG.BREAKEVEN_TRIGGER) {
-      console.log(`🛡️ [checkTpSl] 브레이크이븐 즉시 활성화: ${pnlPercent.toFixed(2)}% >= ${CONFIG.BREAKEVEN_TRIGGER}%`);
-      isBeActiveNow = true; // 🆕 이번 틱에서 바로 BE 로직 적용
+    if (!tpState.breakEvenActivated && pnlPercent >= currentConfig.BREAKEVEN_TRIGGER) {
+      console.log(`🛡️ [checkTpSl] 브레이크이븐 즉시 활성화: ${pnlPercent.toFixed(2)}% >= ${currentConfig.BREAKEVEN_TRIGGER}%`);
+      isBeActiveNow = true;
       
       setState(prev => {
         if (!prev.currentPosition) return prev;
@@ -654,13 +673,13 @@ export function useAutoTrading({
           },
         };
       });
-      toast.info(`🛡️ 브레이크이븐 즉시 활성화! 손절이 +${CONFIG.BREAKEVEN_SL}%로 이동`);
+      toast.info(`🛡️ 브레이크이븐 활성화! 손절이 +${currentConfig.BREAKEVEN_SL}%로 이동`);
     }
 
     // 브레이크이븐 타임아웃 체크 (2분 내 TP 미도달 시 수익 확정 청산)
     if (tpState.breakEvenActivated && tpState.breakEvenActivatedAt) {
       const beElapsedSec = (Date.now() - tpState.breakEvenActivatedAt) / 1000;
-      if (beElapsedSec >= CONFIG.BREAKEVEN_TIMEOUT_SEC && pnlPercent > 0) {
+      if (beElapsedSec >= currentConfig.BREAKEVEN_TIMEOUT_SEC && pnlPercent > 0) {
         console.log(`⏱️ [checkTpSl] BE 타임아웃 수익 확정: ${beElapsedSec.toFixed(0)}초 경과, 현재 수익 +${pnlPercent.toFixed(2)}%`);
         toast.success(`⏱️ 2분 타임아웃! +${pnlPercent.toFixed(2)}% 수익 확정 청산`);
         await closePosition('tp', currentPrice);
@@ -673,10 +692,9 @@ export function useAutoTrading({
     // ============================================
     // 🆕 즉시 BE 활성화 상태 사용 (setState 대기 없음)
     if (isBeActiveNow) {
-      // 🆕 트레일링 BE: 현재수익 - 0.03%로 손절선 자동 상향
       const trailingBeSl = Math.max(
-        CONFIG.BREAKEVEN_SL, // 최소 +0.05%
-        position.maxPnlPercent - CONFIG.BREAKEVEN_TRAILING_GAP // 최고수익 - 0.03%
+        currentConfig.BREAKEVEN_SL,
+        position.maxPnlPercent - currentConfig.BREAKEVEN_TRAILING_GAP
       );
       
       if (pnlPercent <= trailingBeSl) {
@@ -686,9 +704,8 @@ export function useAutoTrading({
         return;
       }
     } else {
-      // BE 미활성 상태: 기존 손절
-      if (pnlPercent <= -CONFIG.SL_PERCENT) {
-        console.log(`🛑 [checkTpSl] 최종 손절: ${pnlPercent.toFixed(2)}% <= -${CONFIG.SL_PERCENT}%`);
+      if (pnlPercent <= -currentConfig.SL_PERCENT) {
+        console.log(`🛑 [checkTpSl] 최종 손절: ${pnlPercent.toFixed(2)}% <= -${currentConfig.SL_PERCENT}%`);
         await closePosition('sl', currentPrice);
         return;
       }
@@ -696,7 +713,7 @@ export function useAutoTrading({
 
     // 타임 스탑 체크 (15분 보유 + 손실)
     const holdTimeMin = holdTimeSec / 60;
-    if (holdTimeMin >= CONFIG.TIME_STOP_MINUTES && pnlPercent < 0) {
+    if (holdTimeMin >= currentConfig.TIME_STOP_MINUTES && pnlPercent < 0) {
       await closePosition('time', currentPrice);
       return;
     }
@@ -704,7 +721,8 @@ export function useAutoTrading({
     // ============================================
     // 🆕 동적 익절 시스템 (ADX + 캔들 모멘텀 기반)
     // ============================================
-    const trendConfig = CONFIG.DYNAMIC_TP[position.trendStrength];
+    const dynamicTP = currentConfig.DYNAMIC_TP as Record<string, any>;
+    const trendConfig = dynamicTP[position.trendStrength];
     const trendLabel = position.trendStrength === 'STRONG' ? '🔥강함' : position.trendStrength === 'MEDIUM' ? '📈중간' : '📊약함';
     
     // 트레일링 활성화 체크

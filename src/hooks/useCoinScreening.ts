@@ -1,6 +1,7 @@
 /**
  * 종목 자동 스크리닝 훅
  * 프로 스캘퍼 시스템: 다중 시간대 + 프라이스 액션 + 모멘텀 합의 기반
+ * 🆕 메이저 코인 모드 지원
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { 
@@ -17,6 +18,12 @@ import {
   ProDirectionResult 
 } from './useProDirection';
 import { addScreeningLog, clearScreeningLogs } from '@/components/ScreeningLogPanel';
+import { 
+  MAJOR_COINS_WHITELIST, 
+  MAJOR_COIN_CRITERIA,
+  isMajorCoin,
+  getCoinTier,
+} from '@/lib/majorCoins';
 
 interface TickerData {
   symbol: string;
@@ -36,7 +43,8 @@ interface ScreeningCriteria {
   spreadThreshold: number;   // 스프레드 임계값 (%)
 }
 
-const DEFAULT_CRITERIA: ScreeningCriteria = {
+// 잡코인 모드 기본값
+const ALTCOIN_CRITERIA: ScreeningCriteria = {
   minVolume: 10_000_000,    // $10M 이상 (완화)
   minVolatility: 1,          // 1% 이상 (완화)
   maxVolatility: 20,         // 20% 이하 (완화)
@@ -44,6 +52,18 @@ const DEFAULT_CRITERIA: ScreeningCriteria = {
   maxPrice: 1,               // $1 이하 (저가 코인만)
   spreadThreshold: 0.1,      // 0.1% 이하 스프레드
 };
+
+// 메이저 코인 모드 기본값
+const MAJOR_CRITERIA: ScreeningCriteria = {
+  minVolume: MAJOR_COIN_CRITERIA.minVolume,
+  minVolatility: MAJOR_COIN_CRITERIA.minVolatility,
+  maxVolatility: MAJOR_COIN_CRITERIA.maxVolatility,
+  minPrice: MAJOR_COIN_CRITERIA.minPrice,
+  maxPrice: MAJOR_COIN_CRITERIA.maxPrice,
+  spreadThreshold: 0.05,     // 0.05% 이하 (메이저는 스프레드 적음)
+};
+
+const DEFAULT_CRITERIA = ALTCOIN_CRITERIA;
 
 // 변동성 스코어 계산
 function calculateVolatilityScore(volatility: number, volume: number): number {
@@ -114,7 +134,11 @@ export interface ScreenedSymbol {
   proDirection?: ProDirectionResult; // 🆕 프로 방향 분석 결과
 }
 
-export function useCoinScreening(tickers: TickerData[], criteria: Partial<ScreeningCriteria> = {}) {
+export function useCoinScreening(
+  tickers: TickerData[], 
+  criteria: Partial<ScreeningCriteria> = {},
+  majorCoinMode: boolean = false  // 🆕 메이저 코인 모드
+) {
   const [screenedSymbols, setScreenedSymbols] = useState<ScreenedSymbol[]>([]);
   const [activeSignals, setActiveSignals] = useState<TradingSignal[]>([]);
   const [isScanning, setIsScanning] = useState(false);
@@ -126,12 +150,18 @@ export function useCoinScreening(tickers: TickerData[], criteria: Partial<Screen
 
   // 🆕 refs (interval/async에서 최신 상태 보장)
   const isScanningRef = useRef(false);
-  const criteriaRef = useRef<ScreeningCriteria>({ ...DEFAULT_CRITERIA, ...criteria });
+  const majorCoinModeRef = useRef(majorCoinMode);
+  
+  // 🆕 메이저 코인 모드에 따라 기준 선택
+  const baseCriteria = majorCoinMode ? MAJOR_CRITERIA : ALTCOIN_CRITERIA;
+  const criteriaRef = useRef<ScreeningCriteria>({ ...baseCriteria, ...criteria });
 
-  // criteria 업데이트 (기본값 + 오버라이드)
+  // criteria 업데이트 (메이저 코인 모드에 따라 기본값 변경)
   useEffect(() => {
-    criteriaRef.current = { ...DEFAULT_CRITERIA, ...criteria };
-  }, [criteria]);
+    const newBaseCriteria = majorCoinMode ? MAJOR_CRITERIA : ALTCOIN_CRITERIA;
+    criteriaRef.current = { ...newBaseCriteria, ...criteria };
+    majorCoinModeRef.current = majorCoinMode;
+  }, [criteria, majorCoinMode]);
   
   // Update tickers ref
   useEffect(() => {
@@ -150,33 +180,60 @@ export function useCoinScreening(tickers: TickerData[], criteria: Partial<Screen
     setIsScanning(true);
 
     const fullCriteria = criteriaRef.current;
+    const isMajorMode = majorCoinModeRef.current;
     
     // UI 로그 초기화 및 시작
     clearScreeningLogs();
-    addScreeningLog('start', '스크리닝 시작');
+    addScreeningLog('start', isMajorMode ? '🏆 메이저 코인 스크리닝 시작' : '스크리닝 시작');
 
     try {
-      // 1차 필터링: 기본 조건
-      const eligible = currentTickers.filter(t => 
-        t.price >= fullCriteria.minPrice &&
-        t.price <= fullCriteria.maxPrice &&
-        t.volume >= fullCriteria.minVolume &&
-        t.volatilityRange >= fullCriteria.minVolatility &&
-        t.volatilityRange <= fullCriteria.maxVolatility
-      );
+      // 🆕 메이저 코인 모드: 화이트리스트 필터링
+      let eligible: TickerData[];
       
-      addScreeningLog('filter', `1차 필터 통과: ${eligible.length}/${currentTickers.length}개`);
+      if (isMajorMode) {
+        // 메이저 코인 화이트리스트만 필터링
+        eligible = currentTickers.filter(t => 
+          isMajorCoin(t.symbol) &&
+          t.volume >= fullCriteria.minVolume &&
+          t.volatilityRange >= fullCriteria.minVolatility &&
+          t.volatilityRange <= fullCriteria.maxVolatility
+        );
+        
+        const tierInfo = eligible.map(t => {
+          const tier = getCoinTier(t.symbol);
+          return `${t.symbol.replace('USDT', '')}(T${tier})`;
+        }).join(', ');
+        addScreeningLog('filter', `🏆 메이저 코인: ${eligible.length}개 [${tierInfo}]`);
+      } else {
+        // 잡코인 모드: 기존 필터링
+        eligible = currentTickers.filter(t => 
+          t.price >= fullCriteria.minPrice &&
+          t.price <= fullCriteria.maxPrice &&
+          t.volume >= fullCriteria.minVolume &&
+          t.volatilityRange >= fullCriteria.minVolatility &&
+          t.volatilityRange <= fullCriteria.maxVolatility
+        );
+        addScreeningLog('filter', `1차 필터 통과: ${eligible.length}/${currentTickers.length}개`);
+      }
 
       // 변동성 스코어 기준 정렬
       const scored = eligible
         .map(t => ({
           ...t,
           volatilityScore: calculateVolatilityScore(t.volatilityRange, t.volume),
+          tier: isMajorMode ? getCoinTier(t.symbol) : null,
         }))
-        .sort((a, b) => b.volatilityScore - a.volatilityScore)
-        .slice(0, 20); // 상위 20개만
+        // 메이저 모드: 티어 우선 정렬, 그 다음 변동성 스코어
+        .sort((a, b) => {
+          if (isMajorMode && a.tier && b.tier) {
+            if (a.tier !== b.tier) return a.tier - b.tier; // 티어 낮을수록 우선
+          }
+          return b.volatilityScore - a.volatilityScore;
+        })
+        .slice(0, isMajorMode ? 10 : 20); // 메이저는 최대 10개
       
-      addScreeningLog('filter', `분석 대상: ${scored.slice(0, 8).map(s => s.symbol.replace('USDT', '')).join(', ')}${scored.length > 8 ? '...' : ''}`)
+      const displaySymbols = scored.slice(0, 8).map(s => s.symbol.replace('USDT', '')).join(', ');
+      addScreeningLog('filter', `분석 대상: ${displaySymbols}${scored.length > 8 ? '...' : ''}`)
 
       // 2차 분석: 기술적 지표 + ATR
       const analyzed: ScreenedSymbol[] = [];

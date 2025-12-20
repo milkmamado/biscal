@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { cn } from '@/lib/utils';
-import { Bot, TrendingUp, TrendingDown, Activity, Clock, AlertTriangle, Star, RefreshCw, Wallet, LogOut, Shield, ShieldOff } from 'lucide-react';
+import { Bot, TrendingUp, TrendingDown, Activity, Clock, AlertTriangle, Star, RefreshCw, Wallet, LogOut, Shield, ShieldOff, Crown } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { AutoTradingState, AutoTradeLog } from '@/hooks/useAutoTrading';
@@ -66,7 +66,9 @@ interface AutoTradingPanelProps {
     signalsCount: number;
     lastScanTime: number;
   };
-  isTestnet?: boolean; // 테스트넷 모드
+  isTestnet?: boolean;
+  majorCoinMode?: boolean; // 🆕 메이저 코인 모드
+  onToggleMajorCoinMode?: () => void; // 🆕 메이저 코인 모드 토글
 }
 
 const AutoTradingPanel = ({ 
@@ -86,6 +88,8 @@ const AutoTradingPanel = ({
   refreshTrigger = 0,
   scanStatus,
   isTestnet = false,
+  majorCoinMode = false,
+  onToggleMajorCoinMode,
 }: AutoTradingPanelProps) => {
   const { isEnabled, isProcessing, currentPosition, pendingSignal, todayStats, tradeLogs, cooldownUntil, lossProtectionEnabled } = state;
   const { user, signOut } = useAuth();
@@ -306,6 +310,25 @@ const AutoTradingPanel = ({
           )}
         </div>
         <div className="flex items-center gap-2">
+          {/* 🆕 메이저 코인 모드 토글 */}
+          <button
+            onClick={onToggleMajorCoinMode}
+            disabled={isEnabled}
+            className={cn(
+              "p-1.5 rounded transition-all",
+              majorCoinMode 
+                ? "text-yellow-400" 
+                : "text-gray-500 hover:text-gray-300",
+              isEnabled && "opacity-50 cursor-not-allowed"
+            )}
+            style={{
+              background: majorCoinMode ? 'rgba(255, 215, 0, 0.2)' : 'transparent',
+              boxShadow: majorCoinMode ? '0 0 10px rgba(255, 215, 0, 0.4)' : 'none',
+            }}
+            title={majorCoinMode ? "🏆 메이저 코인 모드 (BTC, ETH 등)" : "잡코인 모드 (저가 알트코인)"}
+          >
+            <Crown className="w-4 h-4" />
+          </button>
           {/* 연속 손실 보호 토글 */}
           <button
             onClick={onToggleLossProtection}
