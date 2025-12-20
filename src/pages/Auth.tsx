@@ -9,7 +9,7 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { z } from 'zod';
-import { ArrowLeft, Mail, Shield } from 'lucide-react';
+import { ArrowLeft, Mail, Shield, FlaskConical } from 'lucide-react';
 
 const authSchema = z.object({
   email: z.string().trim().email({ message: "올바른 이메일 주소를 입력하세요" }),
@@ -277,6 +277,22 @@ export default function Auth() {
                   {isLoading ? '처리중...' : (isLogin ? '다음' : '회원가입')}
                 </Button>
               </form>
+              
+              {/* Exercise Room 버튼 */}
+              <div className="mt-6 pt-4 border-t border-border/50">
+                <Button
+                  variant="outline"
+                  className="w-full gap-2 border-amber-500/50 text-amber-400 hover:bg-amber-500/10 hover:text-amber-300"
+                  onClick={() => navigate('/paper-trading')}
+                >
+                  <FlaskConical className="h-4 w-4" />
+                  Exercise Room
+                  <span className="text-[10px] bg-amber-500/20 px-1.5 py-0.5 rounded ml-1">모의투자</span>
+                </Button>
+                <p className="text-[10px] text-muted-foreground text-center mt-2">
+                  테스트넷 가상 자금으로 실전과 동일하게 연습
+                </p>
+              </div>
               
               {/* 회원가입 토글 - 나중에 오픈 시 주석 해제
               <div className="mt-4 text-center">
