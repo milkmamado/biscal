@@ -271,7 +271,7 @@ const PaperTrading = () => {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => navigate('/auth')}
+            onClick={() => navigate('/')}
             className="gap-1 h-7 px-2"
           >
             <ArrowLeft className="h-3 w-3" />
