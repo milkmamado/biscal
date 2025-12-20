@@ -87,8 +87,20 @@ export async function fetchSymbolPrecision(symbol: string): Promise<SymbolPrecis
 // Round quantity to valid precision
 export function roundQuantity(quantity: number, precision: SymbolPrecision): number {
   const stepSize = precision.stepSize;
+  // stepSize로 나눈 후 내림하여 정확한 정밀도 보장
   const rounded = Math.floor(quantity / stepSize) * stepSize;
-  return parseFloat(rounded.toFixed(precision.quantityPrecision));
+  
+  // quantityPrecision에 맞게 반올림 (0이면 정수)
+  const decimalPlaces = precision.quantityPrecision;
+  const factor = Math.pow(10, decimalPlaces);
+  const finalQty = Math.floor(rounded * factor) / factor;
+  
+  // 최소 수량 보장
+  if (finalQty < precision.minQty) {
+    return precision.minQty;
+  }
+  
+  return finalQty;
 }
 
 // Round price to valid precision
