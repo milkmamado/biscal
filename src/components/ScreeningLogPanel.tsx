@@ -132,7 +132,7 @@ const ScreeningLogPanel = ({ isScanning, signalsCount }: ScreeningLogPanelProps)
       {/* 로그 영역 */}
       <div 
         ref={scrollRef}
-        className="h-20 overflow-y-auto p-2 font-mono text-[10px] space-y-0.5 scrollbar-thin scrollbar-thumb-cyan-500/30 scrollbar-track-transparent"
+        className="max-h-40 overflow-y-auto p-2 font-mono text-[10px] space-y-0.5 scrollbar-thin scrollbar-thumb-cyan-500/30 scrollbar-track-transparent"
       >
         {logs.length === 0 ? (
           <div className="h-full flex items-center justify-center text-muted-foreground/50">
