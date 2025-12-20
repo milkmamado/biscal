@@ -906,33 +906,22 @@ export function usePyramidTrading({
     reasons: string[],
     indicators: TechnicalIndicators
   ) => {
-    // 디버깅: 시그널 수신 확인
-    console.log(`[handleSignal] 시그널 수신: ${symbol} ${direction} ${strength}`);
+    if (!state.isEnabled) return;
+    if (processingRef.current) return;
+    if (!user) return;
     
-    if (!state.isEnabled) {
-      console.log('[handleSignal] 자동매매 비활성화');
-      return;
-    }
-    if (processingRef.current) {
-      console.log('[handleSignal] 처리 중');
-      return;
-    }
-    if (!user) {
-      console.log('[handleSignal] 미로그인');
-      return;
-    }
+    // 잔고 미로드 상태 - 상태 메시지로 알림
     if (balanceUSD <= 0) {
-      console.log(`[handleSignal] 잔고 부족: $${balanceUSD}`);
+      console.log(`[handleSignal] 잔고 미로드 - ${symbol} ${direction} 시그널 무시`);
+      setState(prev => ({
+        ...prev,
+        statusMessage: '⏳ 잔고 조회 중... 시그널 대기',
+      }));
       return;
     }
-    if (state.currentPosition) {
-      console.log('[handleSignal] 이미 포지션 보유');
-      return;
-    }
-    if (state.pendingSignal) {
-      console.log('[handleSignal] 대기 시그널 있음');
-      return;
-    }
+    
+    if (state.currentPosition) return;
+    if (state.pendingSignal) return;
 
     // 리스크 체크
     if (Date.now() < state.dailyRisk.cooldownUntil) {
@@ -945,10 +934,7 @@ export function usePyramidTrading({
     }
 
     // 시그널 강도 체크
-    if (strength === 'weak') {
-      console.log('[handleSignal] 약한 시그널 무시');
-      return;
-    }
+    if (strength === 'weak') return;
 
     // ADX 필터
     if (indicators.adx < PYRAMID_CONFIG.MIN_ADX) {
@@ -956,7 +942,7 @@ export function usePyramidTrading({
       return;
     }
     
-    console.log(`[handleSignal] ✅ 진입 조건 통과! ${symbol} ${direction}`);
+    console.log(`[handleSignal] ✅ ${symbol} ${direction} 진입 시작`);
 
     console.log(`[handleSignal] ${symbol} ${direction} ${strength}`, reasons);
 
