@@ -635,6 +635,13 @@ export function usePyramidTrading({
       }
     }
 
+    // ===== 🔧 손익분기 근처 조기 청산 (5분 후) =====
+    if (holdTimeMin >= 5 && Math.abs(pnlPercent) <= 0.05) {
+      console.log(`⚖️ 손익분기 조기 청산! ${pnlPercent.toFixed(3)}% (5분 경과, -0.05% ~ +0.05% 구간)`);
+      await closePosition('time_exit', currentPrice);
+      return;
+    }
+
     // ===== 시간 기반 강제 청산 =====
     const maxHold = getStageMaxHold(position.currentStage);
     if (holdTimeMin >= maxHold) {
@@ -967,10 +974,18 @@ export function usePyramidTrading({
     }
   }, [state.isEnabled, state.currentPosition, state.pendingSignal, handleTechnicalSignal]);
 
+  // 추가 진입 중복 방지용 ref
+  const stageEntryRef = useRef(false);
+  const lastStageEntryTimeRef = useRef(0);
+
   // ===== 하이브리드 추가 진입 체크 (불타기 + 물타기) =====
   const checkNextStageEntry = useCallback(async (currentPrice: number) => {
     if (!state.currentPosition) return;
     if (processingRef.current) return;
+    if (stageEntryRef.current) return; // 🔧 추가 진입 중복 방지
+    
+    // 🔧 마지막 진입 시도 후 3초 쿨다운
+    if (Date.now() - lastStageEntryTimeRef.current < 3000) return;
 
     const position = state.currentPosition;
     const nextStage = position.currentStage + 1;
@@ -1011,8 +1026,16 @@ export function usePyramidTrading({
         }
       }
 
+      // 🔧 중복 진입 방지 락
+      stageEntryRef.current = true;
+      lastStageEntryTimeRef.current = Date.now();
+      
       console.log(`🔥 [불타기] ${nextStage}단계 진입! ${pyramidCheck.reason} (수익 ${pnlPercent.toFixed(2)}%)`);
-      await executePyramidEntry(position.symbol, position.side, currentPrice, position.indicators, nextStage);
+      try {
+        await executePyramidEntry(position.symbol, position.side, currentPrice, position.indicators, nextStage);
+      } finally {
+        stageEntryRef.current = false;
+      }
       return;
     }
 
@@ -1036,6 +1059,10 @@ export function usePyramidTrading({
         newQty
       );
 
+      // 🔧 중복 진입 방지 락
+      stageEntryRef.current = true;
+      lastStageEntryTimeRef.current = Date.now();
+      
       console.log(`💧 [물타기] ${nextStage}단계 진입! ${avgDownCheck.reason} (손실 ${pnlPercent.toFixed(2)}%, 평단 개선 ${improvementPercent.toFixed(2)}%)`);
       
       // 물타기 횟수 증가
@@ -1047,7 +1074,11 @@ export function usePyramidTrading({
         },
       }));
 
-      await executePyramidEntry(position.symbol, position.side, currentPrice, position.indicators, nextStage);
+      try {
+        await executePyramidEntry(position.symbol, position.side, currentPrice, position.indicators, nextStage);
+      } finally {
+        stageEntryRef.current = false;
+      }
       return;
     }
 
