@@ -1025,8 +1025,9 @@ export function useAutoTrading({
       const atrPercent = (indicators.atr / currentPrice) * 100;
       const rawQty = calculateDynamicPositionSize(balanceUSD, leverage, currentPrice, atrPercent);
 
-      const precision = await fetchSymbolPrecision(symbol);
+      const precision = await fetchSymbolPrecision(symbol, isTestnet);
       const quantity = roundQuantity(rawQty, precision);
+      console.log(`[executeEntry] rawQty=${rawQty.toFixed(4)} → quantity=${quantity} (stepSize=${precision.stepSize}, qtyPrec=${precision.quantityPrecision})`);
 
       if (quantity * currentPrice < 5.5) {
         throw new Error('최소 주문금액 미달');

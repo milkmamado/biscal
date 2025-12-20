@@ -38,50 +38,74 @@ export interface SymbolPrecision {
 // Cache for symbol precision info
 const symbolPrecisionCache: Map<string, SymbolPrecision> = new Map();
 
-// Fetch symbol precision info
-export async function fetchSymbolPrecision(symbol: string): Promise<SymbolPrecision> {
+// Fetch symbol precision info (with testnet support)
+export async function fetchSymbolPrecision(symbol: string, isTestnet: boolean = false): Promise<SymbolPrecision> {
+  const cacheKey = `${symbol}-${isTestnet ? 'testnet' : 'mainnet'}`;
+  
   // Check cache first
-  if (symbolPrecisionCache.has(symbol)) {
-    return symbolPrecisionCache.get(symbol)!;
+  if (symbolPrecisionCache.has(cacheKey)) {
+    return symbolPrecisionCache.get(cacheKey)!;
   }
 
-  const response = await fetch(`${BASE_URL}/fapi/v1/exchangeInfo`);
-  const data = await response.json();
-  
-  const symbolInfo = data.symbols.find((s: any) => s.symbol === symbol);
-  
-  if (!symbolInfo) {
-    // Return default precision if symbol not found
+  // 테스트넷과 메인넷 URL 구분
+  const baseUrl = isTestnet 
+    ? 'https://testnet.binancefuture.com'
+    : BASE_URL;
+
+  try {
+    const response = await fetch(`${baseUrl}/fapi/v1/exchangeInfo`);
+    const data = await response.json();
+    
+    const symbolInfo = data.symbols.find((s: any) => s.symbol === symbol);
+    
+    if (!symbolInfo) {
+      console.warn(`[fetchSymbolPrecision] ${symbol} not found, using defaults`);
+      // Return default precision if symbol not found
+      return {
+        symbol,
+        pricePrecision: 2,
+        quantityPrecision: 0, // 테스트넷 기본값은 정수
+        tickSize: 0.01,
+        stepSize: 1,
+        minQty: 1,
+        minNotional: 5,
+      };
+    }
+
+    // Extract filters
+    const priceFilter = symbolInfo.filters.find((f: any) => f.filterType === 'PRICE_FILTER');
+    const lotSizeFilter = symbolInfo.filters.find((f: any) => f.filterType === 'LOT_SIZE');
+    const minNotionalFilter = symbolInfo.filters.find((f: any) => f.filterType === 'MIN_NOTIONAL');
+
+    const precision: SymbolPrecision = {
+      symbol,
+      pricePrecision: symbolInfo.pricePrecision,
+      quantityPrecision: symbolInfo.quantityPrecision,
+      tickSize: parseFloat(priceFilter?.tickSize || '0.01'),
+      stepSize: parseFloat(lotSizeFilter?.stepSize || '1'),
+      minQty: parseFloat(lotSizeFilter?.minQty || '1'),
+      minNotional: parseFloat(minNotionalFilter?.notional || '5'),
+    };
+
+    console.log(`[fetchSymbolPrecision] ${symbol} (${isTestnet ? 'testnet' : 'mainnet'}): qtyPrec=${precision.quantityPrecision}, stepSize=${precision.stepSize}`);
+
+    // Cache the result
+    symbolPrecisionCache.set(cacheKey, precision);
+
+    return precision;
+  } catch (error) {
+    console.error(`[fetchSymbolPrecision] Error fetching ${symbol}:`, error);
+    // 에러 시 안전한 기본값 (정수)
     return {
       symbol,
       pricePrecision: 2,
-      quantityPrecision: 3,
+      quantityPrecision: 0,
       tickSize: 0.01,
-      stepSize: 0.001,
-      minQty: 0.001,
+      stepSize: 1,
+      minQty: 1,
       minNotional: 5,
     };
   }
-
-  // Extract filters
-  const priceFilter = symbolInfo.filters.find((f: any) => f.filterType === 'PRICE_FILTER');
-  const lotSizeFilter = symbolInfo.filters.find((f: any) => f.filterType === 'LOT_SIZE');
-  const minNotionalFilter = symbolInfo.filters.find((f: any) => f.filterType === 'MIN_NOTIONAL');
-
-  const precision: SymbolPrecision = {
-    symbol,
-    pricePrecision: symbolInfo.pricePrecision,
-    quantityPrecision: symbolInfo.quantityPrecision,
-    tickSize: parseFloat(priceFilter?.tickSize || '0.01'),
-    stepSize: parseFloat(lotSizeFilter?.stepSize || '0.001'),
-    minQty: parseFloat(lotSizeFilter?.minQty || '0.001'),
-    minNotional: parseFloat(minNotionalFilter?.notional || '5'),
-  };
-
-  // Cache the result
-  symbolPrecisionCache.set(symbol, precision);
-
-  return precision;
 }
 
 // Round quantity to valid precision
