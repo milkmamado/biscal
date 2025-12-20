@@ -402,12 +402,20 @@ export function useAutoTrading({
         throw new Error(closeResult?.error || '청산 실패');
       }
 
+      const currentConfig = getTradingConfig(isMajorCoin(position.symbol) && majorCoinModeRef.current);
+      const feeRate = (currentConfig.FEE_RATE ?? CONFIG.FEE_RATE) / 100; // 0.05(%) -> 0.0005
+
       const direction = position.side === 'long' ? 1 : -1;
       const priceDiff = (currentPrice - actualEntryPrice) * direction;
-      const pnl = priceDiff * actualQty;
-      const isWin = pnl > 0;
+      const pnlGross = priceDiff * actualQty;
 
-      const newTotalPnL = state.todayStats.totalPnL + pnl;
+      // ✅ 수수료 반영 (진입+청산 모두 차감)
+      const entryNotional = actualEntryPrice * actualQty;
+      const exitNotional = currentPrice * actualQty;
+      const feeUsd = (entryNotional + exitNotional) * feeRate;
+
+      const pnl = pnlGross - feeUsd; // 최종 실현손익(수수료 포함)
+      const isWin = pnl > 0;
 
       setState(prev => ({
         ...prev,
@@ -417,7 +425,7 @@ export function useAutoTrading({
           trades: prev.todayStats.trades + 1,
           wins: prev.todayStats.wins + (isWin ? 1 : 0),
           losses: prev.todayStats.losses + (isWin ? 0 : 1),
-          totalPnL: newTotalPnL,
+          totalPnL: prev.todayStats.totalPnL + pnl,
         },
         consecutiveLosses: isWin ? 0 : prev.consecutiveLosses + 1,
         // 연속 5손실 + 보호 기능 켜져 있을 때만 휴식
@@ -628,12 +636,46 @@ export function useAutoTrading({
           
           try {
             await placeMarketOrder(position.symbol, orderSide, reduceQty, true, currentPrice);
-            
-            // 남은 수량 업데이트 & 단계 기록
+
+            // ✅ 부분청산 실현손익(수수료 포함) 반영
+            const feeRate = (currentConfig.FEE_RATE ?? CONFIG.FEE_RATE) / 100;
+            const direction = position.side === 'long' ? 1 : -1;
+            const pnlGross = (currentPrice - position.entryPrice) * direction * reduceQty;
+            const feeUsd = (position.entryPrice * reduceQty + currentPrice * reduceQty) * feeRate;
+            const realizedPnl = pnlGross - feeUsd;
+            const isWinPartial = realizedPnl > 0;
+
+            addLog({
+              symbol: position.symbol,
+              action: 'exit',
+              side: position.side,
+              price: currentPrice,
+              quantity: reduceQty,
+              pnl: realizedPnl,
+              reason: '부분 청산 (조기손절 1단계, 수수료 포함)',
+            });
+
+            logTrade?.({
+              symbol: position.symbol,
+              side: position.side,
+              entryPrice: position.entryPrice,
+              exitPrice: currentPrice,
+              quantity: reduceQty,
+              leverage,
+              pnlUsd: realizedPnl,
+            });
+
+            // 남은 수량 업데이트 & 단계 기록 (+ 실현손익 누적)
             setState(prev => {
               if (!prev.currentPosition) return prev;
               return {
                 ...prev,
+                todayStats: {
+                  trades: prev.todayStats.trades + 1,
+                  wins: prev.todayStats.wins + (isWinPartial ? 1 : 0),
+                  losses: prev.todayStats.losses + (isWinPartial ? 0 : 1),
+                  totalPnL: prev.todayStats.totalPnL + realizedPnl,
+                },
                 currentPosition: {
                   ...prev.currentPosition,
                   remainingQuantity: prev.currentPosition.remainingQuantity - reduceQty,
@@ -770,7 +812,7 @@ export function useAutoTrading({
       await closePosition('tp', currentPrice);
       return;
     }
-  }, [state.currentPosition, closePosition, placeMarketOrder]);
+  }, [state.currentPosition, closePosition, placeMarketOrder, addLog, logTrade, leverage]);
 
   // 시그널 핸들러 (기술적 분석 기반)
   const handleSignal = useCallback(async (

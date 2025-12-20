@@ -81,13 +81,25 @@ export const useTradingLogs = (options: UseTradingLogsOptions = {}) => {
       console.log(`[TradingLogs] Fetched ${data?.length || 0} logs`);
 
       if (data && data.length > 0) {
-        const totalPnL = data.reduce((sum, log) => sum + Number(log.pnl_usd), 0);
-        const winCount = data.filter(log => Number(log.pnl_usd) > 0).length;
-        const lossCount = data.filter(log => Number(log.pnl_usd) < 0).length;
+        // ✅ 표시/통계는 항상 '수수료 포함 최종 손익' 기준으로 계산
+        const feeRate = 0.0005; // 0.05% (taker 가정) / side
+        const calcNetPnl = (log: any) => {
+          const qty = Number(log.quantity);
+          const entry = Number(log.entry_price);
+          const exit = Number(log.exit_price);
+          const dir = String(log.side).toLowerCase() === 'long' ? 1 : -1;
+          const gross = (exit - entry) * dir * qty;
+          const fee = (entry * qty + exit * qty) * feeRate;
+          return gross - fee;
+        };
+
+        const totalPnL = data.reduce((sum, log) => sum + calcNetPnl(log), 0);
+        const winCount = data.filter(log => calcNetPnl(log) > 0).length;
+        const lossCount = data.filter(log => calcNetPnl(log) < 0).length;
         const tradeCount = data.length;
         const winRate = tradeCount > 0 ? (winCount / tradeCount) * 100 : 0;
 
-        console.log(`[TradingLogs] Stats: ${tradeCount}trades, PnL: $${totalPnL.toFixed(2)}`);
+        console.log(`[TradingLogs] Stats(net): ${tradeCount}trades, PnL: $${totalPnL.toFixed(2)}`);
         
         setDailyStats({
           totalPnL,
