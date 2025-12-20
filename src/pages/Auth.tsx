@@ -8,7 +8,13 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { z } from 'zod';
-import { ArrowLeft, Mail, Shield, FlaskConical, Zap } from 'lucide-react';
+import { ArrowLeft, Mail, Shield, FlaskConical, Zap, Lock } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 const authSchema = z.object({
   email: z.string().trim().email({ message: "올바른 이메일 주소를 입력하세요" }),
@@ -25,6 +31,9 @@ export default function Auth() {
   const [step, setStep] = useState<AuthStep>('credentials');
   const [isLoading, setIsLoading] = useState(false);
   const [pendingOtp, setPendingOtp] = useState(false);
+  const [showExerciseModal, setShowExerciseModal] = useState(false);
+  const [exercisePassword, setExercisePassword] = useState('');
+  const [exerciseError, setExerciseError] = useState('');
   const { signIn, signUp, user, loading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -328,7 +337,11 @@ export default function Auth() {
                 <Button
                   variant="outline"
                   className="w-full gap-2 border-fuchsia-500/40 text-fuchsia-400 hover:bg-fuchsia-500/10 hover:border-fuchsia-400/60 hover:text-fuchsia-300 font-mono tracking-wider transition-all duration-300 shadow-lg shadow-fuchsia-500/10 hover:shadow-fuchsia-500/20"
-                  onClick={() => navigate('/paper-trading')}
+                  onClick={() => {
+                    setShowExerciseModal(true);
+                    setExercisePassword('');
+                    setExerciseError('');
+                  }}
                 >
                   <FlaskConical className="h-4 w-4" />
                   EXERCISE ROOM
@@ -412,6 +425,63 @@ export default function Auth() {
           </div>
         </div>
       </div>
+
+      {/* Exercise Room Password Modal */}
+      <Dialog open={showExerciseModal} onOpenChange={setShowExerciseModal}>
+        <DialogContent className="bg-card/95 backdrop-blur-xl border-fuchsia-500/30 max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-center font-mono text-fuchsia-400 tracking-wider flex items-center justify-center gap-2">
+              <Lock className="h-5 w-5" />
+              EXERCISE ROOM ACCESS
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div className="space-y-2">
+              <Label className="text-fuchsia-300/80 text-xs font-mono uppercase tracking-wider">
+                Entry Password
+              </Label>
+              <Input
+                type="password"
+                placeholder="••••••••"
+                value={exercisePassword}
+                onChange={(e) => {
+                  setExercisePassword(e.target.value);
+                  setExerciseError('');
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    if (exercisePassword === '12661266') {
+                      setShowExerciseModal(false);
+                      navigate('/paper-trading');
+                    } else {
+                      setExerciseError('ACCESS DENIED');
+                    }
+                  }
+                }}
+                className="bg-background/50 border-fuchsia-500/30 text-foreground font-mono placeholder:text-muted-foreground/50 focus:border-fuchsia-400 focus:ring-fuchsia-400/20"
+              />
+              {exerciseError && (
+                <p className="text-xs text-red-400 font-mono animate-pulse">{exerciseError}</p>
+              )}
+            </div>
+            <Button
+              className="w-full bg-gradient-to-r from-fuchsia-500 to-purple-600 hover:from-fuchsia-400 hover:to-purple-500 text-white font-mono font-bold tracking-wider shadow-lg shadow-fuchsia-500/25"
+              onClick={() => {
+                if (exercisePassword === '12661266') {
+                  setShowExerciseModal(false);
+                  navigate('/paper-trading');
+                } else {
+                  setExerciseError('ACCESS DENIED');
+                }
+              }}
+            >
+              <Zap className="h-4 w-4 mr-2" />
+              ENTER
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
+
