@@ -1,8 +1,8 @@
 /**
- * 🏆 프로 스캘핑 통합 설정 모듈
+ * 🔄 5분 스윙 트레이딩 통합 설정 모듈
  * 모든 매매 관련 설정을 한 곳에서 관리
  * 
- * v2.0 - AI 시장 분석 연동 + 동적 전략 조절
+ * v3.0 - 스캘핑 → 5분 스윙 전략으로 전환
  */
 
 // ===== 타입 정의 =====
@@ -12,58 +12,27 @@ export type MarketCondition = 'TRENDING_UP' | 'TRENDING_DOWN' | 'RANGING' | 'VOL
 export type TrendStrength = 'WEAK' | 'MEDIUM' | 'STRONG';
 export type AIRecommendation = 'AGGRESSIVE' | 'NORMAL' | 'CONSERVATIVE' | 'STOP';
 
-export interface DynamicTPConfig {
-  TP_PERCENT: number;
-  USE_TRAILING: boolean;
-  TRAILING_ACTIVATION: number;
-  TRAILING_DISTANCE: number;
-}
-
-export interface EarlySLConfig {
-  GRACE_PERIOD_SEC: number;
-  STAGE1_SEC: number;
-  STAGE1_PERCENT: number;
-  STAGE1_REDUCE: number;
-  STAGE2_SEC: number;
-  STAGE2_PERCENT: number;
-  STAGE2_REDUCE: number;
-}
-
-export interface TradingConfig {
+export interface SwingTradingConfig {
   // 기본 설정
   FEE_RATE: number;
-  TP_PERCENT: number;
-  SL_PERCENT: number;
   
-  // 동적 익절 (추세 강도별)
-  DYNAMIC_TP: Record<TrendStrength, DynamicTPConfig>;
+  // 분할 매수
+  ENTRY_PERCENT: number;  // 1봉당 진입 비율 (20%)
+  MAX_CANDLES: number;    // 최대 봉 수 (5)
   
-  // 조기 손절
-  EARLY_SL: EarlySLConfig;
+  // 익절/손절 (평단가 기준)
+  TP_PERCENT: number;     // 조기 익절
+  SL_PERCENT: number;     // 손절
   
-  // 브레이크이븐
-  BREAKEVEN_TRIGGER: number;
-  BREAKEVEN_SL: number;
-  BREAKEVEN_TRAILING_GAP: number;
-  BREAKEVEN_TIMEOUT_SEC: number;
+  // 조기 익절 조건
+  MIN_ENTRIES_FOR_TP: number; // 조기 익절 최소 진입 수
   
   // 필터
   MIN_ADX_FOR_TREND: number;
   MIN_CONFIDENCE: number;
-  MIN_VOLUME_RATIO: number;
   
-  // 타임 스탑
-  TIME_STOP_MINUTES: number;
-  
-  // 손실 관리
-  MAX_CONSECUTIVE_LOSSES: number;
-  LOSS_COOLDOWN_MINUTES: number;
-  COIN_MAX_CONSECUTIVE_LOSSES: number;
-  COIN_COOLDOWN_MINUTES: number;
-  
-  // 포지션
-  MAX_LOSS_PER_TRADE_USD: number;
-  BASE_RISK_PERCENT: number;
+  // 쿨다운
+  ENTRY_COOLDOWN_MS: number;
 }
 
 export interface AIAdjustments {
@@ -73,142 +42,132 @@ export interface AIAdjustments {
   entryDelay: number;
 }
 
-// ===== 기본 설정 =====
+// ===== 5분 스윙 설정 =====
 
 /**
- * 메이저 코인 기본 설정
+ * 메이저 코인 스윙 설정
  * - 유동성 높음, 슬리피지 적음
  * - 더 타이트한 손익비
  */
-export const MAJOR_CONFIG: TradingConfig = {
+export const MAJOR_SWING_CONFIG: SwingTradingConfig = {
   FEE_RATE: 0.05,              // 0.05% per side
-  TP_PERCENT: 0.25,            // 기본 +0.25%
-  SL_PERCENT: 0.15,            // 기본 -0.15% (손익비 1:1.67)
   
-  DYNAMIC_TP: {
-    WEAK: {
-      TP_PERCENT: 0.25,
-      USE_TRAILING: false,
-      TRAILING_ACTIVATION: 0.18,
-      TRAILING_DISTANCE: 0.10,
-    },
-    MEDIUM: {
-      TP_PERCENT: 0.40,
-      USE_TRAILING: true,
-      TRAILING_ACTIVATION: 0.28,
-      TRAILING_DISTANCE: 0.10,
-    },
-    STRONG: {
-      TP_PERCENT: 0.60,
-      USE_TRAILING: true,
-      TRAILING_ACTIVATION: 0.30,
-      TRAILING_DISTANCE: 0.08,
-    },
-  },
+  ENTRY_PERCENT: 0.20,         // 1봉당 20%
+  MAX_CANDLES: 5,              // 5봉 완성
   
-  EARLY_SL: {
-    GRACE_PERIOD_SEC: 8,       // 8초 보호
-    STAGE1_SEC: 30,            // 30초 내
-    STAGE1_PERCENT: 0.12,      // -0.12%
-    STAGE1_REDUCE: 0.5,        // 50% 청산
-    STAGE2_SEC: 60,            // 60초 내
-    STAGE2_PERCENT: 0.18,      // -0.18%
-    STAGE2_REDUCE: 0.75,       // 75% 청산
-  },
+  TP_PERCENT: 0.50,            // +0.5% 조기 익절
+  SL_PERCENT: 0.35,            // -0.35% 손절 (손익비 1:1.43)
   
-  BREAKEVEN_TRIGGER: 0.08,     // +0.08%에서 BE 발동
-  BREAKEVEN_SL: 0.04,          // BE 손절선 +0.04%
-  BREAKEVEN_TRAILING_GAP: 0.03,
-  BREAKEVEN_TIMEOUT_SEC: 120,
+  MIN_ENTRIES_FOR_TP: 2,       // 2봉 이상 진입 후 조기 익절 가능
   
-  MIN_ADX_FOR_TREND: 22,       // ADX 22 이상
-  MIN_CONFIDENCE: 70,          // 신뢰도 70% 이상
-  MIN_VOLUME_RATIO: 1.2,       // 거래량 120% 이상
+  MIN_ADX_FOR_TREND: 20,       // ADX 20 이상
+  MIN_CONFIDENCE: 55,          // 신뢰도 55% 이상
   
-  TIME_STOP_MINUTES: 12,
-  
-  MAX_CONSECUTIVE_LOSSES: 5,
-  LOSS_COOLDOWN_MINUTES: 60,
-  COIN_MAX_CONSECUTIVE_LOSSES: 2,
-  COIN_COOLDOWN_MINUTES: 30,
-  
-  MAX_LOSS_PER_TRADE_USD: 0.5,
-  BASE_RISK_PERCENT: 1.0,
+  ENTRY_COOLDOWN_MS: 30000,    // 30초 쿨다운
 };
 
 /**
- * 잡코인 기본 설정
+ * 잡코인 스윙 설정
  * - 변동성 높음, 슬리피지 있음
  * - 더 넓은 손익비
  */
+export const ALTCOIN_SWING_CONFIG: SwingTradingConfig = {
+  FEE_RATE: 0.05,
+  
+  ENTRY_PERCENT: 0.20,
+  MAX_CANDLES: 5,
+  
+  TP_PERCENT: 0.60,            // +0.6% 조기 익절 (변동성 높음)
+  SL_PERCENT: 0.40,            // -0.4% 손절 (손익비 1:1.5)
+  
+  MIN_ENTRIES_FOR_TP: 2,
+  
+  MIN_ADX_FOR_TREND: 22,       // ADX 22 이상 (횡보장 필터 강화)
+  MIN_CONFIDENCE: 60,          // 신뢰도 60% 이상
+  
+  ENTRY_COOLDOWN_MS: 30000,
+};
+
+// ===== 레거시 호환 설정 (기존 코드 호환용) =====
+
+export interface TradingConfig {
+  FEE_RATE: number;
+  TP_PERCENT: number;
+  SL_PERCENT: number;
+  DYNAMIC_TP: Record<TrendStrength, {
+    TP_PERCENT: number;
+    USE_TRAILING: boolean;
+    TRAILING_ACTIVATION: number;
+    TRAILING_DISTANCE: number;
+  }>;
+  EARLY_SL: {
+    GRACE_PERIOD_SEC: number;
+    STAGE1_SEC: number;
+    STAGE1_PERCENT: number;
+    STAGE1_REDUCE: number;
+    STAGE2_SEC: number;
+    STAGE2_PERCENT: number;
+    STAGE2_REDUCE: number;
+  };
+  BREAKEVEN_TRIGGER: number;
+  BREAKEVEN_SL: number;
+  BREAKEVEN_TRAILING_GAP: number;
+  BREAKEVEN_TIMEOUT_SEC: number;
+  MIN_ADX_FOR_TREND: number;
+  MIN_CONFIDENCE: number;
+  MIN_VOLUME_RATIO: number;
+  TIME_STOP_MINUTES: number;
+  MAX_CONSECUTIVE_LOSSES: number;
+  LOSS_COOLDOWN_MINUTES: number;
+  COIN_MAX_CONSECUTIVE_LOSSES: number;
+  COIN_COOLDOWN_MINUTES: number;
+  MAX_LOSS_PER_TRADE_USD: number;
+  BASE_RISK_PERCENT: number;
+}
+
+// 레거시 설정 (스윙 설정 기반으로 매핑)
+export const MAJOR_CONFIG: TradingConfig = {
+  FEE_RATE: 0.05,
+  TP_PERCENT: MAJOR_SWING_CONFIG.TP_PERCENT,
+  SL_PERCENT: MAJOR_SWING_CONFIG.SL_PERCENT,
+  DYNAMIC_TP: {
+    WEAK: { TP_PERCENT: 0.40, USE_TRAILING: false, TRAILING_ACTIVATION: 0.30, TRAILING_DISTANCE: 0.10 },
+    MEDIUM: { TP_PERCENT: 0.50, USE_TRAILING: true, TRAILING_ACTIVATION: 0.35, TRAILING_DISTANCE: 0.10 },
+    STRONG: { TP_PERCENT: 0.70, USE_TRAILING: true, TRAILING_ACTIVATION: 0.40, TRAILING_DISTANCE: 0.08 },
+  },
+  EARLY_SL: { GRACE_PERIOD_SEC: 8, STAGE1_SEC: 30, STAGE1_PERCENT: 0.12, STAGE1_REDUCE: 0.5, STAGE2_SEC: 60, STAGE2_PERCENT: 0.18, STAGE2_REDUCE: 0.75 },
+  BREAKEVEN_TRIGGER: 0.08, BREAKEVEN_SL: 0.04, BREAKEVEN_TRAILING_GAP: 0.03, BREAKEVEN_TIMEOUT_SEC: 120,
+  MIN_ADX_FOR_TREND: 20, MIN_CONFIDENCE: 55, MIN_VOLUME_RATIO: 1.2,
+  TIME_STOP_MINUTES: 12, MAX_CONSECUTIVE_LOSSES: 5, LOSS_COOLDOWN_MINUTES: 60,
+  COIN_MAX_CONSECUTIVE_LOSSES: 2, COIN_COOLDOWN_MINUTES: 30, MAX_LOSS_PER_TRADE_USD: 0.5, BASE_RISK_PERCENT: 1.0,
+};
+
 export const ALTCOIN_CONFIG: TradingConfig = {
   FEE_RATE: 0.05,
-  TP_PERCENT: 0.35,            // 기본 +0.35%
-  SL_PERCENT: 0.18,            // 기본 -0.18% (손익비 1:1.94)
-  
+  TP_PERCENT: ALTCOIN_SWING_CONFIG.TP_PERCENT,
+  SL_PERCENT: ALTCOIN_SWING_CONFIG.SL_PERCENT,
   DYNAMIC_TP: {
-    WEAK: {
-      TP_PERCENT: 0.35,
-      USE_TRAILING: false,
-      TRAILING_ACTIVATION: 0.25,
-      TRAILING_DISTANCE: 0.12,
-    },
-    MEDIUM: {
-      TP_PERCENT: 0.55,
-      USE_TRAILING: true,
-      TRAILING_ACTIVATION: 0.38,
-      TRAILING_DISTANCE: 0.14,
-    },
-    STRONG: {
-      TP_PERCENT: 0.80,
-      USE_TRAILING: true,
-      TRAILING_ACTIVATION: 0.40,
-      TRAILING_DISTANCE: 0.12,
-    },
+    WEAK: { TP_PERCENT: 0.50, USE_TRAILING: false, TRAILING_ACTIVATION: 0.35, TRAILING_DISTANCE: 0.12 },
+    MEDIUM: { TP_PERCENT: 0.60, USE_TRAILING: true, TRAILING_ACTIVATION: 0.45, TRAILING_DISTANCE: 0.14 },
+    STRONG: { TP_PERCENT: 0.90, USE_TRAILING: true, TRAILING_ACTIVATION: 0.55, TRAILING_DISTANCE: 0.12 },
   },
-  
-  EARLY_SL: {
-    GRACE_PERIOD_SEC: 10,      // 10초 보호 (슬리피지 대비)
-    STAGE1_SEC: 45,            // 45초 내
-    STAGE1_PERCENT: 0.15,      // -0.15%
-    STAGE1_REDUCE: 0.5,
-    STAGE2_SEC: 90,            // 90초 내
-    STAGE2_PERCENT: 0.22,      // -0.22%
-    STAGE2_REDUCE: 0.75,
-  },
-  
-  BREAKEVEN_TRIGGER: 0.10,
-  BREAKEVEN_SL: 0.06,
-  BREAKEVEN_TRAILING_GAP: 0.04,
-  BREAKEVEN_TIMEOUT_SEC: 150,
-  
-  MIN_ADX_FOR_TREND: 25,       // ADX 25 이상 (횡보장 더 강하게 필터)
-  MIN_CONFIDENCE: 75,          // 신뢰도 75% 이상
-  MIN_VOLUME_RATIO: 1.3,       // 거래량 130% 이상
-  
-  TIME_STOP_MINUTES: 15,
-  
-  MAX_CONSECUTIVE_LOSSES: 5,
-  LOSS_COOLDOWN_MINUTES: 60,
-  COIN_MAX_CONSECUTIVE_LOSSES: 2,
-  COIN_COOLDOWN_MINUTES: 30,
-  
-  MAX_LOSS_PER_TRADE_USD: 0.5,
-  BASE_RISK_PERCENT: 1.0,
+  EARLY_SL: { GRACE_PERIOD_SEC: 10, STAGE1_SEC: 45, STAGE1_PERCENT: 0.15, STAGE1_REDUCE: 0.5, STAGE2_SEC: 90, STAGE2_PERCENT: 0.22, STAGE2_REDUCE: 0.75 },
+  BREAKEVEN_TRIGGER: 0.10, BREAKEVEN_SL: 0.06, BREAKEVEN_TRAILING_GAP: 0.04, BREAKEVEN_TIMEOUT_SEC: 150,
+  MIN_ADX_FOR_TREND: 22, MIN_CONFIDENCE: 60, MIN_VOLUME_RATIO: 1.3,
+  TIME_STOP_MINUTES: 15, MAX_CONSECUTIVE_LOSSES: 5, LOSS_COOLDOWN_MINUTES: 60,
+  COIN_MAX_CONSECUTIVE_LOSSES: 2, COIN_COOLDOWN_MINUTES: 30, MAX_LOSS_PER_TRADE_USD: 0.5, BASE_RISK_PERCENT: 1.0,
 };
 
 // ===== 설정 함수 =====
 
-/**
- * 현재 모드에 맞는 기본 설정 반환
- */
+export function getSwingConfig(mode: TradingMode): SwingTradingConfig {
+  return mode === 'MAJOR' ? { ...MAJOR_SWING_CONFIG } : { ...ALTCOIN_SWING_CONFIG };
+}
+
 export function getBaseConfig(mode: TradingMode): TradingConfig {
   return mode === 'MAJOR' ? { ...MAJOR_CONFIG } : { ...ALTCOIN_CONFIG };
 }
 
-/**
- * AI 분석 결과를 반영한 동적 설정 생성
- */
 export function applyAIAdjustments(
   baseConfig: TradingConfig,
   aiAdjustments: AIAdjustments,
@@ -216,46 +175,32 @@ export function applyAIAdjustments(
 ): TradingConfig {
   const config = { ...baseConfig };
   
-  // AI 추천에 따른 기본 조정
   switch (aiRecommendation) {
     case 'AGGRESSIVE':
-      // 공격적: TP 확대, 신뢰도 완화
       config.TP_PERCENT *= 1.3;
-      config.MIN_CONFIDENCE = Math.max(60, config.MIN_CONFIDENCE - 10);
+      config.MIN_CONFIDENCE = Math.max(50, config.MIN_CONFIDENCE - 10);
       break;
     case 'CONSERVATIVE':
-      // 보수적: TP 축소, 신뢰도 강화
       config.TP_PERCENT *= 0.8;
       config.SL_PERCENT *= 0.9;
-      config.MIN_CONFIDENCE = Math.min(85, config.MIN_CONFIDENCE + 10);
+      config.MIN_CONFIDENCE = Math.min(80, config.MIN_CONFIDENCE + 10);
       break;
     case 'STOP':
-      // 거래 중지: 신뢰도 최대로 올려서 사실상 진입 불가
       config.MIN_CONFIDENCE = 100;
       break;
-    // NORMAL: 변경 없음
   }
   
-  // AI 세부 조정 적용
   config.TP_PERCENT *= aiAdjustments.tpMultiplier;
   config.SL_PERCENT *= aiAdjustments.slMultiplier;
   config.MIN_CONFIDENCE = Math.max(50, Math.min(90, aiAdjustments.minConfidence));
   
-  // 동적 TP도 조정
-  for (const strength of ['WEAK', 'MEDIUM', 'STRONG'] as TrendStrength[]) {
-    config.DYNAMIC_TP[strength].TP_PERCENT *= aiAdjustments.tpMultiplier;
-  }
-  
   return config;
 }
 
-/**
- * 추세 강도에 맞는 TP 설정 반환
- */
 export function getDynamicTPConfig(
   config: TradingConfig,
   trendStrength: TrendStrength
-): DynamicTPConfig {
+) {
   return config.DYNAMIC_TP[trendStrength];
 }
 
@@ -288,7 +233,7 @@ export function getCoinTier(symbol: string): 1 | 2 | 3 | null {
 
 export const SCREENING_CRITERIA = {
   MAJOR: {
-    minVolume: 100_000_000,    // $100M
+    minVolume: 100_000_000,
     minVolatility: 0.5,
     maxVolatility: 10,
     minPrice: 0,
@@ -296,7 +241,7 @@ export const SCREENING_CRITERIA = {
     spreadThreshold: 0.05,
   },
   ALTCOIN: {
-    minVolume: 10_000_000,     // $10M
+    minVolume: 10_000_000,
     minVolatility: 1,
     maxVolatility: 20,
     minPrice: 0.01,
@@ -308,16 +253,39 @@ export const SCREENING_CRITERIA = {
 // ===== 문서화용 상수 =====
 
 export const TRADING_RULES = {
+  // 전략 개요
+  STRATEGY: {
+    title: '🔄 5분 스윙 전략',
+    rules: [
+      '1분봉 5개 = 5분 추세 매매',
+      '첫 봉: AI 분석 후 20% 진입',
+      '2~4봉: 방향 무관 20%씩 추가 매수 (물타기)',
+      '5봉 완성: 전량 청산',
+      '역방향 봉 = 더 좋은 평단가 기회',
+    ],
+  },
+  
   // 진입 조건
   ENTRY: {
     title: '🎯 진입 조건',
     rules: [
-      'MTF(15m+5m) 추세 합의 필수',
-      'ADX 22+ (메이저) / 25+ (잡코인) 필수',
-      '거래량 120%+ (메이저) / 130%+ (잡코인)',
-      'AI 분석 신뢰도 70%+ (메이저) / 75%+ (잡코인)',
-      '코인별 2연속 손절 시 30분 쿨다운',
-      '연속 5손실 시 60분 전체 쿨다운',
+      'ADX 20+ (메이저) / 22+ (잡코인) 필수',
+      'AI 분석 신뢰도 55%+ (메이저) / 60%+ (잡코인)',
+      '중간(medium) 이상 시그널 강도 필수',
+      '시그널 후 봉 완성 대기 → 분석 후 진입',
+    ],
+  },
+  
+  // 분할 매수
+  POSITION_BUILD: {
+    title: '📈 분할 매수 전략',
+    rules: [
+      '1봉: 20% 진입 (추세 판단 후)',
+      '2봉: 20% 추가 (방향 무관, 물타기)',
+      '3봉: 20% 추가 (평단가 갱신)',
+      '4봉: 20% 추가 (평단가 갱신)',
+      '5봉: 20% 추가 + 전량 청산',
+      '매 봉마다 평단가/TP/SL 재계산',
     ],
   },
   
@@ -325,11 +293,10 @@ export const TRADING_RULES = {
   TAKE_PROFIT: {
     title: '💰 익절 전략',
     rules: [
-      '추세 강도별 동적 익절 타겟',
-      '약한 추세: 고정 익절 (0.25~0.35%)',
-      '중간 추세: 트레일링 활성화 (0.40~0.55%)',
-      '강한 추세: 확장 익절 (0.60~0.80%)',
-      '트레일링: 고점 대비 0.08~0.14% 하락 시 청산',
+      '조기 익절: 평단가 +0.5% (메이저) / +0.6% (잡코인)',
+      '조기 익절 조건: 최소 2봉 이상 투입 후',
+      '5봉 완성 시 손익 무관 전량 청산',
+      '조기 익절 시 즉시 다음 시그널 대기',
     ],
   },
   
@@ -337,34 +304,22 @@ export const TRADING_RULES = {
   STOP_LOSS: {
     title: '🛡️ 손절 전략',
     rules: [
-      '기본 손절: -0.15% (메이저) / -0.18% (잡코인)',
-      '조기 손절 1단계: 30~45초 내 -0.12~0.15% 시 50% 청산',
-      '조기 손절 2단계: 60~90초 내 -0.18~0.22% 시 75% 청산',
-      '타임 스탑: 12~15분 초과 시 전량 청산',
-      '진입 직후 보호: 8~10초간 조기손절 면제',
-    ],
-  },
-  
-  // 브레이크이븐
-  BREAKEVEN: {
-    title: '⚖️ 브레이크이븐',
-    rules: [
-      '+0.08% (메이저) / +0.10% (잡코인) 도달 시 발동',
-      'BE 발동 후 손절선 +0.04~0.06%로 상향',
-      'BE 후 타임아웃: 120~150초 내 TP 미도달 시 청산',
-      '트레일링 BE: 최고수익 -0.03~0.04%로 추적',
+      '손절: 평단가 -0.35% (메이저) / -0.4% (잡코인)',
+      '손절 시 전량 청산',
+      '진입 직후 5초간 손절 체크 면제',
+      '수수료 포함 실손익 기준 판단',
     ],
   },
   
   // AI 시장 분석
   AI_ANALYSIS: {
-    title: '🤖 AI 시장 분석',
+    title: '🤖 AI 봉 분석',
     rules: [
-      'TRENDING_UP/DOWN: 추세장 - 정상 거래',
-      'RANGING: 횡보장 - 보수적 거래 또는 중지',
-      'VOLATILE: 고변동성 - 손절 확대, 포지션 축소',
-      'QUIET: 저변동성 - 익절 축소, 거래 빈도 감소',
-      '권장: AGGRESSIVE/NORMAL/CONSERVATIVE/STOP',
+      '봉 완성 후 방향 분석',
+      '완성된 봉의 몸통/꼬리 비율 분석',
+      '연속 캔들 방향 체크',
+      '진행 중인 봉 방향 참고',
+      '신뢰도 55% 미만 시 진입 스킵',
     ],
   },
   
@@ -375,12 +330,10 @@ export const TRADING_RULES = {
       '메이저 모드: BTC, ETH, BNB, SOL, XRP, DOGE 등 10종',
       '잡코인 모드: $0.01~$1, 거래량 $10M+',
       'ATR 0.1~2.0% 범위 (적정 변동성)',
-      '횡보장 필터: ADX < 15 시 종목 제외',
-      '과열 필터: ADX > 50 시 종목 제외',
-      '유동성 필터: 거래량 30% 미만 시 제외',
+      '횡보장 필터: ADX < 20 시 종목 제외',
     ],
   },
 };
 
-export const TRADING_DOCS_VERSION = '2.0.0';
+export const TRADING_DOCS_VERSION = '3.0.0';
 export const TRADING_DOCS_UPDATED = '2024-12-20';
