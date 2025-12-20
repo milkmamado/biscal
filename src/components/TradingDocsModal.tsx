@@ -213,10 +213,33 @@ const TradingDocsModal = ({ majorCoinMode = false }: TradingDocsModalProps) => {
                       <span className="text-muted-foreground">Stage 5</span>
                       <span className="font-mono text-blue-400">-0.18% 손실시 동일 사이즈 추가</span>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-2">
-                      ※ 물타기로 평단 개선 → 빠른 손익분기 도달
-                    </p>
                   </div>
+                  
+                  {/* 물타기 안전 필터 */}
+                  <div className="mt-3 p-2 bg-orange-500/10 border border-orange-500/30 rounded">
+                    <h4 className="text-xs font-bold text-orange-400 mb-2">🛡️ 안전 필터 (모두 충족시에만 물타기)</h4>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="flex items-center gap-1">
+                        <span className="text-muted-foreground">RSI 과매도</span>
+                        <span className="text-orange-400">≤ 30</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className="text-muted-foreground">ADX 유지</span>
+                        <span className="text-orange-400">≥ 25</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className="text-muted-foreground">반대 캔들</span>
+                        <span className="text-orange-400">&lt; 3개 연속</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className="text-muted-foreground">일일 제한</span>
+                        <span className="text-orange-400">최대 3회</span>
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    ※ 추세 역행시 물타기 차단 → 손실 누적 방지
+                  </p>
                 </div>
 
                 {/* 익절 설정 */}

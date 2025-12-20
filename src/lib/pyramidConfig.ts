@@ -36,6 +36,15 @@ export const PYRAMID_CONFIG = {
       5: { lossRequired: 0.18 },   // -0.18% 손실시 Stage 5 물타기
     } as Record<number, { lossRequired: number }>,
     sizeMultiplier: 1.0,           // 동일 사이즈 (1.0x) - 보수적 접근
+    
+    // 🛡️ 안전 필터 (모두 충족시에만 물타기)
+    safetyFilters: {
+      requireRsiOversold: true,    // RSI 과매도 필수
+      rsiThreshold: 30,            // RSI 30 이하
+      blockOnAdxFalling: true,     // ADX 하락 중이면 차단
+      blockOnOppositeCandles: 3,   // 반대 캔들 3개 연속시 차단
+      maxDailyAverageDown: 3,      // 일일 물타기 최대 3회
+    },
   },
 
   // 단계별 연속 캔들 조건 (불타기 전용)
