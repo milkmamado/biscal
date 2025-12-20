@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useTradingLogs } from '@/hooks/useTradingLogs';
-import { useSwingTrading } from '@/hooks/useSwingTrading';
+import { usePyramidTrading } from '@/hooks/usePyramidTrading';
 import { useCoinScreening } from '@/hooks/useCoinScreening';
 import { useTickerWebSocket } from '@/hooks/useTickerWebSocket';
 import { useWakeLock } from '@/hooks/useWakeLock';
@@ -41,8 +41,8 @@ const Index = () => {
     totalPnL: dailyStats.totalPnL,
   };
   
-  // 5분 스윙 매매 훅
-  const autoTrading = useSwingTrading({
+  // 피라미드 매매 훅
+  const autoTrading = usePyramidTrading({
     balanceUSD,
     leverage,
     krwRate,

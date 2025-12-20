@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils';
 import { Bot, TrendingUp, TrendingDown, Activity, Clock, AlertTriangle, Star, RefreshCw, Wallet, LogOut, Shield, ShieldOff, Crown, Brain } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
-import { SwingTradingState, SwingTradeLog, SwingPosition } from '@/hooks/useSwingTrading';
+import { PyramidTradingState, PyramidTradeLog, PyramidPosition } from '@/hooks/usePyramidTrading';
 import { formatPrice } from '@/lib/binance';
 import { useBinanceApi } from '@/hooks/useBinanceApi';
 import { useAuth } from '@/hooks/useAuth';
@@ -47,7 +47,7 @@ const getScalpingRating = () => {
 const LEVERAGE_OPTIONS = [1, 5, 10, 15, 20];
 
 interface AutoTradingPanelProps {
-  state: SwingTradingState;
+  state: PyramidTradingState;
   onToggle: () => void;
   onManualClose?: () => void;
   onSkipSignal?: () => void;
