@@ -906,12 +906,33 @@ export function usePyramidTrading({
     reasons: string[],
     indicators: TechnicalIndicators
   ) => {
-    if (!state.isEnabled) return;
-    if (processingRef.current) return;
-    if (!user) return;
-    if (balanceUSD <= 0) return;
-    if (state.currentPosition) return;
-    if (state.pendingSignal) return;
+    // 디버깅: 시그널 수신 확인
+    console.log(`[handleSignal] 시그널 수신: ${symbol} ${direction} ${strength}`);
+    
+    if (!state.isEnabled) {
+      console.log('[handleSignal] 자동매매 비활성화');
+      return;
+    }
+    if (processingRef.current) {
+      console.log('[handleSignal] 처리 중');
+      return;
+    }
+    if (!user) {
+      console.log('[handleSignal] 미로그인');
+      return;
+    }
+    if (balanceUSD <= 0) {
+      console.log(`[handleSignal] 잔고 부족: $${balanceUSD}`);
+      return;
+    }
+    if (state.currentPosition) {
+      console.log('[handleSignal] 이미 포지션 보유');
+      return;
+    }
+    if (state.pendingSignal) {
+      console.log('[handleSignal] 대기 시그널 있음');
+      return;
+    }
 
     // 리스크 체크
     if (Date.now() < state.dailyRisk.cooldownUntil) {
@@ -924,13 +945,18 @@ export function usePyramidTrading({
     }
 
     // 시그널 강도 체크
-    if (strength === 'weak') return;
+    if (strength === 'weak') {
+      console.log('[handleSignal] 약한 시그널 무시');
+      return;
+    }
 
     // ADX 필터
     if (indicators.adx < PYRAMID_CONFIG.MIN_ADX) {
       console.log(`[handleSignal] ${symbol} 횡보장 필터 (ADX: ${indicators.adx.toFixed(1)})`);
       return;
     }
+    
+    console.log(`[handleSignal] ✅ 진입 조건 통과! ${symbol} ${direction}`);
 
     console.log(`[handleSignal] ${symbol} ${direction} ${strength}`, reasons);
 
