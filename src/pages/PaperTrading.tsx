@@ -266,7 +266,7 @@ const PaperTrading = () => {
   return (
     <div className="h-screen bg-background p-1 overflow-hidden flex flex-col">
       {/* Paper Trading Header */}
-      <div className="flex items-center justify-between px-2 py-1 border-b border-border/50 mb-1">
+      <div className="flex items-center px-2 py-1 border-b border-border/50 mb-1">
         <div className="flex items-center gap-3">
           <Button
             variant="ghost"
@@ -277,13 +277,10 @@ const PaperTrading = () => {
             <ArrowLeft className="h-3 w-3" />
             나가기
           </Button>
-          <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-amber-500/20 border border-amber-500/50">
+          <div className="flex items-center gap-1.5 px-3 py-1 rounded bg-amber-500/20 border border-amber-500/50">
             <FlaskConical className="h-3.5 w-3.5 text-amber-400" />
-            <span className="text-xs font-bold text-amber-400">EXERCISE ROOM</span>
+            <span className="text-sm font-bold text-amber-400 tracking-wider">模擬鍛鍊</span>
           </div>
-        </div>
-        <div className="text-[10px] text-muted-foreground">
-          테스트넷 모의투자 • 가상 자금으로 연습
         </div>
       </div>
 
