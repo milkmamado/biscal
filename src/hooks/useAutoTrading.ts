@@ -148,12 +148,13 @@ const CONFIG = {
   
   // 🆕 다단계 조기 손절 (슬리피지 방지) - 시간 확대
   EARLY_SL: {
+    GRACE_PERIOD_SEC: 5,     // 🆕 진입 직후 5초간 조기 손절 면제 (슬리피지 보호)
     STAGE1_SEC: 20,          // 1단계: 20초 이내 (기존 15초)
-    STAGE1_PERCENT: 0.07,    // -0.07% 이상 손실 시
+    STAGE1_PERCENT: 0.10,    // -0.10% 이상 손실 시 (기존 0.07% → 완화)
     STAGE1_REDUCE: 0.5,      // 50% 청산
     
     STAGE2_SEC: 40,          // 2단계: 40초 이내 (기존 30초)
-    STAGE2_PERCENT: 0.10,    // -0.10% 이상 손실 시
+    STAGE2_PERCENT: 0.15,    // -0.15% 이상 손실 시 (기존 0.10% → 완화)
     STAGE2_REDUCE: 0.75,     // 75% 청산
   },
   
@@ -572,46 +573,52 @@ export function useAutoTrading({
     if (pnlPercent < 0 && !tpState.breakEvenActivated) {
       const { EARLY_SL } = CONFIG;
       
-      // 1단계: 30초 내 -0.15% → 50% 청산
-      if (holdTimeSec <= EARLY_SL.STAGE1_SEC && 
-          pnlPercent <= -EARLY_SL.STAGE1_PERCENT && 
-          position.earlySLStage < 1) {
-        console.log(`⚡ [스마트손절] 1단계 발동! ${holdTimeSec.toFixed(0)}초, ${pnlPercent.toFixed(2)}% → 50% 청산`);
-        toast.warning(`⚡ 조기 손절 1단계! ${pnlPercent.toFixed(2)}% (50% 청산)`);
-        
-        // 50% 분할 청산
-        const reduceQty = position.remainingQuantity * EARLY_SL.STAGE1_REDUCE;
-        const orderSide = position.side === 'long' ? 'SELL' : 'BUY';
-        
-        try {
-          await placeMarketOrder(position.symbol, orderSide, reduceQty, true, currentPrice);
+      // 🆕 진입 직후 보호 시간 (5초간 조기 손절 면제)
+      if (holdTimeSec < EARLY_SL.GRACE_PERIOD_SEC) {
+        // 보호 기간 중에는 조기 손절 스킵 (단, 최종 손절은 여전히 적용됨)
+        console.log(`[조기손절] ${holdTimeSec.toFixed(1)}초 - 보호 기간 중 (${EARLY_SL.GRACE_PERIOD_SEC}초까지 면제)`);
+      } else {
+        // 1단계: 20초 내 -0.10% → 50% 청산
+        if (holdTimeSec <= EARLY_SL.STAGE1_SEC && 
+            pnlPercent <= -EARLY_SL.STAGE1_PERCENT && 
+            position.earlySLStage < 1) {
+          console.log(`⚡ [스마트손절] 1단계 발동! ${holdTimeSec.toFixed(0)}초, ${pnlPercent.toFixed(2)}% → 50% 청산`);
+          toast.warning(`⚡ 조기 손절 1단계! ${pnlPercent.toFixed(2)}% (50% 청산)`);
           
-          // 남은 수량 업데이트 & 단계 기록
-          setState(prev => {
-            if (!prev.currentPosition) return prev;
-            return {
-              ...prev,
-              currentPosition: {
-                ...prev.currentPosition,
-                remainingQuantity: prev.currentPosition.remainingQuantity - reduceQty,
-                earlySLStage: 1,
-              },
-            };
-          });
-        } catch (err) {
-          console.error('조기 손절 1단계 실패:', err);
+          // 50% 분할 청산
+          const reduceQty = position.remainingQuantity * EARLY_SL.STAGE1_REDUCE;
+          const orderSide = position.side === 'long' ? 'SELL' : 'BUY';
+          
+          try {
+            await placeMarketOrder(position.symbol, orderSide, reduceQty, true, currentPrice);
+            
+            // 남은 수량 업데이트 & 단계 기록
+            setState(prev => {
+              if (!prev.currentPosition) return prev;
+              return {
+                ...prev,
+                currentPosition: {
+                  ...prev.currentPosition,
+                  remainingQuantity: prev.currentPosition.remainingQuantity - reduceQty,
+                  earlySLStage: 1,
+                },
+              };
+            });
+          } catch (err) {
+            console.error('조기 손절 1단계 실패:', err);
+          }
+          return;
         }
-        return;
-      }
-      
-      // 2단계: 60초 내 -0.20% → 75% 청산 (1단계 이후)
-      if (holdTimeSec <= EARLY_SL.STAGE2_SEC && 
-          pnlPercent <= -EARLY_SL.STAGE2_PERCENT && 
-          position.earlySLStage === 1) {
-        console.log(`⚡ [스마트손절] 2단계 발동! ${holdTimeSec.toFixed(0)}초, ${pnlPercent.toFixed(2)}% → 남은 전량 청산`);
-        toast.error(`⚡ 조기 손절 2단계! ${pnlPercent.toFixed(2)}% (전량 청산)`);
-        await closePosition('sl', currentPrice);
-        return;
+        
+        // 2단계: 40초 내 -0.15% → 전량 청산 (1단계 이후)
+        if (holdTimeSec <= EARLY_SL.STAGE2_SEC && 
+            pnlPercent <= -EARLY_SL.STAGE2_PERCENT && 
+            position.earlySLStage === 1) {
+          console.log(`⚡ [스마트손절] 2단계 발동! ${holdTimeSec.toFixed(0)}초, ${pnlPercent.toFixed(2)}% → 남은 전량 청산`);
+          toast.error(`⚡ 조기 손절 2단계! ${pnlPercent.toFixed(2)}% (전량 청산)`);
+          await closePosition('sl', currentPrice);
+          return;
+        }
       }
     }
 
