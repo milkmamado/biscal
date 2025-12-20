@@ -162,9 +162,10 @@ const CONFIG = {
     EXIT_THRESHOLD: 50,       // 불균형 50% 이상 시 즉시 탈출
   },
   
-  // 브레이크이븐 설정 - 하향 조정
+  // 브레이크이븐 설정
   BREAKEVEN_TRIGGER: 0.15,   // +0.15% 도달 시 브레이크이븐 활성화
-  BREAKEVEN_SL: 0.10,        // 브레이크이븐 시 손절을 +0.10%로 (수익 확정)
+  BREAKEVEN_SL: 0.10,        // 브레이크이븐 시 최소 손절선 +0.10%
+  BREAKEVEN_TRAILING_GAP: 0.05, // 🆕 트레일링 BE: 현재수익 - 0.05%로 손절선 상향
   BREAKEVEN_TIMEOUT_SEC: 180, // 브레이크이븐 후 3분 내 TP 미도달 시 수익 확정 청산
   
   // 진입 후 보호 시간 (손절 체크 안함) - 조기 손절 시스템으로 대체
@@ -645,18 +646,28 @@ export function useAutoTrading({
     }
 
     // ============================================
-    // 3단계: 기존 손절 (최종 방어선)
+    // 3단계: 브레이크이븐 손절 (트레일링 BE 포함)
     // ============================================
-    const effectiveSL = tpState.breakEvenActivated ? CONFIG.BREAKEVEN_SL : -CONFIG.SL_PERCENT;
-    if (pnlPercent <= effectiveSL) {
-      if (tpState.breakEvenActivated) {
-        console.log(`🛡️ [checkTpSl] 브레이크이븐 청산: ${pnlPercent.toFixed(2)}% <= +${CONFIG.BREAKEVEN_SL}%`);
+    if (tpState.breakEvenActivated) {
+      // 🆕 트레일링 BE: 현재수익 - 0.05%로 손절선 자동 상향
+      const trailingBeSl = Math.max(
+        CONFIG.BREAKEVEN_SL, // 최소 +0.10%
+        position.maxPnlPercent - CONFIG.BREAKEVEN_TRAILING_GAP // 최고수익 - 0.05%
+      );
+      
+      if (pnlPercent <= trailingBeSl) {
+        console.log(`🛡️ [트레일링BE] 수익확정 청산! 최고:+${position.maxPnlPercent.toFixed(2)}% → BE선:+${trailingBeSl.toFixed(2)}% → 현재:+${pnlPercent.toFixed(2)}%`);
+        toast.success(`🛡️ 트레일링BE 익절! +${pnlPercent.toFixed(2)}% (최고 +${position.maxPnlPercent.toFixed(2)}%)`);
         await closePosition('tp', currentPrice);
-      } else {
+        return;
+      }
+    } else {
+      // BE 미활성 상태: 기존 손절
+      if (pnlPercent <= -CONFIG.SL_PERCENT) {
         console.log(`🛑 [checkTpSl] 최종 손절: ${pnlPercent.toFixed(2)}% <= -${CONFIG.SL_PERCENT}%`);
         await closePosition('sl', currentPrice);
+        return;
       }
-      return;
     }
 
     // 타임 스탑 체크 (15분 보유 + 손실)
