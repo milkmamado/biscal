@@ -734,15 +734,7 @@ const AutoTradingPanel = ({
         </div>
       </div>
       
-      {/* Screening Log Panel - 매매 로그 아래로 이동 */}
-      {isEnabled && scanStatus && (
-        <div className="relative z-10 px-3 py-2">
-          <ScreeningLogPanel 
-            isScanning={scanStatus.isScanning} 
-            signalsCount={scanStatus.signalsCount} 
-          />
-        </div>
-      )}
+      {/* 🔧 스크리닝 로그 제거 - 차트 배경으로 이동됨 */}
       
       {/* 🤖 AI 시장 분석 패널 */}
       {isEnabled && aiEnabled && (

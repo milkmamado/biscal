@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import TickChart from './TickChart';
 import CyberPigeon from './CyberPigeon';
+import { ScreeningLog } from './ScreeningLogPanel';
 
 interface DualChartPanelProps {
   symbol: string;
@@ -11,6 +12,7 @@ interface DualChartPanelProps {
   takeProfitPrice?: number;
   positionSide?: 'long' | 'short';
   onSelectSymbol?: (symbol: string) => void;
+  screeningLogs?: ScreeningLog[];
 }
 
 const INTERVALS = [
@@ -31,6 +33,7 @@ const DualChartPanel = ({
   stopLossPrice,
   takeProfitPrice,
   positionSide,
+  screeningLogs = [],
 }: DualChartPanelProps) => {
   const [interval, setInterval] = useState(60);
   const prevSymbolRef = useRef<string>(symbol);
@@ -44,6 +47,21 @@ const DualChartPanel = ({
       return () => clearTimeout(timer);
     }
   }, [symbol]);
+
+  // 최근 5개 로그만 표시
+  const recentLogs = screeningLogs.slice(0, 5);
+
+  // 로그 타입별 색상
+  const getLogColor = (type: ScreeningLog['type']): string => {
+    switch (type) {
+      case 'approve': return 'text-green-400';
+      case 'reject': return 'text-red-400/70';
+      case 'signal': return 'text-yellow-400';
+      case 'start': return 'text-cyan-400';
+      case 'complete': return 'text-purple-400';
+      default: return 'text-gray-400';
+    }
+  };
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -86,6 +104,32 @@ const DualChartPanel = ({
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-cyan-400/20 to-transparent blur-sm" />
           
           <CyberPigeon />
+          
+          {/* 🆕 스크리닝 로그 오버레이 - 우측 하단 */}
+          {recentLogs.length > 0 && (
+            <div className="absolute right-2 top-1 bottom-1 w-[55%] flex flex-col justify-end pointer-events-none">
+              <div className="space-y-0.5 text-right">
+                {recentLogs.map((log, idx) => (
+                  <div 
+                    key={log.id}
+                    className={cn(
+                      "text-[9px] font-mono truncate transition-opacity duration-300",
+                      getLogColor(log.type),
+                      idx === 0 ? "opacity-90" : idx === 1 ? "opacity-60" : "opacity-30"
+                    )}
+                    style={{
+                      textShadow: idx === 0 ? '0 0 8px currentColor' : 'none',
+                    }}
+                  >
+                    {log.symbol && (
+                      <span className="text-cyan-300/80 mr-1">{log.symbol.replace('USDT', '')}</span>
+                    )}
+                    {log.message}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           
           {/* 그리드 패턴 */}
           <div 
