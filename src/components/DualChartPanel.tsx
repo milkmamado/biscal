@@ -92,6 +92,35 @@ const DualChartPanel = ({
             takeProfitPrice={hasPosition ? takeProfitPrice : undefined}
             positionSide={hasPosition ? positionSide : undefined}
           />
+          
+          {/* 스크리닝 로그 오버레이 - 차트 영역 중하단 */}
+          {recentLogs.length > 0 && (
+            <div className="absolute right-2 bottom-4 w-[55%] flex flex-col justify-end pointer-events-none z-10">
+              <div className="space-y-0.5 text-right">
+                {recentLogs.map((log, idx) => (
+                  <div 
+                    key={log.id}
+                    className={cn(
+                      "text-[9px] font-mono truncate transition-opacity duration-300",
+                      getLogColor(log.type),
+                      idx === 0 ? "opacity-80" : idx === 1 ? "opacity-50" : "opacity-25"
+                    )}
+                    style={{
+                      textShadow: idx === 0 ? '0 0 8px currentColor' : 'none',
+                    }}
+                  >
+                    {log.symbol && (
+                      <span className="text-cyan-300/70 mr-1">{log.symbol.replace('USDT', '')}</span>
+                    )}
+                    {log.message.replace(/^메이저 코인 스크리닝 시작.*$/, '').trim() || log.message}
+                  </div>
+                )).filter((_, idx) => {
+                  const log = recentLogs[idx];
+                  return !log.message.includes('메이저 코인 스크리닝 시작');
+                })}
+              </div>
+            </div>
+          )}
         </div>
         
         {/* Cyber Pigeon Area - 네온 효과 강화 */}
@@ -105,31 +134,6 @@ const DualChartPanel = ({
           
           <CyberPigeon />
           
-          {/* 🆕 스크리닝 로그 오버레이 - 우측 하단 */}
-          {recentLogs.length > 0 && (
-            <div className="absolute right-2 top-1 bottom-1 w-[55%] flex flex-col justify-end pointer-events-none">
-              <div className="space-y-0.5 text-right">
-                {recentLogs.map((log, idx) => (
-                  <div 
-                    key={log.id}
-                    className={cn(
-                      "text-[9px] font-mono truncate transition-opacity duration-300",
-                      getLogColor(log.type),
-                      idx === 0 ? "opacity-90" : idx === 1 ? "opacity-60" : "opacity-30"
-                    )}
-                    style={{
-                      textShadow: idx === 0 ? '0 0 8px currentColor' : 'none',
-                    }}
-                  >
-                    {log.symbol && (
-                      <span className="text-cyan-300/80 mr-1">{log.symbol.replace('USDT', '')}</span>
-                    )}
-                    {log.message}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
           
           {/* 그리드 패턴 */}
           <div 
