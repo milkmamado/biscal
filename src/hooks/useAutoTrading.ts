@@ -25,6 +25,8 @@ import {
   isMajorCoin,
   getCoinTier,
 } from '@/lib/majorCoins';
+import { useMarketAnalysis, MarketAnalysisResult } from './useMarketAnalysis';
+import { TradingConfig } from '@/lib/tradingConfig';
 
 export interface AutoTradeLog {
   id: string;
@@ -100,6 +102,10 @@ export interface AutoTradingState {
   tpPercent: number;
   statusMessage: string;
   scanningProgress: string;
+  // 🤖 AI 분석 관련
+  aiAnalysis: MarketAnalysisResult | null;
+  isAiAnalyzing: boolean;
+  aiEnabled: boolean;
 }
 
 interface UseAutoTradingProps {
@@ -302,7 +308,34 @@ export function useAutoTrading({
     tpPercent: 0.3,
     statusMessage: majorCoinMode ? '🏆 메이저 코인 자동매매 비활성화' : '자동매매 비활성화',
     scanningProgress: '',
+    // 🤖 AI 분석 기본값
+    aiAnalysis: null,
+    isAiAnalyzing: false,
+    aiEnabled: true,
   });
+
+  // 🤖 AI 시장 분석 훅
+  const tradingMode = majorCoinMode ? 'MAJOR' : 'ALTCOIN';
+  const { 
+    analysis: aiAnalysisResult, 
+    isAnalyzing: isAiAnalyzing, 
+    dynamicConfig, 
+    analyzeMarket,
+    shouldAnalyze,
+    resetAnalysis,
+  } = useMarketAnalysis({ 
+    mode: tradingMode as 'MAJOR' | 'ALTCOIN', 
+    enabled: state.isEnabled && state.aiEnabled,
+  });
+
+  // AI 분석 결과 동기화
+  useEffect(() => {
+    setState(prev => ({
+      ...prev,
+      aiAnalysis: aiAnalysisResult,
+      isAiAnalyzing,
+    }));
+  }, [aiAnalysisResult, isAiAnalyzing]);
 
   // 초기 통계 업데이트
   useEffect(() => {
@@ -1431,6 +1464,29 @@ export function useAutoTrading({
     }));
   }, []);
 
+  // AI 분석 토글
+  const toggleAiAnalysis = useCallback(() => {
+    setState(prev => ({
+      ...prev,
+      aiEnabled: !prev.aiEnabled,
+    }));
+    if (!state.aiEnabled) {
+      resetAnalysis();
+    }
+  }, [state.aiEnabled, resetAnalysis]);
+
+  // AI 분석 수동 실행
+  const runAiAnalysis = useCallback(async (
+    symbol: string,
+    indicators: TechnicalIndicators,
+    price: number,
+    priceChange24h: number,
+    volume24h: number
+  ) => {
+    if (!state.aiEnabled || !state.isEnabled) return;
+    await analyzeMarket(symbol, indicators, price, priceChange24h, volume24h);
+  }, [state.aiEnabled, state.isEnabled, analyzeMarket]);
+
   return {
     state,
     toggleAutoTrading,
@@ -1445,5 +1501,10 @@ export function useAutoTrading({
     toggleLossProtection,
     clearCooldown,
     updatePrice: useCallback(() => {}, []),
+    // 🤖 AI 분석 관련
+    toggleAiAnalysis,
+    runAiAnalysis,
+    dynamicConfig,
+    shouldAnalyze,
   };
 }

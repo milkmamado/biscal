@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { cn } from '@/lib/utils';
-import { Bot, TrendingUp, TrendingDown, Activity, Clock, AlertTriangle, Star, RefreshCw, Wallet, LogOut, Shield, ShieldOff, Crown } from 'lucide-react';
+import { Bot, TrendingUp, TrendingDown, Activity, Clock, AlertTriangle, Star, RefreshCw, Wallet, LogOut, Shield, ShieldOff, Crown, Brain } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { AutoTradingState, AutoTradeLog } from '@/hooks/useAutoTrading';
@@ -12,6 +12,7 @@ import TradingRecordModal from './TradingRecordModal';
 import BacktestModal from './BacktestModal';
 import ScreeningLogPanel from './ScreeningLogPanel';
 import TradingDocsModal from './TradingDocsModal';
+import MarketAnalysisPanel from './MarketAnalysisPanel';
 
 // 스캘핑 시간대 적합도 데이터
 const getScalpingRating = () => {
@@ -70,6 +71,7 @@ interface AutoTradingPanelProps {
   isTestnet?: boolean;
   majorCoinMode?: boolean; // 🆕 메이저 코인 모드
   onToggleMajorCoinMode?: () => void; // 🆕 메이저 코인 모드 토글
+  onToggleAiAnalysis?: () => void; // 🤖 AI 분석 토글
 }
 
 const AutoTradingPanel = ({ 
@@ -91,8 +93,9 @@ const AutoTradingPanel = ({
   isTestnet = false,
   majorCoinMode = false,
   onToggleMajorCoinMode,
+  onToggleAiAnalysis,
 }: AutoTradingPanelProps) => {
-  const { isEnabled, isProcessing, currentPosition, pendingSignal, todayStats, tradeLogs, cooldownUntil, lossProtectionEnabled } = state;
+  const { isEnabled, isProcessing, currentPosition, pendingSignal, todayStats, tradeLogs, cooldownUntil, lossProtectionEnabled, aiAnalysis, isAiAnalyzing, aiEnabled } = state;
   const { user, signOut } = useAuth();
   const { getBalances, getIncomeHistory, isTestnetReady } = useBinanceApi({ isTestnet });
   
@@ -361,6 +364,23 @@ const AutoTradingPanel = ({
           </button>
           {/* 📚 매매 가이드 문서 */}
           <TradingDocsModal majorCoinMode={majorCoinMode} />
+          {/* 🤖 AI 분석 토글 */}
+          <button
+            onClick={onToggleAiAnalysis}
+            className={cn(
+              "p-1.5 rounded transition-all",
+              aiEnabled 
+                ? "text-cyan-400" 
+                : "text-gray-500 hover:text-gray-300"
+            )}
+            style={{
+              background: aiEnabled ? 'rgba(0, 255, 255, 0.2)' : 'transparent',
+              boxShadow: aiEnabled ? '0 0 10px rgba(0, 255, 255, 0.4)' : 'none',
+            }}
+            title={aiEnabled ? "🤖 AI 분석 ON" : "🤖 AI 분석 OFF"}
+          >
+            <Brain className={cn("w-4 h-4", isAiAnalyzing && "animate-pulse")} />
+          </button>
           {/* 연속 손실 보호 토글 */}
           <button
             onClick={onToggleLossProtection}
@@ -733,6 +753,15 @@ const AutoTradingPanel = ({
             signalsCount={scanStatus.signalsCount} 
           />
         </div>
+      )}
+      
+      {/* 🤖 AI 시장 분석 패널 */}
+      {isEnabled && aiEnabled && (
+        <MarketAnalysisPanel 
+          analysis={aiAnalysis} 
+          isAnalyzing={isAiAnalyzing}
+          enabled={aiEnabled}
+        />
       )}
       
       {/* Scalping Suitability Indicator */}

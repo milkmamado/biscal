@@ -328,6 +328,7 @@ const PaperTrading = () => {
             isTestnet={true}
             majorCoinMode={majorCoinMode}
             onToggleMajorCoinMode={() => setMajorCoinMode(prev => !prev)}
+            onToggleAiAnalysis={autoTrading.toggleAiAnalysis}
           />
         </div>
       </div>
