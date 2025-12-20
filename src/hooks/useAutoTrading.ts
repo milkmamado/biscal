@@ -162,11 +162,11 @@ const CONFIG = {
     EXIT_THRESHOLD: 50,       // 불균형 50% 이상 시 즉시 탈출
   },
   
-  // 브레이크이븐 설정 (스캘핑 최적화)
-  BREAKEVEN_TRIGGER: 0.12,   // +0.12% 도달 시 브레이크이븐 활성화
-  BREAKEVEN_SL: 0.08,        // 브레이크이븐 시 최소 손절선 +0.08%
-  BREAKEVEN_TRAILING_GAP: 0.03, // 트레일링 BE: 현재수익 - 0.03%로 손절선 상향
-  BREAKEVEN_TIMEOUT_SEC: 180, // 브레이크이븐 후 3분 내 TP 미도달 시 수익 확정 청산
+  // 브레이크이븐 설정 (스캘핑 공격적 익절)
+  BREAKEVEN_TRIGGER: 0.08,   // +0.08% 도달 시 즉시 BE 발동 (수수료 커버 직후)
+  BREAKEVEN_SL: 0.05,        // BE 최소 손절선 +0.05%
+  BREAKEVEN_TRAILING_GAP: 0.03, // 트레일링 BE: 최고수익 - 0.03%로 빠르게 추적
+  BREAKEVEN_TIMEOUT_SEC: 120, // BE 후 2분 내 TP 미도달 시 즉시 청산
   
   // 진입 후 보호 시간 (손절 체크 안함) - 조기 손절 시스템으로 대체
   ENTRY_PROTECTION_SEC: 0,   // 🆕 보호 없음 (조기 손절이 대신함)
