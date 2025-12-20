@@ -716,7 +716,7 @@ const AutoTradingPanel = ({
           <span className="text-xs text-cyan-400/70 font-medium">매매 로그</span>
           <span className="text-[10px] text-gray-500">({tradeLogs.length})</span>
         </div>
-        <div className="max-h-32 overflow-y-auto space-y-1 scrollbar-thin scrollbar-thumb-cyan-500/30 scrollbar-track-transparent">
+        <div className="max-h-16 overflow-y-auto space-y-1 scrollbar-thin scrollbar-thumb-cyan-500/30 scrollbar-track-transparent">
           {tradeLogs.length === 0 ? (
             <div className="text-center py-2 text-xs text-gray-500">
               {isEnabled ? '🔍 시그널 대기 중...' : '자동매매를 시작하세요'}
