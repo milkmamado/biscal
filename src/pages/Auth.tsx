@@ -327,7 +327,7 @@ export default function Auth() {
               <div className="mt-8 pt-6 border-t border-cyan-500/20">
                 <Button
                   variant="outline"
-                  className="w-full gap-2 border-amber-500/40 text-amber-400 hover:bg-amber-500/10 hover:border-amber-400/60 hover:text-amber-300 font-mono tracking-wider transition-all duration-300"
+                  className="w-full gap-2 border-fuchsia-500/40 text-fuchsia-400 hover:bg-fuchsia-500/10 hover:border-fuchsia-400/60 hover:text-fuchsia-300 font-mono tracking-wider transition-all duration-300 shadow-lg shadow-fuchsia-500/10 hover:shadow-fuchsia-500/20"
                   onClick={() => navigate('/paper-trading')}
                 >
                   <FlaskConical className="h-4 w-4" />
