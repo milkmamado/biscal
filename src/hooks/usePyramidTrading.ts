@@ -603,6 +603,7 @@ export function usePyramidTrading({
   }, [state.currentPosition, state.dailyRisk, placeMarketOrder, getPositions, krwRate, leverage, addLog, onTradeComplete, logTrade]);
 
   // ===== TP/SL 체크 =====
+  // 🔧 v2.0: 불타기/물타기를 익절보다 먼저 체크
   const checkTpSl = useCallback(async (currentPrice: number) => {
     if (!state.currentPosition) return;
     if (processingRef.current) return;
@@ -619,8 +620,8 @@ export function usePyramidTrading({
       statusMessage: `🔄 ${position.symbol.replace('USDT', '')} ${position.side === 'long' ? '롱' : '숏'} | ${position.currentStage}단계 (${exposure}%) | ${pnlPercent >= 0 ? '+' : ''}${pnlPercent.toFixed(2)}%`,
     }));
 
-    // 진입 직후 3초 보호
-    if (holdTimeSec < 3) return;
+    // 진입 직후 5초 보호 (기존 3초)
+    if (holdTimeSec < 5) return;
 
     // 최고 수익률 갱신
     if (pnlPercent > position.maxProfitReached) {
@@ -634,6 +635,18 @@ export function usePyramidTrading({
           },
         };
       });
+    }
+
+    // 🔧 v2.0: 불타기/물타기는 별도 interval에서 2초마다 체크 (아래 useEffect)
+    // TP 체크 전에 불타기/물타기 조건을 로깅만
+    const currentType = getPositionType(position.currentStage);
+    const nextStage = position.currentStage + 1;
+    
+    if (nextStage <= PYRAMID_CONFIG.TOTAL_STAGES && position.currentStage < 3 && pnlPercent > 0) {
+      const pyramidCheck = shouldPyramidUp(position.currentStage, pnlPercent, currentType);
+      if (pyramidCheck.should) {
+        console.log(`🔥 [불타기 대기] ${nextStage}단계 조건 충족! PnL: +${pnlPercent.toFixed(3)}% (interval에서 실행됨)`);
+      }
     }
 
     // ===== 긴급 탈출 체크 (포지션 유형별) =====
@@ -1180,7 +1193,7 @@ export function usePyramidTrading({
       } catch (e) {
         console.warn('가격 조회 실패');
       }
-    }, 5000); // 5초마다 체크
+    }, 2000); // 🔧 v2.0: 2초마다 체크 (기존 5초) - 불타기/물타기 빠르게 감지
 
     return () => clearInterval(checkInterval);
   }, [state.isEnabled, state.currentPosition, checkNextStageEntry]);
