@@ -4,12 +4,11 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { z } from 'zod';
-import { ArrowLeft, Mail, Shield, FlaskConical } from 'lucide-react';
+import { ArrowLeft, Mail, Shield, FlaskConical, Zap } from 'lucide-react';
 
 const authSchema = z.object({
   email: z.string().trim().email({ message: "올바른 이메일 주소를 입력하세요" }),
@@ -31,7 +30,6 @@ export default function Auth() {
   const { toast } = useToast();
 
   useEffect(() => {
-    // Only navigate to home if user is logged in AND not in OTP verification flow
     if (!loading && user && !pendingOtp) {
       navigate('/');
     }
@@ -78,10 +76,8 @@ export default function Auth() {
 
     try {
       if (isLogin) {
-        // Set pending OTP flag before credential verification to prevent auto-navigation
         setPendingOtp(true);
         
-        // For login: first verify credentials exist, then send OTP
         const { error } = await signIn(email, password);
         if (error) {
           setPendingOtp(false);
@@ -97,7 +93,6 @@ export default function Auth() {
           return;
         }
 
-        // Sign out temporarily and send OTP
         await supabase.auth.signOut();
         
         await sendVerificationCode(email);
@@ -107,7 +102,6 @@ export default function Auth() {
         });
         setStep('otp');
       } else {
-        // For signup: just create account
         const { error } = await signUp(email, password);
         if (error) {
           let message = "회원가입에 실패했습니다";
@@ -162,7 +156,6 @@ export default function Auth() {
         return;
       }
 
-      // OTP verified, now actually sign in
       setPendingOtp(false);
       const { error } = await signIn(email, password);
       if (error) {
@@ -216,117 +209,156 @@ export default function Auth() {
     setPendingOtp(false);
   };
 
-
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-foreground">로딩중...</div>
+        <div className="neon-text-cyan animate-pulse">LOADING...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <Card className="w-full max-w-md bg-card border-border">
-        <CardHeader className="text-center">
-          <CardTitle className="text-4xl font-black tracking-wider">
-            <span className="bg-gradient-to-r from-emerald-400 via-cyan-400 to-blue-500 bg-clip-text text-transparent drop-shadow-sm">
-              BISCAL
-            </span>
-          </CardTitle>
-          <CardDescription className="text-muted-foreground text-xs mt-1">
-            Binance Futures Scalping Terminal
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+    <div className="min-h-screen bg-background flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Cyberpunk Background Effects */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        {/* Grid lines */}
+        <div 
+          className="absolute inset-0 opacity-[0.03]"
+          style={{
+            backgroundImage: `
+              linear-gradient(rgba(0, 255, 255, 0.3) 1px, transparent 1px),
+              linear-gradient(90deg, rgba(0, 255, 255, 0.3) 1px, transparent 1px)
+            `,
+            backgroundSize: '50px 50px',
+          }}
+        />
+        
+        {/* Gradient orbs */}
+        <div className="absolute top-1/4 -left-20 w-80 h-80 bg-cyan-500/10 rounded-full blur-[100px]" />
+        <div className="absolute bottom-1/4 -right-20 w-80 h-80 bg-purple-500/10 rounded-full blur-[100px]" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-blue-500/5 rounded-full blur-[120px]" />
+        
+        {/* Scan lines */}
+        <div 
+          className="absolute inset-0 opacity-[0.02]"
+          style={{
+            backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0, 255, 255, 0.1) 2px, rgba(0, 255, 255, 0.1) 4px)',
+          }}
+        />
+      </div>
+
+      {/* Main Card */}
+      <div className="relative w-full max-w-md">
+        {/* Glow effect behind card */}
+        <div className="absolute -inset-1 bg-gradient-to-r from-cyan-500/20 via-blue-500/20 to-purple-500/20 rounded-2xl blur-xl opacity-50" />
+        
+        <div className="relative bg-card/80 backdrop-blur-xl border border-cyan-500/20 rounded-2xl p-8 shadow-2xl">
+          {/* Corner accents */}
+          <div className="absolute top-0 left-0 w-8 h-8 border-l-2 border-t-2 border-cyan-400/50 rounded-tl-2xl" />
+          <div className="absolute top-0 right-0 w-8 h-8 border-r-2 border-t-2 border-cyan-400/50 rounded-tr-2xl" />
+          <div className="absolute bottom-0 left-0 w-8 h-8 border-l-2 border-b-2 border-cyan-400/50 rounded-bl-2xl" />
+          <div className="absolute bottom-0 right-0 w-8 h-8 border-r-2 border-b-2 border-cyan-400/50 rounded-br-2xl" />
+
+          {/* Header */}
+          <div className="text-center mb-8">
+            <h1 className="text-5xl font-black tracking-widest mb-2 font-mono">
+              <span className="neon-text-cyan neon-pulse">BISCAL</span>
+            </h1>
+            <div className="flex items-center justify-center gap-2 text-xs text-cyan-400/60 font-mono">
+              <Zap className="h-3 w-3" />
+              <span>FUTURES SCALPING TERMINAL</span>
+              <Zap className="h-3 w-3" />
+            </div>
+            <div className="mt-3 h-px bg-gradient-to-r from-transparent via-cyan-500/50 to-transparent" />
+          </div>
+
           {step === 'credentials' ? (
             <>
-              <form onSubmit={handleCredentialsSubmit} className="space-y-4">
+              <form onSubmit={handleCredentialsSubmit} className="space-y-5">
                 <div className="space-y-2">
-                  <Label htmlFor="email" className="text-foreground flex items-center gap-2">
-                    <Mail className="h-4 w-4" />
-                    이메일
+                  <Label htmlFor="email" className="text-cyan-300/80 text-xs font-mono flex items-center gap-2 uppercase tracking-wider">
+                    <Mail className="h-3 w-3" />
+                    Email Address
                   </Label>
                   <Input
                     id="email"
                     type="email"
-                    placeholder="your@email.com"
+                    placeholder="user@domain.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="bg-background border-border text-foreground"
+                    className="bg-background/50 border-cyan-500/30 text-foreground font-mono placeholder:text-muted-foreground/50 focus:border-cyan-400 focus:ring-cyan-400/20 transition-all"
                     required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="password" className="text-foreground">비밀번호</Label>
+                  <Label htmlFor="password" className="text-cyan-300/80 text-xs font-mono uppercase tracking-wider">
+                    Password
+                  </Label>
                   <Input
                     id="password"
                     type="password"
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="bg-background border-border text-foreground"
+                    className="bg-background/50 border-cyan-500/30 text-foreground font-mono placeholder:text-muted-foreground/50 focus:border-cyan-400 focus:ring-cyan-400/20 transition-all"
                     required
                   />
                 </div>
                 <Button 
                   type="submit" 
-                  className="w-full"
+                  className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-mono font-bold tracking-wider transition-all duration-300 shadow-lg shadow-cyan-500/25 hover:shadow-cyan-400/40"
                   disabled={isLoading}
                 >
-                  {isLoading ? '처리중...' : (isLogin ? '다음' : '회원가입')}
+                  {isLoading ? (
+                    <span className="flex items-center gap-2">
+                      <span className="animate-spin">◌</span>
+                      PROCESSING...
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-2">
+                      <Zap className="h-4 w-4" />
+                      {isLogin ? 'ACCESS SYSTEM' : 'REGISTER'}
+                    </span>
+                  )}
                 </Button>
               </form>
               
-              {/* Exercise Room 버튼 */}
-              <div className="mt-6 pt-4 border-t border-border/50">
+              {/* Exercise Room Button */}
+              <div className="mt-8 pt-6 border-t border-cyan-500/20">
                 <Button
                   variant="outline"
-                  className="w-full gap-2 border-amber-500/50 text-amber-400 hover:bg-amber-500/10 hover:text-amber-300"
+                  className="w-full gap-2 border-amber-500/40 text-amber-400 hover:bg-amber-500/10 hover:border-amber-400/60 hover:text-amber-300 font-mono tracking-wider transition-all duration-300"
                   onClick={() => navigate('/paper-trading')}
                 >
                   <FlaskConical className="h-4 w-4" />
-                  Exercise Room
-                  <span className="text-[10px] bg-amber-500/20 px-1.5 py-0.5 rounded ml-1">모의투자</span>
+                  EXERCISE ROOM
                 </Button>
-                <p className="text-[10px] text-muted-foreground text-center mt-2">
-                  테스트넷 가상 자금으로 실전과 동일하게 연습
-                </p>
               </div>
-              
-              {/* 회원가입 토글 - 나중에 오픈 시 주석 해제
-              <div className="mt-4 text-center">
-                <button
-                  type="button"
-                  onClick={() => setIsLogin(!isLogin)}
-                  className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  {isLogin ? '계정이 없으신가요? 회원가입' : '이미 계정이 있으신가요? 로그인'}
-                </button>
-              </div>
-              */}
             </>
           ) : (
             <div className="space-y-6">
               <button
                 type="button"
                 onClick={handleBack}
-                className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                className="flex items-center gap-1 text-xs text-cyan-400/60 hover:text-cyan-400 transition-colors font-mono uppercase tracking-wider"
               >
-                <ArrowLeft className="h-4 w-4" />
-                뒤로
+                <ArrowLeft className="h-3 w-3" />
+                Back
               </button>
 
-              <div className="text-center space-y-2">
+              <div className="text-center space-y-4">
                 <div className="flex justify-center">
-                  <div className="p-3 rounded-full bg-primary/10">
-                    <Shield className="h-8 w-8 text-primary" />
+                  <div className="p-4 rounded-full bg-cyan-500/10 border border-cyan-500/30">
+                    <Shield className="h-8 w-8 text-cyan-400" />
                   </div>
                 </div>
-                <p className="text-foreground font-medium">이메일 인증</p>
-                <p className="text-sm text-muted-foreground">
-                  {email}로 발송된<br />6자리 인증 코드를 입력하세요
-                </p>
+                <div>
+                  <p className="text-cyan-300 font-mono font-bold tracking-wider">VERIFICATION REQUIRED</p>
+                  <p className="text-xs text-muted-foreground mt-2 font-mono">
+                    Enter 6-digit code sent to<br />
+                    <span className="text-cyan-400">{email}</span>
+                  </p>
+                </div>
               </div>
 
               <div className="flex justify-center">
@@ -335,23 +367,24 @@ export default function Auth() {
                   value={otpCode}
                   onChange={setOtpCode}
                 >
-                  <InputOTPGroup>
-                    <InputOTPSlot index={0} />
-                    <InputOTPSlot index={1} />
-                    <InputOTPSlot index={2} />
-                    <InputOTPSlot index={3} />
-                    <InputOTPSlot index={4} />
-                    <InputOTPSlot index={5} />
+                  <InputOTPGroup className="gap-2">
+                    {[0, 1, 2, 3, 4, 5].map((index) => (
+                      <InputOTPSlot 
+                        key={index}
+                        index={index} 
+                        className="bg-background/50 border-cyan-500/30 text-cyan-400 font-mono text-lg w-10 h-12"
+                      />
+                    ))}
                   </InputOTPGroup>
                 </InputOTP>
               </div>
 
               <Button 
                 onClick={handleOtpSubmit}
-                className="w-full"
+                className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-mono font-bold tracking-wider shadow-lg shadow-cyan-500/25"
                 disabled={isLoading || otpCode.length !== 6}
               >
-                {isLoading ? '확인중...' : '로그인'}
+                {isLoading ? 'VERIFYING...' : 'CONFIRM ACCESS'}
               </Button>
 
               <div className="text-center">
@@ -359,15 +392,26 @@ export default function Auth() {
                   type="button"
                   onClick={handleResendCode}
                   disabled={isLoading}
-                  className="text-sm text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                  className="text-xs text-cyan-400/50 hover:text-cyan-400 transition-colors font-mono uppercase tracking-wider disabled:opacity-50"
                 >
-                  인증 코드 재발송
+                  Resend Code
                 </button>
               </div>
             </div>
           )}
-        </CardContent>
-      </Card>
+
+          {/* Status bar */}
+          <div className="mt-8 pt-4 border-t border-cyan-500/10">
+            <div className="flex items-center justify-between text-[10px] text-cyan-500/40 font-mono">
+              <span>SYS::AUTH_PORTAL</span>
+              <span className="flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                ONLINE
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
