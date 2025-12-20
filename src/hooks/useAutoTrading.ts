@@ -613,10 +613,15 @@ export function useAutoTrading({
     }
 
     // ============================================
-    // 브레이크이븐 활성화 체크 (+0.15% 도달 시)
+    // 브레이크이븐 활성화 체크 (+0.08% 도달 시)
     // ============================================
+    // 🆕 BE 활성화 조건 도달 시 즉시 플래그 설정 (다음 틱 대기 없음)
+    let isBeActiveNow = tpState.breakEvenActivated;
+    
     if (!tpState.breakEvenActivated && pnlPercent >= CONFIG.BREAKEVEN_TRIGGER) {
-      console.log(`🛡️ [checkTpSl] 브레이크이븐 활성화: ${pnlPercent.toFixed(2)}% >= ${CONFIG.BREAKEVEN_TRIGGER}%`);
+      console.log(`🛡️ [checkTpSl] 브레이크이븐 즉시 활성화: ${pnlPercent.toFixed(2)}% >= ${CONFIG.BREAKEVEN_TRIGGER}%`);
+      isBeActiveNow = true; // 🆕 이번 틱에서 바로 BE 로직 적용
+      
       setState(prev => {
         if (!prev.currentPosition) return prev;
         return {
@@ -631,7 +636,7 @@ export function useAutoTrading({
           },
         };
       });
-      toast.info(`🛡️ 브레이크이븐 활성화! 손절이 +${CONFIG.BREAKEVEN_SL}%로 이동`);
+      toast.info(`🛡️ 브레이크이븐 즉시 활성화! 손절이 +${CONFIG.BREAKEVEN_SL}%로 이동`);
     }
 
     // 브레이크이븐 타임아웃 체크 (2분 내 TP 미도달 시 수익 확정 청산)
@@ -648,11 +653,12 @@ export function useAutoTrading({
     // ============================================
     // 3단계: 브레이크이븐 손절 (트레일링 BE 포함)
     // ============================================
-    if (tpState.breakEvenActivated) {
-      // 🆕 트레일링 BE: 현재수익 - 0.05%로 손절선 자동 상향
+    // 🆕 즉시 BE 활성화 상태 사용 (setState 대기 없음)
+    if (isBeActiveNow) {
+      // 🆕 트레일링 BE: 현재수익 - 0.03%로 손절선 자동 상향
       const trailingBeSl = Math.max(
-        CONFIG.BREAKEVEN_SL, // 최소 +0.10%
-        position.maxPnlPercent - CONFIG.BREAKEVEN_TRAILING_GAP // 최고수익 - 0.05%
+        CONFIG.BREAKEVEN_SL, // 최소 +0.05%
+        position.maxPnlPercent - CONFIG.BREAKEVEN_TRAILING_GAP // 최고수익 - 0.03%
       );
       
       if (pnlPercent <= trailingBeSl) {
