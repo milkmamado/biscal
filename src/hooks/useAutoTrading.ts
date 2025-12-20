@@ -40,7 +40,7 @@ export interface AutoTradeLog {
   reason: string;
 }
 
-// 대기 중인 시그널
+// 대기 중인 시그널 (봉 완성 대기용)
 interface PendingSignal {
   symbol: string;
   direction: 'long' | 'short';
@@ -50,6 +50,8 @@ interface PendingSignal {
   signalPrice: number;
   indicators: TechnicalIndicators;
   confirmCount: number; // 확인 봉 횟수
+  waitingForCandle: boolean; // 🆕 봉 완성 대기 중
+  targetCandleClose: number; // 🆕 기다리는 봉 마감 시간 (ms)
 }
 
 // 익절 상태 (단순화)
@@ -847,7 +849,117 @@ export function useAutoTrading({
     }
   }, [state.currentPosition, closePosition, placeMarketOrder, addLog, logTrade, leverage]);
 
-  // 시그널 핸들러 (기술적 분석 기반)
+  // 🆕 1분봉 완성 분석 (완성된 봉 + 다음 봉 시작 방향)
+  const analyzeCandleDirection = useCallback(async (
+    symbol: string,
+    originalDirection: 'long' | 'short'
+  ): Promise<{ direction: 'long' | 'short'; confidence: number; reason: string }> => {
+    try {
+      // 최근 1분봉 5개 가져오기
+      const klines = await fetch1mKlines(symbol, 5);
+      if (!klines || klines.length < 3) {
+        return { direction: originalDirection, confidence: 50, reason: '데이터 부족' };
+      }
+
+      // 마지막 완성된 봉 (인덱스 -2, 현재 봉은 -1)
+      const completedCandle = klines[klines.length - 2];
+      const prevCandle = klines[klines.length - 3];
+      const currentCandle = klines[klines.length - 1]; // 진행 중인 봉
+
+      // 완성된 봉 분석
+      const candleBody = completedCandle.close - completedCandle.open;
+      const candleRange = completedCandle.high - completedCandle.low;
+      const bodyRatio = candleRange > 0 ? Math.abs(candleBody) / candleRange : 0;
+      const isBullish = candleBody > 0;
+      const isBearish = candleBody < 0;
+
+      // 꼬리 분석
+      const upperWick = completedCandle.high - Math.max(completedCandle.open, completedCandle.close);
+      const lowerWick = Math.min(completedCandle.open, completedCandle.close) - completedCandle.low;
+      const upperWickRatio = candleRange > 0 ? upperWick / candleRange : 0;
+      const lowerWickRatio = candleRange > 0 ? lowerWick / candleRange : 0;
+
+      // 다음 봉 시작 방향 (3~5초 데이터 활용)
+      const nextCandleDirection = currentCandle.close - currentCandle.open;
+      const isNextBullish = nextCandleDirection > 0;
+      const isNextBearish = nextCandleDirection < 0;
+
+      let confidence = 50;
+      let analyzedDirection: 'long' | 'short' = originalDirection;
+      const reasons: string[] = [];
+
+      // 🔍 완성된 봉 분석
+      if (isBullish && bodyRatio > 0.6) {
+        // 강한 양봉 → 롱 유리
+        confidence += 15;
+        reasons.push(`강한 양봉 (${(bodyRatio * 100).toFixed(0)}%)`);
+        if (analyzedDirection === 'short') {
+          analyzedDirection = 'long';
+          reasons.push('→ 방향 반전: 롱');
+        }
+      } else if (isBearish && bodyRatio > 0.6) {
+        // 강한 음봉 → 숏 유리
+        confidence += 15;
+        reasons.push(`강한 음봉 (${(bodyRatio * 100).toFixed(0)}%)`);
+        if (analyzedDirection === 'long') {
+          analyzedDirection = 'short';
+          reasons.push('→ 방향 반전: 숏');
+        }
+      }
+
+      // 꼬리 패턴 분석
+      if (upperWickRatio > 0.5 && lowerWickRatio < 0.2) {
+        // 긴 윗꼬리 → 숏 유리 (매도 압력)
+        confidence += 10;
+        reasons.push('긴 윗꼬리 (매도 압력)');
+        if (analyzedDirection === 'long') {
+          analyzedDirection = 'short';
+        }
+      } else if (lowerWickRatio > 0.5 && upperWickRatio < 0.2) {
+        // 긴 아랫꼬리 → 롱 유리 (매수 압력)
+        confidence += 10;
+        reasons.push('긴 아랫꼬리 (매수 압력)');
+        if (analyzedDirection === 'short') {
+          analyzedDirection = 'long';
+        }
+      }
+
+      // 🔍 다음 봉 시작 방향 확인 (3~5초 후)
+      if (isNextBullish) {
+        if (analyzedDirection === 'long') {
+          confidence += 15;
+          reasons.push('다음 봉 시작 상승');
+        } else {
+          confidence -= 10;
+          reasons.push('다음 봉 시작 상승 (역방향)');
+        }
+      } else if (isNextBearish) {
+        if (analyzedDirection === 'short') {
+          confidence += 15;
+          reasons.push('다음 봉 시작 하락');
+        } else {
+          confidence -= 10;
+          reasons.push('다음 봉 시작 하락 (역방향)');
+        }
+      }
+
+      // 최종 신뢰도 보정
+      confidence = Math.max(30, Math.min(95, confidence));
+
+      console.log(`[analyzeCandleDirection] ${symbol} 원래=${originalDirection} → 분석=${analyzedDirection} (${confidence}%): ${reasons.join(', ')}`);
+
+      return {
+        direction: analyzedDirection,
+        confidence,
+        reason: reasons.join(', ') || '기본 분석',
+      };
+    } catch (error) {
+      console.error('[analyzeCandleDirection] 에러:', error);
+      return { direction: originalDirection, confidence: 50, reason: '분석 실패' };
+    }
+  }, []);
+
+  // 시그널 핸들러 (기술적 분석 기반) - 🆕 봉 완성 대기 시스템 추가
   const handleSignal = useCallback(async (
     symbol: string,
     direction: 'long' | 'short',
@@ -910,11 +1022,30 @@ export function useAutoTrading({
 
     console.log(`[handleSignal] ${symbol} ${direction} ${strength} (ADX: ${indicators.adx.toFixed(1)})`, reasons);
 
-    // 즉시 진입 (확인대기 없음)
+    // 🆕 다음 1분봉 마감 시간 계산 (현재 시간 기준)
+    const now = Date.now();
+    const currentMinuteStart = Math.floor(now / 60000) * 60000;
+    const nextCandleClose = currentMinuteStart + 60000 + 5000; // 다음 봉 마감 + 5초 대기
+
+    // 🆕 봉 완성 대기 상태로 전환
+    const pendingSignal: PendingSignal = {
+      symbol,
+      direction,
+      strength,
+      reasons,
+      signalTime: now,
+      signalPrice: price,
+      indicators,
+      confirmCount: 0,
+      waitingForCandle: true,
+      targetCandleClose: nextCandleClose,
+    };
+
     setState(prev => ({
       ...prev,
+      pendingSignal,
       currentSymbol: symbol,
-      statusMessage: `🚀 ${symbol.replace('USDT', '')} ${direction === 'long' ? '롱' : '숏'} 즉시 진입 중...`,
+      statusMessage: `⏳ ${symbol.replace('USDT', '')} 봉 완성 대기 중... (${Math.ceil((nextCandleClose - now) / 1000)}초)`,
     }));
 
     addLog({
@@ -923,14 +1054,105 @@ export function useAutoTrading({
       side: direction,
       price,
       quantity: 0,
-      reason: `${strength} 시그널 - ${reasons.slice(0, 3).join(', ')}`,
+      reason: `${strength} 시그널 대기 - 봉 완성 확인 중`,
     });
 
-    toast.info(`🚀 ${symbol} ${direction === 'long' ? '롱' : '숏'} 즉시 진입`);
+    toast.info(`⏳ ${symbol.replace('USDT', '')} 봉 완성 대기 (${direction === 'long' ? '롱' : '숏'} 예정)`);
 
-    // 바로 진입 실행
-    await executeEntry(symbol, direction, price, indicators);
   }, [state.isEnabled, state.currentPosition, state.pendingSignal, user, balanceUSD, addLog]);
+
+  // 🆕 봉 완성 확인 및 진입 실행
+  const processPendingSignal = useCallback(async () => {
+    const pending = state.pendingSignal;
+    if (!pending || !pending.waitingForCandle) return;
+    if (processingRef.current) return;
+    if (state.currentPosition) return;
+
+    const now = Date.now();
+    
+    // 아직 봉 완성 시간이 안됨
+    if (now < pending.targetCandleClose) {
+      const remainingSec = Math.ceil((pending.targetCandleClose - now) / 1000);
+      setState(prev => ({
+        ...prev,
+        statusMessage: `⏳ ${pending.symbol.replace('USDT', '')} 봉 완성 대기 중... (${remainingSec}초)`,
+      }));
+      return;
+    }
+
+    // 🔥 봉 완성됨 → AI 분석 시작
+    console.log(`[processPendingSignal] ${pending.symbol} 봉 완성 → 방향 분석 시작`);
+    
+    setState(prev => ({
+      ...prev,
+      statusMessage: `🧠 ${pending.symbol.replace('USDT', '')} AI 방향 분석 중...`,
+    }));
+
+    // 완성된 봉 + 다음 봉 시작 방향 분석
+    const analysis = await analyzeCandleDirection(pending.symbol, pending.direction);
+    
+    // 최신 가격 조회
+    let currentPrice = pending.signalPrice;
+    try {
+      const res = await fetch(`https://fapi.binance.com/fapi/v1/ticker/price?symbol=${pending.symbol}`);
+      const data = await res.json();
+      currentPrice = parseFloat(data.price);
+    } catch (e) {
+      console.warn('[processPendingSignal] 가격 조회 실패, 신호가 사용');
+    }
+
+    // 방향 결정 (원래 방향 vs AI 분석 방향)
+    const finalDirection = analysis.direction;
+    const directionChanged = finalDirection !== pending.direction;
+
+    if (directionChanged) {
+      console.log(`🔄 [processPendingSignal] 방향 반전! ${pending.direction} → ${finalDirection} (${analysis.confidence}%)`);
+      toast.warning(`🔄 AI 분석: ${pending.direction === 'long' ? '롱' : '숏'} → ${finalDirection === 'long' ? '롱' : '숏'} 반전 (${analysis.reason})`);
+      
+      addLog({
+        symbol: pending.symbol,
+        action: 'pending',
+        side: finalDirection,
+        price: currentPrice,
+        quantity: 0,
+        reason: `🔄 방향 반전: ${analysis.reason} (${analysis.confidence}%)`,
+      });
+    } else {
+      console.log(`✅ [processPendingSignal] 방향 유지: ${finalDirection} (${analysis.confidence}%)`);
+      toast.success(`✅ AI 확인: ${finalDirection === 'long' ? '롱' : '숏'} 진입 (${analysis.reason})`);
+    }
+
+    // 신뢰도가 너무 낮으면 스킵
+    if (analysis.confidence < 40) {
+      console.log(`⚠️ [processPendingSignal] 신뢰도 부족 (${analysis.confidence}%) - 스킵`);
+      toast.warning(`⚠️ 신뢰도 부족 (${analysis.confidence}%) - 진입 스킵`);
+      setState(prev => ({
+        ...prev,
+        pendingSignal: null,
+        currentSymbol: null,
+        statusMessage: '🔍 다음 시그널 대기...',
+      }));
+      addLog({
+        symbol: pending.symbol,
+        action: 'cancel',
+        side: finalDirection,
+        price: currentPrice,
+        quantity: 0,
+        reason: `신뢰도 부족 (${analysis.confidence}%)`,
+      });
+      return;
+    }
+
+    // 대기 상태 해제 후 진입
+    setState(prev => ({
+      ...prev,
+      pendingSignal: null,
+      statusMessage: `🚀 ${pending.symbol.replace('USDT', '')} ${finalDirection === 'long' ? '롱' : '숏'} 진입 중...`,
+    }));
+
+    await executeEntry(pending.symbol, finalDirection, currentPrice, pending.indicators);
+
+  }, [state.pendingSignal, state.currentPosition, analyzeCandleDirection, addLog]);
 
   // BB 시그널 핸들러 (레거시 호환)
   const handleBBSignal = useCallback(async (
@@ -1294,6 +1516,18 @@ export function useAutoTrading({
     return () => clearInterval(interval);
   }, [state.isEnabled, checkCandleCompletion]);
 
+  // 🆕 대기 중인 시그널 처리 (봉 완성 감지)
+  useEffect(() => {
+    if (!state.isEnabled) return;
+    if (!state.pendingSignal?.waitingForCandle) return;
+    
+    const interval = setInterval(() => {
+      processPendingSignal();
+    }, 1000); // 1초마다 체크
+    
+    return () => clearInterval(interval);
+  }, [state.isEnabled, state.pendingSignal, processPendingSignal]);
+
   // 자정 리셋
   useEffect(() => {
     const checkDayChange = () => {
@@ -1507,5 +1741,7 @@ export function useAutoTrading({
     runAiAnalysis,
     dynamicConfig,
     shouldAnalyze,
+    // 🆕 봉 분석 관련
+    processPendingSignal,
   };
 }
