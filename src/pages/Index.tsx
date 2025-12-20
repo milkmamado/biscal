@@ -224,7 +224,7 @@ const Index = () => {
     const ticker = tickers.find(t => t.symbol === position.symbol);
     if (!ticker) return;
     
-    autoTrading.closePosition('exit', ticker.price);
+    autoTrading.closePosition(ticker.price);
   };
 
   // Show loading

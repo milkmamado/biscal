@@ -678,21 +678,14 @@ const AutoTradingPanel = ({
               border: '1px solid rgba(0, 255, 255, 0.3)',
               color: '#00ffff',
             }}>
-              {currentPosition.currentCandleNumber}/5봉
+              {currentPosition.currentStage}/5단계
             </span>
             <span className="text-[11px] px-2 py-1 rounded font-mono" style={{
               background: 'rgba(0, 255, 136, 0.15)',
               border: '1px solid rgba(0, 255, 136, 0.3)',
               color: '#00ff88',
             }}>
-              TP +0.5%
-            </span>
-            <span className="text-[11px] px-2 py-1 rounded font-mono" style={{
-              background: 'rgba(255, 0, 136, 0.15)',
-              border: '1px solid rgba(255, 0, 136, 0.3)',
-              color: '#ff0088',
-            }}>
-              SL -0.35%
+              노출 {currentPosition.currentStage * 200}%
             </span>
           </div>
           <div className="flex gap-2 mt-2">
@@ -853,7 +846,7 @@ const ScalpingIndicator = () => {
 
 // Trade Log Item
 const TradeLogItem = ({ log, krwRate, onSelectSymbol }: { 
-  log: SwingTradeLog; 
+  log: PyramidTradeLog; 
   krwRate: number;
   onSelectSymbol?: (symbol: string) => void;
 }) => {
@@ -866,16 +859,20 @@ const TradeLogItem = ({ log, krwRate, onSelectSymbol }: {
     switch (log.action) {
       case 'entry':
         return log.side === 'long' ? '🟢' : '🔴';
+      case 'add':
+        return '📈';
+      case 'partial_tp':
+        return '💰';
       case 'tp':
         return '✅';
       case 'sl':
         return '🛑';
-      case 'exit':
-        return '📤';
+      case 'emergency':
+        return '🚨';
+      case 'time_exit':
+        return '⏰';
       case 'error':
         return '⚠️';
-      case 'cancel':
-        return '🚫';
       case 'pending':
         return '⏳';
       default:
@@ -887,16 +884,20 @@ const TradeLogItem = ({ log, krwRate, onSelectSymbol }: {
     switch (log.action) {
       case 'entry':
         return log.side === 'long' ? '롱 진입' : '숏 진입';
+      case 'add':
+        return '추가 매수';
+      case 'partial_tp':
+        return '분할 익절';
       case 'tp':
         return '익절';
       case 'sl':
         return '손절';
-      case 'exit':
-        return '청산';
+      case 'emergency':
+        return '긴급 탈출';
+      case 'time_exit':
+        return '시간 청산';
       case 'error':
         return '오류';
-      case 'cancel':
-        return '취소';
       case 'pending':
         return '대기';
       default:
@@ -909,8 +910,8 @@ const TradeLogItem = ({ log, krwRate, onSelectSymbol }: {
     return krw.toLocaleString('ko-KR', { maximumFractionDigits: 0 });
   };
   
-  // 사유 표시 (cancel, error, pending만)
-  const showReason = ['cancel', 'error', 'pending'].includes(log.action);
+  // 사유 표시 (error, pending, emergency만)
+  const showReason = ['error', 'pending', 'emergency'].includes(log.action);
   
   return (
     <div 
@@ -918,11 +919,11 @@ const TradeLogItem = ({ log, krwRate, onSelectSymbol }: {
       className="px-3 py-2 rounded text-xs cursor-pointer transition-all"
       style={{
         background: log.action === 'error' ? 'rgba(255, 0, 136, 0.1)' : 
-          log.action === 'cancel' ? 'rgba(255, 255, 0, 0.1)' :
+          log.action === 'emergency' ? 'rgba(255, 100, 0, 0.1)' :
           log.action === 'pending' ? 'rgba(0, 255, 255, 0.1)' :
           'rgba(30, 30, 45, 0.5)',
         border: `1px solid ${log.action === 'error' ? 'rgba(255, 0, 136, 0.2)' : 
-          log.action === 'cancel' ? 'rgba(255, 255, 0, 0.2)' :
+          log.action === 'emergency' ? 'rgba(255, 100, 0, 0.2)' :
           log.action === 'pending' ? 'rgba(0, 255, 255, 0.2)' :
           'rgba(0, 255, 255, 0.1)'}`,
       }}

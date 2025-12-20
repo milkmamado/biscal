@@ -1,40 +1,114 @@
 /**
  * 📚 매매 문서화 모달
- * 5분 스윙 전략 가이드
+ * 1분봉 피라미드 전략 가이드 (10배 고정)
  */
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { FileText, Target, DollarSign, Shield, TrendingUp, Bot, BarChart3, Settings } from 'lucide-react';
+import { FileText, Target, DollarSign, Shield, TrendingUp, Bot, BarChart3, Settings, AlertTriangle, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { 
-  TRADING_RULES, 
-  TRADING_DOCS_VERSION, 
-  TRADING_DOCS_UPDATED,
-  MAJOR_SWING_CONFIG,
-  ALTCOIN_SWING_CONFIG,
-  MAJOR_COINS_WHITELIST,
-} from '@/lib/tradingConfig';
+import { PYRAMID_CONFIG, TAKE_PROFIT_CONFIG, STOP_LOSS_CONFIG, RISK_CONFIG, EMERGENCY_CONFIG } from '@/lib/pyramidConfig';
+import { MAJOR_COINS_WHITELIST } from '@/lib/tradingConfig';
 
 interface TradingDocsModalProps {
   majorCoinMode?: boolean;
 }
 
+// 문서 버전
+const DOCS_VERSION = '4.0.0';
+const DOCS_UPDATED = '2024-12-20';
+
+// 매매 규칙 정의
+const TRADING_RULES = {
+  STRATEGY: {
+    title: '⚡ 피라미드 전략 (10배 고정)',
+    rules: [
+      '레버리지 10배 고정 - 리스크 관리 단순화',
+      '5단계 분할 진입 (각 20%)',
+      '수익 기반 피라미딩: 이기고 있을 때만 추가 매수',
+      '1단계: 즉시 진입',
+      '2단계: +0.08% 수익 + 2개 연속 캔들',
+      '3단계: +0.15% 수익 + 3개 연속 캔들',
+      '4단계: +0.25% 수익 + 5개 연속 캔들',
+      '5단계: +0.40% 수익 + 7개 연속 캔들 (올인)',
+    ],
+  },
+  ENTRY: {
+    title: '🎯 진입 조건',
+    rules: [
+      'ADX 20+ 필수 (횡보장 필터)',
+      'medium 이상 시그널 강도',
+      '2개 이상 기술적 조건 충족',
+      '거래량 평균 130% 이상',
+      '일일 최대 8회 거래 제한',
+      '연속 3패 시 60분 휴식',
+    ],
+  },
+  TAKE_PROFIT: {
+    title: '💰 익절 전략 (단계별)',
+    rules: [
+      '1단계만: +0.12% (50%), +0.25% (나머지)',
+      '2-3단계: +0.3%/+0.6%/+1.0% 분할 익절',
+      '4-5단계: +0.8%/+1.5%/+2.5%/+4.0% 분할 익절',
+      '트레일링 스탑: 최고점 대비 간격 유지',
+      '시간 초과 시 강제 익절',
+    ],
+  },
+  STOP_LOSS: {
+    title: '🛡️ 손절 전략 (단계별)',
+    rules: [
+      '1단계: -0.15% 손절',
+      '2-3단계: -0.18% 손절',
+      '4-5단계: -0.25% 손절',
+      '동적 손절: 수익 발생 시 손절선 상향',
+      '+0.6% 도달 시 → 본전 손절',
+      '+1.0% 도달 시 → +0.3% 익절 보장',
+    ],
+  },
+  EMERGENCY: {
+    title: '🚨 긴급 탈출',
+    rules: [
+      '3개 연속 반대 캔들 → 50% 청산',
+      '총 손실 -0.8% → 전량 청산',
+      '거래량 50% 미만 급감 → 75% 청산',
+      '15분봉 추세 반전 → 전량 청산',
+    ],
+  },
+  TIME_LIMIT: {
+    title: '⏰ 시간 제한',
+    rules: [
+      '1단계만: 최대 5분 보유',
+      '2-3단계: 최대 10분 보유',
+      '4-5단계: 최대 15분 보유',
+      '시간 초과 시 손익 무관 청산',
+    ],
+  },
+  RISK: {
+    title: '📊 리스크 관리',
+    rules: [
+      '일일 최대 손실: -3%',
+      '일일 최대 거래: 8회',
+      '5단계 올인: 하루 2회 제한',
+      '연속 손실 3회 시 60분 휴식',
+      '목표 달성 (+5%) 시 거래 중단 권장',
+    ],
+  },
+};
+
 const TradingDocsModal = ({ majorCoinMode = false }: TradingDocsModalProps) => {
   const [open, setOpen] = useState(false);
-  const config = majorCoinMode ? MAJOR_SWING_CONFIG : ALTCOIN_SWING_CONFIG;
   const modeLabel = majorCoinMode ? '🏆 메이저 코인' : '🎯 잡코인';
 
   const sections = [
     { key: 'STRATEGY', icon: TrendingUp, color: 'text-primary' },
     { key: 'ENTRY', icon: Target, color: 'text-cyan-400' },
-    { key: 'POSITION_BUILD', icon: TrendingUp, color: 'text-blue-400' },
     { key: 'TAKE_PROFIT', icon: DollarSign, color: 'text-green-400' },
     { key: 'STOP_LOSS', icon: Shield, color: 'text-red-400' },
-    { key: 'AI_ANALYSIS', icon: Bot, color: 'text-purple-400' },
-    { key: 'SCREENING', icon: BarChart3, color: 'text-orange-400' },
+    { key: 'EMERGENCY', icon: AlertTriangle, color: 'text-orange-400' },
+    { key: 'TIME_LIMIT', icon: Clock, color: 'text-blue-400' },
+    { key: 'RISK', icon: BarChart3, color: 'text-purple-400' },
   ];
 
   return (
@@ -53,12 +127,12 @@ const TradingDocsModal = ({ majorCoinMode = false }: TradingDocsModalProps) => {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-lg">
             <FileText className="w-5 h-5 text-primary" />
-            5분 스윙 매매 가이드
+            ⚡ 피라미드 매매 가이드 (10배)
           </DialogTitle>
           <DialogDescription className="flex items-center justify-between">
             <span>{modeLabel} 모드 설정</span>
             <span className="text-[10px] text-muted-foreground">
-              v{TRADING_DOCS_VERSION} ({TRADING_DOCS_UPDATED})
+              v{DOCS_VERSION} ({DOCS_UPDATED})
             </span>
           </DialogDescription>
         </DialogHeader>
@@ -102,87 +176,81 @@ const TradingDocsModal = ({ majorCoinMode = false }: TradingDocsModalProps) => {
                 <div className="bg-gradient-to-r from-primary/20 to-primary/5 border border-primary/30 rounded-lg p-4">
                   <h3 className="font-bold text-primary mb-2">📍 현재 모드: {modeLabel}</h3>
                   <p className="text-sm text-muted-foreground">
-                    {majorCoinMode 
-                      ? 'BTC, ETH 등 유동성 높은 메이저 코인 대상 5분 스윙'
-                      : '저가 알트코인 대상 변동성 기반 5분 스윙'}
+                    레버리지 {PYRAMID_CONFIG.LEVERAGE}배 고정 | {PYRAMID_CONFIG.TOTAL_STAGES}단계 분할 | 각 {PYRAMID_CONFIG.STAGE_SIZE_PERCENT}%
                   </p>
                 </div>
 
-                {/* 분할 매수 설정 */}
+                {/* 단계별 진입 조건 */}
                 <div className="bg-card border border-border rounded-lg p-4">
                   <h3 className="flex items-center gap-2 font-bold text-foreground mb-3">
                     <TrendingUp className="w-4 h-4 text-blue-400" />
-                    분할 매수 설정
+                    단계별 진입 조건
                   </h3>
-                  <div className="grid grid-cols-2 gap-3">
-                    <ConfigItem label="1봉당 진입" value={`${config.ENTRY_PERCENT * 100}%`} color="text-blue-400" />
-                    <ConfigItem label="최대 봉 수" value={`${config.MAX_CANDLES}봉`} />
-                    <ConfigItem label="최대 투입" value={`${config.ENTRY_PERCENT * config.MAX_CANDLES * 100}%`} color="text-primary" />
-                    <ConfigItem label="쿨다운" value={`${config.ENTRY_COOLDOWN_MS / 1000}초`} />
+                  <div className="space-y-2">
+                    {Object.entries(PYRAMID_CONFIG.STAGE_PROFIT_REQUIRED).map(([stage, profit]) => (
+                      <div key={stage} className="flex items-center justify-between text-sm bg-secondary/30 rounded px-3 py-1.5">
+                        <span className="text-muted-foreground">{stage}단계</span>
+                        <span className="font-mono text-cyan-400">
+                          +{profit}% 수익 + {PYRAMID_CONFIG.STAGE_CANDLE_REQUIRED[Number(stage)]}개 연속 캔들
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 </div>
 
-                {/* 손익 설정 */}
-                <div className="bg-card border border-border rounded-lg p-4">
-                  <h3 className="flex items-center gap-2 font-bold text-foreground mb-3">
-                    <Settings className="w-4 h-4 text-primary" />
-                    손익 설정 (평단가 기준)
-                  </h3>
-                  <div className="grid grid-cols-2 gap-3">
-                    <ConfigItem label="조기 익절" value={`+${config.TP_PERCENT}%`} color="text-green-400" />
-                    <ConfigItem label="손절" value={`-${config.SL_PERCENT}%`} color="text-red-400" />
-                    <ConfigItem label="수수료" value={`${config.FEE_RATE}% / side`} />
-                    <ConfigItem label="손익비" value={`1:${(config.TP_PERCENT / config.SL_PERCENT).toFixed(2)}`} color="text-cyan-400" />
-                  </div>
-                </div>
-
-                {/* 조기 익절 조건 */}
+                {/* 익절 설정 */}
                 <div className="bg-card border border-border rounded-lg p-4">
                   <h3 className="flex items-center gap-2 font-bold text-foreground mb-3">
                     <DollarSign className="w-4 h-4 text-green-400" />
-                    조기 익절 조건
+                    단계별 익절 목표
                   </h3>
-                  <div className="grid grid-cols-2 gap-3">
-                    <ConfigItem label="최소 진입 수" value={`${config.MIN_ENTRIES_FOR_TP}봉 이상`} />
-                    <ConfigItem label="익절 목표" value={`+${config.TP_PERCENT}%`} color="text-green-400" />
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    * 2봉 이상 투입 후 평단가 +{config.TP_PERCENT}% 도달 시 즉시 전량 청산
-                  </p>
-                </div>
-
-                {/* 진입 필터 */}
-                <div className="bg-card border border-border rounded-lg p-4">
-                  <h3 className="flex items-center gap-2 font-bold text-foreground mb-3">
-                    <Target className="w-4 h-4 text-cyan-400" />
-                    진입 필터
-                  </h3>
-                  <div className="grid grid-cols-2 gap-3">
-                    <ConfigItem label="최소 ADX" value={`${config.MIN_ADX_FOR_TREND}+`} />
-                    <ConfigItem label="최소 신뢰도" value={`${config.MIN_CONFIDENCE}%`} />
+                  <div className="grid grid-cols-1 gap-3">
+                    <ConfigItem label="1단계만" value={`+0.12% (50%), +0.25% (나머지)`} color="text-green-400" />
+                    <ConfigItem label="2-3단계" value={`+0.3%/+0.6%/+1.0% 분할`} color="text-green-400" />
+                    <ConfigItem label="4-5단계" value={`+0.8%/+1.5%/+2.5%/+4.0% 분할`} color="text-green-400" />
                   </div>
                 </div>
 
-                {/* 청산 조건 */}
+                {/* 손절 설정 */}
                 <div className="bg-card border border-border rounded-lg p-4">
                   <h3 className="flex items-center gap-2 font-bold text-foreground mb-3">
                     <Shield className="w-4 h-4 text-red-400" />
-                    청산 조건
+                    단계별 손절
                   </h3>
-                  <ul className="space-y-1.5">
-                    <li className="flex items-start gap-2 text-sm text-muted-foreground">
-                      <span className="text-green-400 mt-0.5">✓</span>
-                      <span>조기 익절: 평단가 +{config.TP_PERCENT}% 도달</span>
-                    </li>
-                    <li className="flex items-start gap-2 text-sm text-muted-foreground">
-                      <span className="text-red-400 mt-0.5">✗</span>
-                      <span>손절: 평단가 -{config.SL_PERCENT}% 도달</span>
-                    </li>
-                    <li className="flex items-start gap-2 text-sm text-muted-foreground">
-                      <span className="text-blue-400 mt-0.5">⏱</span>
-                      <span>5봉 완성: 손익 무관 전량 청산</span>
-                    </li>
-                  </ul>
+                  <div className="grid grid-cols-3 gap-3">
+                    <ConfigItem label="1단계" value={`-${STOP_LOSS_CONFIG.STAGE_SL[1]}%`} color="text-red-400" />
+                    <ConfigItem label="2-3단계" value={`-${STOP_LOSS_CONFIG.STAGE_SL[23]}%`} color="text-red-400" />
+                    <ConfigItem label="4-5단계" value={`-${STOP_LOSS_CONFIG.STAGE_SL[45]}%`} color="text-red-400" />
+                  </div>
+                </div>
+
+                {/* 시간 제한 */}
+                <div className="bg-card border border-border rounded-lg p-4">
+                  <h3 className="flex items-center gap-2 font-bold text-foreground mb-3">
+                    <Clock className="w-4 h-4 text-blue-400" />
+                    최대 보유 시간
+                  </h3>
+                  <div className="grid grid-cols-3 gap-3">
+                    <ConfigItem label="1단계" value={`${TAKE_PROFIT_CONFIG.STAGE_1_ONLY.maxHoldMinutes}분`} />
+                    <ConfigItem label="2-3단계" value={`${TAKE_PROFIT_CONFIG.STAGE_23.maxHoldMinutes}분`} />
+                    <ConfigItem label="4-5단계" value={`${TAKE_PROFIT_CONFIG.STAGE_45.maxHoldMinutes}분`} />
+                  </div>
+                </div>
+
+                {/* 리스크 관리 */}
+                <div className="bg-card border border-border rounded-lg p-4">
+                  <h3 className="flex items-center gap-2 font-bold text-foreground mb-3">
+                    <AlertTriangle className="w-4 h-4 text-orange-400" />
+                    리스크 관리
+                  </h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    <ConfigItem label="일일 최대 손실" value={`-${RISK_CONFIG.DAILY_MAX_LOSS_PERCENT}%`} color="text-red-400" />
+                    <ConfigItem label="일일 최대 거래" value={`${RISK_CONFIG.DAILY_MAX_TRADES}회`} />
+                    <ConfigItem label="연속 손실 한도" value={`${RISK_CONFIG.MAX_CONSECUTIVE_LOSSES}회`} color="text-orange-400" />
+                    <ConfigItem label="휴식 시간" value={`${RISK_CONFIG.LOSS_COOLDOWN_MINUTES}분`} />
+                    <ConfigItem label="5단계 올인 제한" value={`하루 ${RISK_CONFIG.MAX_FULL_POSITION_DAILY}회`} color="text-purple-400" />
+                    <ConfigItem label="긴급 탈출" value={`-${EMERGENCY_CONFIG.MAX_LOSS_PERCENT}%`} color="text-red-400" />
+                  </div>
                 </div>
 
                 {/* 메이저 코인 목록 */}
@@ -209,10 +277,10 @@ const TradingDocsModal = ({ majorCoinMode = false }: TradingDocsModalProps) => {
                 <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/30 rounded-lg p-4">
                   <h3 className="font-bold text-blue-400 mb-2">📊 전략 요약</h3>
                   <div className="text-sm text-muted-foreground space-y-1">
-                    <p>1. 시그널 감지 → 봉 완성 대기 → AI 분석</p>
-                    <p>2. 첫 봉 20% 진입 → 매 봉 20%씩 추가</p>
-                    <p>3. 평단가 기준 TP/SL 실시간 갱신</p>
-                    <p>4. 조기 익절 or 5봉 완성 시 청산</p>
+                    <p>1. 시그널 감지 → 1단계 20% 즉시 진입</p>
+                    <p>2. 수익 발생 시에만 단계별 추가 매수</p>
+                    <p>3. 단계별 분할 익절 + 동적 손절</p>
+                    <p>4. 시간 초과 또는 긴급 상황 시 청산</p>
                   </div>
                 </div>
               </div>
