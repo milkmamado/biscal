@@ -184,7 +184,7 @@ export function useCoinScreening(
     
     // UI 로그 초기화 및 시작
     clearScreeningLogs();
-    addScreeningLog('start', isMajorMode ? '🏆 메이저 코인 스크리닝 시작' : '스크리닝 시작');
+    addScreeningLog('start', isMajorMode ? '메이저 코인 스크리닝 시작' : '스크리닝 시작');
 
     try {
       // 🆕 메이저 코인 모드: 화이트리스트 필터링
@@ -203,7 +203,7 @@ export function useCoinScreening(
           const tier = getCoinTier(t.symbol);
           return `${t.symbol.replace('USDT', '')}(T${tier})`;
         }).join(', ');
-        addScreeningLog('filter', `🏆 메이저 코인: ${eligible.length}개 [${tierInfo}]`);
+        addScreeningLog('filter', `메이저 코인: ${eligible.length}개 [${tierInfo}]`);
       } else {
         // 잡코인 모드: 기존 필터링
         eligible = currentTickers.filter(t => 
