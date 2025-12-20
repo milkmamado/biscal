@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,20 +7,95 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { Key, Eye, EyeOff, AlertCircle, ExternalLink, ArrowLeft, FlaskConical } from 'lucide-react';
+import { Eye, EyeOff, AlertCircle, ExternalLink, ArrowLeft, FlaskConical, Wifi, WifiOff, Loader2 } from 'lucide-react';
+import CryptoJS from 'crypto-js';
 
 interface PaperApiKeySetupProps {
   onComplete: () => void;
 }
+
+// Binance Testnet API URL
+const TESTNET_API_URL = 'https://testnet.binancefuture.com';
 
 const PaperApiKeySetup = ({ onComplete }: PaperApiKeySetupProps) => {
   const [apiKey, setApiKey] = useState('');
   const [apiSecret, setApiSecret] = useState('');
   const [showSecret, setShowSecret] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isTesting, setIsTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string; balance?: string } | null>(null);
   const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+
+  // Testnet 직접 연결 테스트
+  const testConnection = async () => {
+    if (!apiKey.trim() || !apiSecret.trim()) {
+      toast({
+        title: '입력 오류',
+        description: 'API Key와 Secret Key를 모두 입력해주세요.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsTesting(true);
+    setTestResult(null);
+
+    try {
+      const timestamp = Date.now();
+      const queryString = `timestamp=${timestamp}`;
+      
+      // HMAC SHA256 서명 생성
+      const signature = CryptoJS.HmacSHA256(queryString, apiSecret.trim()).toString();
+      
+      // 잔고 조회 API 호출
+      const response = await fetch(
+        `${TESTNET_API_URL}/fapi/v2/balance?${queryString}&signature=${signature}`,
+        {
+          method: 'GET',
+          headers: {
+            'X-MBX-APIKEY': apiKey.trim(),
+          },
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok || data.code) {
+        throw new Error(data.msg || `Error ${data.code}`);
+      }
+
+      // USDT 잔고 찾기
+      const usdtBalance = data.find((b: any) => b.asset === 'USDT');
+      const balance = usdtBalance ? parseFloat(usdtBalance.balance).toFixed(2) : '0.00';
+
+      setTestResult({
+        success: true,
+        message: '테스트넷 연결 성공!',
+        balance: `${balance} USDT`,
+      });
+
+      toast({
+        title: '✅ 연결 테스트 성공',
+        description: `테스트넷 잔고: ${balance} USDT`,
+      });
+    } catch (error: any) {
+      console.error('Testnet connection error:', error);
+      setTestResult({
+        success: false,
+        message: error.message || '연결 실패',
+      });
+
+      toast({
+        title: '❌ 연결 테스트 실패',
+        description: error.message || '테스트넷 연결에 실패했습니다.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsTesting(false);
+    }
+  };
 
   const validateAndSaveKeys = async () => {
     if (!apiKey.trim() || !apiSecret.trim()) {
@@ -36,6 +111,16 @@ const PaperApiKeySetup = ({ onComplete }: PaperApiKeySetupProps) => {
       toast({
         title: '인증 오류',
         description: '로그인이 필요합니다.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // 연결 테스트 안했으면 먼저 테스트
+    if (!testResult?.success) {
+      toast({
+        title: '연결 테스트 필요',
+        description: '먼저 연결 테스트를 진행해주세요.',
         variant: 'destructive',
       });
       return;
@@ -166,11 +251,58 @@ const PaperApiKeySetup = ({ onComplete }: PaperApiKeySetupProps) => {
             </div>
           </div>
 
+          {/* Connection Test Button */}
+          <Button 
+            onClick={testConnection}
+            disabled={isTesting || !apiKey || !apiSecret}
+            variant="outline"
+            className="w-full border-cyan-500/50 text-cyan-400 hover:bg-cyan-500/10"
+          >
+            {isTesting ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                연결 테스트 중...
+              </>
+            ) : (
+              <>
+                <Wifi className="h-4 w-4 mr-2" />
+                연결 테스트
+              </>
+            )}
+          </Button>
+
+          {/* Test Result */}
+          {testResult && (
+            <div className={`p-3 rounded-lg border ${
+              testResult.success 
+                ? 'bg-green-500/10 border-green-500/30' 
+                : 'bg-red-500/10 border-red-500/30'
+            }`}>
+              <div className="flex items-center gap-2">
+                {testResult.success ? (
+                  <Wifi className="h-5 w-5 text-green-400" />
+                ) : (
+                  <WifiOff className="h-5 w-5 text-red-400" />
+                )}
+                <div>
+                  <p className={`text-sm font-semibold ${testResult.success ? 'text-green-400' : 'text-red-400'}`}>
+                    {testResult.message}
+                  </p>
+                  {testResult.balance && (
+                    <p className="text-xs text-green-300/80 mt-0.5">
+                      테스트넷 잔고: {testResult.balance}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Submit Button */}
           <Button 
             onClick={validateAndSaveKeys}
-            disabled={isLoading || !apiKey || !apiSecret}
-            className="w-full bg-amber-500 hover:bg-amber-600 text-black"
+            disabled={isLoading || !apiKey || !apiSecret || !testResult?.success}
+            className="w-full bg-amber-500 hover:bg-amber-600 text-black disabled:opacity-50"
           >
             {isLoading ? '저장중...' : '모의투자 시작하기'}
           </Button>
