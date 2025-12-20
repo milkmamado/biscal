@@ -57,21 +57,28 @@ export const useTradingLogs = (options: UseTradingLogsOptions = {}) => {
     setLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        console.log('[TradingLogs] No user, skipping fetch');
+        setLoading(false);
+        return;
+      }
 
       const today = getTodayDate();
+      console.log(`[TradingLogs] Fetching logs for ${today}, isTestnet: ${isTestnet}`);
       
       const { data, error } = await supabase
         .from('daily_trading_logs')
         .select('*')
         .eq('user_id', user.id)
         .eq('trade_date', today)
-        .eq('is_testnet', isTestnet); // 테스트넷/실거래 구분
+        .eq('is_testnet', isTestnet);
 
       if (error) {
         console.error('Failed to fetch trading logs:', error);
         return;
       }
+
+      console.log(`[TradingLogs] Fetched ${data?.length || 0} logs`);
 
       if (data && data.length > 0) {
         const totalPnL = data.reduce((sum, log) => sum + Number(log.pnl_usd), 0);
@@ -80,6 +87,8 @@ export const useTradingLogs = (options: UseTradingLogsOptions = {}) => {
         const tradeCount = data.length;
         const winRate = tradeCount > 0 ? (winCount / tradeCount) * 100 : 0;
 
+        console.log(`[TradingLogs] Stats: ${tradeCount}trades, PnL: $${totalPnL.toFixed(2)}`);
+        
         setDailyStats({
           totalPnL,
           tradeCount,
@@ -168,9 +177,22 @@ export const useTradingLogs = (options: UseTradingLogsOptions = {}) => {
     });
   }, []);
 
-  // Fetch stats on mount and when isTestnet changes
+  // Fetch stats on mount and when auth state changes
   useEffect(() => {
+    // Initial fetch
     fetchDailyStats();
+    
+    // Listen for auth state changes to refetch when user logs in
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        console.log('[TradingLogs] Auth state changed, refetching...');
+        fetchDailyStats();
+      }
+    });
+    
+    return () => {
+      subscription.unsubscribe();
+    };
   }, [fetchDailyStats]);
 
   return {
