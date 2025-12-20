@@ -151,7 +151,7 @@ const PaperTrading = () => {
     const ticker = tickers.find(t => t.symbol === position.symbol);
     if (!ticker) return;
     
-    autoTrading.checkTpSl(ticker.price, 0.3, 0.5);
+    autoTrading.checkTpSl(ticker.price);
   }, [tickers, autoTrading.state.currentPosition]);
 
   // Fetch USD/KRW rate
@@ -281,7 +281,7 @@ const PaperTrading = () => {
           <DualChartPanel 
             symbol={selectedSymbol} 
             hasPosition={!!autoTrading.state.currentPosition}
-            entryPrice={autoTrading.state.currentPosition?.entryPrice}
+            entryPrice={autoTrading.state.currentPosition?.avgPrice}
             stopLossPrice={stopLossPrice}
             takeProfitPrice={takeProfitPrice}
             positionSide={autoTrading.state.currentPosition?.side}
@@ -292,13 +292,10 @@ const PaperTrading = () => {
         {/* Right - System Trading Panel */}
         <div className="col-span-4 flex flex-col min-h-0 overflow-auto gap-1">
           <AutoTradingPanel
-            state={autoTrading.state}
+            state={autoTrading.state as any}
             onToggle={autoTrading.toggleAutoTrading}
             onManualClose={handleManualClose}
             onSkipSignal={autoTrading.skipSignal}
-            onSwapSignal={autoTrading.swapSignalDirection}
-            onToggleLossProtection={autoTrading.toggleLossProtection}
-            onClearCooldown={autoTrading.clearCooldown}
             currentPrice={currentAutoPrice}
             krwRate={krwRate}
             leverage={leverage}

@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils';
 import { Bot, TrendingUp, TrendingDown, Activity, Clock, AlertTriangle, Star, RefreshCw, Wallet, LogOut, Shield, ShieldOff, Crown, Brain } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
-import { AutoTradingState, AutoTradeLog } from '@/hooks/useAutoTrading';
+import { SwingTradingState, SwingTradeLog, SwingPosition } from '@/hooks/useSwingTrading';
 import { formatPrice } from '@/lib/binance';
 import { useBinanceApi } from '@/hooks/useBinanceApi';
 import { useAuth } from '@/hooks/useAuth';
@@ -47,7 +47,7 @@ const getScalpingRating = () => {
 const LEVERAGE_OPTIONS = [1, 5, 10, 15, 20];
 
 interface AutoTradingPanelProps {
-  state: AutoTradingState;
+  state: SwingTradingState;
   onToggle: () => void;
   onManualClose?: () => void;
   onSkipSignal?: () => void;
@@ -69,9 +69,9 @@ interface AutoTradingPanelProps {
     lastScanTime: number;
   };
   isTestnet?: boolean;
-  majorCoinMode?: boolean; // 🆕 메이저 코인 모드
-  onToggleMajorCoinMode?: () => void; // 🆕 메이저 코인 모드 토글
-  onToggleAiAnalysis?: () => void; // 🤖 AI 분석 토글
+  majorCoinMode?: boolean;
+  onToggleMajorCoinMode?: () => void;
+  onToggleAiAnalysis?: () => void;
 }
 
 const AutoTradingPanel = ({ 
@@ -95,7 +95,9 @@ const AutoTradingPanel = ({
   onToggleMajorCoinMode,
   onToggleAiAnalysis,
 }: AutoTradingPanelProps) => {
-  const { isEnabled, isProcessing, currentPosition, pendingSignal, todayStats, tradeLogs, cooldownUntil, lossProtectionEnabled, aiAnalysis, isAiAnalyzing, aiEnabled } = state;
+  const { isEnabled, isProcessing, currentPosition, pendingSignal, todayStats, tradeLogs, aiAnalysis, isAiAnalyzing, aiEnabled } = state;
+  const cooldownUntil = 0; // 스윙 매매에선 미사용
+  const lossProtectionEnabled = false; // 스윙 매매에선 미사용
   const { user, signOut } = useAuth();
   const { getBalances, getIncomeHistory, isTestnetReady } = useBinanceApi({ isTestnet });
   
@@ -262,16 +264,16 @@ const AutoTradingPanel = ({
       return lastValidPnL;
     }
     const direction = currentPosition.side === 'long' ? 1 : -1;
-    const priceDiff = (currentPrice - currentPosition.entryPrice) * direction;
-    return priceDiff * currentPosition.remainingQuantity;
+    const priceDiff = (currentPrice - currentPosition.avgPrice) * direction;
+    return priceDiff * currentPosition.totalQuantity;
   }, [currentPosition, currentPrice, lastValidPnL]);
   
   // 유효한 PnL 값 업데이트
   useEffect(() => {
     if (currentPosition && currentPrice && currentPrice > 0) {
       const direction = currentPosition.side === 'long' ? 1 : -1;
-      const priceDiff = (currentPrice - currentPosition.entryPrice) * direction;
-      const newPnL = priceDiff * currentPosition.remainingQuantity;
+      const priceDiff = (currentPrice - currentPosition.avgPrice) * direction;
+      const newPnL = priceDiff * currentPosition.totalQuantity;
       setLastValidPnL(newPnL);
     } else if (!currentPosition) {
       setLastValidPnL(0);
@@ -665,38 +667,32 @@ const AutoTradingPanel = ({
             </span>
           </div>
           <div className="flex items-center justify-between text-[10px] text-gray-400">
-            <span>진입가: ${formatPrice(currentPosition.entryPrice)}</span>
-            <span>수량: {currentPosition.remainingQuantity.toFixed(4)}</span>
+            <span>평단가: ${formatPrice(currentPosition.avgPrice)}</span>
+            <span>수량: {currentPosition.totalQuantity.toFixed(4)}</span>
           </div>
-          {/* 익절/손절 목표 */}
+          {/* 스윙 매매 진행 상황 */}
           <div className="mt-2 flex items-center gap-2 flex-wrap">
-            <span className="text-[10px] text-gray-500">목표:</span>
+            <span className="text-[10px] text-gray-500">진행:</span>
+            <span className="text-[11px] px-2 py-1 rounded font-mono" style={{
+              background: 'rgba(0, 255, 255, 0.15)',
+              border: '1px solid rgba(0, 255, 255, 0.3)',
+              color: '#00ffff',
+            }}>
+              {currentPosition.currentCandleNumber}/5봉
+            </span>
             <span className="text-[11px] px-2 py-1 rounded font-mono" style={{
               background: 'rgba(0, 255, 136, 0.15)',
               border: '1px solid rgba(0, 255, 136, 0.3)',
               color: '#00ff88',
             }}>
-              TP +0.25%
+              TP +0.5%
             </span>
-            {currentPosition.takeProfitState?.breakEvenActivated ? (
-              <span className="text-[11px] px-2 py-1 rounded font-mono" style={{
-                background: 'rgba(0, 255, 255, 0.15)',
-                border: '1px solid rgba(0, 255, 255, 0.3)',
-                color: '#00ffff',
-              }}>
-                BE +0.02%
-              </span>
-            ) : (
-              <span className="text-[11px] px-2 py-1 rounded font-mono" style={{
-                background: 'rgba(255, 0, 136, 0.15)',
-                border: '1px solid rgba(255, 0, 136, 0.3)',
-                color: '#ff0088',
-              }}>
-                SL -0.25%
-              </span>
-            )}
-            <span className="text-[10px] text-gray-500">
-              {currentPosition.takeProfitState?.breakEvenActivated ? '(브레이크이븐)' : '(30초 보호)'}
+            <span className="text-[11px] px-2 py-1 rounded font-mono" style={{
+              background: 'rgba(255, 0, 136, 0.15)',
+              border: '1px solid rgba(255, 0, 136, 0.3)',
+              color: '#ff0088',
+            }}>
+              SL -0.35%
             </span>
           </div>
           <div className="flex gap-2 mt-2">
@@ -857,7 +853,7 @@ const ScalpingIndicator = () => {
 
 // Trade Log Item
 const TradeLogItem = ({ log, krwRate, onSelectSymbol }: { 
-  log: AutoTradeLog; 
+  log: SwingTradeLog; 
   krwRate: number;
   onSelectSymbol?: (symbol: string) => void;
 }) => {
