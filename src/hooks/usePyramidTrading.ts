@@ -196,7 +196,7 @@ export function usePyramidTrading({
 
   const { user } = useAuth();
   const { placeMarketOrder, getPositions, setLeverage } = useBinanceApi({ isTestnet });
-  const { analysis: aiAnalysisResult, isAnalyzing: isAiAnalyzing } = useMarketAnalysis({});
+  const { analysis: aiAnalysisResult, isAnalyzing: isAiAnalyzing } = useMarketAnalysis({ mode: majorCoinMode ? 'MAJOR' : 'ALTCOIN' });
 
   const majorCoinModeRef = useRef(majorCoinMode);
   useEffect(() => { majorCoinModeRef.current = majorCoinMode; }, [majorCoinMode]);
