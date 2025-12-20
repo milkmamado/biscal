@@ -163,7 +163,7 @@ const CONFIG = {
   },
   
   // 브레이크이븐 설정 (스캘핑 공격적 익절)
-  BREAKEVEN_TRIGGER: 0.08,   // +0.08% 도달 시 즉시 BE 발동 (수수료 커버 직후)
+  BREAKEVEN_TRIGGER: 0.06,   // +0.06% 도달 시 즉시 BE 발동 (수수료 커버 직후)
   BREAKEVEN_SL: 0.05,        // BE 최소 손절선 +0.05%
   BREAKEVEN_TRAILING_GAP: 0.03, // 트레일링 BE: 최고수익 - 0.03%로 빠르게 추적
   BREAKEVEN_TIMEOUT_SEC: 120, // BE 후 2분 내 TP 미도달 시 즉시 청산
@@ -522,7 +522,7 @@ export function useAutoTrading({
     const beStatus = tpState.breakEvenActivated ? ' [BE]' : '';
     const earlySlStatus = position.earlySLStage > 0 ? ` [ESL${position.earlySLStage}]` : '';
     const obStatus = orderbookImbalance !== undefined ? ` OB:${orderbookImbalance > 0 ? '+' : ''}${orderbookImbalance.toFixed(0)}%` : '';
-    console.log(`[TP/SL] ${position.symbol} ${position.side.toUpperCase()}${beStatus}${earlySlStatus} | ${holdTimeSec.toFixed(0)}초 | 손익: ${pnlRounded >= 0 ? '+' : ''}${pnlRounded.toFixed(1)}%${obStatus}`);
+    console.log(`[TP/SL] ${position.symbol} ${position.side.toUpperCase()}${beStatus}${earlySlStatus} | ${holdTimeSec.toFixed(0)}초 | 손익: ${pnlPercent >= 0 ? '+' : ''}${pnlPercent.toFixed(2)}%${obStatus}`);
     
     // 🆕 최고 수익률 업데이트 (브레이크이븐용)
     if (pnlPercent > position.maxPnlPercent) {
