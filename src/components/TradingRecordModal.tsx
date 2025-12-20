@@ -24,9 +24,10 @@ interface MonthlyStats {
 
 interface TradingRecordModalProps {
   krwRate: number;
+  isTestnet?: boolean;
 }
 
-const TradingRecordModal = ({ krwRate }: TradingRecordModalProps) => {
+const TradingRecordModal = ({ krwRate, isTestnet = false }: TradingRecordModalProps) => {
   const [open, setOpen] = useState(false);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
@@ -55,6 +56,7 @@ const TradingRecordModal = ({ krwRate }: TradingRecordModalProps) => {
         .from('daily_balance_snapshots')
         .select('*')
         .eq('user_id', user.id)
+        .eq('is_testnet', isTestnet)
         .gte('snapshot_date', startDate)
         .lt('snapshot_date', endDate)
         .order('snapshot_date', { ascending: true });
@@ -71,6 +73,7 @@ const TradingRecordModal = ({ krwRate }: TradingRecordModalProps) => {
         .from('daily_balance_snapshots')
         .select('closing_balance_usd')
         .eq('user_id', user.id)
+        .eq('is_testnet', isTestnet)
         .eq('snapshot_date', prevMonthEndDate)
         .maybeSingle();
 
@@ -119,6 +122,7 @@ const TradingRecordModal = ({ krwRate }: TradingRecordModalProps) => {
         .from('daily_balance_snapshots')
         .select('snapshot_date, closing_balance_usd, daily_income_usd, deposit_usd, withdrawal_usd')
         .eq('user_id', user.id)
+        .eq('is_testnet', isTestnet)
         .order('snapshot_date', { ascending: true });
 
       if (error) {
