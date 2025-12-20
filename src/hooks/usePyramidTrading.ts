@@ -348,38 +348,10 @@ export function usePyramidTrading({
     position: PyramidPosition,
     dailyAvgDownCount: number
   ): Promise<{ safe: boolean; reason: string }> => {
-    const filters = PYRAMID_CONFIG.AVERAGING_DOWN.safetyFilters;
-
-    // 1. 일일 물타기 횟수 제한
-    if (dailyAvgDownCount >= filters.maxDailyAverageDown) {
-      return { safe: false, reason: `일일 물타기 한도 도달 (${filters.maxDailyAverageDown}회)` };
-    }
-
-    // 2. RSI 과매도 체크
-    if (filters.requireRsiOversold) {
-      const rsi = position.indicators.rsi;
-      if (rsi > filters.rsiThreshold) {
-        return { safe: false, reason: `RSI ${rsi.toFixed(1)} > ${filters.rsiThreshold} (과매도 아님)` };
-      }
-    }
-
-    // 3. ADX 하락 중 체크 (현재 ADX vs 이전 - 단순 임계값으로 대체)
-    if (filters.blockOnAdxFalling) {
-      const adx = position.indicators.adx;
-      // ADX가 25 미만이면 추세 약화로 간주
-      if (adx < 25) {
-        return { safe: false, reason: `ADX ${adx.toFixed(1)} < 25 (추세 약화)` };
-      }
-    }
-
-    // 4. 반대 캔들 연속 체크
-    const oppositeCount = await analyzeOppositeCandles(position.symbol, position.side);
-    if (oppositeCount >= filters.blockOnOppositeCandles) {
-      return { safe: false, reason: `반대 캔들 ${oppositeCount}개 연속 (추세 역행)` };
-    }
-
-    return { safe: true, reason: '물타기 조건 충족' };
-  }, [analyzeOppositeCandles]);
+    // 🔧 사용자 요청: 물타기 안전 필터 비활성화
+    // 모든 물타기 허용
+    return { safe: true, reason: '물타기 진행' };
+  }, []);
 
   // ===== 분할 청산 실행 =====
   const executePartialClose = useCallback(async (
@@ -513,15 +485,6 @@ export function usePyramidTrading({
       const pnl = pnlGross - feeUsd;
       const isWin = pnl > 0;
 
-      // 리스크 통계 업데이트
-      const newConsecutiveLosses = isWin ? 0 : state.dailyRisk.consecutiveLosses + 1;
-      let newCooldownUntil = state.dailyRisk.cooldownUntil;
-
-      if (newConsecutiveLosses >= RISK_CONFIG.MAX_CONSECUTIVE_LOSSES) {
-        newCooldownUntil = Date.now() + RISK_CONFIG.LOSS_COOLDOWN_MINUTES * 60 * 1000;
-        toast.warning(`⚠️ 연속 ${newConsecutiveLosses}패! ${RISK_CONFIG.LOSS_COOLDOWN_MINUTES}분 휴식`);
-      }
-
       setState(prev => ({
         ...prev,
         currentPosition: null,
@@ -534,10 +497,7 @@ export function usePyramidTrading({
         },
         dailyRisk: {
           ...prev.dailyRisk,
-          tradeCount: prev.dailyRisk.tradeCount + 1,
-          consecutiveLosses: newConsecutiveLosses,
           dailyPnL: prev.dailyRisk.dailyPnL + pnl,
-          cooldownUntil: newCooldownUntil,
         },
         statusMessage: `${isWin ? '✅' : '❌'} ${reason === 'tp' ? '익절' : reason === 'sl' ? '손절' : '청산'} 완료!`,
       }));
@@ -923,15 +883,7 @@ export function usePyramidTrading({
     if (state.currentPosition) return;
     if (state.pendingSignal) return;
 
-    // 리스크 체크
-    if (Date.now() < state.dailyRisk.cooldownUntil) {
-      console.log('[handleSignal] 쿨다운 중...');
-      return;
-    }
-    if (state.dailyRisk.tradeCount >= RISK_CONFIG.DAILY_MAX_TRADES) {
-      console.log('[handleSignal] 일일 거래 한도 도달');
-      return;
-    }
+    // 리스크 체크 (비활성화됨 - 사용자 요청)
 
     // 시그널 강도 체크
     if (strength === 'weak') return;
@@ -1025,11 +977,7 @@ export function usePyramidTrading({
 
     if (nextStage > PYRAMID_CONFIG.TOTAL_STAGES) return;
 
-    // 5단계 올인 일일 제한 체크
-    if (nextStage === 5 && state.dailyRisk.fullPositionCount >= RISK_CONFIG.MAX_FULL_POSITION_DAILY) {
-      console.log('[checkNextStage] 5단계 올인 일일 한도 도달');
-      return;
-    }
+    // 5단계 올인 일일 제한 체크 (비활성화됨 - 사용자 요청)
 
     const pnlPercent = calculatePnLPercent(position, currentPrice);
     const currentType = getPositionType(position.currentStage);
