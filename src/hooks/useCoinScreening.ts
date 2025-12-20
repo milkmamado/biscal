@@ -40,8 +40,8 @@ const DEFAULT_CRITERIA: ScreeningCriteria = {
   minVolume: 10_000_000,    // $10M 이상 (완화)
   minVolatility: 1,          // 1% 이상 (완화)
   maxVolatility: 20,         // 20% 이하 (완화)
-  minPrice: 0.001,           // $0.001 이상 (완화)
-  maxPrice: 500,             // $500 이하 (완화)
+  minPrice: 0.01,            // $0.01 이상 (저가 코인 타겟)
+  maxPrice: 1,               // $1 이하 (저가 코인만)
   spreadThreshold: 0.1,      // 0.1% 이하 스프레드
 };
 
