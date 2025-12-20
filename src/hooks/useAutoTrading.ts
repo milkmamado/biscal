@@ -117,6 +117,9 @@ interface UseAutoTradingProps {
 
 // 설정값
 const CONFIG = {
+  // 수수료 설정 (바이낸스 Taker 기준)
+  FEE_RATE: 0.05,              // 0.05% per trade (진입 + 청산 = 0.10%)
+  
   // 익절/손절 (기본값) - 동적 TP로 대체됨
   TP_PERCENT: 0.25,          // 기본 TP (약한 추세)
   SL_PERCENT: 0.12,          // -0.12% 도달 시 전량 손절 (기존 -0.25%의 절반)
@@ -515,18 +518,23 @@ export function useAutoTrading({
     const position = state.currentPosition;
     const direction = position.side === 'long' ? 1 : -1;
     const priceDiff = (currentPrice - position.entryPrice) * direction;
-    const pnlPercent = (priceDiff / position.entryPrice) * 100;
+    const pnlPercentRaw = (priceDiff / position.entryPrice) * 100;
+    
+    // 🆕 수수료 반영 손익 (진입 0.05% + 청산 0.05% = 0.10%)
+    const totalFeePercent = CONFIG.FEE_RATE * 2; // 왕복 수수료
+    const pnlPercent = pnlPercentRaw - totalFeePercent; // 수수료 차감된 실제 손익
+    
     const tpState = position.takeProfitState;
     
     // 진입 후 경과 시간 (초)
     const holdTimeSec = (Date.now() - position.entryTime) / 1000;
     
-    // 📊 실시간 손익 로그 (조기 손절 단계 표시)
+    // 📊 실시간 손익 로그 (수수료 반영)
     const pnlRounded = Math.round(pnlPercent * 10) / 10;
     const beStatus = tpState.breakEvenActivated ? ' [BE]' : '';
     const earlySlStatus = position.earlySLStage > 0 ? ` [ESL${position.earlySLStage}]` : '';
     const obStatus = orderbookImbalance !== undefined ? ` OB:${orderbookImbalance > 0 ? '+' : ''}${orderbookImbalance.toFixed(0)}%` : '';
-    console.log(`[TP/SL] ${position.symbol} ${position.side.toUpperCase()}${beStatus}${earlySlStatus} | ${holdTimeSec.toFixed(0)}초 | 손익: ${pnlPercent >= 0 ? '+' : ''}${pnlPercent.toFixed(2)}%${obStatus}`);
+    console.log(`[TP/SL] ${position.symbol} ${position.side.toUpperCase()}${beStatus}${earlySlStatus} | ${holdTimeSec.toFixed(0)}초 | 손익(수수료포함): ${pnlPercent >= 0 ? '+' : ''}${pnlPercent.toFixed(2)}%${obStatus}`);
     
     // 🆕 최고 수익률 업데이트 (브레이크이븐용)
     if (pnlPercent > position.maxPnlPercent) {
