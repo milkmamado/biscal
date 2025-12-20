@@ -736,8 +736,8 @@ const AutoTradingPanel = ({
       
       {/* 🔧 스크리닝 로그 제거 - 차트 배경으로 이동됨 */}
       
-      {/* 🤖 AI 시장 분석 패널 */}
-      {isEnabled && aiEnabled && (
+      {/* 🤖 AI 시장 분석 패널 - 항상 표시 (포지션 유무 관계없이) */}
+      {aiEnabled && (
         <MarketAnalysisPanel 
           analysis={aiAnalysis} 
           isAnalyzing={isAiAnalyzing}
