@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
-import { ChevronLeft, ChevronRight, History, ArrowDownCircle, ArrowUpCircle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, History, ArrowDownCircle, ArrowUpCircle, TrendingUp, TrendingDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface DailyRecord {
@@ -11,6 +11,17 @@ interface DailyRecord {
   dailyPnL: number;
   deposit: number;
   withdrawal: number;
+}
+
+interface TradeLog {
+  id: string;
+  symbol: string;
+  side: 'long' | 'short';
+  entryPrice: number;
+  exitPrice: number;
+  quantity: number;
+  pnlUsd: number;
+  createdAt: string;
 }
 
 interface MonthlyStats {
@@ -25,7 +36,7 @@ interface MonthlyStats {
 interface TradingRecordModalProps {
   krwRate: number;
   isTestnet?: boolean;
-  refreshTrigger?: number; // 🆕 청산/갱신 트리거
+  refreshTrigger?: number;
 }
 
 const TradingRecordModal = ({ krwRate, isTestnet = false, refreshTrigger = 0 }: TradingRecordModalProps) => {
@@ -40,6 +51,7 @@ const TradingRecordModal = ({ krwRate, isTestnet = false, refreshTrigger = 0 }: 
     firstBalance: 0, 
     latestBalance: 0 
   });
+  const [todayTrades, setTodayTrades] = useState<TradeLog[]>([]);
   const [loading, setLoading] = useState(false);
 
   const fetchMonthlyRecords = async () => {
@@ -147,10 +159,55 @@ const TradingRecordModal = ({ krwRate, isTestnet = false, refreshTrigger = 0 }: 
     }
   };
 
+  // 🆕 오늘 개별 거래 내역 조회
+  const fetchTodayTrades = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // 한국시간 기준 오늘 날짜
+      const now = new Date();
+      const koreaOffset = 9 * 60;
+      const utcOffset = now.getTimezoneOffset();
+      const koreaTime = new Date(now.getTime() + (koreaOffset + utcOffset) * 60 * 1000);
+      const today = `${koreaTime.getFullYear()}-${String(koreaTime.getMonth() + 1).padStart(2, '0')}-${String(koreaTime.getDate()).padStart(2, '0')}`;
+
+      const { data, error } = await supabase
+        .from('daily_trading_logs')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('is_testnet', isTestnet)
+        .eq('trade_date', today)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Failed to fetch today trades:', error);
+        return;
+      }
+
+      if (data) {
+        const trades: TradeLog[] = data.map((t: any) => ({
+          id: t.id,
+          symbol: t.symbol,
+          side: t.side,
+          entryPrice: Number(t.entry_price),
+          exitPrice: Number(t.exit_price),
+          quantity: Number(t.quantity),
+          pnlUsd: Number(t.pnl_usd),
+          createdAt: t.created_at,
+        }));
+        setTodayTrades(trades);
+      }
+    } catch (error) {
+      console.error('Error fetching today trades:', error);
+    }
+  };
+
   useEffect(() => {
     if (open) {
       fetchMonthlyRecords();
       fetchCumulativeStats();
+      fetchTodayTrades();
     }
   }, [open, selectedYear, selectedMonth, refreshTrigger, isTestnet]);
 
@@ -285,6 +342,100 @@ const TradingRecordModal = ({ krwRate, isTestnet = false, refreshTrigger = 0 }: 
                   )}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* 🆕 오늘 개별 거래 내역 */}
+          {todayTrades.length > 0 && (
+            <div className="bg-card border border-cyan-500/30 rounded-lg overflow-hidden">
+              <div className="px-3 py-2 bg-cyan-500/10 border-b border-cyan-500/20">
+                <span className="text-[10px] text-cyan-400 font-bold">📊 오늘 거래 내역 ({todayTrades.length}건)</span>
+              </div>
+              <div className="max-h-40 overflow-y-auto">
+                <table className="w-full text-[10px]">
+                  <thead className="bg-secondary/30 sticky top-0">
+                    <tr>
+                      <th className="text-left px-2 py-1 text-muted-foreground font-normal">시간</th>
+                      <th className="text-left px-2 py-1 text-muted-foreground font-normal">코인</th>
+                      <th className="text-center px-2 py-1 text-muted-foreground font-normal">방향</th>
+                      <th className="text-right px-2 py-1 text-muted-foreground font-normal">손익</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {todayTrades.map((trade) => {
+                      const time = new Date(trade.createdAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+                      // 수수료 반영 순손익 계산
+                      const feeRate = 0.0005;
+                      const dir = trade.side === 'long' ? 1 : -1;
+                      const gross = (trade.exitPrice - trade.entryPrice) * dir * trade.quantity;
+                      const fee = (trade.entryPrice * trade.quantity + trade.exitPrice * trade.quantity) * feeRate;
+                      const netPnl = gross - fee;
+                      const isWin = netPnl > 0;
+                      
+                      return (
+                        <tr key={trade.id} className="border-t border-border/30 hover:bg-secondary/20">
+                          <td className="px-2 py-1 font-mono text-gray-400">{time}</td>
+                          <td className="px-2 py-1 font-semibold text-cyan-300">{trade.symbol.replace('USDT', '')}</td>
+                          <td className="px-2 py-1 text-center">
+                            {trade.side === 'long' ? (
+                              <span className="text-red-400 flex items-center justify-center gap-0.5">
+                                <TrendingUp className="w-3 h-3" /> L
+                              </span>
+                            ) : (
+                              <span className="text-blue-400 flex items-center justify-center gap-0.5">
+                                <TrendingDown className="w-3 h-3" /> S
+                              </span>
+                            )}
+                          </td>
+                          <td className={cn(
+                            "px-2 py-1 text-right font-mono font-bold",
+                            isWin ? "text-green-400" : "text-red-400"
+                          )}>
+                            {isWin ? '+' : ''}₩{formatKRW(netPnl)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <div className="px-3 py-1.5 bg-secondary/30 border-t border-border/30 flex justify-between text-[10px]">
+                <span className="text-muted-foreground">
+                  승: <span className="text-green-400 font-bold">{todayTrades.filter(t => {
+                    const dir = t.side === 'long' ? 1 : -1;
+                    const gross = (t.exitPrice - t.entryPrice) * dir * t.quantity;
+                    const fee = (t.entryPrice * t.quantity + t.exitPrice * t.quantity) * 0.0005;
+                    return gross - fee > 0;
+                  }).length}</span>
+                  {' '}패: <span className="text-red-400 font-bold">{todayTrades.filter(t => {
+                    const dir = t.side === 'long' ? 1 : -1;
+                    const gross = (t.exitPrice - t.entryPrice) * dir * t.quantity;
+                    const fee = (t.entryPrice * t.quantity + t.exitPrice * t.quantity) * 0.0005;
+                    return gross - fee <= 0;
+                  }).length}</span>
+                </span>
+                <span className={cn(
+                  "font-mono font-bold",
+                  todayTrades.reduce((sum, t) => {
+                    const dir = t.side === 'long' ? 1 : -1;
+                    const gross = (t.exitPrice - t.entryPrice) * dir * t.quantity;
+                    const fee = (t.entryPrice * t.quantity + t.exitPrice * t.quantity) * 0.0005;
+                    return sum + (gross - fee);
+                  }, 0) >= 0 ? "text-green-400" : "text-red-400"
+                )}>
+                  합계: {todayTrades.reduce((sum, t) => {
+                    const dir = t.side === 'long' ? 1 : -1;
+                    const gross = (t.exitPrice - t.entryPrice) * dir * t.quantity;
+                    const fee = (t.entryPrice * t.quantity + t.exitPrice * t.quantity) * 0.0005;
+                    return sum + (gross - fee);
+                  }, 0) >= 0 ? '+' : ''}₩{formatKRW(todayTrades.reduce((sum, t) => {
+                    const dir = t.side === 'long' ? 1 : -1;
+                    const gross = (t.exitPrice - t.entryPrice) * dir * t.quantity;
+                    const fee = (t.entryPrice * t.quantity + t.exitPrice * t.quantity) * 0.0005;
+                    return sum + (gross - fee);
+                  }, 0))}
+                </span>
+              </div>
             </div>
           )}
 
