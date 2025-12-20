@@ -310,7 +310,7 @@ export function useCoinScreening(
             timestamp: Date.now(),
           };
           signals.push(signal);
-          addScreeningLog('approve', `${direction.toUpperCase()} 진입! MTF(${proDirection.confidence.toFixed(0)}%)`, t.symbol);
+          addScreeningLog('approve', `${direction.toUpperCase()} 시그널 감지 MTF(${proDirection.confidence.toFixed(0)}%)`, t.symbol);
 
           analyzed.push({
             symbol: t.symbol,
@@ -351,7 +351,7 @@ export function useCoinScreening(
       if (signals.length > 0) {
         addScreeningLog('complete', `완료! 시그널: ${signals.map(s => `${s.symbol.replace('USDT', '')} ${s.direction.toUpperCase()}`).join(', ')}`);
       } else {
-        addScreeningLog('complete', `완료 - 진입 조건 충족 종목 없음 (${analyzed.length}개 분석)`);
+        addScreeningLog('complete', `완료 - 시그널 없음 (${analyzed.length}개 분석)`);
       }
 
     } catch (error) {
