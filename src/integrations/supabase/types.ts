@@ -21,6 +21,7 @@ export type Database = {
           daily_income_usd: number | null
           deposit_usd: number | null
           id: string
+          is_testnet: boolean
           snapshot_date: string
           user_id: string
           withdrawal_usd: number | null
@@ -31,6 +32,7 @@ export type Database = {
           daily_income_usd?: number | null
           deposit_usd?: number | null
           id?: string
+          is_testnet?: boolean
           snapshot_date: string
           user_id: string
           withdrawal_usd?: number | null
@@ -41,6 +43,7 @@ export type Database = {
           daily_income_usd?: number | null
           deposit_usd?: number | null
           id?: string
+          is_testnet?: boolean
           snapshot_date?: string
           user_id?: string
           withdrawal_usd?: number | null
@@ -53,6 +56,7 @@ export type Database = {
           entry_price: number
           exit_price: number
           id: string
+          is_testnet: boolean
           leverage: number
           pnl_usd: number
           quantity: number
@@ -66,6 +70,7 @@ export type Database = {
           entry_price: number
           exit_price: number
           id?: string
+          is_testnet?: boolean
           leverage?: number
           pnl_usd: number
           quantity: number
@@ -79,6 +84,7 @@ export type Database = {
           entry_price?: number
           exit_price?: number
           id?: string
+          is_testnet?: boolean
           leverage?: number
           pnl_usd?: number
           quantity?: number

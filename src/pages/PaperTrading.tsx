@@ -25,7 +25,7 @@ const PaperTrading = () => {
 
   const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
-  const { dailyStats, logTrade, fetchDailyStats } = useTradingLogs();
+  const { dailyStats, logTrade, fetchDailyStats } = useTradingLogs({ isTestnet: true });
   
   // Only connect WebSocket when user is authenticated and API keys are ready
   const shouldConnectWebSocket = !!user && hasApiKeys === true;

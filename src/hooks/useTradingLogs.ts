@@ -13,6 +13,7 @@ interface TradingLog {
   leverage: number;
   pnl_usd: number;
   created_at: string;
+  is_testnet: boolean;
 }
 
 interface DailyStats {
@@ -23,7 +24,13 @@ interface DailyStats {
   winRate: number;
 }
 
-export const useTradingLogs = () => {
+interface UseTradingLogsOptions {
+  isTestnet?: boolean;
+}
+
+export const useTradingLogs = (options: UseTradingLogsOptions = {}) => {
+  const { isTestnet = false } = options;
+  
   const [dailyStats, setDailyStats] = useState<DailyStats>({
     totalPnL: 0,
     tradeCount: 0,
@@ -58,7 +65,8 @@ export const useTradingLogs = () => {
         .from('daily_trading_logs')
         .select('*')
         .eq('user_id', user.id)
-        .eq('trade_date', today);
+        .eq('trade_date', today)
+        .eq('is_testnet', isTestnet); // 테스트넷/실거래 구분
 
       if (error) {
         console.error('Failed to fetch trading logs:', error);
@@ -93,7 +101,7 @@ export const useTradingLogs = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isTestnet]);
 
   // Log a completed trade
   const logTrade = useCallback(async (trade: {
@@ -123,6 +131,7 @@ export const useTradingLogs = () => {
           quantity: trade.quantity,
           leverage: trade.leverage,
           pnl_usd: trade.pnlUsd,
+          is_testnet: isTestnet, // 테스트넷/실거래 구분
         });
 
       if (error) {
@@ -146,7 +155,7 @@ export const useTradingLogs = () => {
     } catch (error) {
       console.error('Error logging trade:', error);
     }
-  }, []);
+  }, [isTestnet]);
 
   // Reset daily stats (for new day)
   const resetDailyStats = useCallback(() => {
@@ -159,7 +168,7 @@ export const useTradingLogs = () => {
     });
   }, []);
 
-  // Fetch stats on mount
+  // Fetch stats on mount and when isTestnet changes
   useEffect(() => {
     fetchDailyStats();
   }, [fetchDailyStats]);
