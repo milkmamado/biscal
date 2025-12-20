@@ -25,9 +25,10 @@ interface MonthlyStats {
 interface TradingRecordModalProps {
   krwRate: number;
   isTestnet?: boolean;
+  refreshTrigger?: number; // 🆕 청산/갱신 트리거
 }
 
-const TradingRecordModal = ({ krwRate, isTestnet = false }: TradingRecordModalProps) => {
+const TradingRecordModal = ({ krwRate, isTestnet = false, refreshTrigger = 0 }: TradingRecordModalProps) => {
   const [open, setOpen] = useState(false);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
@@ -151,7 +152,7 @@ const TradingRecordModal = ({ krwRate, isTestnet = false }: TradingRecordModalPr
       fetchMonthlyRecords();
       fetchCumulativeStats();
     }
-  }, [open, selectedYear, selectedMonth]);
+  }, [open, selectedYear, selectedMonth, refreshTrigger, isTestnet]);
 
   const handlePrevMonth = () => {
     if (selectedMonth === 1) {

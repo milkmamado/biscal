@@ -459,7 +459,7 @@ const AutoTradingPanel = ({
             {pendingSignal && !currentPosition && (
               <BacktestModal symbol={pendingSignal.symbol} />
             )}
-            <TradingRecordModal krwRate={krwRate} isTestnet={isTestnet} />
+            <TradingRecordModal krwRate={krwRate} isTestnet={isTestnet} refreshTrigger={refreshTrigger} />
           </div>
         </div>
       </div>
