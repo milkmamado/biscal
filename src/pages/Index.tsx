@@ -20,6 +20,7 @@ const Index = () => {
   const [krwRate, setKrwRate] = useState(1380);
   const [leverage, setLeverage] = useState(10);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [majorCoinMode, setMajorCoinMode] = useState(true); // 🆕 메이저 코인 모드 (기본값 ON)
 
   const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
@@ -40,7 +41,7 @@ const Index = () => {
     totalPnL: dailyStats.totalPnL,
   };
   
-  // 자동매매 훅
+  // 자동매매 훅 (메이저 코인 모드 전달)
   const autoTrading = useAutoTrading({
     balanceUSD,
     leverage,
@@ -48,6 +49,7 @@ const Index = () => {
     onTradeComplete: handleTradeComplete,
     initialStats,
     logTrade,
+    majorCoinMode, // 🆕 메이저 코인 모드
   });
   
   // 자동매매 중 절전 방지 (백그라운드 탭에서도 안정적 동작)
@@ -66,8 +68,8 @@ const Index = () => {
       volatilityRange: c.volatilityRange
     }));
   
-  // 기술적 분석 기반 종목 스크리닝
-  const { activeSignals, isScanning, screenedSymbols, lastScanTime } = useCoinScreening(tickersForScreening);
+  // 기술적 분석 기반 종목 스크리닝 (메이저 코인 모드 전달)
+  const { activeSignals, isScanning, screenedSymbols, lastScanTime } = useCoinScreening(tickersForScreening, {}, majorCoinMode);
 
   // 이전 시그널 추적 (재시도 쿨다운 기반)
   const prevSignalsRef = useRef<Map<string, number>>(new Map());
@@ -302,6 +304,8 @@ const Index = () => {
               signalsCount: activeSignals.length,
               lastScanTime,
             }}
+            majorCoinMode={majorCoinMode}
+            onToggleMajorCoinMode={() => setMajorCoinMode(prev => !prev)}
           />
         </div>
       </div>
