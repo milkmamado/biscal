@@ -112,6 +112,7 @@ interface UseAutoTradingProps {
     leverage: number;
     pnlUsd: number;
   }) => Promise<void>;
+  isTestnet?: boolean; // 테스트넷 모드
 }
 
 // 설정값
@@ -256,6 +257,7 @@ export function useAutoTrading({
   onTradeComplete,
   initialStats,
   logTrade,
+  isTestnet = false,
 }: UseAutoTradingProps) {
   const { user } = useAuth();
   const {
@@ -264,7 +266,8 @@ export function useAutoTrading({
     getPositions,
     cancelAllOrders,
     setLeverage,
-  } = useBinanceApi();
+    isTestnetReady,
+  } = useBinanceApi({ isTestnet });
 
   const [state, setState] = useState<AutoTradingState>({
     isEnabled: false,

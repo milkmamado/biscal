@@ -45,7 +45,7 @@ const PaperTrading = () => {
     totalPnL: dailyStats.totalPnL,
   };
   
-  // 자동매매 훅
+  // 자동매매 훅 (테스트넷 모드)
   const autoTrading = useAutoTrading({
     balanceUSD,
     leverage,
@@ -53,6 +53,7 @@ const PaperTrading = () => {
     onTradeComplete: handleTradeComplete,
     initialStats,
     logTrade,
+    isTestnet: true, // 테스트넷 모드 활성화
   });
   
   // 자동매매 중 절전 방지
@@ -325,6 +326,7 @@ const PaperTrading = () => {
               signalsCount: activeSignals.length,
               lastScanTime,
             }}
+            isTestnet={true}
           />
         </div>
       </div>
