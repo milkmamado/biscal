@@ -8,21 +8,14 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { z } from 'zod';
-import { ArrowLeft, Mail, Shield, FlaskConical, Zap, Lock } from 'lucide-react';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from '@/components/ui/dialog';
+import { ArrowLeft, Mail, Shield, Zap, TrendingUp, Beaker } from 'lucide-react';
 
 const authSchema = z.object({
   email: z.string().trim().email({ message: "올바른 이메일 주소를 입력하세요" }),
   password: z.string().min(6, { message: "비밀번호는 최소 6자 이상이어야 합니다" })
 });
 
-type AuthStep = 'credentials' | 'otp';
+type AuthStep = 'credentials' | 'otp' | 'mode-select';
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
@@ -32,18 +25,11 @@ export default function Auth() {
   const [step, setStep] = useState<AuthStep>('credentials');
   const [isLoading, setIsLoading] = useState(false);
   const [pendingOtp, setPendingOtp] = useState(false);
-  const [showExerciseModal, setShowExerciseModal] = useState(false);
-  const [exercisePassword, setExercisePassword] = useState('');
-  const [exerciseError, setExerciseError] = useState('');
   const { signIn, signUp, user, loading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  useEffect(() => {
-    if (!loading && user && !pendingOtp) {
-      navigate('/');
-    }
-  }, [user, loading, navigate, pendingOtp]);
+  // 로그인 후 자동 리다이렉트 제거 - 대신 mode-select 화면 표시
 
   const sendVerificationCode = async (targetEmail: string) => {
     const { data, error } = await supabase.functions.invoke('send-verification-code', {
@@ -181,7 +167,7 @@ export default function Auth() {
         title: "로그인 성공",
         description: "환영합니다!"
       });
-      navigate('/');
+      setStep('mode-select');
     } catch (error: any) {
       toast({
         title: "인증 실패",
@@ -333,23 +319,18 @@ export default function Auth() {
                 </Button>
               </form>
               
-              {/* Exercise Room Button */}
-              <div className="mt-8 pt-6 border-t border-cyan-500/20">
-                <Button
-                  variant="outline"
-                  className="w-full gap-2 border-fuchsia-500/40 text-fuchsia-400 hover:bg-fuchsia-500/10 hover:border-fuchsia-400/60 hover:text-fuchsia-300 font-mono tracking-wider transition-all duration-300 shadow-lg shadow-fuchsia-500/10 hover:shadow-fuchsia-500/20"
-                  onClick={() => {
-                    setShowExerciseModal(true);
-                    setExercisePassword('');
-                    setExerciseError('');
-                  }}
+              {/* Toggle between login and signup */}
+              <div className="text-center mt-4">
+                <button
+                  type="button"
+                  onClick={() => setIsLogin(!isLogin)}
+                  className="text-xs text-cyan-400/60 hover:text-cyan-400 transition-colors font-mono"
                 >
-                  <FlaskConical className="h-4 w-4" />
-                  EXERCISE ROOM
-                </Button>
+                  {isLogin ? '계정이 없으신가요? 회원가입' : '이미 계정이 있으신가요? 로그인'}
+                </button>
               </div>
             </>
-          ) : (
+          ) : step === 'otp' ? (
             <div className="space-y-6">
               <button
                 type="button"
@@ -412,6 +393,52 @@ export default function Auth() {
                 </button>
               </div>
             </div>
+          ) : (
+            /* Mode Selection Screen */
+            <div className="space-y-6">
+              <div className="text-center space-y-3">
+                <div className="flex justify-center">
+                  <div className="p-3 rounded-full bg-green-500/10 border border-green-500/30">
+                    <Zap className="h-6 w-6 text-green-400" />
+                  </div>
+                </div>
+                <div>
+                  <p className="text-green-400 font-mono font-bold tracking-wider text-sm">ACCESS GRANTED</p>
+                  <p className="text-xs text-muted-foreground mt-1 font-mono">
+                    Select trading mode
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <Button 
+                  onClick={() => navigate('/')}
+                  className="w-full h-16 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-mono font-bold tracking-wider transition-all duration-300 shadow-lg shadow-cyan-500/25 hover:shadow-cyan-400/40"
+                >
+                  <div className="flex items-center gap-3">
+                    <TrendingUp className="h-5 w-5" />
+                    <div className="text-left">
+                      <div className="text-sm">LIVE TRADING</div>
+                      <div className="text-[10px] opacity-70 font-normal">실물 거래</div>
+                    </div>
+                  </div>
+                </Button>
+
+                <Button 
+                  onClick={() => navigate('/paper-trading')}
+                  variant="outline"
+                  className="w-full h-16 border-fuchsia-500/40 text-fuchsia-400 hover:bg-fuchsia-500/10 hover:border-fuchsia-400/60 hover:text-fuchsia-300 font-mono tracking-wider transition-all duration-300 shadow-lg shadow-fuchsia-500/10 hover:shadow-fuchsia-500/20"
+                >
+                  <div className="flex items-center gap-3">
+                    <Beaker className="h-5 w-5" />
+                    <div className="text-left">
+                      <div className="text-sm">PAPER TRADING</div>
+                      <div className="text-[10px] opacity-70 font-normal">모의 투자</div>
+                    </div>
+                  </div>
+                </Button>
+              </div>
+            </div>
           )}
 
           {/* Status bar */}
@@ -427,82 +454,6 @@ export default function Auth() {
         </div>
       </div>
 
-      {/* Exercise Room Password Modal */}
-      <Dialog open={showExerciseModal} onOpenChange={setShowExerciseModal}>
-        <DialogContent className="bg-card/95 backdrop-blur-xl border-fuchsia-500/30 max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="text-center font-mono text-fuchsia-400 tracking-wider flex items-center justify-center gap-2">
-              <Lock className="h-5 w-5" />
-              EXERCISE ROOM ACCESS
-            </DialogTitle>
-            <DialogDescription className="sr-only">
-              Enter password to access the exercise room
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 pt-2">
-            <div className="space-y-2">
-              <Label className="text-fuchsia-300/80 text-xs font-mono uppercase tracking-wider">
-                Entry Password
-              </Label>
-              <Input
-                type="password"
-                placeholder="••••••••"
-                value={exercisePassword}
-                onChange={(e) => {
-                  setExercisePassword(e.target.value);
-                  setExerciseError('');
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    if (exercisePassword === '12661266') {
-                      if (!user) {
-                        setExerciseError('LOGIN REQUIRED');
-                        toast({
-                          title: '로그인이 필요합니다',
-                          description: 'Exercise Room은 로그인 후 이용할 수 있습니다.',
-                          variant: 'destructive',
-                        });
-                        return;
-                      }
-                      setShowExerciseModal(false);
-                      navigate('/paper-trading');
-                    } else {
-                      setExerciseError('ACCESS DENIED');
-                    }
-                  }
-                }}
-                className="bg-background/50 border-fuchsia-500/30 text-foreground font-mono placeholder:text-muted-foreground/50 focus:border-fuchsia-400 focus:ring-fuchsia-400/20"
-              />
-              {exerciseError && (
-                <p className="text-xs text-red-400 font-mono animate-pulse">{exerciseError}</p>
-              )}
-            </div>
-            <Button
-              className="w-full bg-gradient-to-r from-fuchsia-500 to-purple-600 hover:from-fuchsia-400 hover:to-purple-500 text-white font-mono font-bold tracking-wider shadow-lg shadow-fuchsia-500/25"
-              onClick={() => {
-                if (exercisePassword === '12661266') {
-                  if (!user) {
-                    setExerciseError('LOGIN REQUIRED');
-                    toast({
-                      title: '로그인이 필요합니다',
-                      description: 'Exercise Room은 로그인 후 이용할 수 있습니다.',
-                      variant: 'destructive',
-                    });
-                    return;
-                  }
-                  setShowExerciseModal(false);
-                  navigate('/paper-trading');
-                } else {
-                  setExerciseError('ACCESS DENIED');
-                }
-              }}
-            >
-              <Zap className="h-4 w-4 mr-2" />
-              ENTER
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
