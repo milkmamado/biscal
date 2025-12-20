@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useTradingLogs } from '@/hooks/useTradingLogs';
-import { useAutoTrading } from '@/hooks/useAutoTrading';
+import { useSwingTrading } from '@/hooks/useSwingTrading';
 import { useCoinScreening } from '@/hooks/useCoinScreening';
 import { useTickerWebSocket } from '@/hooks/useTickerWebSocket';
 import { useWakeLock } from '@/hooks/useWakeLock';
@@ -46,8 +46,8 @@ const PaperTrading = () => {
     totalPnL: dailyStats.totalPnL,
   };
   
-  // 자동매매 훅 (테스트넷 + 메이저 코인 모드)
-  const autoTrading = useAutoTrading({
+  // 5분 스윙 매매 훅 (테스트넷)
+  const autoTrading = useSwingTrading({
     balanceUSD,
     leverage,
     krwRate,
@@ -55,7 +55,7 @@ const PaperTrading = () => {
     initialStats,
     logTrade,
     isTestnet: true,
-    majorCoinMode, // 🆕 메이저 코인 모드
+    majorCoinMode,
   });
   
   // 자동매매 중 절전 방지
@@ -247,23 +247,11 @@ const PaperTrading = () => {
     ? tickers.find(t => t.symbol === autoTrading.state.currentPosition?.symbol)?.price || 0
     : 0;
     
-  // 손절/익절 예정 가격 계산
+  // 손절/익절 예정 가격 계산 (평단가 기준)
   const position = autoTrading.state.currentPosition;
-  const stopLossPrice = position ? (
-    position.takeProfitState?.breakEvenActivated
-      ? (position.side === 'long'
-          ? position.entryPrice * (1 + 0.0002)
-          : position.entryPrice * (1 - 0.0002))
-      : (position.side === 'long'
-          ? position.entryPrice * (1 - 0.0025)
-          : position.entryPrice * (1 + 0.0025))
-  ) : undefined;
-  
-  const takeProfitPrice = position ? (
-    position.side === 'long'
-      ? position.entryPrice * (1 + 0.0025)
-      : position.entryPrice * (1 - 0.0025)
-  ) : undefined;
+  const { tpPrice, slPrice } = autoTrading.calculateTpSlPrices();
+  const stopLossPrice = position ? slPrice : undefined;
+  const takeProfitPrice = position ? tpPrice : undefined;
 
   return (
     <div className="h-screen bg-background p-1 overflow-hidden flex flex-col">
