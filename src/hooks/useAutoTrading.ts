@@ -118,7 +118,7 @@ interface UseAutoTradingProps {
 const CONFIG = {
   // 익절/손절 (기본값) - 동적 TP로 대체됨
   TP_PERCENT: 0.25,          // 기본 TP (약한 추세)
-  SL_PERCENT: 0.25,          // -0.25% 도달 시 전량 손절 (최종 방어선)
+  SL_PERCENT: 0.12,          // -0.12% 도달 시 전량 손절 (기존 -0.25%의 절반)
   
   // 🆕 동적 익절 설정 (ADX + 모멘텀 기반) - 상향 조정
   DYNAMIC_TP: {
@@ -145,14 +145,14 @@ const CONFIG = {
     },
   },
   
-  // 🆕 다단계 조기 손절 (슬리피지 방지)
+  // 🆕 다단계 조기 손절 (슬리피지 방지) - 절반으로 타이트하게
   EARLY_SL: {
     STAGE1_SEC: 15,          // 1단계: 15초 이내
-    STAGE1_PERCENT: 0.15,    // -0.15% 이상 손실 시
+    STAGE1_PERCENT: 0.07,    // -0.07% 이상 손실 시 (기존 -0.15%의 절반)
     STAGE1_REDUCE: 0.5,      // 50% 청산
     
     STAGE2_SEC: 30,          // 2단계: 30초 이내
-    STAGE2_PERCENT: 0.20,    // -0.20% 이상 손실 시
+    STAGE2_PERCENT: 0.10,    // -0.10% 이상 손실 시 (기존 -0.20%의 절반)
     STAGE2_REDUCE: 0.75,     // 75% 청산
   },
   
