@@ -578,6 +578,16 @@ export function useAutoTrading({
     }));
 
     // ============================================
+    // 🆕 진입 직후 보호 시간 (모든 손절 면제)
+    // ============================================
+    const MIN_HOLD_BEFORE_SL = 5; // 최소 5초간 손절 체크 안함
+    if (holdTimeSec < MIN_HOLD_BEFORE_SL) {
+      // 보호 기간 중에는 모든 손절 스킵 (수수료로 인한 즉시 손절 방지)
+      console.log(`[보호] ${holdTimeSec.toFixed(1)}초 - 진입 직후 보호 기간 (${MIN_HOLD_BEFORE_SL}초까지)`);
+      return;
+    }
+
+    // ============================================
     // 🆕 1단계: 오더북 긴급 탈출 (가장 빠른 반응)
     // ============================================
     if (orderbookImbalance !== undefined && pnlPercent < 0) {
