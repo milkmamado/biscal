@@ -14,6 +14,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from '@/components/ui/dialog';
 
 const authSchema = z.object({
@@ -434,6 +435,9 @@ export default function Auth() {
               <Lock className="h-5 w-5" />
               EXERCISE ROOM ACCESS
             </DialogTitle>
+            <DialogDescription className="sr-only">
+              Enter password to access the exercise room
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 pt-2">
             <div className="space-y-2">
