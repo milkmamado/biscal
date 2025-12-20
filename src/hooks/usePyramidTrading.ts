@@ -316,7 +316,7 @@ export function usePyramidTrading({
     }
   }, []);
 
-  // ===== 반대 캔들 분석 (물타기 필터용) =====
+  // ===== 반대 캔들 분석 (긴급 탈출용) =====
   const analyzeOppositeCandles = useCallback(async (
     symbol: string,
     direction: 'long' | 'short'
@@ -326,13 +326,11 @@ export function usePyramidTrading({
       if (!klines || klines.length < 3) return 0;
 
       let count = 0;
-      // 반대 방향 캔들 카운트
       for (let i = klines.length - 2; i >= 0; i--) {
         const candle = klines[i];
         const isBullish = candle.close > candle.open;
         const isBearish = candle.close < candle.open;
 
-        // 롱 포지션이면 하락 캔들이 반대
         if (direction === 'long' && isBearish) count++;
         else if (direction === 'short' && isBullish) count++;
         else break;
@@ -343,14 +341,13 @@ export function usePyramidTrading({
     }
   }, []);
 
-  // ===== 물타기 안전 필터 체크 =====
+  // ===== 물타기 비활성화됨 (v3.0) =====
+  // 물타기는 하락 추세에서 손실을 증폭시키므로 제거됨
   const checkAveragingDownSafety = useCallback(async (
     position: PyramidPosition,
     dailyAvgDownCount: number
   ): Promise<{ safe: boolean; reason: string }> => {
-    // 🔧 사용자 요청: 물타기 안전 필터 비활성화
-    // 모든 물타기 허용
-    return { safe: true, reason: '물타기 진행' };
+    return { safe: false, reason: '물타기 비활성화됨 (v3.0)' };
   }, []);
 
   // ===== 분할 청산 실행 =====
@@ -635,9 +632,10 @@ export function usePyramidTrading({
       }
     }
 
-    // ===== 🔧 손익분기 근처 조기 청산 (5분 후) =====
-    if (holdTimeMin >= 5 && Math.abs(pnlPercent) <= 0.05) {
-      console.log(`⚖️ 손익분기 조기 청산! ${pnlPercent.toFixed(3)}% (5분 경과, -0.05% ~ +0.05% 구간)`);
+    // ===== 🔧 v3.0: 손익분기 근처 조기 청산 (8분 후) =====
+    // 충분한 시간 경과 후에도 수익이 없으면 청산하고 다음 기회 노림
+    if (holdTimeMin >= 8 && pnlPercent >= -0.03 && pnlPercent <= 0.08) {
+      console.log(`⚖️ 손익분기 조기 청산! ${pnlPercent.toFixed(3)}% (8분 경과, -0.03% ~ +0.08% 구간)`);
       await closePosition('time_exit', currentPrice);
       return;
     }
@@ -1039,48 +1037,9 @@ export function usePyramidTrading({
       return;
     }
 
-    // ===== 물타기 체크 (손실시) =====
-    const avgDownCheck = shouldAverageDown(position.currentStage, pnlPercent, currentType);
-    if (avgDownCheck.should) {
-      // 🛡️ 물타기 안전 필터 체크
-      const safetyCheck = await checkAveragingDownSafety(position, state.dailyRisk.averageDownCount);
-      if (!safetyCheck.safe) {
-        console.log(`🛡️ [물타기 차단] ${safetyCheck.reason}`);
-        return;
-      }
-
-      // 물타기 효과 미리 계산
-      const stagePercent = PYRAMID_CONFIG.STAGE_SIZE_PERCENT / 100;
-      const newQty = (balanceUSD * stagePercent * PYRAMID_CONFIG.LEVERAGE) / currentPrice;
-      const { improvementPercent } = calculateNewAvgPrice(
-        position.avgPrice,
-        position.totalQuantity,
-        currentPrice,
-        newQty
-      );
-
-      // 🔧 중복 진입 방지 락
-      stageEntryRef.current = true;
-      lastStageEntryTimeRef.current = Date.now();
-      
-      console.log(`💧 [물타기] ${nextStage}단계 진입! ${avgDownCheck.reason} (손실 ${pnlPercent.toFixed(2)}%, 평단 개선 ${improvementPercent.toFixed(2)}%)`);
-      
-      // 물타기 횟수 증가
-      setState(prev => ({
-        ...prev,
-        dailyRisk: {
-          ...prev.dailyRisk,
-          averageDownCount: prev.dailyRisk.averageDownCount + 1,
-        },
-      }));
-
-      try {
-        await executePyramidEntry(position.symbol, position.side, currentPrice, position.indicators, nextStage);
-      } finally {
-        stageEntryRef.current = false;
-      }
-      return;
-    }
+    // ===== 물타기 비활성화됨 (v3.0) =====
+    // 물타기는 하락 추세에서 손실을 증폭시키므로 제거됨
+    // 손실 시에는 손절만 실행
 
   }, [state.currentPosition, state.dailyRisk, balanceUSD, calculatePnLPercent, analyzeConsecutiveCandles, checkAveragingDownSafety, executePyramidEntry]);
 
