@@ -49,7 +49,7 @@ interface SwingEntry {
 }
 
 // 스윙 포지션 정보
-interface SwingPosition {
+export interface SwingPosition {
   symbol: string;
   side: 'long' | 'short';
   entries: SwingEntry[];
