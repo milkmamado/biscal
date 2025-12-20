@@ -26,7 +26,10 @@ const PaperTrading = () => {
   const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
   const { dailyStats, logTrade, fetchDailyStats } = useTradingLogs();
-  const { tickers } = useTickerWebSocket();
+  
+  // Only connect WebSocket when user is authenticated and API keys are ready
+  const shouldConnectWebSocket = !!user && hasApiKeys === true;
+  const { tickers } = useTickerWebSocket(shouldConnectWebSocket);
   
   // 청산 후 즉시 잔고 갱신
   const handleTradeComplete = useCallback(() => {

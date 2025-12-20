@@ -11,7 +11,7 @@ let activeConnection: WebSocket | null = null;
 let connectionRefCount = 0;
 let lastDisconnectNotification = 0;
 
-export const useTickerWebSocket = () => {
+export const useTickerWebSocket = (enabled: boolean = true) => {
   const [tickers, setTickers] = useState<SymbolInfo[]>(globalTickers);
   const [isConnected, setIsConnected] = useState(false);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -170,6 +170,12 @@ export const useTickerWebSocket = () => {
   }, [processTickers]);
 
   useEffect(() => {
+    if (!enabled) {
+      setTickers([]);
+      setIsConnected(false);
+      return;
+    }
+    
     mountedRef.current = true;
     connectionRefCount++;
     
@@ -194,7 +200,7 @@ export const useTickerWebSocket = () => {
         activeConnection = null;
       }
     };
-  }, [connect]);
+  }, [connect, enabled]);
 
   return { tickers, isConnected };
 };
