@@ -23,7 +23,7 @@ const Index = () => {
 
   const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
-  const { dailyStats, logTrade, fetchDailyStats } = useTradingLogs();
+  const { dailyStats, logTrade, fetchDailyStats } = useTradingLogs({ isTestnet: false });
   const { tickers } = useTickerWebSocket();
   
   // 청산 후 즉시 잔고 갱신
