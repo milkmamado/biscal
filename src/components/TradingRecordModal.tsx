@@ -364,12 +364,8 @@ const TradingRecordModal = ({ krwRate, isTestnet = false, refreshTrigger = 0 }: 
                   <tbody>
                     {todayTrades.map((trade) => {
                       const time = new Date(trade.createdAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
-                      // 수수료 반영 순손익 계산
-                      const feeRate = 0.0005;
-                      const dir = trade.side === 'long' ? 1 : -1;
-                      const gross = (trade.exitPrice - trade.entryPrice) * dir * trade.quantity;
-                      const fee = (trade.entryPrice * trade.quantity + trade.exitPrice * trade.quantity) * feeRate;
-                      const netPnl = gross - fee;
+                      // DB에 저장된 pnlUsd는 이미 수수료 포함 최종 손익
+                      const netPnl = trade.pnlUsd;
                       const isWin = netPnl > 0;
                       
                       return (
@@ -401,39 +397,14 @@ const TradingRecordModal = ({ krwRate, isTestnet = false, refreshTrigger = 0 }: 
               </div>
               <div className="px-3 py-1.5 bg-secondary/30 border-t border-border/30 flex justify-between text-[10px]">
                 <span className="text-muted-foreground">
-                  승: <span className="text-green-400 font-bold">{todayTrades.filter(t => {
-                    const dir = t.side === 'long' ? 1 : -1;
-                    const gross = (t.exitPrice - t.entryPrice) * dir * t.quantity;
-                    const fee = (t.entryPrice * t.quantity + t.exitPrice * t.quantity) * 0.0005;
-                    return gross - fee > 0;
-                  }).length}</span>
-                  {' '}패: <span className="text-red-400 font-bold">{todayTrades.filter(t => {
-                    const dir = t.side === 'long' ? 1 : -1;
-                    const gross = (t.exitPrice - t.entryPrice) * dir * t.quantity;
-                    const fee = (t.entryPrice * t.quantity + t.exitPrice * t.quantity) * 0.0005;
-                    return gross - fee <= 0;
-                  }).length}</span>
+                  승: <span className="text-green-400 font-bold">{todayTrades.filter(t => t.pnlUsd > 0).length}</span>
+                  {' '}패: <span className="text-red-400 font-bold">{todayTrades.filter(t => t.pnlUsd <= 0).length}</span>
                 </span>
                 <span className={cn(
                   "font-mono font-bold",
-                  todayTrades.reduce((sum, t) => {
-                    const dir = t.side === 'long' ? 1 : -1;
-                    const gross = (t.exitPrice - t.entryPrice) * dir * t.quantity;
-                    const fee = (t.entryPrice * t.quantity + t.exitPrice * t.quantity) * 0.0005;
-                    return sum + (gross - fee);
-                  }, 0) >= 0 ? "text-green-400" : "text-red-400"
+                  todayTrades.reduce((sum, t) => sum + t.pnlUsd, 0) >= 0 ? "text-green-400" : "text-red-400"
                 )}>
-                  합계: {todayTrades.reduce((sum, t) => {
-                    const dir = t.side === 'long' ? 1 : -1;
-                    const gross = (t.exitPrice - t.entryPrice) * dir * t.quantity;
-                    const fee = (t.entryPrice * t.quantity + t.exitPrice * t.quantity) * 0.0005;
-                    return sum + (gross - fee);
-                  }, 0) >= 0 ? '+' : ''}₩{formatKRW(todayTrades.reduce((sum, t) => {
-                    const dir = t.side === 'long' ? 1 : -1;
-                    const gross = (t.exitPrice - t.entryPrice) * dir * t.quantity;
-                    const fee = (t.entryPrice * t.quantity + t.exitPrice * t.quantity) * 0.0005;
-                    return sum + (gross - fee);
-                  }, 0))}
+                  합계: {todayTrades.reduce((sum, t) => sum + t.pnlUsd, 0) >= 0 ? '+' : ''}₩{formatKRW(todayTrades.reduce((sum, t) => sum + t.pnlUsd, 0))}
                 </span>
               </div>
             </div>
