@@ -147,11 +147,11 @@ const CONFIG = {
   
   // 🆕 다단계 조기 손절 (슬리피지 방지)
   EARLY_SL: {
-    STAGE1_SEC: 30,          // 1단계: 30초 이내
+    STAGE1_SEC: 15,          // 1단계: 15초 이내
     STAGE1_PERCENT: 0.15,    // -0.15% 이상 손실 시
     STAGE1_REDUCE: 0.5,      // 50% 청산
     
-    STAGE2_SEC: 60,          // 2단계: 60초 이내
+    STAGE2_SEC: 30,          // 2단계: 30초 이내
     STAGE2_PERCENT: 0.20,    // -0.20% 이상 손실 시
     STAGE2_REDUCE: 0.75,     // 75% 청산
   },
@@ -162,10 +162,10 @@ const CONFIG = {
     EXIT_THRESHOLD: 50,       // 불균형 50% 이상 시 즉시 탈출
   },
   
-  // 브레이크이븐 설정 - 상향 조정
-  BREAKEVEN_TRIGGER: 0.20,   // +0.20% 도달 시 브레이크이븐 활성화 (기존 0.15%)
+  // 브레이크이븐 설정 - 하향 조정
+  BREAKEVEN_TRIGGER: 0.15,   // +0.15% 도달 시 브레이크이븐 활성화
   BREAKEVEN_SL: 0.03,        // 브레이크이븐 시 손절을 +0.03%로 (수수료 커버)
-  BREAKEVEN_TIMEOUT_SEC: 180, // 브레이크이븐 후 3분 내 TP 미도달 시 수익 확정 청산 (기존 2분)
+  BREAKEVEN_TIMEOUT_SEC: 180, // 브레이크이븐 후 3분 내 TP 미도달 시 수익 확정 청산
   
   // 진입 후 보호 시간 (손절 체크 안함) - 조기 손절 시스템으로 대체
   ENTRY_PROTECTION_SEC: 0,   // 🆕 보호 없음 (조기 손절이 대신함)
