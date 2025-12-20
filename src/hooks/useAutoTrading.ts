@@ -896,8 +896,9 @@ export function useAutoTrading({
     
     console.log(`[PositionSizing] ATR: ${atrPercent.toFixed(3)}% → ${volatilityLevel} (x${positionMultiplier})`);
     
-    // 안전 잔고 * 포지션 배수 적용
-    const safeBalance = balance * 0.9 * positionMultiplier;
+    // 안전 잔고 * 포지션 배수 적용 (최대 95% 제한으로 마진 부족 방지)
+    const effectiveMultiplier = Math.min(0.9 * positionMultiplier, 0.95);
+    const safeBalance = balance * effectiveMultiplier;
     const buyingPower = safeBalance * lev;
     return buyingPower / price;
   }, []);
