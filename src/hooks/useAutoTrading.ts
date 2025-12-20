@@ -397,7 +397,7 @@ export function useAutoTrading({
     });
   }, []);
 
-  // 전량 청산
+  // 전량 청산 (잔량 완전 정리 포함)
   const closePosition = useCallback(async (reason: 'tp' | 'sl' | 'exit' | 'time', currentPrice: number) => {
     if (!state.currentPosition) return;
     if (processingRef.current) return;
@@ -435,6 +435,26 @@ export function useAutoTrading({
       if (!closeResult || closeResult.error) {
         console.error(`❌ [closePosition] 청산 실패: ${closeResult?.error || '응답 없음'}`);
         throw new Error(closeResult?.error || '청산 실패');
+      }
+
+      // 🆕 잔량 확인 및 추가 청산 (찌꺼기 정리)
+      await new Promise(resolve => setTimeout(resolve, 500)); // API 지연 대기
+      const remainingPositions = await getPositions(position.symbol);
+      const remainingPosition = remainingPositions?.find((p: any) =>
+        p.symbol === position.symbol && Math.abs(parseFloat(p.positionAmt)) > 0
+      );
+      
+      if (remainingPosition) {
+        const remainingQty = Math.abs(parseFloat(remainingPosition.positionAmt));
+        if (remainingQty > 0) {
+          console.log(`🧹 [closePosition] 잔량 발견: ${remainingQty} → 추가 청산`);
+          try {
+            await placeMarketOrder(position.symbol, orderSide, remainingQty, true, currentPrice);
+            console.log(`✅ [closePosition] 잔량 청산 완료`);
+          } catch (e) {
+            console.warn(`⚠️ [closePosition] 잔량 청산 실패:`, e);
+          }
+        }
       }
 
       const currentConfig = getTradingConfig(isMajorCoin(position.symbol) && majorCoinModeRef.current);
