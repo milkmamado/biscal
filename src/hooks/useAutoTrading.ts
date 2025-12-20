@@ -908,59 +908,77 @@ export function useAutoTrading({
       let analyzedDirection: 'long' | 'short' = originalDirection;
       const reasons: string[] = [];
 
-      // 🔍 완성된 봉 분석
-      if (isBullish && bodyRatio > 0.6) {
-        // 강한 양봉 → 롱 유리
-        confidence += 15;
-        reasons.push(`강한 양봉 (${(bodyRatio * 100).toFixed(0)}%)`);
+      // 🔍 완성된 봉 분석 (기준 강화)
+      if (isBullish && bodyRatio > 0.5) {
+        // 양봉 → 롱 유리
+        const bonusConfidence = bodyRatio > 0.7 ? 20 : 12;
+        confidence += bonusConfidence;
+        reasons.push(`양봉 (${(bodyRatio * 100).toFixed(0)}%)`);
         if (analyzedDirection === 'short') {
           analyzedDirection = 'long';
-          reasons.push('→ 방향 반전: 롱');
+          reasons.push('→ 반전: 롱');
         }
-      } else if (isBearish && bodyRatio > 0.6) {
-        // 강한 음봉 → 숏 유리
-        confidence += 15;
-        reasons.push(`강한 음봉 (${(bodyRatio * 100).toFixed(0)}%)`);
+      } else if (isBearish && bodyRatio > 0.5) {
+        // 음봉 → 숏 유리
+        const bonusConfidence = bodyRatio > 0.7 ? 20 : 12;
+        confidence += bonusConfidence;
+        reasons.push(`음봉 (${(bodyRatio * 100).toFixed(0)}%)`);
         if (analyzedDirection === 'long') {
           analyzedDirection = 'short';
-          reasons.push('→ 방향 반전: 숏');
+          reasons.push('→ 반전: 숏');
         }
       }
 
-      // 꼬리 패턴 분석
-      if (upperWickRatio > 0.5 && lowerWickRatio < 0.2) {
+      // 꼬리 패턴 분석 (반전 신호)
+      if (upperWickRatio > 0.4 && lowerWickRatio < 0.15) {
         // 긴 윗꼬리 → 숏 유리 (매도 압력)
-        confidence += 10;
-        reasons.push('긴 윗꼬리 (매도 압력)');
+        confidence += 12;
+        reasons.push('윗꼬리 (매도압력)');
         if (analyzedDirection === 'long') {
           analyzedDirection = 'short';
+          reasons.push('→ 반전: 숏');
         }
-      } else if (lowerWickRatio > 0.5 && upperWickRatio < 0.2) {
+      } else if (lowerWickRatio > 0.4 && upperWickRatio < 0.15) {
         // 긴 아랫꼬리 → 롱 유리 (매수 압력)
-        confidence += 10;
-        reasons.push('긴 아랫꼬리 (매수 압력)');
+        confidence += 12;
+        reasons.push('아랫꼬리 (매수압력)');
         if (analyzedDirection === 'short') {
           analyzedDirection = 'long';
+          reasons.push('→ 반전: 롱');
         }
       }
 
-      // 🔍 다음 봉 시작 방향 확인 (3~5초 후)
+      // 🔍 이전 봉과의 연속성 체크
+      const prevCandleBody = prevCandle.close - prevCandle.open;
+      const isPrevBullish = prevCandleBody > 0;
+      const isPrevBearish = prevCandleBody < 0;
+      
+      if ((isBullish && isPrevBullish) || (isBearish && isPrevBearish)) {
+        // 2연속 같은 방향 → 신뢰도 상승
+        confidence += 10;
+        reasons.push('2연속 동일방향');
+      }
+
+      // 🔍 다음 봉 시작 방향 확인 (핵심 확인)
       if (isNextBullish) {
         if (analyzedDirection === 'long') {
-          confidence += 15;
-          reasons.push('다음 봉 시작 상승');
+          confidence += 18;
+          reasons.push('다음봉 상승확인');
         } else {
-          confidence -= 10;
-          reasons.push('다음 봉 시작 상승 (역방향)');
+          confidence -= 15;
+          reasons.push('다음봉 상승 (역방향!)');
         }
       } else if (isNextBearish) {
         if (analyzedDirection === 'short') {
-          confidence += 15;
-          reasons.push('다음 봉 시작 하락');
+          confidence += 18;
+          reasons.push('다음봉 하락확인');
         } else {
-          confidence -= 10;
-          reasons.push('다음 봉 시작 하락 (역방향)');
+          confidence -= 15;
+          reasons.push('다음봉 하락 (역방향!)');
         }
+      } else {
+        // 다음 봉이 도지/횡보
+        reasons.push('다음봉 중립');
       }
 
       // 최종 신뢰도 보정
@@ -971,11 +989,11 @@ export function useAutoTrading({
       return {
         direction: analyzedDirection,
         confidence,
-        reason: reasons.join(', ') || '기본 분석',
+        reason: reasons.join(', ') || '분석 없음',
       };
     } catch (error) {
       console.error('[analyzeCandleDirection] 에러:', error);
-      return { direction: originalDirection, confidence: 50, reason: '분석 실패' };
+      return { direction: originalDirection, confidence: 30, reason: '분석 실패' }; // 실패 시 30%로 낮춤
     }
   }, []);
 
@@ -1347,10 +1365,11 @@ export function useAutoTrading({
       toast.success(`✅ AI 확인: ${finalDirection === 'long' ? '롱' : '숏'} 진입 (${analysis.reason})`);
     }
 
-    // 신뢰도가 너무 낮으면 스킵
-    if (analysis.confidence < 40) {
-      console.log(`⚠️ [processPendingSignal] 신뢰도 부족 (${analysis.confidence}%) - 스킵`);
-      toast.warning(`⚠️ 신뢰도 부족 (${analysis.confidence}%) - 진입 스킵`);
+    // 🆕 신뢰도 기준 강화: 55% 이상 필요 (분석 실패/중립도 스킵)
+    const MIN_CONFIDENCE = 55;
+    if (analysis.confidence < MIN_CONFIDENCE || analysis.reason === '분석 없음' || analysis.reason === '분석 실패') {
+      console.log(`⚠️ [processPendingSignal] 신뢰도 부족 또는 분석 실패 (${analysis.confidence}%) - 스킵`);
+      toast.warning(`⚠️ 분석 불충분 (${analysis.confidence}%) - 진입 스킵`);
       setState(prev => ({
         ...prev,
         pendingSignal: null,
@@ -1363,7 +1382,7 @@ export function useAutoTrading({
         side: finalDirection,
         price: currentPrice,
         quantity: 0,
-        reason: `신뢰도 부족 (${analysis.confidence}%)`,
+        reason: `분석 불충분 (${analysis.confidence}%): ${analysis.reason}`,
       });
       return;
     }
