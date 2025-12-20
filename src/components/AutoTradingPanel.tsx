@@ -11,6 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import TradingRecordModal from './TradingRecordModal';
 import BacktestModal from './BacktestModal';
 import ScreeningLogPanel from './ScreeningLogPanel';
+import TradingDocsModal from './TradingDocsModal';
 
 // 스캘핑 시간대 적합도 데이터
 const getScalpingRating = () => {
@@ -358,6 +359,8 @@ const AutoTradingPanel = ({
           >
             <Crown className="w-4 h-4" />
           </button>
+          {/* 📚 매매 가이드 문서 */}
+          <TradingDocsModal majorCoinMode={majorCoinMode} />
           {/* 연속 손실 보호 토글 */}
           <button
             onClick={onToggleLossProtection}

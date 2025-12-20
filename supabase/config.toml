@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.verify-code]
 verify_jwt = false
+
+[functions.analyze-market]
+verify_jwt = false
