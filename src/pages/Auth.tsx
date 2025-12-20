@@ -455,6 +455,15 @@ export default function Auth() {
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     if (exercisePassword === '12661266') {
+                      if (!user) {
+                        setExerciseError('LOGIN REQUIRED');
+                        toast({
+                          title: '로그인이 필요합니다',
+                          description: 'Exercise Room은 로그인 후 이용할 수 있습니다.',
+                          variant: 'destructive',
+                        });
+                        return;
+                      }
                       setShowExerciseModal(false);
                       navigate('/paper-trading');
                     } else {
@@ -472,6 +481,15 @@ export default function Auth() {
               className="w-full bg-gradient-to-r from-fuchsia-500 to-purple-600 hover:from-fuchsia-400 hover:to-purple-500 text-white font-mono font-bold tracking-wider shadow-lg shadow-fuchsia-500/25"
               onClick={() => {
                 if (exercisePassword === '12661266') {
+                  if (!user) {
+                    setExerciseError('LOGIN REQUIRED');
+                    toast({
+                      title: '로그인이 필요합니다',
+                      description: 'Exercise Room은 로그인 후 이용할 수 있습니다.',
+                      variant: 'destructive',
+                    });
+                    return;
+                  }
                   setShowExerciseModal(false);
                   navigate('/paper-trading');
                 } else {
