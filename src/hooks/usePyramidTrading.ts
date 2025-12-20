@@ -50,6 +50,12 @@ import {
   getStageTPConfig,
   getStageMaxHold,
   getExposurePercent,
+  getMaxLossPercent,
+  getPositionType,
+  shouldPyramidUp,
+  shouldAverageDown,
+  calculateNewAvgPrice,
+  type PositionType,
 } from '@/lib/pyramidConfig';
 
 // ===== 타입 정의 =====
@@ -74,6 +80,7 @@ export interface PyramidPosition {
   partialCloses: number[];         // 분할 청산 기록
   consecutiveSameDir: number;      // 연속 같은 방향 캔들 수
   indicators: TechnicalIndicators;
+  positionType: PositionType;      // 포지션 유형: initial, pyramid_up, averaging_down
 }
 
 export interface PendingPyramidSignal {
@@ -562,29 +569,29 @@ export function usePyramidTrading({
       });
     }
 
-    // ===== 긴급 탈출 체크 =====
-    if (pnlPercent <= -EMERGENCY_CONFIG.MAX_LOSS_PERCENT) {
-      console.log(`🚨 긴급 탈출! 손실 ${pnlPercent.toFixed(2)}% <= -${EMERGENCY_CONFIG.MAX_LOSS_PERCENT}%`);
+    // ===== 긴급 탈출 체크 (포지션 유형별) =====
+    const positionType = getPositionType(position.currentStage);
+    const maxLoss = getMaxLossPercent(position.currentStage, positionType);
+    if (pnlPercent <= -maxLoss) {
+      console.log(`🚨 긴급 탈출! 손실 ${pnlPercent.toFixed(2)}% <= -${maxLoss}% (${positionType})`);
       await closePosition('emergency', currentPrice);
       return;
     }
 
-    // ===== 손절 체크 =====
-    const slPercent = getStageSL(position.currentStage);
+    // ===== 손절 체크 (포지션 유형별) =====
+    const slPercent = getStageSL(position.currentStage, positionType);
     if (pnlPercent <= -slPercent) {
-      console.log(`🛑 손절! ${pnlPercent.toFixed(2)}% <= -${slPercent}%`);
+      console.log(`🛑 손절! ${pnlPercent.toFixed(2)}% <= -${slPercent}% (${positionType})`);
       await closePosition('sl', currentPrice);
       return;
     }
 
-    // ===== 동적 손절 (4-5단계) =====
-    if (position.currentStage >= 4) {
-      for (const { profitTrigger, newSL } of STOP_LOSS_CONFIG.STAGE_45_DYNAMIC) {
-        if (position.maxProfitReached >= profitTrigger && pnlPercent <= newSL) {
-          console.log(`📉 동적 손절! 최고 +${position.maxProfitReached.toFixed(2)}% → 현재 ${pnlPercent.toFixed(2)}%`);
-          await closePosition('sl', currentPrice);
-          return;
-        }
+    // ===== 동적 손절 (수익 도달 후) =====
+    for (const { profitTrigger, newSL } of STOP_LOSS_CONFIG.DYNAMIC_SL) {
+      if (position.maxProfitReached >= profitTrigger && pnlPercent <= newSL) {
+        console.log(`📉 동적 손절! 최고 +${position.maxProfitReached.toFixed(2)}% → 현재 ${pnlPercent.toFixed(2)}%`);
+        await closePosition('sl', currentPrice);
+        return;
       }
     }
 
@@ -704,6 +711,7 @@ export function usePyramidTrading({
           partialCloses: [],
           consecutiveSameDir: 0,
           indicators,
+          positionType: 'initial',
         };
 
         setState(prev => ({
@@ -749,6 +757,7 @@ export function usePyramidTrading({
               totalQuantity: newTotalQty,
               currentStage: stage,
               dynamicSL: getStageSL(stage),
+              positionType: getPositionType(stage),
             },
             dailyRisk: {
               ...prev.dailyRisk,
@@ -758,6 +767,9 @@ export function usePyramidTrading({
           };
         });
 
+        const stageType = getPositionType(stage);
+        const isAveragingDown = stageType === 'averaging_down';
+
         addLog({
           symbol,
           action: 'add',
@@ -765,7 +777,9 @@ export function usePyramidTrading({
           stage,
           price: newEntry.price,
           quantity: executedQty,
-          reason: `${stage}단계 추가 매수 (${stage * PYRAMID_CONFIG.STAGE_SIZE_PERCENT}%)`,
+          reason: isAveragingDown 
+            ? `${stage}단계 물타기 💧 (${stage * PYRAMID_CONFIG.STAGE_SIZE_PERCENT}%)`
+            : `${stage}단계 불타기 🔥 (${stage * PYRAMID_CONFIG.STAGE_SIZE_PERCENT}%)`,
         });
 
         const exposure = getExposurePercent(stage);
@@ -902,7 +916,7 @@ export function usePyramidTrading({
     }
   }, [state.isEnabled, state.currentPosition, state.pendingSignal, handleTechnicalSignal]);
 
-  // ===== 추가 매수 체크 =====
+  // ===== 하이브리드 추가 진입 체크 (불타기 + 물타기) =====
   const checkNextStageEntry = useCallback(async (currentPrice: number) => {
     if (!state.currentPosition) return;
     if (processingRef.current) return;
@@ -919,32 +933,52 @@ export function usePyramidTrading({
     }
 
     const pnlPercent = calculatePnLPercent(position, currentPrice);
-    const requiredProfit = PYRAMID_CONFIG.STAGE_PROFIT_REQUIRED[nextStage];
-    const requiredCandles = PYRAMID_CONFIG.STAGE_CANDLE_REQUIRED[nextStage];
-    const timeWindow = PYRAMID_CONFIG.STAGE_TIME_WINDOW[nextStage];
+    const currentType = getPositionType(position.currentStage);
     const holdTimeMin = (Date.now() - position.startTime) / 60000;
+    const timeWindow = PYRAMID_CONFIG.STAGE_TIME_WINDOW[nextStage];
 
     // 시간 윈도우 체크
-    if (holdTimeMin < timeWindow[0] || holdTimeMin > timeWindow[1]) return;
-
-    // 수익률 체크
-    if (pnlPercent < requiredProfit) {
-      console.log(`[checkNextStage] ${nextStage}단계 대기: 현재 ${pnlPercent.toFixed(2)}% < 필요 ${requiredProfit}%`);
+    if (timeWindow && (holdTimeMin < timeWindow[0] || holdTimeMin > timeWindow[1])) {
       return;
     }
 
-    // 연속 캔들 체크
-    const consecutiveCandles = await analyzeConsecutiveCandles(position.symbol, position.side);
-    if (consecutiveCandles < requiredCandles) {
-      console.log(`[checkNextStage] ${nextStage}단계 대기: 연속 캔들 ${consecutiveCandles} < 필요 ${requiredCandles}`);
+    // ===== 불타기 체크 (수익시) =====
+    const pyramidCheck = shouldPyramidUp(position.currentStage, pnlPercent, currentType);
+    if (pyramidCheck.should) {
+      // 연속 캔들 조건 체크 (불타기 전용)
+      const requiredCandles = PYRAMID_CONFIG.STAGE_CANDLE_REQUIRED[nextStage] || 0;
+      if (requiredCandles > 0) {
+        const consecutiveCandles = await analyzeConsecutiveCandles(position.symbol, position.side);
+        if (consecutiveCandles < requiredCandles) {
+          console.log(`[불타기] ${nextStage}단계 대기: 연속 캔들 ${consecutiveCandles} < 필요 ${requiredCandles}`);
+          return;
+        }
+      }
+
+      console.log(`🔥 [불타기] ${nextStage}단계 진입! ${pyramidCheck.reason} (수익 ${pnlPercent.toFixed(2)}%)`);
+      await executePyramidEntry(position.symbol, position.side, currentPrice, position.indicators, nextStage);
       return;
     }
 
-    // 조건 충족 → 추가 진입
-    console.log(`✅ [checkNextStage] ${nextStage}단계 조건 충족! 수익 ${pnlPercent.toFixed(2)}%, 연속 ${consecutiveCandles}개`);
-    await executePyramidEntry(position.symbol, position.side, currentPrice, position.indicators, nextStage);
+    // ===== 물타기 체크 (손실시) =====
+    const avgDownCheck = shouldAverageDown(position.currentStage, pnlPercent, currentType);
+    if (avgDownCheck.should) {
+      // 물타기 효과 미리 계산
+      const stagePercent = PYRAMID_CONFIG.STAGE_SIZE_PERCENT / 100;
+      const newQty = (balanceUSD * stagePercent * PYRAMID_CONFIG.LEVERAGE) / currentPrice;
+      const { improvementPercent } = calculateNewAvgPrice(
+        position.avgPrice,
+        position.totalQuantity,
+        currentPrice,
+        newQty
+      );
 
-  }, [state.currentPosition, state.dailyRisk, calculatePnLPercent, analyzeConsecutiveCandles, executePyramidEntry]);
+      console.log(`💧 [물타기] ${nextStage}단계 진입! ${avgDownCheck.reason} (손실 ${pnlPercent.toFixed(2)}%, 평단 개선 ${improvementPercent.toFixed(2)}%)`);
+      await executePyramidEntry(position.symbol, position.side, currentPrice, position.indicators, nextStage);
+      return;
+    }
+
+  }, [state.currentPosition, state.dailyRisk, balanceUSD, calculatePnLPercent, analyzeConsecutiveCandles, executePyramidEntry]);
 
   // ===== 시그널 스킵 =====
   const skipSignal = useCallback(() => {

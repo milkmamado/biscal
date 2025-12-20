@@ -1,13 +1,13 @@
 /**
- * ⚡ 1분봉 피라미드 전략 설정 (10배 고정)
- * 수익 기반 분할 진입 시스템
+ * ⚡ 하이브리드 피라미드 전략 설정 (10배 고정)
+ * 불타기 (수익시) + 물타기 (손실시) 하이브리드 시스템
  */
 
 // ===== 기본 설정 =====
 export const PYRAMID_CONFIG = {
   // 기본
   LEVERAGE: 10,                    // 10배 고정
-  TOTAL_STAGES: 5,                 // 5단계 분할
+  TOTAL_STAGES: 5,                 // 5단계 분할 (불타기 3 + 물타기 2)
   STAGE_SIZE_PERCENT: 20,          // 각 단계 20%
   FEE_RATE: 0.05,                  // 0.05% per side
 
@@ -16,31 +16,41 @@ export const PYRAMID_CONFIG = {
   MIN_VOLUME_RATIO: 130,           // 거래량 평균 130% 이상
   MIN_ADX: 20,                     // ADX 20 이상
 
-  // 단계별 추가 진입 조건 (수익률 %)
-  STAGE_PROFIT_REQUIRED: {
-    1: 0,                          // 1단계: 즉시 진입
-    2: 0.08,                       // 2단계: +0.08% 수익 필요
-    3: 0.15,                       // 3단계: +0.15% 수익 필요
-    4: 0.25,                       // 4단계: +0.25% 수익 필요
-    5: 0.40,                       // 5단계: +0.40% 수익 필요
-  } as Record<number, number>,
+  // ===== 불타기 (수익시 추가 진입) Stage 2-3 =====
+  PYRAMID_UP: {
+    enabled: true,
+    maxStages: 3,                  // Stage 1 + 불타기 2단계 = 3단계
+    conditions: {
+      2: { profitRequired: 0.08 }, // +0.08% 수익시 Stage 2 진입
+      3: { profitRequired: 0.12 }, // +0.12% 수익시 Stage 3 진입
+    } as Record<number, { profitRequired: number }>,
+    sizeMultiplier: 1.0,           // 동일 사이즈 (20%)
+  },
 
-  // 단계별 연속 캔들 조건
+  // ===== 물타기 (손실시 추가 진입) Stage 4-5 =====
+  AVERAGING_DOWN: {
+    enabled: true,
+    maxStages: 2,                  // 물타기 최대 2단계
+    conditions: {
+      4: { lossRequired: 0.12 },   // -0.12% 손실시 Stage 4 물타기
+      5: { lossRequired: 0.18 },   // -0.18% 손실시 Stage 5 물타기
+    } as Record<number, { lossRequired: number }>,
+    sizeMultiplier: 1.0,           // 동일 사이즈 (1.0x) - 보수적 접근
+  },
+
+  // 단계별 연속 캔들 조건 (불타기 전용)
   STAGE_CANDLE_REQUIRED: {
     1: 0,                          // 1단계: 조건 없음
     2: 2,                          // 2단계: 2개 연속 같은 방향
     3: 3,                          // 3단계: 3개 연속
-    4: 5,                          // 4단계: 5개 연속
-    5: 7,                          // 5단계: 7개 연속
   } as Record<number, number>,
 
-  // 단계별 진입 시간 윈도우 (분)
+  // 단계별 시간 윈도우 (분)
   STAGE_TIME_WINDOW: {
-    1: [0, 0],                     // 1단계: 즉시
-    2: [1, 2],                     // 2단계: 1-2분 후
-    3: [3, 6],                     // 3단계: 3-6분 후
-    4: [6, 12],                    // 4단계: 6-12분 후
-    5: [12, 20],                   // 5단계: 12-20분 후
+    2: [1, 5],                     // 불타기 2단계: 1-5분 후
+    3: [3, 10],                    // 불타기 3단계: 3-10분 후
+    4: [0.5, 8],                   // 물타기 4단계: 30초-8분 후
+    5: [2, 12],                    // 물타기 5단계: 2-12분 후
   } as Record<number, [number, number]>,
 };
 
@@ -57,27 +67,28 @@ export const TAKE_PROFIT_CONFIG = {
     breakEvenSL: 0.02,
   },
 
-  // 2-3단계 진입 시
-  STAGE_23: {
-    targets: [
-      { percent: 0.30, closeRatio: 0.30 },
-      { percent: 0.60, closeRatio: 0.50 },
-      { percent: 1.00, closeRatio: 1.00 },
+  // 불타기 포지션 (2-3단계)
+  PYRAMID_UP: {
+    targets_stage2: [
+      { percent: 0.35, closeRatio: 1.00 },  // 2단계시 +0.35%에서 전량 청산
+    ],
+    targets_stage3: [
+      { percent: 0.25, closeRatio: 1.00 },  // 3단계시 +0.25%에서 전량 청산
     ],
     maxHoldMinutes: 10,
-    trailingStopGap: 0.15,
+    trailingStopGap: 0.12,
   },
 
-  // 4-5단계 올인 시
-  STAGE_45: {
-    targets: [
-      { percent: 0.80, closeRatio: 0.25 },
-      { percent: 1.50, closeRatio: 0.35 },
-      { percent: 2.50, closeRatio: 0.25 },
-      { percent: 4.00, closeRatio: 1.00 },  // 러너
+  // 물타기 포지션 (4-5단계)
+  AVERAGING_DOWN: {
+    targets_quick: [
+      { percent: 0.15, closeRatio: 1.00 },  // 빠른 탈출: +0.15%
     ],
-    maxHoldMinutes: 15,
-    trailingStopGap: 0.25,
+    targets_full_recovery: [
+      { percent: 0.25, closeRatio: 1.00 },  // 완전 회복: +0.25%
+    ],
+    maxHoldMinutes: 12,
+    useQuickExit: true,                      // 빠른 탈출 모드 우선
   },
 
   // 시간 기반 강제 익절
@@ -99,12 +110,11 @@ export const TAKE_PROFIT_CONFIG = {
 
 // ===== 손절 설정 =====
 export const STOP_LOSS_CONFIG = {
-  // 단계별 손절
-  STAGE_SL: {
-    1: 0.15,                       // 1단계: -0.15%
-    23: 0.18,                      // 2-3단계: -0.18%
-    45: 0.25,                      // 4-5단계: -0.25%
-  },
+  // 불타기 포지션 손절 (Stage 1-3)
+  PYRAMID_UP_SL: 0.20,             // -0.20%
+
+  // 물타기 포지션 손절 (Stage 4-5) - 더 넉넉한 공간
+  AVERAGING_DOWN_SL: 0.35,         // -0.35%
 
   // 1단계 조기 손절
   STAGE_1_EARLY: {
@@ -113,25 +123,18 @@ export const STOP_LOSS_CONFIG = {
     closeRatio: 0.50,              // 50% 조기 청산
   },
 
-  // 2-3단계 분할 손절
-  STAGE_23_PARTIAL: [
-    { lossPercent: 0.10, closeRatio: 0.75, stage: 1 },  // -0.1%: 1단계 75% 청산
-    { lossPercent: 0.15, closeRatio: 0.50, stage: 2 },  // -0.15%: 2단계 50% 청산
+  // 불타기 분할 손절
+  PYRAMID_UP_PARTIAL: [
+    { lossPercent: 0.12, closeRatio: 0.50, description: '50% 조기 청산' },
+    { lossPercent: 0.20, closeRatio: 1.00, description: '전량 손절' },
   ],
 
-  // 4-5단계 동적 손절
-  STAGE_45_DYNAMIC: [
-    { profitTrigger: 0.30, newSL: 0.10 },   // +0.3% 도달 시 SL → -0.10%
-    { profitTrigger: 0.60, newSL: 0.00 },   // +0.6% 도달 시 SL → 0% (본전)
-    { profitTrigger: 1.00, newSL: -0.30 },  // +1.0% 도달 시 SL → +0.30%
+  // 동적 손절 (높은 수익 도달 시)
+  DYNAMIC_SL: [
+    { profitTrigger: 0.20, newSL: 0.08 },   // +0.2% 도달 시 SL → -0.08%
+    { profitTrigger: 0.40, newSL: 0.00 },   // +0.4% 도달 시 SL → 0% (본전)
+    { profitTrigger: 0.60, newSL: -0.15 },  // +0.6% 도달 시 SL → +0.15%
   ],
-
-  // 2-3단계 시간 기반 손절
-  STAGE_23_TIME: {
-    timeSeconds: 480,              // 8분 후
-    breakEvenCheck: true,          // 손익분기 미달 시
-    closeRatio: 0.75,              // 75% 청산
-  },
 };
 
 // ===== 긴급 탈출 설정 =====
@@ -142,8 +145,9 @@ export const EMERGENCY_CONFIG = {
     closeRatio: 0.50,              // 50% 즉시 청산
   },
 
-  // 총 손실 한계
-  MAX_LOSS_PERCENT: 0.80,          // -0.8% 손실 시 전량 청산
+  // 총 손실 한계 (포지션 유형별)
+  MAX_LOSS_PYRAMID_UP: 0.40,       // 불타기: -0.4% 손실 시 전량 청산
+  MAX_LOSS_AVERAGING_DOWN: 0.60,   // 물타기: -0.6% 손실 시 전량 청산
 
   // 거래량 급감
   VOLUME_DROP: {
@@ -161,7 +165,7 @@ export const EMERGENCY_CONFIG = {
 // ===== 리스크 관리 설정 =====
 export const RISK_CONFIG = {
   // 일일 한도
-  DAILY_MAX_TRADES: 8,             // 하루 최대 8회
+  DAILY_MAX_TRADES: 10,            // 하루 최대 10회 (물타기로 늘림)
   DAILY_MAX_LOSS_PERCENT: 3.0,     // 일일 최대 손실 -3%
   DAILY_TARGET_PROFIT_PERCENT: 5.0, // 목표 달성 시 중단 고려
 
@@ -170,7 +174,7 @@ export const RISK_CONFIG = {
   LOSS_COOLDOWN_MINUTES: 60,       // 60분 휴식
 
   // 올인 제한
-  MAX_FULL_POSITION_DAILY: 2,      // 5단계 올인 하루 최대 2회
+  MAX_FULL_POSITION_DAILY: 3,      // 5단계 올인 하루 최대 3회
 
   // 포지션 노출 한도
   MAX_EXPOSURE_PERCENT: 1000,      // 절대 한계 (100% × 10배)
@@ -178,26 +182,133 @@ export const RISK_CONFIG = {
   COMFORT_EXPOSURE_PERCENT: 400,   // 편안한 구간 (40% × 10배)
 };
 
+// ===== 포지션 유형 =====
+export type PositionType = 'initial' | 'pyramid_up' | 'averaging_down';
+
+export function getPositionType(currentStage: number): PositionType {
+  if (currentStage === 1) return 'initial';
+  if (currentStage <= 3) return 'pyramid_up';
+  return 'averaging_down';
+}
+
 // ===== 유틸리티 함수 =====
 
-export function getStageSL(currentStage: number): number {
-  if (currentStage === 1) return STOP_LOSS_CONFIG.STAGE_SL[1];
-  if (currentStage <= 3) return STOP_LOSS_CONFIG.STAGE_SL[23];
-  return STOP_LOSS_CONFIG.STAGE_SL[45];
+export function getStageSL(currentStage: number, positionType?: PositionType): number {
+  const type = positionType || getPositionType(currentStage);
+  if (type === 'averaging_down') return STOP_LOSS_CONFIG.AVERAGING_DOWN_SL;
+  return STOP_LOSS_CONFIG.PYRAMID_UP_SL;
 }
 
-export function getStageTPConfig(currentStage: number) {
+export function getStageTPConfig(currentStage: number, positionType?: PositionType) {
+  const type = positionType || getPositionType(currentStage);
+  
   if (currentStage === 1) return TAKE_PROFIT_CONFIG.STAGE_1_ONLY;
-  if (currentStage <= 3) return TAKE_PROFIT_CONFIG.STAGE_23;
-  return TAKE_PROFIT_CONFIG.STAGE_45;
+  
+  if (type === 'pyramid_up') {
+    return {
+      targets: currentStage === 2 
+        ? TAKE_PROFIT_CONFIG.PYRAMID_UP.targets_stage2
+        : TAKE_PROFIT_CONFIG.PYRAMID_UP.targets_stage3,
+      maxHoldMinutes: TAKE_PROFIT_CONFIG.PYRAMID_UP.maxHoldMinutes,
+    };
+  }
+  
+  // 물타기
+  return {
+    targets: TAKE_PROFIT_CONFIG.AVERAGING_DOWN.useQuickExit
+      ? TAKE_PROFIT_CONFIG.AVERAGING_DOWN.targets_quick
+      : TAKE_PROFIT_CONFIG.AVERAGING_DOWN.targets_full_recovery,
+    maxHoldMinutes: TAKE_PROFIT_CONFIG.AVERAGING_DOWN.maxHoldMinutes,
+  };
 }
 
-export function getStageMaxHold(currentStage: number): number {
+export function getStageMaxHold(currentStage: number, positionType?: PositionType): number {
+  const type = positionType || getPositionType(currentStage);
+  
   if (currentStage === 1) return TAKE_PROFIT_CONFIG.STAGE_1_ONLY.maxHoldMinutes;
-  if (currentStage <= 3) return TAKE_PROFIT_CONFIG.STAGE_23.maxHoldMinutes;
-  return TAKE_PROFIT_CONFIG.STAGE_45.maxHoldMinutes;
+  if (type === 'pyramid_up') return TAKE_PROFIT_CONFIG.PYRAMID_UP.maxHoldMinutes;
+  return TAKE_PROFIT_CONFIG.AVERAGING_DOWN.maxHoldMinutes;
+}
+
+export function getMaxLossPercent(currentStage: number, positionType?: PositionType): number {
+  const type = positionType || getPositionType(currentStage);
+  if (type === 'averaging_down') return EMERGENCY_CONFIG.MAX_LOSS_AVERAGING_DOWN;
+  return EMERGENCY_CONFIG.MAX_LOSS_PYRAMID_UP;
 }
 
 export function getExposurePercent(stageCount: number): number {
   return stageCount * PYRAMID_CONFIG.STAGE_SIZE_PERCENT * PYRAMID_CONFIG.LEVERAGE;
+}
+
+// 물타기 후 평균단가 개선 효과 계산
+export function calculateNewAvgPrice(
+  currentAvgPrice: number,
+  currentQty: number,
+  newPrice: number,
+  newQty: number
+): { newAvgPrice: number; improvementPercent: number } {
+  const newAvgPrice = (currentAvgPrice * currentQty + newPrice * newQty) / (currentQty + newQty);
+  const improvementPercent = ((currentAvgPrice - newAvgPrice) / currentAvgPrice) * 100;
+  return { newAvgPrice, improvementPercent: Math.abs(improvementPercent) };
+}
+
+// 물타기 필요 여부 판단
+export function shouldAverageDown(
+  currentStage: number,
+  pnlPercent: number,
+  positionType: PositionType
+): { should: boolean; reason: string } {
+  // 이미 물타기 중이면 다음 물타기 체크
+  if (positionType === 'averaging_down') {
+    if (currentStage >= 5) {
+      return { should: false, reason: '물타기 최대 단계 도달' };
+    }
+    const condition = PYRAMID_CONFIG.AVERAGING_DOWN.conditions[currentStage + 1];
+    if (!condition) {
+      return { should: false, reason: '물타기 조건 없음' };
+    }
+    if (pnlPercent <= -condition.lossRequired) {
+      return { should: true, reason: `${currentStage + 1}단계 물타기 조건 충족` };
+    }
+    return { should: false, reason: '물타기 조건 미충족' };
+  }
+
+  // 불타기 포지션에서 물타기로 전환 (Stage 4)
+  if (positionType === 'initial' || positionType === 'pyramid_up') {
+    const condition = PYRAMID_CONFIG.AVERAGING_DOWN.conditions[4];
+    if (pnlPercent <= -condition.lossRequired) {
+      return { should: true, reason: '물타기 전환 조건 충족' };
+    }
+  }
+
+  return { should: false, reason: '' };
+}
+
+// 불타기 필요 여부 판단
+export function shouldPyramidUp(
+  currentStage: number,
+  pnlPercent: number,
+  positionType: PositionType
+): { should: boolean; reason: string } {
+  // 물타기 포지션에서는 불타기 불가
+  if (positionType === 'averaging_down') {
+    return { should: false, reason: '물타기 포지션에서 불타기 불가' };
+  }
+
+  // 불타기 최대 단계 체크
+  if (currentStage >= PYRAMID_CONFIG.PYRAMID_UP.maxStages) {
+    return { should: false, reason: '불타기 최대 단계 도달' };
+  }
+
+  const nextStage = currentStage + 1;
+  const condition = PYRAMID_CONFIG.PYRAMID_UP.conditions[nextStage];
+  if (!condition) {
+    return { should: false, reason: '불타기 조건 없음' };
+  }
+
+  if (pnlPercent >= condition.profitRequired) {
+    return { should: true, reason: `${nextStage}단계 불타기 조건 충족` };
+  }
+
+  return { should: false, reason: '불타기 조건 미충족' };
 }
