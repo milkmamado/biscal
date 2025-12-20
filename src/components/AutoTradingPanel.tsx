@@ -182,7 +182,8 @@ const AutoTradingPanel = ({
           daily_income_usd: realizedFromBinance,
           deposit_usd: deposits,
           withdrawal_usd: withdrawals,
-        }, { onConflict: 'user_id,snapshot_date' });
+          is_testnet: isTestnet,
+        }, { onConflict: 'user_id,snapshot_date,is_testnet' });
       }
     } catch (error) {
       console.error('Failed to fetch realized PnL:', error);
@@ -198,7 +199,30 @@ const AutoTradingPanel = ({
         const totalBalance = parseFloat(usdtBalance.balance) || parseFloat(usdtBalance.crossWalletBalance) || 0;
         setBalanceUSD(totalBalance);
         onBalanceChange?.(totalBalance);
-        fetchTodayRealizedPnL(totalBalance);
+
+        // ✅ 모의투자(testnet)는 거래소 incomeHistory가 부정확/빈값인 경우가 많아서
+        // DB(우리 거래로그) 기준 실현손익(todayStats.totalPnL)을 사용
+        if (isTestnet) {
+          const realized = todayStats.totalPnL;
+          setTodayDeposits(0);
+          setTodayRealizedPnL(realized);
+          setPreviousDayBalance(totalBalance - realized);
+
+          const { data: { user: authUser } } = await supabase.auth.getUser();
+          if (authUser) {
+            await supabase.from('daily_balance_snapshots').upsert({
+              user_id: authUser.id,
+              snapshot_date: getTodayDate(),
+              closing_balance_usd: totalBalance,
+              daily_income_usd: realized,
+              deposit_usd: 0,
+              withdrawal_usd: 0,
+              is_testnet: true,
+            }, { onConflict: 'user_id,snapshot_date,is_testnet' });
+          }
+        } else {
+          fetchTodayRealizedPnL(totalBalance);
+        }
       }
     } catch (error) {
       console.error('Failed to fetch balance:', error);
@@ -260,9 +284,14 @@ const AutoTradingPanel = ({
   };
   
   // Daily P&L calculations
-  const dailyPnL = todayRealizedPnL;
+  const realizedPnLUsd = isTestnet
+    ? todayStats.totalPnL
+    : (todayRealizedPnL !== 0 ? todayRealizedPnL : todayStats.totalPnL);
+
+  const dailyPnL = realizedPnLUsd;
   const effectiveStartingBalance = (previousDayBalance !== null ? Math.max(0, previousDayBalance) : 0) + todayDeposits;
-  const baseBalance = effectiveStartingBalance > 0 ? effectiveStartingBalance : balanceUSD;
+  const fallbackStartBalance = Math.max(0, balanceUSD - dailyPnL);
+  const baseBalance = effectiveStartingBalance > 0 ? effectiveStartingBalance : (fallbackStartBalance > 0 ? fallbackStartBalance : balanceUSD);
   const dailyPnLPercent = baseBalance > 0 ? (dailyPnL / baseBalance) * 100 : 0;
   const dailyPnLPercentStr = dailyPnLPercent.toFixed(2);
   
@@ -417,10 +446,10 @@ const AutoTradingPanel = ({
           <div>
             <span className="text-[10px] text-gray-500">실현손익</span>
             <div className="text-sm font-mono font-semibold" style={{
-              color: todayRealizedPnL >= 0 ? '#00ff88' : '#ff0088',
-              textShadow: todayRealizedPnL >= 0 ? '0 0 8px rgba(0, 255, 136, 0.5)' : '0 0 8px rgba(255, 0, 136, 0.5)',
+              color: realizedPnLUsd >= 0 ? '#00ff88' : '#ff0088',
+              textShadow: realizedPnLUsd >= 0 ? '0 0 8px rgba(0, 255, 136, 0.5)' : '0 0 8px rgba(255, 0, 136, 0.5)',
             }}>
-              {todayRealizedPnL >= 0 ? '+' : ''}₩{formatKRW(todayRealizedPnL)}
+              {realizedPnLUsd >= 0 ? '+' : ''}₩{formatKRW(realizedPnLUsd)}
             </div>
           </div>
           <div className="flex items-center gap-1">
