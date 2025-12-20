@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { FileText, Target, DollarSign, Shield, TrendingUp, Bot, BarChart3, Settings, AlertTriangle, Clock } from 'lucide-react';
+import { FileText, Target, DollarSign, Shield, TrendingUp, TrendingDown, Bot, BarChart3, Settings, AlertTriangle, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PYRAMID_CONFIG, TAKE_PROFIT_CONFIG, STOP_LOSS_CONFIG, RISK_CONFIG, EMERGENCY_CONFIG } from '@/lib/pyramidConfig';
 import { MAJOR_COINS_WHITELIST } from '@/lib/tradingConfig';
@@ -23,16 +23,16 @@ const DOCS_UPDATED = '2024-12-20';
 // 매매 규칙 정의
 const TRADING_RULES = {
   STRATEGY: {
-    title: '⚡ 피라미드 전략 (10배 고정)',
+    title: '⚡ 하이브리드 전략 (10배 고정)',
     rules: [
       '레버리지 10배 고정 - 리스크 관리 단순화',
       '5단계 분할 진입 (각 20%)',
-      '수익 기반 피라미딩: 이기고 있을 때만 추가 매수',
-      '1단계: 즉시 진입',
-      '2단계: +0.08% 수익 + 2개 연속 캔들',
-      '3단계: +0.15% 수익 + 3개 연속 캔들',
-      '4단계: +0.25% 수익 + 5개 연속 캔들',
-      '5단계: +0.40% 수익 + 7개 연속 캔들 (올인)',
+      '🔥 불타기 (수익시): Stage 2-3 추가 진입',
+      '💧 물타기 (손실시): Stage 4-5 평단 개선',
+      'Stage 2: +0.08% 수익시',
+      'Stage 3: +0.12% 수익시',
+      'Stage 4: -0.12% 손실시 물타기',
+      'Stage 5: -0.18% 손실시 물타기',
     ],
   },
   ENTRY: {
@@ -42,7 +42,7 @@ const TRADING_RULES = {
       'medium 이상 시그널 강도',
       '2개 이상 기술적 조건 충족',
       '거래량 평균 130% 이상',
-      '일일 최대 8회 거래 제한',
+      '일일 최대 10회 거래 제한',
       '연속 3패 시 60분 휴식',
     ],
   },
@@ -180,21 +180,42 @@ const TradingDocsModal = ({ majorCoinMode = false }: TradingDocsModalProps) => {
                   </p>
                 </div>
 
-                {/* 단계별 진입 조건 */}
+                {/* 불타기 (수익시 추가 진입) */}
                 <div className="bg-card border border-border rounded-lg p-4">
                   <h3 className="flex items-center gap-2 font-bold text-foreground mb-3">
-                    <TrendingUp className="w-4 h-4 text-blue-400" />
-                    단계별 진입 조건
+                    <TrendingUp className="w-4 h-4 text-green-400" />
+                    🔥 불타기 (수익시 Stage 2-3)
                   </h3>
                   <div className="space-y-2">
-                    {Object.entries(PYRAMID_CONFIG.STAGE_PROFIT_REQUIRED).map(([stage, profit]) => (
-                      <div key={stage} className="flex items-center justify-between text-sm bg-secondary/30 rounded px-3 py-1.5">
-                        <span className="text-muted-foreground">{stage}단계</span>
-                        <span className="font-mono text-cyan-400">
-                          +{profit}% 수익 + {PYRAMID_CONFIG.STAGE_CANDLE_REQUIRED[Number(stage)]}개 연속 캔들
-                        </span>
-                      </div>
-                    ))}
+                    <div className="flex items-center justify-between text-sm bg-secondary/30 rounded px-3 py-1.5">
+                      <span className="text-muted-foreground">Stage 2</span>
+                      <span className="font-mono text-green-400">+0.08% 수익 + 2개 연속 캔들</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm bg-secondary/30 rounded px-3 py-1.5">
+                      <span className="text-muted-foreground">Stage 3</span>
+                      <span className="font-mono text-green-400">+0.12% 수익 + 3개 연속 캔들</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 물타기 (손실시 추가 진입) */}
+                <div className="bg-card border border-border rounded-lg p-4">
+                  <h3 className="flex items-center gap-2 font-bold text-foreground mb-3">
+                    <TrendingDown className="w-4 h-4 text-blue-400" />
+                    💧 물타기 (손실시 Stage 4-5)
+                  </h3>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm bg-secondary/30 rounded px-3 py-1.5">
+                      <span className="text-muted-foreground">Stage 4</span>
+                      <span className="font-mono text-blue-400">-0.12% 손실시 동일 사이즈 추가</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm bg-secondary/30 rounded px-3 py-1.5">
+                      <span className="text-muted-foreground">Stage 5</span>
+                      <span className="font-mono text-blue-400">-0.18% 손실시 동일 사이즈 추가</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      ※ 물타기로 평단 개선 → 빠른 손익분기 도달
+                    </p>
                   </div>
                 </div>
 
@@ -202,12 +223,13 @@ const TradingDocsModal = ({ majorCoinMode = false }: TradingDocsModalProps) => {
                 <div className="bg-card border border-border rounded-lg p-4">
                   <h3 className="flex items-center gap-2 font-bold text-foreground mb-3">
                     <DollarSign className="w-4 h-4 text-green-400" />
-                    단계별 익절 목표
+                    익절 목표 (포지션 유형별)
                   </h3>
                   <div className="grid grid-cols-1 gap-3">
                     <ConfigItem label="1단계만" value={`+0.12% (50%), +0.25% (나머지)`} color="text-green-400" />
-                    <ConfigItem label="2-3단계" value={`+0.3%/+0.6%/+1.0% 분할`} color="text-green-400" />
-                    <ConfigItem label="4-5단계" value={`+0.8%/+1.5%/+2.5%/+4.0% 분할`} color="text-green-400" />
+                    <ConfigItem label="불타기 2단계" value={`+0.35% 전량`} color="text-green-400" />
+                    <ConfigItem label="불타기 3단계" value={`+0.25% 전량`} color="text-green-400" />
+                    <ConfigItem label="물타기 (빠른탈출)" value={`+0.15% 전량`} color="text-cyan-400" />
                   </div>
                 </div>
 
@@ -215,13 +237,15 @@ const TradingDocsModal = ({ majorCoinMode = false }: TradingDocsModalProps) => {
                 <div className="bg-card border border-border rounded-lg p-4">
                   <h3 className="flex items-center gap-2 font-bold text-foreground mb-3">
                     <Shield className="w-4 h-4 text-red-400" />
-                    단계별 손절
+                    손절 (포지션 유형별)
                   </h3>
-                  <div className="grid grid-cols-3 gap-3">
-                    <ConfigItem label="1단계" value={`-${STOP_LOSS_CONFIG.STAGE_SL[1]}%`} color="text-red-400" />
-                    <ConfigItem label="2-3단계" value={`-${STOP_LOSS_CONFIG.STAGE_SL[23]}%`} color="text-red-400" />
-                    <ConfigItem label="4-5단계" value={`-${STOP_LOSS_CONFIG.STAGE_SL[45]}%`} color="text-red-400" />
+                  <div className="grid grid-cols-2 gap-3">
+                    <ConfigItem label="불타기 (1-3)" value={`-${STOP_LOSS_CONFIG.PYRAMID_UP_SL}%`} color="text-red-400" />
+                    <ConfigItem label="물타기 (4-5)" value={`-${STOP_LOSS_CONFIG.AVERAGING_DOWN_SL}%`} color="text-orange-400" />
                   </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    ※ 물타기 포지션은 평단 개선 후 반등을 위해 더 넉넉한 손절폭
+                  </p>
                 </div>
 
                 {/* 시간 제한 */}
@@ -232,8 +256,8 @@ const TradingDocsModal = ({ majorCoinMode = false }: TradingDocsModalProps) => {
                   </h3>
                   <div className="grid grid-cols-3 gap-3">
                     <ConfigItem label="1단계" value={`${TAKE_PROFIT_CONFIG.STAGE_1_ONLY.maxHoldMinutes}분`} />
-                    <ConfigItem label="2-3단계" value={`${TAKE_PROFIT_CONFIG.STAGE_23.maxHoldMinutes}분`} />
-                    <ConfigItem label="4-5단계" value={`${TAKE_PROFIT_CONFIG.STAGE_45.maxHoldMinutes}분`} />
+                    <ConfigItem label="불타기" value={`${TAKE_PROFIT_CONFIG.PYRAMID_UP.maxHoldMinutes}분`} />
+                    <ConfigItem label="물타기" value={`${TAKE_PROFIT_CONFIG.AVERAGING_DOWN.maxHoldMinutes}분`} />
                   </div>
                 </div>
 
@@ -249,7 +273,8 @@ const TradingDocsModal = ({ majorCoinMode = false }: TradingDocsModalProps) => {
                     <ConfigItem label="연속 손실 한도" value={`${RISK_CONFIG.MAX_CONSECUTIVE_LOSSES}회`} color="text-orange-400" />
                     <ConfigItem label="휴식 시간" value={`${RISK_CONFIG.LOSS_COOLDOWN_MINUTES}분`} />
                     <ConfigItem label="5단계 올인 제한" value={`하루 ${RISK_CONFIG.MAX_FULL_POSITION_DAILY}회`} color="text-purple-400" />
-                    <ConfigItem label="긴급 탈출" value={`-${EMERGENCY_CONFIG.MAX_LOSS_PERCENT}%`} color="text-red-400" />
+                    <ConfigItem label="긴급 탈출 (불타기)" value={`-${EMERGENCY_CONFIG.MAX_LOSS_PYRAMID_UP}%`} color="text-red-400" />
+                    <ConfigItem label="긴급 탈출 (물타기)" value={`-${EMERGENCY_CONFIG.MAX_LOSS_AVERAGING_DOWN}%`} color="text-orange-400" />
                   </div>
                 </div>
 
