@@ -738,38 +738,83 @@ export function useLimitOrderTrading({
       
       console.log(`📝 [1차 지정가] ${symbol} ${orderSide} 가격=${roundedFirstPrice} 수량=${firstQty.toFixed(qtyDigits)}`);
 
-      // 1차 지정가 주문 실행
-      const orderResult = await placeLimitOrder(symbol, orderSide, firstQty, roundedFirstPrice);
+      // 1차 지정가 주문 실행 (포지션 한도 초과 시 수량 축소 재시도)
+      let orderResult: any = null;
+      let actualFirstQty = firstQty;
+      let actualSecondQty = secondQty;
+      const maxRetries = 3;
+      const reductionFactors = [1.0, 0.5, 0.25]; // 100%, 50%, 25%
+
+      for (let attempt = 0; attempt < maxRetries; attempt++) {
+        const factor = reductionFactors[attempt];
+        actualFirstQty = roundQuantity(firstQty * factor, precision);
+        actualSecondQty = roundQuantity(secondQty * factor, precision);
+
+        if (attempt > 0) {
+          console.log(`🔄 [재시도 ${attempt}] 포지션 한도 초과 → 수량 ${(factor * 100).toFixed(0)}%로 축소: 1차=${actualFirstQty} 2차=${actualSecondQty}`);
+        }
+
+        try {
+          orderResult = await placeLimitOrder(symbol, orderSide, actualFirstQty, roundedFirstPrice);
+
+          if (orderResult && orderResult.orderId && !orderResult.error) {
+            // 성공
+            break;
+          }
+
+          const errMsg = orderResult?.error || orderResult?.msg || orderResult?.message || '';
+          
+          // 포지션 한도 초과 에러인 경우 재시도
+          if (errMsg.includes('Exceeded the maximum allowable position') || 
+              errMsg.includes('position at current leverage')) {
+            console.warn(`⚠️ [포지션 한도 초과] ${symbol} attempt ${attempt + 1}/${maxRetries}`);
+            if (attempt < maxRetries - 1) continue; // 다음 시도
+          }
+
+          // 다른 에러면 바로 throw
+          throw new Error(`1차 지정가 주문 실패: ${errMsg}`);
+        } catch (orderError: any) {
+          const errMsg = orderError?.message || String(orderError);
+          
+          // 포지션 한도 초과 에러인 경우 재시도
+          if ((errMsg.includes('Exceeded the maximum allowable position') || 
+               errMsg.includes('position at current leverage')) &&
+              attempt < maxRetries - 1) {
+            console.warn(`⚠️ [포지션 한도 초과] ${symbol} attempt ${attempt + 1}/${maxRetries}`);
+            continue;
+          }
+          throw orderError;
+        }
+      }
       
-      if (!orderResult || orderResult.error || !orderResult.orderId) {
-        const errMsg = orderResult?.error || orderResult?.msg || orderResult?.message || '주문 실패';
-        throw new Error(`1차 지정가 주문 실패: ${errMsg}`);
+      if (!orderResult || !orderResult.orderId) {
+        throw new Error(`1차 지정가 주문 실패: 포지션 한도 초과 (수량 25%로도 불가)`);
       }
 
       const orderId = orderResult.orderId.toString();
       const entries: LimitOrderEntry[] = [{
         orderId,
         price: roundedFirstPrice,
-        quantity: firstQty,
+        quantity: actualFirstQty,
         filled: 0,
         status: 'NEW',
         timestamp: Date.now(),
       }];
 
-      // 포지션 생성 (진입 대기 상태) - secondQty 저장
+      // 포지션 생성 (진입 대기 상태) - actualSecondQty 저장
       const newPosition: LimitOrderPosition = {
         symbol,
         side,
         entries,
         avgPrice: 0,
-        totalQuantity: firstQty + secondQty, // 전체 목표 수량
+        totalQuantity: actualFirstQty + actualSecondQty, // 전체 목표 수량 (축소 반영)
         filledQuantity: 0,
         startTime: Date.now(),
         entryPhase: 'waiting',
         takeProfitOrders: [],
         stopLossPrice: 0,
         // 추가 정보 (2차 진입용)
-        pendingSecondQty: secondQty,
+        pendingSecondQty: actualSecondQty,
       } as any;
 
       setState(prev => ({
@@ -787,8 +832,10 @@ export function useLimitOrderTrading({
         action: 'order',
         side,
         price: roundedFirstPrice,
-        quantity: firstQty,
-        reason: `1차 지정가 진입 (50%)`,
+        quantity: actualFirstQty,
+        reason: actualFirstQty < firstQty 
+          ? `1차 지정가 진입 (한도축소 ${((actualFirstQty / firstQty) * 100).toFixed(0)}%)`
+          : `1차 지정가 진입 (50%)`,
       });
 
       lastEntryTimeRef.current = Date.now();
