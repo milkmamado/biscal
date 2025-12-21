@@ -689,10 +689,32 @@ export function useLimitOrderTrading({
         return;
       }
       
-      // 전체 포지션 계산
+      // 레버리지 설정 (실패 시 단계적으로 낮춤) → 실제 적용 레버리지로 사이징
+      let appliedLeverage = leverage;
+      const leverageCandidates = Array.from(
+        new Set([leverage, 10, 5, 3, 2, 1].filter((v) => v <= leverage))
+      );
+
+      for (const lev of leverageCandidates) {
+        try {
+          const res = await setLeverage(symbol, lev);
+          appliedLeverage = lev;
+          if (!res?.alreadySet) {
+            console.log(`🧲 [Leverage] ${symbol} 적용: ${lev}x`);
+          }
+          break;
+        } catch (levError: any) {
+          const msg = levError?.message || String(levError);
+          console.warn(`레버리지 설정 실패(${lev}x):`, msg);
+          // 다음 후보로 다운시프트
+          continue;
+        }
+      }
+
+      // 전체 포지션 계산 (appliedLeverage 기준)
       const positionSizePercent = LIMIT_ORDER_CONFIG.POSITION_SIZE_PERCENT / 100;
       const entryBalance = balanceUSD * positionSizePercent;
-      const buyingPower = entryBalance * leverage;
+      const buyingPower = entryBalance * appliedLeverage;
 
       const splitCount = LIMIT_ORDER_CONFIG.ENTRY.SPLIT_COUNT;
       const totalQty = buyingPower / currentPrice;
@@ -702,31 +724,9 @@ export function useLimitOrderTrading({
       const splitNotional = roundedSplitQty * currentPrice;
       const qtyDigits = Math.min(8, Math.max(0, precision.quantityPrecision));
 
-      // 10분할이 "물리적으로" 불가능한 경우(최소수량/최소금액) 사전에 중단
-      if (splitQtyRaw < precision.minQty || totalQty < precision.minQty * splitCount) {
-        throw new Error(
-          `10분할 불가: 최소수량(${precision.minQty}) 미달 (예상 1회 수량 ${splitQtyRaw.toFixed(qtyDigits)})`
-        );
-      }
-
-      if (splitNotional < precision.minNotional) {
-        throw new Error(
-          `10분할 불가: 최소 주문금액 ${precision.minNotional}USDT 미달 (현재 ${splitNotional.toFixed(2)}USDT)`
-        );
-      }
-
       console.log(
-        `📦 [진입수량] totalQty=${totalQty.toFixed(qtyDigits)} splitQty=${splitQtyRaw.toFixed(qtyDigits)} roundedSplitQty=${roundedSplitQty.toFixed(qtyDigits)} notional=${splitNotional.toFixed(2)}USDT (minQty=${precision.minQty}, minNotional=${precision.minNotional})`
+        `💳 [Sizing] bal=${balanceUSD.toFixed(2)}USDT entryBal=${entryBalance.toFixed(2)}USDT lev=${appliedLeverage}x notional=${buyingPower.toFixed(2)}USDT`
       );
-
-      // 레버리지 설정
-      try {
-        await setLeverage(symbol, leverage);
-      } catch (levError: any) {
-        if (!levError.message?.includes('-4046') && !levError.message?.includes('already')) {
-          console.warn('레버리지 설정 실패:', levError.message);
-        }
-      }
 
       // 10분할 지정가 가격 생성
       const entryPrices = generateEntryPrices(currentPrice, side, precision.tickSize);
