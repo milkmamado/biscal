@@ -198,6 +198,12 @@ export function useLimitOrderTrading({
   const lastEntryTimeRef = useRef(0);
   const entryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const tpTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const currentPositionRef = useRef<LimitOrderPosition | null>(null);
+
+  // currentPosition을 ref로 동기화
+  useEffect(() => {
+    currentPositionRef.current = state.currentPosition;
+  }, [state.currentPosition]);
 
   // ===== 로그 추가 =====
   const addLog = useCallback((log: Omit<LimitOrderTradeLog, 'id' | 'timestamp'>) => {
@@ -601,7 +607,12 @@ export function useLimitOrderTrading({
 
   // ===== 체결 확인 (10초 후) =====
   const checkEntryFill = useCallback(async (symbol: string, side: 'long' | 'short') => {
-    if (!state.currentPosition || state.currentPosition.entryPhase !== 'waiting') return;
+    // ref를 사용해서 최신 currentPosition 확인 (stale closure 방지)
+    const currentPos = currentPositionRef.current;
+    if (!currentPos || currentPos.entryPhase !== 'waiting') {
+      console.log(`[checkEntryFill] ${symbol} 스킵 - position: ${!!currentPos}, phase: ${currentPos?.entryPhase}`);
+      return;
+    }
 
     try {
       // 포지션 조회
@@ -640,7 +651,7 @@ export function useLimitOrderTrading({
       // 체결됨
       const filledQty = Math.abs(parseFloat(actualPosition.positionAmt));
       const avgPrice = parseFloat(actualPosition.entryPrice);
-      const fillRatio = filledQty / state.currentPosition.totalQuantity;
+      const fillRatio = currentPos.totalQuantity > 0 ? filledQty / currentPos.totalQuantity : 0;
 
       console.log(`✅ [체결] ${symbol} 체결률: ${(fillRatio * 100).toFixed(1)}% (${filledQty})`);
 
@@ -682,7 +693,7 @@ export function useLimitOrderTrading({
     } catch (error: any) {
       console.error('체결 확인 실패:', error);
     }
-  }, [state.currentPosition, getPositions, cancelPendingOrders, addLog]);
+  }, [getPositions, cancelPendingOrders, addLog]);
 
   // ===== 시그널 핸들러 =====
   const handleTechnicalSignal = useCallback(async (
