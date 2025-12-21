@@ -429,22 +429,6 @@ const AutoTradingPanel = ({
         </div>
       </div>
       
-      {/* Strategy Info */}
-      <div className="relative z-10 px-4 py-2" style={{
-        background: 'rgba(0, 255, 255, 0.05)',
-        borderBottom: '1px solid rgba(0, 255, 255, 0.1)',
-      }}>
-        <div className="flex items-center justify-between text-xs">
-          <span className="text-cyan-400/70">전략</span>
-          <div className="flex items-center gap-2">
-            <span className="text-cyan-300 font-mono">10분할 지정가</span>
-            <span className="text-gray-500">|</span>
-            <span className="text-green-400 font-mono">1만원↑ 익절</span>
-            <span className="text-gray-500">|</span>
-            <span className="text-red-400 font-mono">-{LIMIT_ORDER_CONFIG.STOP_LOSS.PERCENT}% SL</span>
-          </div>
-        </div>
-      </div>
       
       {/* Today Stats */}
       <div className="relative z-10 px-4 py-3" style={{
