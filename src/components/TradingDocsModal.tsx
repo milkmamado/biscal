@@ -201,10 +201,10 @@ const TradingDocsModal = ({ majorCoinMode = false }: TradingDocsModalProps) => {
                     진입 설정
                   </h3>
                   <div className="grid grid-cols-2 gap-3">
-                    <ConfigItem label="분할 수" value={`${LIMIT_ORDER_CONFIG.ENTRY.SPLIT_COUNT}분할`} />
-                    <ConfigItem label="가격 범위" value={`±${LIMIT_ORDER_CONFIG.ENTRY.PRICE_OFFSET_PERCENT}%`} />
+                    <ConfigItem label="1차 진입" value={`${LIMIT_ORDER_CONFIG.ENTRY.FIRST_ENTRY_PERCENT}% 지정가`} />
+                    <ConfigItem label="2차 진입" value={`${LIMIT_ORDER_CONFIG.ENTRY.SECOND_ENTRY_PERCENT}% 시장가`} />
+                    <ConfigItem label="가격 오프셋" value={`±${LIMIT_ORDER_CONFIG.ENTRY.PRICE_OFFSET_PERCENT}%`} />
                     <ConfigItem label="타임아웃" value={`${LIMIT_ORDER_CONFIG.ENTRY.TIMEOUT_SEC}초`} color="text-orange-400" />
-                    <ConfigItem label="일부체결 대기" value={`${LIMIT_ORDER_CONFIG.ENTRY.PARTIAL_WAIT_SEC}초`} />
                   </div>
                 </div>
 
