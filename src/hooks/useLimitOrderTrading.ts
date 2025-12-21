@@ -794,7 +794,7 @@ export function useLimitOrderTrading({
   }, [balanceUSD, leverage, placeLimitOrder, setLeverage, addLog, isTestnet]);
 
   // ===== 체결 확인 (10초 후) =====
-  const checkEntryFill = useCallback(async (symbol: string, side: 'long' | 'short') => {
+  const checkEntryFill = useCallback(async (symbol: string, side: 'long' | 'short', isPartialWait: boolean = false) => {
     // ref를 사용해서 최신 currentPosition 확인 (stale closure 방지)
     const currentPos = currentPositionRef.current;
     if (!currentPos || currentPos.entryPhase !== 'waiting') {
@@ -809,9 +809,12 @@ export function useLimitOrderTrading({
         p.symbol === symbol && Math.abs(parseFloat(p.positionAmt)) > 0
       );
 
-      if (!actualPosition || Math.abs(parseFloat(actualPosition.positionAmt)) === 0) {
-        // 미체결 → 변동성 없음, 전량 취소
-        console.log(`🚫 [타임아웃] ${symbol} 10초 내 미체결 → 전량 취소`);
+      const filledQty = actualPosition ? Math.abs(parseFloat(actualPosition.positionAmt)) : 0;
+      const fillRatio = currentPos.totalQuantity > 0 ? filledQty / currentPos.totalQuantity : 0;
+
+      if (filledQty === 0) {
+        // 완전 미체결 → 변동성 없음, 전량 취소
+        console.log(`🚫 [타임아웃] ${symbol} ${isPartialWait ? '15' : '10'}초 내 미체결 → 전량 취소`);
         await cancelPendingOrders(symbol);
         
         setState(prev => ({
@@ -829,18 +832,30 @@ export function useLimitOrderTrading({
           side,
           price: 0,
           quantity: 0,
-          reason: '10초 내 미체결 (변동성 부족)',
+          reason: `${isPartialWait ? '15' : '10'}초 내 미체결 (변동성 부족)`,
         });
 
         toast.info(`🚫 ${symbol.replace('USDT', '')} 변동성 부족, 다음 종목 탐색`);
         return;
       }
 
-      // 체결됨
-      const filledQty = Math.abs(parseFloat(actualPosition.positionAmt));
-      const avgPrice = parseFloat(actualPosition.entryPrice);
-      const fillRatio = currentPos.totalQuantity > 0 ? filledQty / currentPos.totalQuantity : 0;
+      // 일부 체결 & 첫 확인 → 5초 더 대기
+      if (fillRatio < 1.0 && !isPartialWait) {
+        console.log(`⏳ [일부체결] ${symbol} 체결률 ${(fillRatio * 100).toFixed(1)}% → 5초 추가 대기`);
+        setState(prev => ({
+          ...prev,
+          statusMessage: `⏳ ${symbol.replace('USDT', '')} 일부체결 (${(fillRatio * 100).toFixed(0)}%) 5초 대기...`,
+        }));
+        
+        // 5초 후 재확인
+        entryTimeoutRef.current = setTimeout(async () => {
+          await checkEntryFill(symbol, side, true);
+        }, LIMIT_ORDER_CONFIG.ENTRY.PARTIAL_WAIT_SEC * 1000);
+        return;
+      }
 
+      // 체결 완료 (전량 또는 5초 대기 후)
+      const avgPrice = parseFloat(actualPosition!.entryPrice);
       console.log(`✅ [체결] ${symbol} 체결률: ${(fillRatio * 100).toFixed(1)}% (${filledQty})`);
 
       // 미체결 주문 취소
@@ -888,7 +903,7 @@ export function useLimitOrderTrading({
     } catch (error: any) {
       console.error('체결 확인 실패:', error);
     }
-  }, [getPositions, cancelPendingOrders, addLog, placeTakeProfitOrders, balanceUSD, krwRate]);
+  }, [getPositions, cancelPendingOrders, addLog, placeTakeProfitOrders, balanceUSD, krwRate, filterSettings]);
 
   // ===== 시그널 핸들러 =====
   const handleTechnicalSignal = useCallback(async (
