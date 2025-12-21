@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useTradingLogs } from '@/hooks/useTradingLogs';
-import { usePyramidTrading } from '@/hooks/usePyramidTrading';
+import { useLimitOrderTrading } from '@/hooks/useLimitOrderTrading';
 import { useCoinScreening } from '@/hooks/useCoinScreening';
 import { useTickerWebSocket } from '@/hooks/useTickerWebSocket';
 import { useWakeLock } from '@/hooks/useWakeLock';
@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft, FlaskConical } from 'lucide-react';
 import { toast } from 'sonner';
 import { getScreeningLogs, ScreeningLog } from '@/components/ScreeningLogPanel';
+import { LIMIT_ORDER_CONFIG } from '@/lib/limitOrderConfig';
 
 const PaperTrading = () => {
   const [selectedSymbol, setSelectedSymbol] = useState('BTCUSDT');
@@ -21,12 +22,12 @@ const PaperTrading = () => {
   const [checkingKeys, setCheckingKeys] = useState(true);
   const [balanceUSD, setBalanceUSD] = useState(0);
   const [krwRate, setKrwRate] = useState(1380);
-  const [leverage, setLeverage] = useState(10);
+  const [leverage, setLeverage] = useState(LIMIT_ORDER_CONFIG.LEVERAGE);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [majorCoinMode, setMajorCoinMode] = useState(true);
   const [screeningLogs, setScreeningLogs] = useState<ScreeningLog[]>([]);
 
-  // 🆕 스크리닝 로그 실시간 업데이트
+  // 스크리닝 로그 실시간 업데이트
   useEffect(() => {
     const interval = setInterval(() => {
       setScreeningLogs(getScreeningLogs());
@@ -48,7 +49,7 @@ const PaperTrading = () => {
     fetchDailyStats();
   }, [fetchDailyStats]);
   
-  // 초기 통계를 dailyStats에서 가져옴
+  // 초기 통계
   const initialStats = {
     trades: dailyStats.tradeCount,
     wins: dailyStats.winCount,
@@ -56,8 +57,8 @@ const PaperTrading = () => {
     totalPnL: dailyStats.totalPnL,
   };
   
-  // 피라미드 매매 훅 (테스트넷)
-  const autoTrading = usePyramidTrading({
+  // 지정가 매매 훅 (테스트넷)
+  const autoTrading = useLimitOrderTrading({
     balanceUSD,
     leverage,
     krwRate,
@@ -84,7 +85,7 @@ const PaperTrading = () => {
       volatilityRange: c.volatilityRange
     }));
   
-  // 기술적 분석 기반 종목 스크리닝 (메이저 코인 모드 전달)
+  // 기술적 분석 기반 종목 스크리닝
   const { activeSignals, isScanning, screenedSymbols, lastScanTime } = useCoinScreening(tickersForScreening, {}, majorCoinMode);
 
   // 이전 시그널 추적
@@ -201,7 +202,7 @@ const PaperTrading = () => {
           .from('user_api_keys')
           .select('id')
           .eq('user_id', user.id)
-          .eq('is_testnet', true); // 테스트넷 키 체크
+          .eq('is_testnet', true);
         
         setHasApiKeys(data && data.length > 0);
       } catch {
@@ -229,13 +230,7 @@ const PaperTrading = () => {
   
   // 수동 청산 핸들러
   const handleManualClose = () => {
-    if (!autoTrading.state.currentPosition) return;
-    
-    const position = autoTrading.state.currentPosition;
-    const ticker = tickers.find(t => t.symbol === position.symbol);
-    if (!ticker) return;
-    
-    autoTrading.closePosition(ticker.price);
+    autoTrading.closePosition();
   };
 
   // Show loading
@@ -257,11 +252,10 @@ const PaperTrading = () => {
     ? tickers.find(t => t.symbol === autoTrading.state.currentPosition?.symbol)?.price || 0
     : 0;
     
-  // 손절/익절 예정 가격 계산 (평단가 기준)
+  // 손절/익절 가격 계산
   const position = autoTrading.state.currentPosition;
-  const { tpPrice, slPrice } = autoTrading.calculateTpSlPrices();
-  const stopLossPrice = position ? slPrice : undefined;
-  const takeProfitPrice = position ? tpPrice : undefined;
+  const stopLossPrice = position?.stopLossPrice;
+  const takeProfitPrice = undefined;
 
   return (
     <div className="h-screen bg-background p-1 overflow-hidden flex flex-col">
@@ -284,7 +278,7 @@ const PaperTrading = () => {
         </div>
       </div>
 
-      {/* Main Content - Same as Index */}
+      {/* Main Content */}
       <div className="flex-1 min-h-0 grid grid-cols-12 gap-1">
         {/* Left - Chart */}
         <div className="col-span-8 flex flex-col min-h-0">
@@ -303,10 +297,9 @@ const PaperTrading = () => {
         {/* Right - System Trading Panel */}
         <div className="col-span-4 flex flex-col min-h-0 overflow-auto gap-1">
           <AutoTradingPanel
-            state={autoTrading.state as any}
+            state={autoTrading.state}
             onToggle={autoTrading.toggleAutoTrading}
             onManualClose={handleManualClose}
-            onSkipSignal={autoTrading.skipSignal}
             currentPrice={currentAutoPrice}
             krwRate={krwRate}
             leverage={leverage}
