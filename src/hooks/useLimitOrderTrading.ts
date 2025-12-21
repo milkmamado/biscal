@@ -1043,17 +1043,28 @@ export function useLimitOrderTrading({
     try {
       const klines1m = await fetch1mKlines(symbol, 6); // 최근 6봉 (현재봉 제외하고 5봉 분석)
       if (klines1m && klines1m.length >= 6) {
-        const last5Candles = klines1m.slice(0, 5); // 현재봉 제외
+        // 최신봉(현재 미완성봉) 제외하고 완성된 5봉 분석
+        // klines는 최신순이므로 [0]이 현재봉, [1]~[5]가 완성된 최근 5봉
+        const last5Candles = klines1m.slice(1, 6);
         
-        // 연속 양봉/음봉 카운트
+        // "연속" 양봉/음봉 카운트 - 끊기면 리셋
         let consecutiveBullish = 0;
         let consecutiveBearish = 0;
         
+        // 가장 최근 완성봉부터 역순으로 연속 체크
         for (const candle of last5Candles) {
-          if (candle.close > candle.open) {
+          const isBullish = candle.close > candle.open;
+          const isBearish = candle.close < candle.open;
+          
+          if (isBullish) {
+            if (consecutiveBearish > 0) break; // 음봉이 있었으면 연속 끊김
             consecutiveBullish++;
-          } else if (candle.close < candle.open) {
+          } else if (isBearish) {
+            if (consecutiveBullish > 0) break; // 양봉이 있었으면 연속 끊김
             consecutiveBearish++;
+          } else {
+            // 도지봉(시가=종가)은 연속 유지하지 않음
+            break;
           }
         }
         
