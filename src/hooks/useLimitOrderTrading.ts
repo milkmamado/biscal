@@ -454,18 +454,19 @@ export function useLimitOrderTrading({
       return;
     }
 
-    // 익절 조건 체크 (1만원 이상)
+    // 익절 조건 체크 (설정된 금액 이상)
     const pnlUSD = (pnlPercent / 100) * position.avgPrice * position.filledQuantity;
     const pnlKRW = pnlUSD * krwRate;
+    const targetProfitKrw = filterSettings?.takeProfitKrw ?? LIMIT_ORDER_CONFIG.TAKE_PROFIT.MIN_PROFIT_KRW;
     
-    if (pnlKRW >= LIMIT_ORDER_CONFIG.TAKE_PROFIT.MIN_PROFIT_KRW) {
-      console.log(`💰 익절 조건 충족! ₩${Math.round(pnlKRW).toLocaleString()}`);
+    if (pnlKRW >= targetProfitKrw) {
+      console.log(`💰 익절 조건 충족! ₩${Math.round(pnlKRW).toLocaleString()} >= ₩${targetProfitKrw.toLocaleString()}`);
       // 빠른 회전을 위해 바로 시장가 청산
       await closePositionMarket('tp', currentPrice);
       return;
     }
 
-  }, [state.currentPosition, closePositionMarket, krwRate]);
+  }, [state.currentPosition, closePositionMarket, krwRate, filterSettings]);
 
   // ===== 10분할 지정가 진입 =====
   const executeLimitEntry = useCallback(async (
@@ -670,8 +671,11 @@ export function useLimitOrderTrading({
       // 미체결 주문 취소
       await cancelPendingOrders(symbol);
 
-      // 손절가 계산
-      const stopLossPrice = calculateStopLossPrice(avgPrice, side);
+      // 손절가 계산 (설정된 퍼센트 사용)
+      const slPercent = filterSettings?.stopLossPercent ?? LIMIT_ORDER_CONFIG.STOP_LOSS.PERCENT;
+      const stopLossPrice = side === 'long' 
+        ? avgPrice * (1 - slPercent / 100) 
+        : avgPrice * (1 + slPercent / 100);
 
       // 포지션 활성화
       setState(prev => {
