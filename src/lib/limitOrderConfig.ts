@@ -46,7 +46,7 @@ export const LIMIT_ORDER_CONFIG = {
   // ===== 진입 조건 (시그널 필터) =====
   SIGNAL: {
     MIN_SIGNALS: 2,                // 최소 2개 조건 충족
-    MIN_VOLUME_RATIO: 130,         // 거래량 평균 130% 이상
+    MIN_VOLUME_RATIO: 80,          // 거래량 평균 80% 이상
     MIN_ADX: 20,                   // ADX 20 이상
   },
   
