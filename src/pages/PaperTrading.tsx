@@ -232,6 +232,11 @@ const PaperTrading = () => {
   const handleManualClose = () => {
     autoTrading.closePosition();
   };
+  
+  // 진입 취소 핸들러
+  const handleCancelEntry = () => {
+    autoTrading.cancelEntry();
+  };
 
   // Show loading
   if (loading || (user && checkingKeys)) {
@@ -300,6 +305,7 @@ const PaperTrading = () => {
             state={autoTrading.state}
             onToggle={autoTrading.toggleAutoTrading}
             onManualClose={handleManualClose}
+            onCancelEntry={handleCancelEntry}
             currentPrice={currentAutoPrice}
             krwRate={krwRate}
             leverage={leverage}

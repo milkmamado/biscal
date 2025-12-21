@@ -759,6 +759,52 @@ export function useLimitOrderTrading({
     }
   }, [state.currentPosition, closePositionMarket]);
 
+  // ===== 진입 대기 중 취소 =====
+  const cancelEntry = useCallback(async () => {
+    const currentPos = currentPositionRef.current;
+    if (!currentPos || currentPos.entryPhase !== 'waiting') {
+      toast.error('취소할 주문이 없습니다');
+      return;
+    }
+
+    try {
+      console.log(`🚫 [수동취소] ${currentPos.symbol} 진입 대기 주문 취소`);
+      
+      // 타임아웃 취소
+      if (entryTimeoutRef.current) {
+        clearTimeout(entryTimeoutRef.current);
+        entryTimeoutRef.current = null;
+      }
+
+      // 미체결 주문 취소
+      await cancelPendingOrders(currentPos.symbol);
+
+      // 상태 초기화
+      setState(prev => ({
+        ...prev,
+        currentPosition: null,
+        currentSymbol: null,
+        entryOrderIds: [],
+        entryStartTime: null,
+        statusMessage: '🔍 다음 시그널 대기...',
+      }));
+
+      addLog({
+        symbol: currentPos.symbol,
+        action: 'cancel',
+        side: currentPos.side,
+        price: 0,
+        quantity: 0,
+        reason: '수동 취소',
+      });
+
+      toast.info(`🚫 ${currentPos.symbol.replace('USDT', '')} 진입 취소`);
+    } catch (error) {
+      console.error('진입 취소 실패:', error);
+      toast.error('취소 실패');
+    }
+  }, [cancelPendingOrders, addLog]);
+
   // ===== Cleanup =====
   useEffect(() => {
     return () => {
@@ -774,6 +820,7 @@ export function useLimitOrderTrading({
     handleTechnicalSignal,
     checkTpSl,
     closePosition: manualClosePosition,
+    cancelEntry,
     addLog,
   };
 }
