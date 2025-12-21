@@ -1039,6 +1039,40 @@ export function useLimitOrderTrading({
     // 시그널 강도 체크
     if (strength === 'weak') return;
 
+    // ===== 5봉 연속 진행 필터 (한 방향 과열 방지) =====
+    try {
+      const klines1m = await fetch1mKlines(symbol, 6); // 최근 6봉 (현재봉 제외하고 5봉 분석)
+      if (klines1m && klines1m.length >= 6) {
+        const last5Candles = klines1m.slice(0, 5); // 현재봉 제외
+        
+        // 연속 양봉/음봉 카운트
+        let consecutiveBullish = 0;
+        let consecutiveBearish = 0;
+        
+        for (const candle of last5Candles) {
+          if (candle.close > candle.open) {
+            consecutiveBullish++;
+          } else if (candle.close < candle.open) {
+            consecutiveBearish++;
+          }
+        }
+        
+        // 5봉 연속 양봉 → 롱 진입 금지 (이미 많이 상승)
+        if (consecutiveBullish >= 5 && direction === 'long') {
+          console.log(`🚫 [5봉필터] ${symbol} 5봉 연속 양봉 → 롱 진입 금지 (과매수)`);
+          return;
+        }
+        
+        // 5봉 연속 음봉 → 숏 진입 금지 (이미 많이 하락)
+        if (consecutiveBearish >= 5 && direction === 'short') {
+          console.log(`🚫 [5봉필터] ${symbol} 5봉 연속 음봉 → 숏 진입 금지 (과매도)`);
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn('5봉 필터 확인 실패:', err);
+    }
+
     // ADX 필터 (설정에서 끌 수 있음)
     const adxEnabled = filterSettings?.adxEnabled ?? true;
     const adxThreshold = filterSettings?.adxThreshold ?? LIMIT_ORDER_CONFIG.SIGNAL.MIN_ADX;
