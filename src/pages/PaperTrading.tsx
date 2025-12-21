@@ -10,6 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import DualChartPanel from '@/components/DualChartPanel';
 import AutoTradingPanel from '@/components/AutoTradingPanel';
 import PaperApiKeySetup from '@/components/PaperApiKeySetup';
+import TradingSettingsPanel from '@/components/TradingSettingsPanel';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, FlaskConical } from 'lucide-react';
 import { toast } from 'sonner';
@@ -26,6 +27,16 @@ const PaperTrading = () => {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [majorCoinMode, setMajorCoinMode] = useState(true);
   const [screeningLogs, setScreeningLogs] = useState<ScreeningLog[]>([]);
+  
+  // 트레이딩 설정 상태
+  const [adxFilterEnabled, setAdxFilterEnabled] = useState(true);
+  const [volumeFilterEnabled, setVolumeFilterEnabled] = useState(true);
+  const [rsiFilterEnabled, setRsiFilterEnabled] = useState(true);
+  const [macdFilterEnabled, setMacdFilterEnabled] = useState(true);
+  const [bollingerFilterEnabled, setBollingerFilterEnabled] = useState(true);
+  const [adxThreshold, setAdxThreshold] = useState(LIMIT_ORDER_CONFIG.SIGNAL.MIN_ADX);
+  const [stopLossPercent, setStopLossPercent] = useState(LIMIT_ORDER_CONFIG.STOP_LOSS.PERCENT);
+  const [takeProfitKrw, setTakeProfitKrw] = useState(LIMIT_ORDER_CONFIG.TAKE_PROFIT.MIN_PROFIT_KRW);
 
   // 스크리닝 로그 실시간 업데이트
   useEffect(() => {
@@ -285,8 +296,8 @@ const PaperTrading = () => {
 
       {/* Main Content */}
       <div className="flex-1 min-h-0 grid grid-cols-12 gap-1">
-        {/* Left - Chart */}
-        <div className="col-span-8 flex flex-col min-h-0">
+        {/* Left - Chart (줄임) */}
+        <div className="col-span-6 flex flex-col min-h-0">
           <DualChartPanel 
             symbol={selectedSymbol} 
             hasPosition={!!autoTrading.state.currentPosition}
@@ -299,8 +310,8 @@ const PaperTrading = () => {
           />
         </div>
 
-        {/* Right - System Trading Panel */}
-        <div className="col-span-4 flex flex-col min-h-0 overflow-auto gap-1">
+        {/* Middle - Trading Panel */}
+        <div className="col-span-3 flex flex-col min-h-0 overflow-auto gap-1">
           <AutoTradingPanel
             state={autoTrading.state}
             onToggle={autoTrading.toggleAutoTrading}
@@ -324,6 +335,29 @@ const PaperTrading = () => {
             majorCoinMode={majorCoinMode}
             onToggleMajorCoinMode={() => setMajorCoinMode(prev => !prev)}
             onToggleAiAnalysis={autoTrading.toggleAiAnalysis}
+          />
+        </div>
+
+        {/* Right - Settings Panel */}
+        <div className="col-span-3 flex flex-col min-h-0 overflow-auto gap-1">
+          <TradingSettingsPanel
+            adxFilterEnabled={adxFilterEnabled}
+            onToggleAdxFilter={setAdxFilterEnabled}
+            volumeFilterEnabled={volumeFilterEnabled}
+            onToggleVolumeFilter={setVolumeFilterEnabled}
+            rsiFilterEnabled={rsiFilterEnabled}
+            onToggleRsiFilter={setRsiFilterEnabled}
+            macdFilterEnabled={macdFilterEnabled}
+            onToggleMacdFilter={setMacdFilterEnabled}
+            bollingerFilterEnabled={bollingerFilterEnabled}
+            onToggleBollingerFilter={setBollingerFilterEnabled}
+            adxThreshold={adxThreshold}
+            onAdxThresholdChange={setAdxThreshold}
+            stopLossPercent={stopLossPercent}
+            onStopLossChange={setStopLossPercent}
+            takeProfitKrw={takeProfitKrw}
+            onTakeProfitChange={setTakeProfitKrw}
+            isAutoTradingEnabled={autoTrading.state.isEnabled}
           />
         </div>
       </div>
