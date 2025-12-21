@@ -764,7 +764,7 @@ export function useLimitOrderTrading({
         side,
         price: currentPrice,
         quantity: roundedSplitQty * entries.length,
-        reason: `10분할 지정가 주문 (${entries.length}개)`,
+        reason: `10분할 지정가 진입 (${entries.length}/${LIMIT_ORDER_CONFIG.ENTRY.SPLIT_COUNT}개 성공)`,
       });
 
       lastEntryTimeRef.current = Date.now();
@@ -777,7 +777,7 @@ export function useLimitOrderTrading({
       }, LIMIT_ORDER_CONFIG.ENTRY.TIMEOUT_SEC * 1000);
 
       playEntrySound();
-      toast.info(`📝 ${side === 'long' ? '롱' : '숏'} 10분할 지정가 주문!`);
+      toast.info(`📝 ${side === 'long' ? '롱' : '숏'} 10분할 진입 (${entries.length}/${LIMIT_ORDER_CONFIG.ENTRY.SPLIT_COUNT}개)`);
 
     } catch (error: any) {
       console.error('Entry error:', error);
