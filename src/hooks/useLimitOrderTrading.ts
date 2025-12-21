@@ -212,6 +212,7 @@ export function useLimitOrderTrading({
   const entryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const tpTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const currentPositionRef = useRef<LimitOrderPosition | null>(null);
+  const checkEntryFillRef = useRef<(symbol: string, side: 'long' | 'short', isPartialWait?: boolean) => Promise<void>>();
 
   // currentPosition을 ref로 동기화
   useEffect(() => {
@@ -847,9 +848,11 @@ export function useLimitOrderTrading({
           statusMessage: `⏳ ${symbol.replace('USDT', '')} 일부체결 (${(fillRatio * 100).toFixed(0)}%) 5초 대기...`,
         }));
         
-        // 5초 후 재확인
+        // 5초 후 재확인 (ref 사용하여 최신 함수 참조)
         entryTimeoutRef.current = setTimeout(async () => {
-          await checkEntryFill(symbol, side, true);
+          if (checkEntryFillRef.current) {
+            await checkEntryFillRef.current(symbol, side, true);
+          }
         }, LIMIT_ORDER_CONFIG.ENTRY.PARTIAL_WAIT_SEC * 1000);
         return;
       }
@@ -904,6 +907,11 @@ export function useLimitOrderTrading({
       console.error('체결 확인 실패:', error);
     }
   }, [getPositions, cancelPendingOrders, addLog, placeTakeProfitOrders, balanceUSD, krwRate, filterSettings]);
+
+  // checkEntryFill을 ref에 저장 (재귀 호출용)
+  useEffect(() => {
+    checkEntryFillRef.current = checkEntryFill;
+  }, [checkEntryFill]);
 
   // ===== 시그널 핸들러 =====
   const handleTechnicalSignal = useCallback(async (
