@@ -718,9 +718,10 @@ export function useLimitOrderTrading({
       return;
     }
 
-    // 거래량 필터
-    if (indicators.volumeRatio && indicators.volumeRatio < LIMIT_ORDER_CONFIG.SIGNAL.MIN_VOLUME_RATIO) {
-      console.log(`[handleSignal] ${symbol} 거래량 부족 (${indicators.volumeRatio.toFixed(0)}%)`);
+    // 거래량 필터 (volumeRatio는 비율이므로 1.3 = 130%)
+    const volumePercent = (indicators.volumeRatio || 0) * 100;
+    if (volumePercent < LIMIT_ORDER_CONFIG.SIGNAL.MIN_VOLUME_RATIO) {
+      console.log(`[handleSignal] ${symbol} 거래량 부족 (${volumePercent.toFixed(0)}% < ${LIMIT_ORDER_CONFIG.SIGNAL.MIN_VOLUME_RATIO}%)`);
       return;
     }
 
