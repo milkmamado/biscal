@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useTradingLogs } from '@/hooks/useTradingLogs';
-import { usePyramidTrading } from '@/hooks/usePyramidTrading';
+import { useLimitOrderTrading } from '@/hooks/useLimitOrderTrading';
 import { useCoinScreening } from '@/hooks/useCoinScreening';
 import { useTickerWebSocket } from '@/hooks/useTickerWebSocket';
 import { useWakeLock } from '@/hooks/useWakeLock';
@@ -12,6 +12,7 @@ import AutoTradingPanel from '@/components/AutoTradingPanel';
 import ApiKeySetup from '@/components/ApiKeySetup';
 import { toast } from 'sonner';
 import { getScreeningLogs, ScreeningLog } from '@/components/ScreeningLogPanel';
+import { LIMIT_ORDER_CONFIG } from '@/lib/limitOrderConfig';
 
 const Index = () => {
   const [selectedSymbol, setSelectedSymbol] = useState('BTCUSDT');
@@ -19,12 +20,12 @@ const Index = () => {
   const [checkingKeys, setCheckingKeys] = useState(true);
   const [balanceUSD, setBalanceUSD] = useState(0);
   const [krwRate, setKrwRate] = useState(1380);
-  const [leverage, setLeverage] = useState(10);
+  const [leverage, setLeverage] = useState(LIMIT_ORDER_CONFIG.LEVERAGE);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [majorCoinMode, setMajorCoinMode] = useState(true);
   const [screeningLogs, setScreeningLogs] = useState<ScreeningLog[]>([]);
 
-  // 🆕 스크리닝 로그 실시간 업데이트
+  // 스크리닝 로그 실시간 업데이트
   useEffect(() => {
     const interval = setInterval(() => {
       setScreeningLogs(getScreeningLogs());
@@ -40,10 +41,10 @@ const Index = () => {
   // 청산 후 즉시 잔고 갱신
   const handleTradeComplete = useCallback(() => {
     setRefreshTrigger(prev => prev + 1);
-    fetchDailyStats(); // DB에서 당일 통계 다시 로드
+    fetchDailyStats();
   }, [fetchDailyStats]);
   
-  // 초기 통계를 dailyStats에서 가져옴
+  // 초기 통계
   const initialStats = {
     trades: dailyStats.tradeCount,
     wins: dailyStats.winCount,
@@ -51,8 +52,8 @@ const Index = () => {
     totalPnL: dailyStats.totalPnL,
   };
   
-  // 피라미드 매매 훅
-  const autoTrading = usePyramidTrading({
+  // 지정가 매매 훅
+  const autoTrading = useLimitOrderTrading({
     balanceUSD,
     leverage,
     krwRate,
@@ -62,7 +63,7 @@ const Index = () => {
     majorCoinMode,
   });
   
-  // 자동매매 중 절전 방지 (백그라운드 탭에서도 안정적 동작)
+  // 자동매매 중 절전 방지
   useWakeLock(autoTrading.state.isEnabled);
 
   // 종목 스크리닝용 티커 데이터 준비
@@ -78,14 +79,14 @@ const Index = () => {
       volatilityRange: c.volatilityRange
     }));
   
-  // 기술적 분석 기반 종목 스크리닝 (메이저 코인 모드 전달)
+  // 기술적 분석 기반 종목 스크리닝
   const { activeSignals, isScanning, screenedSymbols, lastScanTime } = useCoinScreening(tickersForScreening, {}, majorCoinMode);
 
-  // 이전 시그널 추적 (재시도 쿨다운 기반)
+  // 이전 시그널 추적
   const prevSignalsRef = useRef<Map<string, number>>(new Map());
   const justEnabledRef = useRef(false);
   
-  // 자동매매 켜질 때: 2초간만 신규 처리 지연 (기존 시그널을 Set에 박아버리면 영영 재시도 불가)
+  // 자동매매 켜질 때 초기화
   useEffect(() => {
     if (autoTrading.state.isEnabled) {
       justEnabledRef.current = true;
@@ -103,23 +104,20 @@ const Index = () => {
   // 기술적 분석 시그널 감지 시 자동매매 트리거
   useEffect(() => {
     if (!autoTrading.state.isEnabled) return;
-    if (justEnabledRef.current) return; // 방금 켜졌으면 대기
+    if (justEnabledRef.current) return;
     if (activeSignals.length === 0) return;
 
-    // 포지션 보유 중이거나 대기 중이면 새 시그널 무시
     if (autoTrading.state.currentPosition) return;
     if (autoTrading.state.pendingSignal) return;
 
     const now = Date.now();
-    const retryCooldownMs = 2 * 60 * 1000; // 동일 시그널 2분 재시도 쿨다운
+    const retryCooldownMs = 2 * 60 * 1000;
 
     for (const signal of activeSignals) {
       const signalKey = `${signal.symbol}-${signal.direction}`;
 
-      // medium 이상만 처리
       if (signal.strength === 'weak') continue;
 
-      // 동일 시그널 재시도 쿨다운
       const lastAttempt = prevSignalsRef.current.get(signalKey);
       if (lastAttempt && now - lastAttempt < retryCooldownMs) continue;
 
@@ -127,7 +125,6 @@ const Index = () => {
 
       prevSignalsRef.current.set(signalKey, now);
 
-      // 자동매매 진입 실행 (새로운 기술적 분석 시그널 사용)
       autoTrading.handleTechnicalSignal(
         signal.symbol,
         signal.direction,
@@ -137,13 +134,12 @@ const Index = () => {
         signal.indicators
       );
 
-      // 진입한 종목으로 차트 전환
       setSelectedSymbol(signal.symbol);
-      break; // 한 번에 하나만 처리
+      break;
     }
   }, [activeSignals, autoTrading.state.isEnabled, autoTrading.state.currentPosition, autoTrading.state.pendingSignal]);
   
-  // 포지션 보유 중이거나 대기 중일 때 해당 종목 차트 유지
+  // 포지션 보유 중일 때 해당 종목 차트 유지
   useEffect(() => {
     if (autoTrading.state.currentPosition) {
       setSelectedSymbol(autoTrading.state.currentPosition.symbol);
@@ -228,13 +224,7 @@ const Index = () => {
   
   // 수동 청산 핸들러
   const handleManualClose = () => {
-    if (!autoTrading.state.currentPosition) return;
-    
-    const position = autoTrading.state.currentPosition;
-    const ticker = tickers.find(t => t.symbol === position.symbol);
-    if (!ticker) return;
-    
-    autoTrading.closePosition(ticker.price);
+    autoTrading.closePosition();
   };
 
   // Show loading
@@ -256,11 +246,10 @@ const Index = () => {
     ? tickers.find(t => t.symbol === autoTrading.state.currentPosition?.symbol)?.price || 0
     : 0;
     
-  // 손절/익절 예정 가격 계산 (평단가 기준)
+  // 손절/익절 가격 계산
   const position = autoTrading.state.currentPosition;
-  const { tpPrice, slPrice } = autoTrading.calculateTpSlPrices();
-  const stopLossPrice = position ? slPrice : undefined;
-  const takeProfitPrice = position ? tpPrice : undefined;
+  const stopLossPrice = position?.stopLossPrice;
+  const takeProfitPrice = undefined; // 지정가 익절은 동적으로 계산
 
   return (
     <div className="h-screen bg-background p-1 overflow-hidden flex flex-col">
@@ -282,10 +271,9 @@ const Index = () => {
         {/* Right - System Trading Panel */}
         <div className="col-span-4 flex flex-col min-h-0 overflow-auto gap-1">
           <AutoTradingPanel
-            state={autoTrading.state as any}
+            state={autoTrading.state}
             onToggle={autoTrading.toggleAutoTrading}
             onManualClose={handleManualClose}
-            onSkipSignal={autoTrading.skipSignal}
             currentPrice={currentAutoPrice}
             krwRate={krwRate}
             leverage={leverage}
