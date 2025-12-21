@@ -52,7 +52,7 @@ const PaperTrading = () => {
   
   // Only connect WebSocket when user is authenticated and API keys are ready
   const shouldConnectWebSocket = !!user && hasApiKeys === true;
-  const { tickers } = useTickerWebSocket(shouldConnectWebSocket);
+  const { tickers } = useTickerWebSocket(shouldConnectWebSocket, { isTestnet: true });
   
   // 청산 후 즉시 잔고 갱신
   const handleTradeComplete = useCallback(() => {

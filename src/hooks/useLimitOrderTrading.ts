@@ -553,10 +553,9 @@ export function useLimitOrderTrading({
             if (actualPosition) {
               const remainQty = Math.abs(parseFloat(actualPosition.positionAmt));
               if (remainQty > 0) {
-                console.log(`🔴 [잔량청산] ${currentPos.symbol} 잔량 ${remainQty} 시장가 청산`);
-                const res = await fetch(`https://fapi.binance.com/fapi/v1/ticker/price?symbol=${currentPos.symbol}`);
-                const data = await res.json();
-                await closePositionMarket('tp', parseFloat(data.price));
+                const markPrice = parseFloat((actualPosition as any).markPrice || (actualPosition as any).entryPrice || '0');
+                console.log(`🔴 [잔량청산] ${currentPos.symbol} 잔량 ${remainQty} 시장가 청산 (markPrice=${markPrice})`);
+                await closePositionMarket('tp', markPrice);
               }
             } else {
               // 포지션 없으면 상태 초기화
@@ -1021,18 +1020,23 @@ export function useLimitOrderTrading({
   // ===== 수동 청산 =====
   const manualClosePosition = useCallback(async () => {
     if (!state.currentPosition) return;
-    
+
     try {
-      const res = await fetch(`https://fapi.binance.com/fapi/v1/ticker/price?symbol=${state.currentPosition.symbol}`);
-      const data = await res.json();
-      const currentPrice = parseFloat(data.price);
-      
+      const positions = await getPositions(state.currentPosition.symbol);
+      const actualPosition = positions?.find((p: any) =>
+        p.symbol === state.currentPosition!.symbol && Math.abs(parseFloat(p.positionAmt)) > 0
+      );
+
+      const currentPrice = actualPosition
+        ? parseFloat((actualPosition as any).markPrice || (actualPosition as any).entryPrice || '0')
+        : state.currentPosition.avgPrice;
+
       await closePositionMarket('cancel', currentPrice);
     } catch (error) {
       console.error('수동 청산 실패:', error);
       toast.error('청산 실패');
     }
-  }, [state.currentPosition, closePositionMarket]);
+  }, [state.currentPosition, closePositionMarket, getPositions]);
 
   // ===== 진입 대기 중 취소 =====
   const cancelEntry = useCallback(async () => {
