@@ -33,6 +33,7 @@ export interface SymbolPrecision {
   stepSize: number;
   minQty: number;
   minNotional: number;
+  notFound?: boolean; // 심볼이 거래소에 없음
 }
 
 // Cache for symbol precision info
@@ -59,16 +60,17 @@ export async function fetchSymbolPrecision(symbol: string, isTestnet: boolean = 
     const symbolInfo = data.symbols.find((s: any) => s.symbol === symbol);
     
     if (!symbolInfo) {
-      console.warn(`[fetchSymbolPrecision] ${symbol} not found, using defaults`);
-      // Return default precision if symbol not found
+      console.warn(`[fetchSymbolPrecision] ${symbol} not found on ${isTestnet ? 'testnet' : 'mainnet'}`);
+      // Return with notFound flag
       return {
         symbol,
         pricePrecision: 2,
-        quantityPrecision: 0, // 테스트넷 기본값은 정수
+        quantityPrecision: 0,
         tickSize: 0.01,
         stepSize: 1,
         minQty: 1,
         minNotional: 5,
+        notFound: true, // 심볼 없음 표시
       };
     }
 

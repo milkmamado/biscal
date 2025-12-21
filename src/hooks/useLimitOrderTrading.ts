@@ -675,6 +675,19 @@ export function useLimitOrderTrading({
       // 정밀도 조회
       const precision = await fetchSymbolPrecision(symbol, isTestnet);
       
+      // 테스트넷에 없는 코인 체크
+      if (precision.notFound) {
+        console.log(`🚫 [테스트넷] ${symbol} 미지원 코인 - 스킵`);
+        toast.warning(`${symbol.replace('USDT', '')} 테스트넷 미지원`);
+        setState(prev => ({ 
+          ...prev, 
+          isProcessing: false,
+          statusMessage: `❌ ${symbol.replace('USDT', '')} 테스트넷 미지원`,
+        }));
+        processingRef.current = false;
+        return;
+      }
+      
       // 전체 포지션 계산
       const positionSizePercent = LIMIT_ORDER_CONFIG.POSITION_SIZE_PERCENT / 100;
       const entryBalance = balanceUSD * positionSizePercent;
