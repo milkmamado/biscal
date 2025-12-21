@@ -1,12 +1,10 @@
 /**
- * ⚡ 지정가 기반 빠른 회전 전략 v1.0
+ * ⚡ 2단계 진입 전략 v2.0
  * 
  * 🎯 설계 원칙:
- * 1. 지정가 10분할 진입 (수수료 0.02% vs 시장가 0.05%)
- * 2. 10초 타임아웃 필터 (변동성 없는 종목 배제)
- * 3. 5분할 지정가 익절 (빠른 수익 확정)
- * 4. 3초 내 미체결 시 시장가 청산
- * 5. 간결하고 빠른 회전
+ * 1. 1차: 50% 지정가 진입 (체결 대기)
+ * 2. 2차: 1차 체결 시 나머지 50% 시장가 즉시 진입
+ * 3. 미체결 문제 해결 & 빠른 회전
  */
 
 // ===== 기본 설정 =====
@@ -20,14 +18,13 @@ export const LIMIT_ORDER_CONFIG = {
   MAKER_FEE: 0.02,                 // 지정가 0.02%
   TAKER_FEE: 0.05,                 // 시장가 0.05%
   
-  // ===== 진입 설정 =====
+  // ===== 진입 설정 (2단계) =====
   ENTRY: {
-    SPLIT_COUNT: 10,               // 10분할 지정가
-    PRICE_OFFSET_PERCENT: 0.03,    // 현재가 대비 ±0.03% 범위
-    TIMEOUT_SEC: 10,               // 10초 내 미체결 시 취소
-    PARTIAL_WAIT_SEC: 5,           // 일부 체결 후 5초 대기
-    MIN_FILL_RATIO: 0.1,           // 최소 10% 이상 체결되어야 유효
-    LOW_FILL_THRESHOLD: 0.3,       // 30% 미만 체결 시 저체결 처리
+    FIRST_ENTRY_PERCENT: 50,       // 1차: 50% 지정가
+    SECOND_ENTRY_PERCENT: 50,      // 2차: 50% 시장가 (1차 체결 후)
+    PRICE_OFFSET_PERCENT: 0.02,    // 현재가 대비 ±0.02% (롱은 아래, 숏은 위)
+    TIMEOUT_SEC: 8,                // 8초 내 미체결 시 취소
+    MIN_FILL_RATIO: 0.5,           // 50% 이상 체결되어야 2차 진입
     BREAKEVEN_FEE_BUFFER: 0.1,     // 손익분기 청산 시 수수료 버퍼 (%)
   },
   
@@ -88,35 +85,28 @@ export interface LimitOrderPosition {
 // ===== 유틸리티 함수 =====
 
 /**
- * 10분할 지정가 가격 배열 생성
+ * 1차 지정가 진입 가격 생성 (50%)
  * 롱: 현재가 아래로 / 숏: 현재가 위로
  */
-export function generateEntryPrices(
+export function generateFirstEntryPrice(
   currentPrice: number,
   side: 'long' | 'short',
   tickSize: number
-): number[] {
-  const prices: number[] = [];
+): number {
   const offsetPercent = LIMIT_ORDER_CONFIG.ENTRY.PRICE_OFFSET_PERCENT / 100;
-  const totalOffset = currentPrice * offsetPercent;
-  const stepSize = totalOffset / LIMIT_ORDER_CONFIG.ENTRY.SPLIT_COUNT;
   
-  for (let i = 0; i < LIMIT_ORDER_CONFIG.ENTRY.SPLIT_COUNT; i++) {
-    let price: number;
-    if (side === 'long') {
-      // 롱: 현재가 아래로 분할
-      price = currentPrice - (stepSize * (i + 1));
-    } else {
-      // 숏: 현재가 위로 분할
-      price = currentPrice + (stepSize * (i + 1));
-    }
-    
-    // 틱 사이즈에 맞게 반올림
-    price = Math.round(price / tickSize) * tickSize;
-    prices.push(price);
+  let price: number;
+  if (side === 'long') {
+    // 롱: 현재가 아래로
+    price = currentPrice * (1 - offsetPercent);
+  } else {
+    // 숏: 현재가 위로
+    price = currentPrice * (1 + offsetPercent);
   }
   
-  return prices;
+  // 틱 사이즈에 맞게 반올림
+  price = Math.round(price / tickSize) * tickSize;
+  return price;
 }
 
 /**
