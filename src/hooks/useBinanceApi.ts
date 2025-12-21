@@ -71,14 +71,16 @@ export const useBinanceApi = (options: UseBinanceApiOptions = {}) => {
           .select('api_key, api_secret')
           .eq('user_id', user.id)
           .eq('is_testnet', true)
-          .single();
+          .maybeSingle();
         
-        if (data) {
+        if (data?.api_key && data?.api_secret) {
           setTestnetKeys({
             apiKey: data.api_key,
             apiSecret: data.api_secret,
           });
           console.log('[useBinanceApi] Testnet keys loaded');
+        } else {
+          setTestnetKeys(null);
         }
       } catch (err) {
         console.error('[useBinanceApi] Failed to fetch testnet keys:', err);
@@ -219,7 +221,7 @@ export const useBinanceApi = (options: UseBinanceApiOptions = {}) => {
     currentPrice?: number
   ) => {
     // Fetch precision and round quantity
-    const precision = await fetchSymbolPrecision(symbol);
+    const precision = await fetchSymbolPrecision(symbol, isTestnet);
     const roundedQuantity = roundQuantity(quantity, precision);
     
     // Validate minimum notional (skip for reduceOnly orders)
@@ -242,7 +244,7 @@ export const useBinanceApi = (options: UseBinanceApiOptions = {}) => {
     }
     
     return callBinanceApi('placeOrder', params);
-  }, [callBinanceApi]);
+  }, [callBinanceApi, isTestnet]);
 
   const placeLimitOrder = useCallback(async (
     symbol: string,
@@ -252,7 +254,7 @@ export const useBinanceApi = (options: UseBinanceApiOptions = {}) => {
     reduceOnly: boolean = false
   ) => {
     // Fetch precision and round quantity/price
-    const precision = await fetchSymbolPrecision(symbol);
+    const precision = await fetchSymbolPrecision(symbol, isTestnet);
     const roundedQuantity = roundQuantity(quantity, precision);
     const roundedPrice = roundPrice(price, precision);
     
@@ -278,7 +280,7 @@ export const useBinanceApi = (options: UseBinanceApiOptions = {}) => {
     }
     
     return callBinanceApi('placeOrder', params);
-  }, [callBinanceApi]);
+  }, [callBinanceApi, isTestnet]);
 
   const cancelOrder = useCallback(async (symbol: string, orderId: number) => {
     return callBinanceApi('cancelOrder', { symbol, orderId });

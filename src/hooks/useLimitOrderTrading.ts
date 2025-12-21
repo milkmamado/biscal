@@ -692,13 +692,31 @@ export function useLimitOrderTrading({
       const positionSizePercent = LIMIT_ORDER_CONFIG.POSITION_SIZE_PERCENT / 100;
       const entryBalance = balanceUSD * positionSizePercent;
       const buyingPower = entryBalance * leverage;
-      const totalQty = buyingPower / currentPrice;
-      const splitQty = totalQty / LIMIT_ORDER_CONFIG.ENTRY.SPLIT_COUNT;
-      const roundedSplitQty = roundQuantity(splitQty, precision);
 
-      if (roundedSplitQty * currentPrice < 5.5) {
-        throw new Error('최소 주문금액 미달');
+      const splitCount = LIMIT_ORDER_CONFIG.ENTRY.SPLIT_COUNT;
+      const totalQty = buyingPower / currentPrice;
+      const splitQtyRaw = totalQty / splitCount;
+      const roundedSplitQty = roundQuantity(splitQtyRaw, precision);
+
+      const splitNotional = roundedSplitQty * currentPrice;
+      const qtyDigits = Math.min(8, Math.max(0, precision.quantityPrecision));
+
+      // 10분할이 "물리적으로" 불가능한 경우(최소수량/최소금액) 사전에 중단
+      if (splitQtyRaw < precision.minQty || totalQty < precision.minQty * splitCount) {
+        throw new Error(
+          `10분할 불가: 최소수량(${precision.minQty}) 미달 (예상 1회 수량 ${splitQtyRaw.toFixed(qtyDigits)})`
+        );
       }
+
+      if (splitNotional < precision.minNotional) {
+        throw new Error(
+          `10분할 불가: 최소 주문금액 ${precision.minNotional}USDT 미달 (현재 ${splitNotional.toFixed(2)}USDT)`
+        );
+      }
+
+      console.log(
+        `📦 [진입수량] totalQty=${totalQty.toFixed(qtyDigits)} splitQty=${splitQtyRaw.toFixed(qtyDigits)} roundedSplitQty=${roundedSplitQty.toFixed(qtyDigits)} notional=${splitNotional.toFixed(2)}USDT (minQty=${precision.minQty}, minNotional=${precision.minNotional})`
+      );
 
       // 레버리지 설정
       try {
@@ -719,6 +737,7 @@ export function useLimitOrderTrading({
       // 지정가 주문 실행
       const orderIds: string[] = [];
       const entries: LimitOrderEntry[] = [];
+      const failures: string[] = [];
 
       for (let i = 0; i < entryPrices.length; i++) {
         const price = entryPrices[i];
@@ -737,14 +756,19 @@ export function useLimitOrderTrading({
               status: 'NEW',
               timestamp: Date.now(),
             });
+          } else {
+            failures.push('응답이 비정상입니다');
           }
         } catch (orderError: any) {
-          console.warn(`주문 ${i + 1} 실패:`, orderError.message);
+          const msg = orderError?.message || '주문 실패';
+          failures.push(msg);
+          console.warn(`주문 ${i + 1} 실패:`, msg);
         }
       }
 
       if (orderIds.length === 0) {
-        throw new Error('모든 지정가 주문 실패');
+        const sample = failures.filter(Boolean).slice(0, 2).join(' / ');
+        throw new Error(`모든 지정가 주문 실패${sample ? `: ${sample}` : ''}`);
       }
 
       // 포지션 생성 (진입 대기 상태)
