@@ -26,6 +26,8 @@ export const LIMIT_ORDER_CONFIG = {
     TIMEOUT_SEC: 10,               // 10초 내 미체결 시 취소
     PARTIAL_WAIT_SEC: 5,           // 일부 체결 후 5초 대기
     MIN_FILL_RATIO: 0.1,           // 최소 10% 이상 체결되어야 유효
+    LOW_FILL_THRESHOLD: 0.3,       // 30% 미만 체결 시 저체결 처리
+    BREAKEVEN_FEE_BUFFER: 0.1,     // 손익분기 청산 시 수수료 버퍼 (%)
   },
   
   // ===== 익절 설정 =====

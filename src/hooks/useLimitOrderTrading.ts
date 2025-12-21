@@ -596,16 +596,41 @@ export function useLimitOrderTrading({
     const priceDiff = (currentPrice - position.avgPrice) * direction;
     const pnlUSD = priceDiff * position.filledQuantity;
     const pnlKRW = pnlUSD * krwRate;
+    const pnlPercent = (priceDiff / position.avgPrice) * 100;
+
+    // 저체결 손익분기 모드 체크
+    const isLowFillBreakeven = (position as any).isLowFillBreakeven === true;
+    const breakEvenBuffer = LIMIT_ORDER_CONFIG.ENTRY.BREAKEVEN_FEE_BUFFER ?? 0.1;
 
     // 상태 메시지 업데이트
     setState(prev => ({
       ...prev,
-      statusMessage: `🔄 ${position.symbol.replace('USDT', '')} ${position.side === 'long' ? '롱' : '숏'} | ${pnlKRW >= 0 ? '+' : ''}₩${Math.round(pnlKRW).toLocaleString()}`,
+      statusMessage: isLowFillBreakeven
+        ? `⚡ ${position.symbol.replace('USDT', '')} 손익분기 대기 | ${pnlPercent >= 0 ? '+' : ''}${pnlPercent.toFixed(2)}%`
+        : `🔄 ${position.symbol.replace('USDT', '')} ${position.side === 'long' ? '롱' : '숏'} | ${pnlKRW >= 0 ? '+' : ''}₩${Math.round(pnlKRW).toLocaleString()}`,
     }));
 
     // 진입 직후 5초 보호
     if (holdTimeSec < 5) return;
 
+    // ===== 저체결 손익분기 모드: 손익분기 도달 시 즉시 청산 =====
+    if (isLowFillBreakeven) {
+      if (pnlPercent >= -breakEvenBuffer) {
+        console.log(`✅ [저체결 손익분기] ${position.symbol} PnL ${pnlPercent.toFixed(3)}% >= -${breakEvenBuffer}% → 청산`);
+        await closePositionMarket('tp', currentPrice);
+        return;
+      }
+      // 손절 체크 (저체결도 손절은 동일하게 적용)
+      if (shouldStopLoss(currentPrice, position.stopLossPrice, position.side)) {
+        console.log(`🛑 저체결 손절! 현재가 ${currentPrice} SL ${position.stopLossPrice}`);
+        await closePositionMarket('sl', currentPrice);
+        return;
+      }
+      // 저체결 모드에서는 1만원 익절/타임스탑 무시, 손익분기만 대기
+      return;
+    }
+
+    // ===== 일반 모드 =====
     // 손절 체크
     if (shouldStopLoss(currentPrice, position.stopLossPrice, position.side)) {
       console.log(`🛑 손절! 현재가 ${currentPrice} SL ${position.stopLossPrice}`);
@@ -852,11 +877,91 @@ export function useLimitOrderTrading({
       // 미체결 주문 취소
       await cancelPendingOrders(symbol);
 
+      // ===== 저체결 처리 (30% 미만) → 손익분기 청산 =====
+      const lowFillThreshold = LIMIT_ORDER_CONFIG.ENTRY.LOW_FILL_THRESHOLD ?? 0.3;
+      if (fillRatio < lowFillThreshold) {
+        console.log(`⚡ [저체결] ${symbol} 체결률 ${(fillRatio * 100).toFixed(1)}% < ${lowFillThreshold * 100}% → 손익분기 청산 대기`);
+        
+        // 현재가 조회
+        const positions = await getPositions(symbol);
+        const pos = positions?.find((p: any) => p.symbol === symbol && Math.abs(parseFloat(p.positionAmt)) > 0);
+        const markPrice = pos ? parseFloat((pos as any).markPrice || pos.entryPrice) : avgPrice;
+        
+        // 손익 계산
+        const direction = side === 'long' ? 1 : -1;
+        const priceDiff = (markPrice - avgPrice) * direction;
+        const pnlPercent = (priceDiff / avgPrice) * 100;
+        const breakEvenBuffer = LIMIT_ORDER_CONFIG.ENTRY.BREAKEVEN_FEE_BUFFER ?? 0.1;
+        
+        // 손익분기 = 수수료(0.07%) 이상이면 바로 청산
+        if (pnlPercent >= -breakEvenBuffer) {
+          console.log(`✅ [손익분기 청산] ${symbol} PnL ${pnlPercent.toFixed(3)}% >= -${breakEvenBuffer}% → 즉시 청산`);
+          
+          const orderSide = side === 'long' ? 'SELL' : 'BUY';
+          try {
+            await placeMarketOrder(symbol, orderSide, filledQty, true, markPrice);
+            
+            const pnlUSD = priceDiff * filledQty;
+            const pnlKRW = Math.round(pnlUSD * krwRate);
+            const isWin = pnlUSD > 0;
+            
+            setState(prev => ({
+              ...prev,
+              currentPosition: null,
+              currentSymbol: null,
+              entryOrderIds: [],
+              entryStartTime: null,
+              todayStats: {
+                trades: prev.todayStats.trades + 1,
+                wins: prev.todayStats.wins + (isWin ? 1 : 0),
+                losses: prev.todayStats.losses + (isWin ? 0 : 1),
+                totalPnL: prev.todayStats.totalPnL + pnlUSD,
+              },
+              statusMessage: '🔍 저체결 청산 완료, 다음 시그널 대기...',
+            }));
+            
+            addLog({
+              symbol,
+              action: isWin ? 'tp' : 'sl',
+              side,
+              price: markPrice,
+              quantity: filledQty,
+              pnl: pnlUSD,
+              reason: `저체결(${(fillRatio * 100).toFixed(0)}%) 손익분기 청산`,
+            });
+            
+            toast.info(`📊 저체결 청산 | ${pnlKRW >= 0 ? '+' : ''}₩${pnlKRW.toLocaleString()}`);
+            
+            if (logTrade) {
+              logTrade({
+                symbol,
+                side,
+                entryPrice: avgPrice,
+                exitPrice: markPrice,
+                quantity: filledQty,
+                leverage,
+                pnlUsd: pnlUSD,
+              });
+            }
+            onTradeComplete?.();
+          } catch (err) {
+            console.error('저체결 청산 실패:', err);
+          }
+          return;
+        } else {
+          // 손실 구간이면 손익분기 도달까지 대기 (기존 로직으로 진행)
+          console.log(`⏳ [손익분기 대기] ${symbol} PnL ${pnlPercent.toFixed(3)}% < -${breakEvenBuffer}% → 손익분기 도달 시 청산`);
+        }
+      }
+
       // 손절가 계산 (설정된 퍼센트 사용)
       const slPercent = filterSettings?.stopLossPercent ?? LIMIT_ORDER_CONFIG.STOP_LOSS.PERCENT;
       const stopLossPrice = side === 'long' 
         ? avgPrice * (1 - slPercent / 100) 
         : avgPrice * (1 + slPercent / 100);
+
+      // 저체결이지만 손실 구간인 경우 → 손익분기 청산 모드로 포지션 활성화
+      const isLowFill = fillRatio < lowFillThreshold;
 
       // 포지션 활성화
       setState(prev => {
@@ -870,9 +975,12 @@ export function useLimitOrderTrading({
             entryPhase: 'active',
             startTime: Date.now(), // 활성화 시점부터 타임스탑 계산
             stopLossPrice,
-          },
+            isLowFillBreakeven: isLowFill, // 저체결 손익분기 모드 플래그
+          } as any,
           entryOrderIds: [],
-          statusMessage: `🔄 ${symbol.replace('USDT', '')} ${side === 'long' ? '롱' : '숏'} 활성화`,
+          statusMessage: isLowFill 
+            ? `⚡ ${symbol.replace('USDT', '')} 저체결 → 손익분기 대기...`
+            : `🔄 ${symbol.replace('USDT', '')} ${side === 'long' ? '롱' : '숏'} 활성화`,
         };
       });
 
@@ -884,15 +992,19 @@ export function useLimitOrderTrading({
         side,
         price: avgPrice,
         quantity: filledQty,
-        reason: `체결 완료 (${(fillRatio * 100).toFixed(0)}%)`,
+        reason: isLowFill ? `저체결 (${(fillRatio * 100).toFixed(0)}%) 손익분기 대기` : `체결 완료 (${(fillRatio * 100).toFixed(0)}%)`,
       });
 
-      toast.success(`✅ ${side === 'long' ? '롱' : '숏'} 체결! 평균가 ${avgPrice.toFixed(4)}`);
+      toast[isLowFill ? 'warning' : 'success'](
+        isLowFill 
+          ? `⚡ ${(fillRatio * 100).toFixed(0)}% 저체결 → 손익분기 청산 대기`
+          : `✅ ${side === 'long' ? '롱' : '숏'} 체결! 평균가 ${avgPrice.toFixed(4)}`
+      );
 
     } catch (error: any) {
       console.error('체결 확인 실패:', error);
     }
-  }, [getPositions, cancelPendingOrders, addLog, balanceUSD, krwRate, filterSettings]);
+  }, [getPositions, cancelPendingOrders, addLog, balanceUSD, krwRate, filterSettings, placeMarketOrder, leverage, logTrade, onTradeComplete]);
 
   // checkEntryFill을 ref에 저장 (재귀 호출용)
   useEffect(() => {
