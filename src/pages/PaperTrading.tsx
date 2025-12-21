@@ -81,6 +81,9 @@ const PaperTrading = () => {
     filterSettings: {
       adxEnabled: adxFilterEnabled,
       volumeEnabled: volumeFilterEnabled,
+      rsiEnabled: rsiFilterEnabled,
+      macdEnabled: macdFilterEnabled,
+      bollingerEnabled: bollingerFilterEnabled,
       adxThreshold,
       stopLossPercent,
       takeProfitKrw,
