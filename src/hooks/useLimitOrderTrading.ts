@@ -757,7 +757,10 @@ export function useLimitOrderTrading({
               timestamp: Date.now(),
             });
           } else {
-            failures.push('응답이 비정상입니다');
+            // 실제 에러 메시지 캡처
+            const errMsg = orderResult?.error || orderResult?.msg || orderResult?.message || JSON.stringify(orderResult);
+            console.warn(`주문 ${i + 1} API 응답 에러:`, errMsg);
+            failures.push(errMsg);
           }
         } catch (orderError: any) {
           const msg = orderError?.message || '주문 실패';
