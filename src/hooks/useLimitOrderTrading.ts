@@ -889,7 +889,35 @@ export function useLimitOrderTrading({
     try {
       // 포지션 조회
       const positions = await getPositions(symbol);
-      const actualPosition = positions?.find((p: any) =>
+      
+      // API가 null을 반환하면 (테스트넷 키 미로드 등) 강제 취소 처리
+      if (!positions) {
+        console.warn(`⚠️ [checkEntryFill] ${symbol} API 응답 없음 → 강제 취소 처리`);
+        await cancelPendingOrders(symbol);
+        
+        setState(prev => ({
+          ...prev,
+          currentPosition: null,
+          currentSymbol: null,
+          entryOrderIds: [],
+          entryStartTime: null,
+          statusMessage: '⚠️ API 오류, 다음 종목 스캔...',
+        }));
+
+        addLog({
+          symbol,
+          action: 'cancel',
+          side,
+          price: 0,
+          quantity: 0,
+          reason: `API 응답 없음 (키 미로드)`,
+        });
+        
+        toast.warning(`⚠️ ${symbol.replace('USDT', '')} API 오류로 취소`);
+        return;
+      }
+      
+      const actualPosition = positions.find((p: any) =>
         p.symbol === symbol && Math.abs(parseFloat(p.positionAmt)) > 0
       );
 
