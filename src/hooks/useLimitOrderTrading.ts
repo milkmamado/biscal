@@ -455,7 +455,10 @@ export function useLimitOrderTrading({
     }
 
     // 익절 조건 체크 (설정된 금액 이상)
-    const pnlUSD = (pnlPercent / 100) * position.avgPrice * position.filledQuantity;
+    // 정확한 PnL 계산: 가격차이 × 수량
+    const direction = position.side === 'long' ? 1 : -1;
+    const priceDiff = (currentPrice - position.avgPrice) * direction;
+    const pnlUSD = priceDiff * position.filledQuantity;
     const pnlKRW = pnlUSD * krwRate;
     const targetProfitKrw = filterSettings?.takeProfitKrw ?? LIMIT_ORDER_CONFIG.TAKE_PROFIT.MIN_PROFIT_KRW;
     
