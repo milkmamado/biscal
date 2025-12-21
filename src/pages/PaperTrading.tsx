@@ -78,6 +78,13 @@ const PaperTrading = () => {
     logTrade,
     isTestnet: true,
     majorCoinMode,
+    filterSettings: {
+      adxEnabled: adxFilterEnabled,
+      volumeEnabled: volumeFilterEnabled,
+      adxThreshold,
+      stopLossPercent,
+      takeProfitKrw,
+    },
   });
   
   // 자동매매 중 절전 방지

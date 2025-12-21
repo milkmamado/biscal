@@ -126,6 +126,14 @@ interface UseLimitOrderTradingProps {
   }) => void;
   majorCoinMode?: boolean;
   isTestnet?: boolean;
+  // 필터 설정
+  filterSettings?: {
+    adxEnabled: boolean;
+    volumeEnabled: boolean;
+    adxThreshold: number;
+    stopLossPercent: number;
+    takeProfitKrw: number;
+  };
 }
 
 // ===== 메인 훅 =====
@@ -138,6 +146,7 @@ export function useLimitOrderTrading({
   logTrade,
   majorCoinMode = true,
   isTestnet = false,
+  filterSettings,
 }: UseLimitOrderTradingProps) {
   const leverage = LIMIT_ORDER_CONFIG.LEVERAGE;
 
@@ -723,20 +732,23 @@ export function useLimitOrderTrading({
     // 시그널 강도 체크
     if (strength === 'weak') return;
 
-    // ADX 필터
-    if (indicators.adx < LIMIT_ORDER_CONFIG.SIGNAL.MIN_ADX) {
-      console.log(`[handleSignal] ${symbol} 횡보장 필터 (ADX: ${indicators.adx.toFixed(1)})`);
+    // ADX 필터 (설정에서 끌 수 있음)
+    const adxEnabled = filterSettings?.adxEnabled ?? true;
+    const adxThreshold = filterSettings?.adxThreshold ?? LIMIT_ORDER_CONFIG.SIGNAL.MIN_ADX;
+    if (adxEnabled && indicators.adx < adxThreshold) {
+      console.log(`[handleSignal] ${symbol} 횡보장 필터 (ADX: ${indicators.adx.toFixed(1)} < ${adxThreshold})`);
       return;
     }
 
-    // 거래량 필터 (volumeRatio는 비율이므로 1.3 = 130%)
+    // 거래량 필터 (설정에서 끌 수 있음)
+    const volumeEnabled = filterSettings?.volumeEnabled ?? true;
     const volumePercent = (indicators.volumeRatio || 0) * 100;
-    if (volumePercent < LIMIT_ORDER_CONFIG.SIGNAL.MIN_VOLUME_RATIO) {
+    if (volumeEnabled && volumePercent < LIMIT_ORDER_CONFIG.SIGNAL.MIN_VOLUME_RATIO) {
       console.log(`[handleSignal] ${symbol} 거래량 부족 (${volumePercent.toFixed(0)}% < ${LIMIT_ORDER_CONFIG.SIGNAL.MIN_VOLUME_RATIO}%)`);
       return;
     }
 
-    console.log(`🎯 [시그널] ${symbol} ${direction} (${strength})`);
+    console.log(`🎯 [시그널] ${symbol} ${direction} (${strength})${!adxEnabled ? ' [ADX필터OFF]' : ''}${!volumeEnabled ? ' [거래량필터OFF]' : ''}`);
     
     // 즉시 진입 (지정가 주문)
     await executeLimitEntry(symbol, direction, price, indicators);
