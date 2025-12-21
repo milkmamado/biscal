@@ -758,9 +758,11 @@ export function useLimitOrderTrading({
 
       lastEntryTimeRef.current = Date.now();
 
-      // 10초 타임아웃 설정
+      // 10초 타임아웃 설정 (ref 사용하여 최신 함수 참조)
       entryTimeoutRef.current = setTimeout(async () => {
-        await checkEntryFill(symbol, side);
+        if (checkEntryFillRef.current) {
+          await checkEntryFillRef.current(symbol, side, false);
+        }
       }, LIMIT_ORDER_CONFIG.ENTRY.TIMEOUT_SEC * 1000);
 
       playEntrySound();
