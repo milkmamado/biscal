@@ -1052,6 +1052,40 @@ export function useAutoTrading({
     const strengthOrder = { weak: 1, medium: 2, strong: 3 };
     if (strengthOrder[strength] < strengthOrder[CONFIG.MIN_SIGNAL_STRENGTH]) return;
 
+    // ===== 5봉 연속 진행 필터 (한 방향 과열 방지) =====
+    try {
+      const klines1m = await fetch1mKlines(symbol, 6); // 최근 6봉 (현재봉 제외하고 5봉 분석)
+      if (klines1m && klines1m.length >= 6) {
+        const last5Candles = klines1m.slice(0, 5); // 현재봉 제외
+        
+        // 연속 양봉/음봉 카운트
+        let consecutiveBullish = 0;
+        let consecutiveBearish = 0;
+        
+        for (const candle of last5Candles) {
+          if (candle.close > candle.open) {
+            consecutiveBullish++;
+          } else if (candle.close < candle.open) {
+            consecutiveBearish++;
+          }
+        }
+        
+        // 5봉 연속 양봉 → 롱 진입 금지 (이미 많이 상승)
+        if (consecutiveBullish >= 5 && direction === 'long') {
+          console.log(`🚫 [5봉필터] ${symbol} 5봉 연속 양봉 → 롱 진입 금지 (과매수)`);
+          return;
+        }
+        
+        // 5봉 연속 음봉 → 숏 진입 금지 (이미 많이 하락)
+        if (consecutiveBearish >= 5 && direction === 'short') {
+          console.log(`🚫 [5봉필터] ${symbol} 5봉 연속 음봉 → 숏 진입 금지 (과매도)`);
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn('5봉 필터 확인 실패:', err);
+    }
+
     // ADX 시장 환경 필터 - 횡보장 차단
     if (indicators.adx < CONFIG.MIN_ADX_FOR_TREND) {
       console.log(`[handleSignal] ${symbol} 횡보장 필터 (ADX: ${indicators.adx.toFixed(1)} < ${CONFIG.MIN_ADX_FOR_TREND})`);
