@@ -6,8 +6,8 @@
 
 // 메이저 코인 티어 분류
 export const MAJOR_COIN_TIERS = {
-  // Tier 1: 최상위 유동성 (슬리피지 거의 0)
-  TIER_1: ['BTCUSDT', 'ETHUSDT'],
+  // Tier 1: 최상위 유동성 (슬리피지 거의 0) - BTC 제외 (10분할 최소수량 미달)
+  TIER_1: ['ETHUSDT'],
   
   // Tier 2: 높은 유동성 (안정적인 스프레드)
   TIER_2: ['BNBUSDT', 'SOLUSDT', 'XRPUSDT'],
