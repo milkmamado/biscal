@@ -152,7 +152,8 @@ export function useLimitOrderTrading({
   isTestnet = false,
   filterSettings,
 }: UseLimitOrderTradingProps) {
-  const leverage = LIMIT_ORDER_CONFIG.LEVERAGE;
+  // PaperTrading/Index에서 전달된 레버리지를 우선 사용 (기본값은 config)
+  const leverage = _leverage ?? LIMIT_ORDER_CONFIG.LEVERAGE;
 
   const [state, setState] = useState<LimitOrderTradingState>({
     isEnabled: false,
