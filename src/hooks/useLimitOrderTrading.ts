@@ -21,6 +21,7 @@ import {
   LimitOrderEntry,
   LimitOrderPosition,
   generateEntryPrices,
+  generateTakeProfitPrices,
   calculateFillRatio,
   calculateAvgFillPrice,
   calculatePnLPercent,
@@ -421,6 +422,173 @@ export function useLimitOrderTrading({
     }
   }, [state.currentPosition, placeMarketOrder, getPositions, cancelPendingOrders, krwRate, leverage, addLog, onTradeComplete, logTrade]);
 
+  // ===== 5분할 지정가 익절 주문 배치 =====
+  const placeTakeProfitOrders = useCallback(async (
+    symbol: string,
+    side: 'long' | 'short',
+    avgPrice: number,
+    filledQuantity: number,
+    balanceKRW: number
+  ) => {
+    try {
+      const precision = await fetchSymbolPrecision(symbol, isTestnet);
+      const targetProfitKrw = filterSettings?.takeProfitKrw ?? LIMIT_ORDER_CONFIG.TAKE_PROFIT.MIN_PROFIT_KRW;
+      const profitStepKrw = LIMIT_ORDER_CONFIG.TAKE_PROFIT.PROFIT_STEP_KRW;
+      const splitCount = LIMIT_ORDER_CONFIG.TAKE_PROFIT.SPLIT_COUNT;
+      
+      // 수수료 반영
+      const roundTripFeePercent = LIMIT_ORDER_CONFIG.MAKER_FEE * 2 / 100;
+      
+      const tpOrders: LimitOrderEntry[] = [];
+      const orderSide = side === 'long' ? 'SELL' : 'BUY';
+      const splitQty = roundQuantity(filledQuantity / splitCount, precision);
+      
+      console.log(`📊 [익절주문] ${symbol} ${splitCount}분할 익절 배치 시작`);
+      
+      for (let i = 0; i < splitCount; i++) {
+        // 각 분할별 목표 수익 (설정값 기준)
+        const targetProfitForSplit = targetProfitKrw + (profitStepKrw * i);
+        const targetProfitUSD = targetProfitForSplit / krwRate;
+        
+        // 필요한 가격 변동 = 목표수익 / 수량
+        const requiredPriceDiff = targetProfitUSD / filledQuantity + (avgPrice * roundTripFeePercent);
+        
+        let tpPrice: number;
+        if (side === 'long') {
+          tpPrice = avgPrice + requiredPriceDiff;
+        } else {
+          tpPrice = avgPrice - requiredPriceDiff;
+        }
+        tpPrice = roundPrice(tpPrice, precision);
+        
+        // 마지막 분할은 잔량 전부
+        const qty = i === splitCount - 1 
+          ? roundQuantity(filledQuantity - (splitQty * (splitCount - 1)), precision)
+          : splitQty;
+        
+        if (qty <= 0) continue;
+        
+        try {
+          const result = await placeLimitOrder(symbol, orderSide, qty, tpPrice, true);
+          if (result && !result.error) {
+            tpOrders.push({
+              orderId: result.orderId,
+              price: tpPrice,
+              quantity: qty,
+              filled: 0,
+              status: 'NEW',
+              timestamp: Date.now(),
+            });
+            console.log(`  ✅ TP${i + 1}: ${tpPrice.toFixed(precision.pricePrecision)} × ${qty} (₩${targetProfitForSplit.toLocaleString()} 목표)`);
+          }
+        } catch (err) {
+          console.error(`  ❌ TP${i + 1} 실패:`, err);
+        }
+      }
+      
+      // 포지션에 익절 주문 정보 저장
+      setState(prev => {
+        if (!prev.currentPosition) return prev;
+        return {
+          ...prev,
+          currentPosition: {
+            ...prev.currentPosition,
+            takeProfitOrders: tpOrders,
+          },
+        };
+      });
+      
+      console.log(`📊 [익절주문] ${tpOrders.length}개 익절 주문 배치 완료`);
+      return tpOrders;
+      
+    } catch (error) {
+      console.error('익절 주문 배치 실패:', error);
+      return [];
+    }
+  }, [placeLimitOrder, krwRate, filterSettings, isTestnet]);
+
+  // ===== 익절 주문 체결 확인 =====
+  const checkTakeProfitFills = useCallback(async () => {
+    const position = currentPositionRef.current;
+    if (!position || position.entryPhase !== 'active') return;
+    if (position.takeProfitOrders.length === 0) return;
+    
+    try {
+      const openOrders = await getOpenOrders(position.symbol);
+      const openOrderIds = new Set(openOrders?.map((o: any) => o.orderId.toString()) || []);
+      
+      let allFilled = true;
+      let anyFilled = false;
+      
+      for (const tpOrder of position.takeProfitOrders) {
+        if (!openOrderIds.has(tpOrder.orderId.toString())) {
+          // 주문이 없으면 체결됨
+          if (tpOrder.status !== 'FILLED') {
+            tpOrder.status = 'FILLED';
+            tpOrder.filled = tpOrder.quantity;
+            anyFilled = true;
+            console.log(`💰 [익절체결] ${position.symbol} TP ${tpOrder.price} 체결!`);
+          }
+        } else {
+          allFilled = false;
+        }
+      }
+      
+      if (allFilled && position.takeProfitOrders.length > 0) {
+        // 모든 익절 체결 완료
+        console.log(`🎉 [익절완료] ${position.symbol} 전량 익절 체결!`);
+        
+        // 3초 후 잔량 확인 및 시장가 청산
+        if (!tpTimeoutRef.current) {
+          tpTimeoutRef.current = setTimeout(async () => {
+            const currentPos = currentPositionRef.current;
+            if (!currentPos) return;
+            
+            const positions = await getPositions(currentPos.symbol);
+            const actualPosition = positions?.find((p: any) =>
+              p.symbol === currentPos.symbol && Math.abs(parseFloat(p.positionAmt)) > 0
+            );
+            
+            if (actualPosition) {
+              const remainQty = Math.abs(parseFloat(actualPosition.positionAmt));
+              if (remainQty > 0) {
+                console.log(`🔴 [잔량청산] ${currentPos.symbol} 잔량 ${remainQty} 시장가 청산`);
+                const res = await fetch(`https://fapi.binance.com/fapi/v1/ticker/price?symbol=${currentPos.symbol}`);
+                const data = await res.json();
+                await closePositionMarket('tp', parseFloat(data.price));
+              }
+            } else {
+              // 포지션 없으면 상태 초기화
+              setState(prev => ({
+                ...prev,
+                currentPosition: null,
+                currentSymbol: null,
+                statusMessage: '🔍 다음 시그널 대기...',
+              }));
+            }
+            
+            tpTimeoutRef.current = null;
+          }, LIMIT_ORDER_CONFIG.TAKE_PROFIT.CLOSE_TIMEOUT_SEC * 1000);
+        }
+      } else if (anyFilled) {
+        // 일부 체결 - 상태 업데이트
+        setState(prev => {
+          if (!prev.currentPosition) return prev;
+          return {
+            ...prev,
+            currentPosition: {
+              ...prev.currentPosition,
+              takeProfitOrders: position.takeProfitOrders,
+            },
+          };
+        });
+      }
+      
+    } catch (error) {
+      console.error('익절 체결 확인 실패:', error);
+    }
+  }, [getOpenOrders, getPositions, closePositionMarket]);
+
   // ===== TP/SL 체크 =====
   const checkTpSl = useCallback(async (currentPrice: number) => {
     if (!state.currentPosition) return;
@@ -431,10 +599,16 @@ export function useLimitOrderTrading({
     const pnlPercent = calculatePnLPercent(position.avgPrice, currentPrice, position.side, false);
     const holdTimeSec = (Date.now() - position.startTime) / 1000;
 
-    // 상태 메시지 업데이트
+    // 정확한 PnL 계산
+    const direction = position.side === 'long' ? 1 : -1;
+    const priceDiff = (currentPrice - position.avgPrice) * direction;
+    const pnlUSD = priceDiff * position.filledQuantity;
+    const pnlKRW = pnlUSD * krwRate;
+
+    // 상태 메시지 업데이트 (현재 수익 표시)
     setState(prev => ({
       ...prev,
-      statusMessage: `🔄 ${position.symbol.replace('USDT', '')} ${position.side === 'long' ? '롱' : '숏'} | ${pnlPercent >= 0 ? '+' : ''}${pnlPercent.toFixed(2)}%`,
+      statusMessage: `🔄 ${position.symbol.replace('USDT', '')} ${position.side === 'long' ? '롱' : '숏'} | ${pnlKRW >= 0 ? '+' : ''}₩${Math.round(pnlKRW).toLocaleString()}`,
     }));
 
     // 진입 직후 5초 보호
@@ -454,22 +628,20 @@ export function useLimitOrderTrading({
       return;
     }
 
-    // 익절 조건 체크 (설정된 금액 이상)
-    // 정확한 PnL 계산: 가격차이 × 수량
-    const direction = position.side === 'long' ? 1 : -1;
-    const priceDiff = (currentPrice - position.avgPrice) * direction;
-    const pnlUSD = priceDiff * position.filledQuantity;
-    const pnlKRW = pnlUSD * krwRate;
-    const targetProfitKrw = filterSettings?.takeProfitKrw ?? LIMIT_ORDER_CONFIG.TAKE_PROFIT.MIN_PROFIT_KRW;
-    
-    if (pnlKRW >= targetProfitKrw) {
-      console.log(`💰 익절 조건 충족! ₩${Math.round(pnlKRW).toLocaleString()} >= ₩${targetProfitKrw.toLocaleString()}`);
-      // 빠른 회전을 위해 바로 시장가 청산
-      await closePositionMarket('tp', currentPrice);
-      return;
+    // 익절 주문 체결 확인 (5분할 지정가)
+    if (position.takeProfitOrders.length > 0) {
+      await checkTakeProfitFills();
+    } else {
+      // 익절 주문이 없으면 시장가 익절 폴백
+      const targetProfitKrw = filterSettings?.takeProfitKrw ?? LIMIT_ORDER_CONFIG.TAKE_PROFIT.MIN_PROFIT_KRW;
+      if (pnlKRW >= targetProfitKrw) {
+        console.log(`💰 익절 조건 충족! ₩${Math.round(pnlKRW).toLocaleString()} >= ₩${targetProfitKrw.toLocaleString()}`);
+        await closePositionMarket('tp', currentPrice);
+        return;
+      }
     }
 
-  }, [state.currentPosition, closePositionMarket, krwRate, filterSettings]);
+  }, [state.currentPosition, closePositionMarket, krwRate, filterSettings, checkTakeProfitFills]);
 
   // ===== 10분할 지정가 진입 =====
   const executeLimitEntry = useCallback(async (
@@ -698,6 +870,10 @@ export function useLimitOrderTrading({
         };
       });
 
+      // 5분할 지정가 익절 주문 배치
+      const balanceKRW = balanceUSD * krwRate;
+      await placeTakeProfitOrders(symbol, side, avgPrice, filledQty, balanceKRW);
+
       addLog({
         symbol,
         action: 'fill',
@@ -712,7 +888,7 @@ export function useLimitOrderTrading({
     } catch (error: any) {
       console.error('체결 확인 실패:', error);
     }
-  }, [getPositions, cancelPendingOrders, addLog]);
+  }, [getPositions, cancelPendingOrders, addLog, placeTakeProfitOrders, balanceUSD, krwRate]);
 
   // ===== 시그널 핸들러 =====
   const handleTechnicalSignal = useCallback(async (
