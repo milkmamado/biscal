@@ -12,9 +12,10 @@
 // ===== 기본 설정 =====
 export const LIMIT_ORDER_CONFIG = {
   // 기본
-  LEVERAGE: 10,                    // 10배 고정
-  POSITION_SIZE_PERCENT: 100,      // 전체 잔고 사용
+  LEVERAGE: 10,                    // 10배 고정(기본값)
+  POSITION_SIZE_PERCENT: 95,       // 잔고의 95%만 사용 (주문/수수료/여유마진 버퍼)
   
+
   // 수수료 (바이낸스)
   MAKER_FEE: 0.02,                 // 지정가 0.02%
   TAKER_FEE: 0.05,                 // 시장가 0.05%
