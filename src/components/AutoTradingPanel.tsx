@@ -438,36 +438,6 @@ const AutoTradingPanel = ({
       </div>
       
       
-      {/* Today Stats */}
-      <div className="relative z-10 px-4 py-3" style={{
-        background: 'rgba(15, 15, 25, 0.5)',
-        borderBottom: '1px solid rgba(0, 255, 255, 0.1)',
-      }}>
-        <div className="grid grid-cols-3 gap-3 text-center">
-          <div>
-            <p className="text-xs text-gray-500">거래</p>
-            <p className="text-base font-bold font-mono text-cyan-300">{todayStats.trades}</p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-500">승/패</p>
-            <p className="text-base font-bold font-mono">
-              <span style={{ color: '#00ff88', textShadow: '0 0 8px rgba(0, 255, 136, 0.5)' }}>{todayStats.wins}</span>
-              <span className="text-gray-600">/</span>
-              <span style={{ color: '#ff0088', textShadow: '0 0 8px rgba(255, 0, 136, 0.5)' }}>{todayStats.losses}</span>
-            </p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-500">승률</p>
-            <p className="text-base font-bold font-mono" style={{
-              color: parseFloat(winRate) >= 50 ? '#00ff88' : '#ff0088',
-              textShadow: parseFloat(winRate) >= 50 ? '0 0 8px rgba(0, 255, 136, 0.5)' : '0 0 8px rgba(255, 0, 136, 0.5)',
-            }}>
-              {winRate}%
-            </p>
-          </div>
-        </div>
-      </div>
-      
       {/* Pending Signal */}
       {pendingSignal && !currentPosition && (
         <div className="relative z-10 px-4 py-3" style={{
