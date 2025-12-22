@@ -11,7 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import TradingRecordModal from './TradingRecordModal';
 import BacktestModal from './BacktestModal';
 import TradingDocsModal from './TradingDocsModal';
-import MarketAnalysisPanel from './MarketAnalysisPanel';
+
 import { LIMIT_ORDER_CONFIG } from '@/lib/limitOrderConfig';
 
 // 스캘핑 시간대 적합도 데이터
@@ -613,15 +613,6 @@ const AutoTradingPanel = ({
       )}
       
       {/* Trade Logs - 제거됨: TradingLogsPanel로 분리 */}
-      
-      {/* AI 시장 분석 패널 */}
-      {aiEnabled && (
-        <MarketAnalysisPanel 
-          analysis={aiAnalysis} 
-          isAnalyzing={isAiAnalyzing}
-          enabled={aiEnabled}
-        />
-      )}
       
       {/* Scalping Indicator */}
       <ScalpingIndicator />
