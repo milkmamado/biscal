@@ -437,6 +437,36 @@ const AutoTradingPanel = ({
             <TradingRecordModal krwRate={krwRate} isTestnet={isTestnet} refreshTrigger={refreshTrigger} />
           </div>
         </div>
+        
+        {/* 레버리지 선택 */}
+        <div className="flex items-center justify-between mt-2 pt-2" style={{
+          borderTop: '1px solid rgba(0, 255, 255, 0.1)',
+        }}>
+          <span className="text-[10px] text-gray-500">레버리지</span>
+          <div className="flex items-center gap-1">
+            {LEVERAGE_OPTIONS.map((lev) => (
+              <button
+                key={lev}
+                onClick={() => onLeverageChange(lev)}
+                disabled={isEnabled}
+                className={cn(
+                  "px-2 py-1 rounded text-[10px] font-bold transition-all",
+                  leverage === lev 
+                    ? "text-cyan-300" 
+                    : "text-gray-500 hover:text-gray-300",
+                  isEnabled && "opacity-50 cursor-not-allowed"
+                )}
+                style={{
+                  background: leverage === lev ? 'rgba(0, 255, 255, 0.2)' : 'rgba(50, 50, 70, 0.5)',
+                  border: leverage === lev ? '1px solid rgba(0, 255, 255, 0.4)' : '1px solid rgba(100, 100, 120, 0.3)',
+                  boxShadow: leverage === lev ? '0 0 8px rgba(0, 255, 255, 0.3)' : 'none',
+                }}
+              >
+                {lev}x
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
       
       
