@@ -579,14 +579,16 @@ const AutoTradingPanel = ({
       
       {/* Trade Logs - 제거됨: TradingLogsPanel로 분리 */}
 
-      {/* Order Book - 호가창 (항상 표시) */}
-      {isEnabled && (viewingSymbol || state.currentSymbol) && (
+      {/* Order Book - 호가창 (스캔 상태와 관계없이 항상 표시) */}
+      {(viewingSymbol || state.currentSymbol) && (
         <OrderBook 
           symbol={state.currentSymbol || viewingSymbol || 'BTCUSDT'} 
           isTestnet={isTestnet}
           hasPosition={!!currentPosition}
           onMarketEntry={(side) => {
+            console.log('📌 [AutoTradingPanel] onMarketEntry 호출:', side);
             const symbol = state.currentSymbol || viewingSymbol || 'BTCUSDT';
+            console.log('📌 [AutoTradingPanel] 전달할 symbol:', symbol);
             onMarketEntry?.(symbol, side);
           }}
           onMarketClose={onManualClose}
