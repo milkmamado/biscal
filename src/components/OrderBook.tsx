@@ -9,7 +9,6 @@ interface OrderBookProps {
 interface OrderBookEntry {
   price: number;
   quantity: number;
-  total: number;
 }
 
 interface OrderBookData {
@@ -35,22 +34,20 @@ export function OrderBook({ symbol, isTestnet = false }: OrderBookProps) {
 
     // Parse bids (buy orders) - sorted high to low
     const bids: OrderBookEntry[] = data.b
-      .slice(0, 8)
+      .slice(0, 10)
       .map((b: [string, string]) => ({
         price: parseFloat(b[0]),
         quantity: parseFloat(b[1]),
-        total: parseFloat(b[0]) * parseFloat(b[1]),
       }));
 
-    // Parse asks (sell orders) - sorted low to high
+    // Parse asks (sell orders) - sorted low to high, then reverse for display
     const asks: OrderBookEntry[] = data.a
-      .slice(0, 8)
+      .slice(0, 10)
       .map((a: [string, string]) => ({
         price: parseFloat(a[0]),
         quantity: parseFloat(a[1]),
-        total: parseFloat(a[0]) * parseFloat(a[1]),
       }))
-      .reverse(); // Reverse to show lowest ask at bottom
+      .reverse(); // Reverse to show highest ask at top, lowest at bottom (near spread)
 
     // Calculate spread
     const bestBid = bids[0]?.price || 0;
@@ -89,7 +86,6 @@ export function OrderBook({ symbol, isTestnet = false }: OrderBookProps) {
 
       wsRef.current.onclose = () => {
         setIsConnected(false);
-        // Reconnect after 3 seconds
         reconnectTimeoutRef.current = setTimeout(() => {
           connect();
         }, 3000);
@@ -99,7 +95,6 @@ export function OrderBook({ symbol, isTestnet = false }: OrderBookProps) {
     }
   }, [symbol, isTestnet, processDepthData]);
 
-  // Connect on mount and symbol change
   useEffect(() => {
     connect();
 
@@ -125,14 +120,15 @@ export function OrderBook({ symbol, isTestnet = false }: OrderBookProps) {
   const formatQty = (qty: number) => {
     if (qty >= 1000000) return (qty / 1000000).toFixed(1) + 'M';
     if (qty >= 1000) return (qty / 1000).toFixed(1) + 'K';
+    if (qty >= 1) return qty.toFixed(1);
     return qty.toFixed(2);
   };
 
   if (!orderBook) {
     return (
-      <div className="relative z-10 mx-3 mb-2 px-3 py-2 rounded-md text-center" style={{
-        background: 'rgba(0, 255, 255, 0.05)',
-        border: '1px solid rgba(0, 255, 255, 0.15)',
+      <div className="relative z-10 mx-3 mb-2 px-3 py-3 rounded-md text-center" style={{
+        background: 'rgba(10, 10, 20, 0.9)',
+        border: '1px solid rgba(100, 100, 120, 0.3)',
       }}>
         <span className="text-[10px] text-gray-500">호가창 로딩중...</span>
       </div>
@@ -141,96 +137,131 @@ export function OrderBook({ symbol, isTestnet = false }: OrderBookProps) {
 
   return (
     <div className="relative z-10 mx-3 mb-2 rounded-md overflow-hidden" style={{
-      background: 'rgba(10, 10, 20, 0.8)',
-      border: '1px solid rgba(0, 255, 255, 0.15)',
+      background: 'rgba(10, 10, 20, 0.95)',
+      border: '1px solid rgba(100, 100, 120, 0.3)',
     }}>
       {/* Header */}
       <div className="flex items-center justify-between px-2 py-1" style={{
-        background: 'rgba(0, 255, 255, 0.05)',
-        borderBottom: '1px solid rgba(0, 255, 255, 0.1)',
+        background: 'rgba(30, 30, 50, 0.8)',
+        borderBottom: '1px solid rgba(100, 100, 120, 0.3)',
       }}>
         <div className="flex items-center gap-1.5">
-          <span className="text-[10px] font-semibold text-cyan-400">호가창</span>
-          <span className="text-[9px] text-gray-500">{symbol.replace('USDT', '')}</span>
+          <span className="text-[10px] font-bold text-gray-300">호가</span>
+          <span className="text-[9px] text-cyan-400 font-mono">{symbol.replace('USDT', '')}</span>
         </div>
         <div className="flex items-center gap-1">
-          <div className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-green-400' : 'bg-red-400'}`} />
-          <span className="text-[9px] text-gray-500">
-            스프레드: {orderBook.spreadPercent.toFixed(3)}%
-          </span>
+          <div className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
         </div>
       </div>
 
       {/* Column Headers */}
-      <div className="grid grid-cols-3 px-2 py-0.5 text-[8px] text-gray-500" style={{
-        borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+      <div className="grid grid-cols-3 px-1 py-0.5 text-[8px] text-gray-500 font-medium" style={{
+        background: 'rgba(40, 40, 60, 0.5)',
+        borderBottom: '1px solid rgba(100, 100, 120, 0.2)',
       }}>
-        <span>가격</span>
-        <span className="text-right">수량</span>
-        <span className="text-right">합계</span>
+        <span className="text-left pl-1">매도잔량</span>
+        <span className="text-center">가격</span>
+        <span className="text-right pr-1">매수잔량</span>
       </div>
 
-      {/* Asks (Sell orders) - Red */}
-      <div className="space-y-px">
-        {orderBook.asks.map((ask, i) => (
-          <div key={`ask-${i}`} className="relative grid grid-cols-3 px-2 py-0.5 text-[10px]">
-            {/* Background bar */}
+      {/* Asks (매도호가) - 좌측에 잔량 그래프 */}
+      <div>
+        {orderBook.asks.map((ask, i) => {
+          const barWidth = maxQty > 0 ? (ask.quantity / maxQty) * 100 : 0;
+          return (
             <div 
-              className="absolute right-0 top-0 bottom-0 opacity-30"
+              key={`ask-${i}`} 
+              className="relative grid grid-cols-3 px-1 py-[3px] text-[10px]"
               style={{
-                width: `${(ask.quantity / maxQty) * 100}%`,
-                background: 'linear-gradient(90deg, transparent, rgba(255, 0, 136, 0.4))',
+                borderBottom: '1px solid rgba(60, 60, 80, 0.3)',
               }}
-            />
-            <span className="relative font-mono" style={{ color: '#ff0088' }}>
-              {formatPrice(ask.price)}
-            </span>
-            <span className="relative text-right font-mono text-gray-400">
-              {formatQty(ask.quantity)}
-            </span>
-            <span className="relative text-right font-mono text-gray-500">
-              ${(ask.total / 1000).toFixed(1)}K
-            </span>
-          </div>
-        ))}
+            >
+              {/* 매도잔량 (좌측) + 그래프 */}
+              <div className="relative flex items-center justify-start">
+                {/* 그래프 바 (우측에서 좌측으로) */}
+                <div 
+                  className="absolute right-0 top-0 bottom-0"
+                  style={{
+                    width: `${barWidth}%`,
+                    background: 'linear-gradient(270deg, rgba(255, 50, 100, 0.5) 0%, rgba(255, 50, 100, 0.1) 100%)',
+                  }}
+                />
+                <span className="relative z-10 font-mono text-gray-300 pl-1">
+                  {formatQty(ask.quantity)}
+                </span>
+              </div>
+
+              {/* 가격 (중앙) */}
+              <div className="flex items-center justify-center">
+                <span className="font-mono font-semibold" style={{ color: '#ff5064' }}>
+                  {formatPrice(ask.price)}
+                </span>
+              </div>
+
+              {/* 매수잔량 (우측) - 비어있음 */}
+              <div className="flex items-center justify-end pr-1">
+                <span className="text-gray-600">-</span>
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {/* Spread Indicator */}
-      <div className="flex items-center justify-center py-1" style={{
-        background: 'rgba(0, 255, 255, 0.05)',
-        borderTop: '1px solid rgba(0, 255, 255, 0.1)',
-        borderBottom: '1px solid rgba(0, 255, 255, 0.1)',
+      <div className="flex items-center justify-center py-1.5" style={{
+        background: 'linear-gradient(90deg, rgba(255, 50, 100, 0.15) 0%, rgba(50, 50, 80, 0.3) 50%, rgba(0, 200, 100, 0.15) 100%)',
+        borderTop: '1px solid rgba(100, 100, 120, 0.3)',
+        borderBottom: '1px solid rgba(100, 100, 120, 0.3)',
       }}>
+        <span className="text-[9px] text-gray-400 mr-1">스프레드</span>
         <span className="text-[10px] font-mono font-bold" style={{
-          color: orderBook.spreadPercent < 0.05 ? '#00ff88' : orderBook.spreadPercent < 0.1 ? '#ffff00' : '#ff0088',
+          color: orderBook.spreadPercent < 0.03 ? '#00ff88' : orderBook.spreadPercent < 0.08 ? '#ffcc00' : '#ff5064',
         }}>
-          ↕ ${orderBook.spread.toFixed(4)}
+          {orderBook.spreadPercent.toFixed(3)}%
         </span>
       </div>
 
-      {/* Bids (Buy orders) - Green */}
-      <div className="space-y-px">
-        {orderBook.bids.map((bid, i) => (
-          <div key={`bid-${i}`} className="relative grid grid-cols-3 px-2 py-0.5 text-[10px]">
-            {/* Background bar */}
+      {/* Bids (매수호가) - 우측에 잔량 그래프 */}
+      <div>
+        {orderBook.bids.map((bid, i) => {
+          const barWidth = maxQty > 0 ? (bid.quantity / maxQty) * 100 : 0;
+          return (
             <div 
-              className="absolute right-0 top-0 bottom-0 opacity-30"
+              key={`bid-${i}`} 
+              className="relative grid grid-cols-3 px-1 py-[3px] text-[10px]"
               style={{
-                width: `${(bid.quantity / maxQty) * 100}%`,
-                background: 'linear-gradient(90deg, transparent, rgba(0, 255, 136, 0.4))',
+                borderBottom: '1px solid rgba(60, 60, 80, 0.3)',
               }}
-            />
-            <span className="relative font-mono" style={{ color: '#00ff88' }}>
-              {formatPrice(bid.price)}
-            </span>
-            <span className="relative text-right font-mono text-gray-400">
-              {formatQty(bid.quantity)}
-            </span>
-            <span className="relative text-right font-mono text-gray-500">
-              ${(bid.total / 1000).toFixed(1)}K
-            </span>
-          </div>
-        ))}
+            >
+              {/* 매도잔량 (좌측) - 비어있음 */}
+              <div className="flex items-center justify-start pl-1">
+                <span className="text-gray-600">-</span>
+              </div>
+
+              {/* 가격 (중앙) */}
+              <div className="flex items-center justify-center">
+                <span className="font-mono font-semibold" style={{ color: '#00c868' }}>
+                  {formatPrice(bid.price)}
+                </span>
+              </div>
+
+              {/* 매수잔량 (우측) + 그래프 */}
+              <div className="relative flex items-center justify-end">
+                {/* 그래프 바 (좌측에서 우측으로) */}
+                <div 
+                  className="absolute left-0 top-0 bottom-0"
+                  style={{
+                    width: `${barWidth}%`,
+                    background: 'linear-gradient(90deg, rgba(0, 200, 100, 0.1) 0%, rgba(0, 200, 100, 0.5) 100%)',
+                  }}
+                />
+                <span className="relative z-10 font-mono text-gray-300 pr-1">
+                  {formatQty(bid.quantity)}
+                </span>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
