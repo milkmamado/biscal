@@ -247,16 +247,23 @@ export function OrderBook({ symbol, isTestnet = false, onPlaceOrder }: OrderBook
       </div>
 
       {/* Spread Indicator */}
-      <div className="flex items-center justify-center py-1.5" style={{
+      <div className="flex items-center justify-center gap-2 py-1.5" style={{
         background: 'linear-gradient(90deg, rgba(255, 50, 100, 0.15) 0%, rgba(50, 50, 80, 0.3) 50%, rgba(0, 200, 100, 0.15) 100%)',
         borderTop: '1px solid rgba(100, 100, 120, 0.3)',
         borderBottom: '1px solid rgba(100, 100, 120, 0.3)',
       }}>
-        <span className="text-[9px] text-gray-400 mr-1">스프레드</span>
-        <span className="text-[10px] font-mono font-bold" style={{
+        <div className="flex items-center">
+          <span className="text-[9px] text-gray-400 mr-1">스프레드</span>
+          <span className="text-[10px] font-mono font-bold" style={{
+            color: orderBook.spreadPercent < 0.03 ? '#00ff88' : orderBook.spreadPercent < 0.08 ? '#ffcc00' : '#ff5064',
+          }}>
+            {orderBook.spreadPercent.toFixed(3)}%
+          </span>
+        </div>
+        <span className="text-[8px]" style={{
           color: orderBook.spreadPercent < 0.03 ? '#00ff88' : orderBook.spreadPercent < 0.08 ? '#ffcc00' : '#ff5064',
         }}>
-          {orderBook.spreadPercent.toFixed(3)}%
+          {orderBook.spreadPercent < 0.03 ? '· 스캘핑 최적' : orderBook.spreadPercent < 0.08 ? '· 적정' : '· 슬리피지 주의'}
         </span>
       </div>
 
