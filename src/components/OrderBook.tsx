@@ -2,14 +2,25 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { formatPrice } from '@/lib/binance';
 import { toast } from 'sonner';
 
+interface OpenOrder {
+  orderId: number;
+  symbol: string;
+  side: 'BUY' | 'SELL';
+  price: number;
+  origQty: number;
+  executedQty: number;
+  status: string;
+}
+
 interface OrderBookProps {
   symbol: string;
   isTestnet?: boolean;
   onPlaceOrder?: (side: 'long' | 'short', price: number) => void;
   onMarketEntry?: (side: 'long' | 'short') => void;
   onMarketClose?: () => void;
-  onCancelOrders?: () => void;
-  pendingQuantity?: number;
+  onCancelOrder?: (orderId: number) => Promise<void>;
+  onCancelAllOrders?: () => Promise<void>;
+  openOrders?: OpenOrder[];
   hasPosition?: boolean;
 }
 
@@ -36,8 +47,9 @@ export function OrderBook({
   onPlaceOrder,
   onMarketEntry,
   onMarketClose,
-  onCancelOrders,
-  pendingQuantity = 0,
+  onCancelOrder,
+  onCancelAllOrders,
+  openOrders = [],
   hasPosition = false,
 }: OrderBookProps) {
   const [orderBook, setOrderBook] = useState<OrderBookData | null>(null);
@@ -356,33 +368,67 @@ export function OrderBook({
         background: 'rgba(20, 20, 35, 0.9)',
         borderTop: '1px solid rgba(100, 100, 120, 0.3)',
       }}>
-        {/* 미체결 수량 표시 */}
-        <div className="flex items-center justify-between px-2 py-1.5 rounded" style={{
-          background: pendingQuantity > 0 ? 'rgba(255, 200, 0, 0.1)' : 'rgba(50, 50, 70, 0.5)',
-          border: `1px solid ${pendingQuantity > 0 ? 'rgba(255, 200, 0, 0.3)' : 'rgba(100, 100, 120, 0.2)'}`,
-        }}>
-          <span className="text-[10px] text-gray-400">미체결</span>
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] font-mono font-semibold" style={{
-              color: pendingQuantity > 0 ? '#ffcc00' : '#666',
-            }}>
-              {pendingQuantity > 0 ? pendingQuantity.toFixed(4) : '-'}
-            </span>
-            {pendingQuantity > 0 && onCancelOrders && (
-              <button
-                onClick={onCancelOrders}
-                className="px-2 py-0.5 rounded text-[9px] font-semibold transition-all hover:opacity-80 active:scale-95"
+        {/* 미체결 주문 목록 */}
+        {openOrders.length > 0 ? (
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-gray-400">미체결 주문 ({openOrders.length}건)</span>
+              {onCancelAllOrders && (
+                <button
+                  onClick={onCancelAllOrders}
+                  className="px-2 py-0.5 rounded text-[9px] font-semibold transition-all hover:opacity-80 active:scale-95"
+                  style={{
+                    background: 'rgba(255, 100, 100, 0.2)',
+                    border: '1px solid rgba(255, 100, 100, 0.4)',
+                    color: '#ff6666',
+                  }}
+                >
+                  일괄취소
+                </button>
+              )}
+            </div>
+            {openOrders.map((order) => (
+              <div 
+                key={order.orderId} 
+                className="flex items-center justify-between px-2 py-1 rounded text-[10px]"
                 style={{
-                  background: 'rgba(255, 100, 100, 0.2)',
-                  border: '1px solid rgba(255, 100, 100, 0.4)',
-                  color: '#ff6666',
+                  background: order.side === 'BUY' ? 'rgba(0, 200, 100, 0.1)' : 'rgba(255, 80, 100, 0.1)',
+                  border: `1px solid ${order.side === 'BUY' ? 'rgba(0, 200, 100, 0.3)' : 'rgba(255, 80, 100, 0.3)'}`,
                 }}
               >
-                취소
-              </button>
-            )}
+                <div className="flex items-center gap-2">
+                  <span className={`font-bold ${order.side === 'BUY' ? 'text-green-400' : 'text-red-400'}`}>
+                    {order.side === 'BUY' ? 'L' : 'S'}
+                  </span>
+                  <span className="font-mono text-gray-300">{formatPrice(order.price)}</span>
+                  <span className="text-gray-500">×</span>
+                  <span className="font-mono text-yellow-400">{(order.origQty - order.executedQty).toFixed(4)}</span>
+                </div>
+                {onCancelOrder && (
+                  <button
+                    onClick={() => onCancelOrder(order.orderId)}
+                    className="px-1.5 py-0.5 rounded text-[8px] font-semibold transition-all hover:opacity-80"
+                    style={{
+                      background: 'rgba(255, 100, 100, 0.2)',
+                      border: '1px solid rgba(255, 100, 100, 0.4)',
+                      color: '#ff6666',
+                    }}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            ))}
           </div>
-        </div>
+        ) : (
+          <div className="flex items-center justify-between px-2 py-1.5 rounded" style={{
+            background: 'rgba(50, 50, 70, 0.5)',
+            border: '1px solid rgba(100, 100, 120, 0.2)',
+          }}>
+            <span className="text-[10px] text-gray-400">미체결</span>
+            <span className="text-[11px] font-mono text-gray-600">-</span>
+          </div>
+        )}
 
         {/* 시장가 주문 버튼 */}
         <div className="grid grid-cols-2 gap-2">

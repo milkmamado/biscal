@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { Bot, TrendingUp, TrendingDown, Activity, Clock, AlertTriangle, Star, RefreshCw, Wallet, LogOut, Shield, ShieldOff, Crown, Brain, Zap } from 'lucide-react';
+import { toast } from 'sonner';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { LimitOrderTradingState, LimitOrderTradeLog } from '@/hooks/useLimitOrderTrading';
@@ -104,7 +105,7 @@ const AutoTradingPanel = ({
 }: AutoTradingPanelProps) => {
   const { isEnabled, isProcessing, currentPosition, pendingSignal, todayStats, tradeLogs, aiAnalysis, isAiAnalyzing, aiEnabled } = state;
   const { user, signOut } = useAuth();
-  const { getBalances, getIncomeHistory } = useBinanceApi({ isTestnet });
+  const { getBalances, getIncomeHistory, getOpenOrders, cancelOrder, cancelAllOrders } = useBinanceApi({ isTestnet });
   
   const handleSignOut = async () => {
     await signOut();
@@ -117,6 +118,72 @@ const AutoTradingPanel = ({
   const [todayRealizedPnL, setTodayRealizedPnL] = useState(0);
   const [previousDayBalance, setPreviousDayBalance] = useState<number | null>(null);
   const [todayDeposits, setTodayDeposits] = useState(0);
+  
+  // 미체결 주문 상태
+  interface OpenOrder {
+    orderId: number;
+    symbol: string;
+    side: 'BUY' | 'SELL';
+    price: number;
+    origQty: number;
+    executedQty: number;
+    status: string;
+  }
+  const [openOrders, setOpenOrders] = useState<OpenOrder[]>([]);
+  
+  // 미체결 주문 조회
+  const fetchOpenOrders = async (symbol: string) => {
+    try {
+      const orders = await getOpenOrders(symbol);
+      if (orders) {
+        setOpenOrders(orders.map((o: any) => ({
+          orderId: o.orderId,
+          symbol: o.symbol,
+          side: o.side,
+          price: parseFloat(o.price),
+          origQty: parseFloat(o.origQty),
+          executedQty: parseFloat(o.executedQty),
+          status: o.status,
+        })));
+      }
+    } catch (error) {
+      console.error('미체결 주문 조회 실패:', error);
+    }
+  };
+  
+  // 주문 취소
+  const handleCancelOrder = async (orderId: number) => {
+    const symbol = state.currentSymbol || viewingSymbol || 'BTCUSDT';
+    try {
+      await cancelOrder(symbol, orderId);
+      toast.success('주문이 취소되었습니다');
+      fetchOpenOrders(symbol);
+    } catch (error: any) {
+      toast.error(`취소 실패: ${error.message}`);
+    }
+  };
+  
+  // 일괄 취소
+  const handleCancelAllOrders = async () => {
+    const symbol = state.currentSymbol || viewingSymbol || 'BTCUSDT';
+    try {
+      await cancelAllOrders(symbol);
+      toast.success('모든 주문이 취소되었습니다');
+      setOpenOrders([]);
+    } catch (error: any) {
+      toast.error(`일괄 취소 실패: ${error.message}`);
+    }
+  };
+  
+  // 심볼 변경 시 미체결 주문 조회
+  useEffect(() => {
+    const symbol = state.currentSymbol || viewingSymbol;
+    if (symbol) {
+      fetchOpenOrders(symbol);
+      const interval = setInterval(() => fetchOpenOrders(symbol), 5000);
+      return () => clearInterval(interval);
+    }
+  }, [state.currentSymbol, viewingSymbol]);
   
   // 잔고 가져오기
   const getTodayMidnightKST = () => {
@@ -587,6 +654,7 @@ const AutoTradingPanel = ({
           symbol={state.currentSymbol || viewingSymbol || 'BTCUSDT'} 
           isTestnet={isTestnet}
           hasPosition={!!currentPosition}
+          openOrders={openOrders}
           onMarketEntry={(side) => {
             console.log('📌 [AutoTradingPanel] onMarketEntry 호출:', side);
             const symbol = state.currentSymbol || viewingSymbol || 'BTCUSDT';
@@ -598,6 +666,8 @@ const AutoTradingPanel = ({
             const symbol = state.currentSymbol || viewingSymbol || 'BTCUSDT';
             onLimitEntry?.(symbol, side, price);
           }}
+          onCancelOrder={handleCancelOrder}
+          onCancelAllOrders={handleCancelAllOrders}
           onMarketClose={onManualClose}
         />
       )}
