@@ -305,6 +305,7 @@ const PaperTrading = () => {
             onManualClose={handleManualClose}
             onCancelEntry={handleCancelEntry}
             onMarketEntry={autoTrading.manualMarketEntry}
+            onLimitEntry={autoTrading.manualLimitEntry}
             currentPrice={currentAutoPrice}
             krwRate={krwRate}
             leverage={leverage}
