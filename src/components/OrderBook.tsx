@@ -6,6 +6,11 @@ interface OrderBookProps {
   symbol: string;
   isTestnet?: boolean;
   onPlaceOrder?: (side: 'long' | 'short', price: number) => void;
+  onMarketEntry?: (side: 'long' | 'short') => void;
+  onMarketClose?: () => void;
+  onCancelOrders?: () => void;
+  pendingQuantity?: number;
+  hasPosition?: boolean;
 }
 
 interface OrderBookEntry {
@@ -25,7 +30,16 @@ const WS_URLS = {
   testnet: 'wss://stream.binancefuture.com/ws',
 };
 
-export function OrderBook({ symbol, isTestnet = false, onPlaceOrder }: OrderBookProps) {
+export function OrderBook({ 
+  symbol, 
+  isTestnet = false, 
+  onPlaceOrder,
+  onMarketEntry,
+  onMarketClose,
+  onCancelOrders,
+  pendingQuantity = 0,
+  hasPosition = false,
+}: OrderBookProps) {
   const [orderBook, setOrderBook] = useState<OrderBookData | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
@@ -335,6 +349,89 @@ export function OrderBook({ symbol, isTestnet = false, onPlaceOrder }: OrderBook
             </div>
           );
         })}
+      </div>
+
+      {/* 미체결 수량 및 주문 컨트롤 */}
+      <div className="px-2 py-2 space-y-2" style={{
+        background: 'rgba(20, 20, 35, 0.9)',
+        borderTop: '1px solid rgba(100, 100, 120, 0.3)',
+      }}>
+        {/* 미체결 수량 표시 */}
+        <div className="flex items-center justify-between px-2 py-1.5 rounded" style={{
+          background: pendingQuantity > 0 ? 'rgba(255, 200, 0, 0.1)' : 'rgba(50, 50, 70, 0.5)',
+          border: `1px solid ${pendingQuantity > 0 ? 'rgba(255, 200, 0, 0.3)' : 'rgba(100, 100, 120, 0.2)'}`,
+        }}>
+          <span className="text-[10px] text-gray-400">미체결</span>
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-mono font-semibold" style={{
+              color: pendingQuantity > 0 ? '#ffcc00' : '#666',
+            }}>
+              {pendingQuantity > 0 ? pendingQuantity.toFixed(4) : '-'}
+            </span>
+            {pendingQuantity > 0 && onCancelOrders && (
+              <button
+                onClick={onCancelOrders}
+                className="px-2 py-0.5 rounded text-[9px] font-semibold transition-all hover:opacity-80 active:scale-95"
+                style={{
+                  background: 'rgba(255, 100, 100, 0.2)',
+                  border: '1px solid rgba(255, 100, 100, 0.4)',
+                  color: '#ff6666',
+                }}
+              >
+                취소
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* 시장가 주문 버튼 */}
+        <div className="grid grid-cols-2 gap-2">
+          {/* 시장가 진입 버튼들 */}
+          {!hasPosition && (
+            <>
+              <button
+                onClick={() => onMarketEntry?.('long')}
+                className="py-2 rounded text-[11px] font-bold transition-all hover:opacity-90 active:scale-98"
+                style={{
+                  background: 'linear-gradient(180deg, rgba(0, 200, 100, 0.4) 0%, rgba(0, 180, 80, 0.6) 100%)',
+                  border: '1px solid rgba(0, 200, 100, 0.5)',
+                  color: '#00ff88',
+                  boxShadow: '0 0 8px rgba(0, 200, 100, 0.3)',
+                }}
+              >
+                시장가 롱
+              </button>
+              <button
+                onClick={() => onMarketEntry?.('short')}
+                className="py-2 rounded text-[11px] font-bold transition-all hover:opacity-90 active:scale-98"
+                style={{
+                  background: 'linear-gradient(180deg, rgba(255, 80, 100, 0.4) 0%, rgba(255, 50, 80, 0.6) 100%)',
+                  border: '1px solid rgba(255, 80, 100, 0.5)',
+                  color: '#ff5064',
+                  boxShadow: '0 0 8px rgba(255, 80, 100, 0.3)',
+                }}
+              >
+                시장가 숏
+              </button>
+            </>
+          )}
+          
+          {/* 시장가 청산 버튼 */}
+          {hasPosition && onMarketClose && (
+            <button
+              onClick={onMarketClose}
+              className="col-span-2 py-2 rounded text-[11px] font-bold transition-all hover:opacity-90 active:scale-98"
+              style={{
+                background: 'linear-gradient(180deg, rgba(255, 50, 100, 0.5) 0%, rgba(255, 0, 80, 0.7) 100%)',
+                border: '1px solid rgba(255, 50, 100, 0.6)',
+                color: '#fff',
+                boxShadow: '0 0 10px rgba(255, 50, 100, 0.4)',
+              }}
+            >
+              시장가 청산
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
