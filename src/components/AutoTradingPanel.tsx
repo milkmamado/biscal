@@ -530,9 +530,6 @@ const AutoTradingPanel = ({
       
       {/* Trade Logs - 제거됨: TradingLogsPanel로 분리 */}
       
-      {/* Scalping Indicator */}
-      <ScalpingIndicator />
-      
       {/* Status Message */}
       <div className="relative z-10 mx-3 mb-2 px-3 py-2 rounded-md text-xs font-medium text-center" style={{
         background: state.currentPosition ? 'rgba(0, 255, 136, 0.1)' :
@@ -569,8 +566,8 @@ const AutoTradingPanel = ({
   );
 };
 
-// Scalping Indicator
-const ScalpingIndicator = () => {
+// Scalping Indicator - exported for use in other components
+export const ScalpingIndicator = () => {
   const [rating, setRating] = useState(getScalpingRating());
   
   useEffect(() => {
@@ -587,7 +584,7 @@ const ScalpingIndicator = () => {
   };
   
   return (
-    <div className="relative z-10 mx-3 px-3 py-2 rounded-md" style={{
+    <div className="relative z-10 px-3 py-2 rounded-md" style={{
       background: 'rgba(0, 255, 255, 0.05)',
       border: '1px solid rgba(0, 255, 255, 0.15)',
     }}>

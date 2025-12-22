@@ -8,7 +8,7 @@ import { useTickerWebSocket } from '@/hooks/useTickerWebSocket';
 import { useWakeLock } from '@/hooks/useWakeLock';
 import { supabase } from '@/integrations/supabase/client';
 import DualChartPanel from '@/components/DualChartPanel';
-import AutoTradingPanel from '@/components/AutoTradingPanel';
+import AutoTradingPanel, { ScalpingIndicator } from '@/components/AutoTradingPanel';
 import PaperApiKeySetup from '@/components/PaperApiKeySetup';
 import TradingSettingsPanel from '@/components/TradingSettingsPanel';
 import TradingLogsPanel from '@/components/TradingLogsPanel';
@@ -377,6 +377,7 @@ const PaperTrading = () => {
             isEnabled={autoTrading.state.isEnabled}
             onSelectSymbol={setSelectedSymbol}
           />
+          <ScalpingIndicator />
         </div>
       </div>
     </div>
