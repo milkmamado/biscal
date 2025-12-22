@@ -546,21 +546,6 @@ const AutoTradingPanel = ({
 
       
       {/* Trade Logs - 제거됨: TradingLogsPanel로 분리 */}
-      
-      {/* Status Message */}
-      <div className="relative z-10 mx-3 mb-2 px-3 py-2 rounded-md text-xs font-medium text-center" style={{
-        background: state.currentPosition ? 'rgba(0, 255, 136, 0.1)' :
-          state.pendingSignal ? 'rgba(255, 255, 0, 0.1)' :
-          isEnabled ? 'rgba(0, 255, 255, 0.1)' : 'rgba(50, 50, 70, 0.5)',
-        border: `1px solid ${state.currentPosition ? 'rgba(0, 255, 136, 0.3)' :
-          state.pendingSignal ? 'rgba(255, 255, 0, 0.3)' :
-          isEnabled ? 'rgba(0, 255, 255, 0.3)' : 'rgba(100, 100, 120, 0.3)'}`,
-        color: state.currentPosition ? '#00ff88' :
-          state.pendingSignal ? '#ffff00' :
-          isEnabled ? '#00ffff' : '#888',
-      }}>
-        {state.statusMessage || (isEnabled ? '🔍 시그널 스캔 중...' : '자동매매를 시작하세요')}
-      </div>
 
       {/* Order Book - 호가창 (항상 표시) */}
       {isEnabled && (viewingSymbol || state.currentSymbol) && (
@@ -583,8 +568,20 @@ const AutoTradingPanel = ({
   );
 };
 
+interface ScalpingIndicatorProps {
+  statusMessage?: string;
+  hasPosition?: boolean;
+  hasPendingSignal?: boolean;
+  isEnabled?: boolean;
+}
+
 // Scalping Indicator - exported for use in other components
-export const ScalpingIndicator = () => {
+export const ScalpingIndicator = ({ 
+  statusMessage, 
+  hasPosition = false, 
+  hasPendingSignal = false, 
+  isEnabled = false 
+}: ScalpingIndicatorProps) => {
   const [rating, setRating] = useState(getScalpingRating());
   
   useEffect(() => {
@@ -599,34 +596,69 @@ export const ScalpingIndicator = () => {
     if (stars >= 2) return '#ffff00';
     return '#ff0088';
   };
+
+  const getStatusColor = () => {
+    if (hasPosition) return '#00ff88';
+    if (hasPendingSignal) return '#ffff00';
+    if (isEnabled) return '#00ffff';
+    return '#888';
+  };
+
+  const getStatusBg = () => {
+    if (hasPosition) return 'rgba(0, 255, 136, 0.1)';
+    if (hasPendingSignal) return 'rgba(255, 255, 0, 0.1)';
+    if (isEnabled) return 'rgba(0, 255, 255, 0.1)';
+    return 'rgba(50, 50, 70, 0.5)';
+  };
+
+  const getStatusBorder = () => {
+    if (hasPosition) return 'rgba(0, 255, 136, 0.3)';
+    if (hasPendingSignal) return 'rgba(255, 255, 0, 0.3)';
+    if (isEnabled) return 'rgba(0, 255, 255, 0.3)';
+    return 'rgba(100, 100, 120, 0.3)';
+  };
   
   return (
-    <div className="relative z-10 px-3 py-2 rounded-md" style={{
-      background: 'rgba(0, 255, 255, 0.05)',
-      border: '1px solid rgba(0, 255, 255, 0.15)',
-    }}>
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1.5">
-          <span className="text-[10px] text-gray-500">스캘핑 적합도</span>
-          <span className="text-[10px] font-semibold" style={{
-            color: getStarColor(rating.stars),
-          }}>
-            {rating.label}
-          </span>
-        </div>
-        <div className="flex items-center gap-0.5">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <Star
-              key={i}
-              className="w-3 h-3"
-              style={{
-                color: i <= rating.stars ? getStarColor(rating.stars) : '#333',
-                fill: i <= rating.stars ? getStarColor(rating.stars) : 'transparent',
-              }}
-            />
-          ))}
+    <div className="space-y-1">
+      {/* 스캘핑 적합도 */}
+      <div className="relative z-10 px-3 py-2 rounded-md" style={{
+        background: 'rgba(0, 255, 255, 0.05)',
+        border: '1px solid rgba(0, 255, 255, 0.15)',
+      }}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] text-gray-500">스캘핑 적합도</span>
+            <span className="text-[10px] font-semibold" style={{
+              color: getStarColor(rating.stars),
+            }}>
+              {rating.label}
+            </span>
+          </div>
+          <div className="flex items-center gap-0.5">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <Star
+                key={i}
+                className="w-3 h-3"
+                style={{
+                  color: i <= rating.stars ? getStarColor(rating.stars) : '#333',
+                  fill: i <= rating.stars ? getStarColor(rating.stars) : 'transparent',
+                }}
+              />
+            ))}
+          </div>
         </div>
       </div>
+
+      {/* 스캔 현황 메시지 */}
+      {statusMessage !== undefined && (
+        <div className="relative z-10 px-3 py-2 rounded-md text-xs font-medium text-center" style={{
+          background: getStatusBg(),
+          border: `1px solid ${getStatusBorder()}`,
+          color: getStatusColor(),
+        }}>
+          {statusMessage || (isEnabled ? '🔍 시그널 스캔 중...' : '자동매매를 시작하세요')}
+        </div>
+      )}
     </div>
   );
 };

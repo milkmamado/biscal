@@ -377,7 +377,12 @@ const PaperTrading = () => {
             isEnabled={autoTrading.state.isEnabled}
             onSelectSymbol={setSelectedSymbol}
           />
-          <ScalpingIndicator />
+          <ScalpingIndicator 
+            statusMessage={autoTrading.state.statusMessage}
+            hasPosition={!!autoTrading.state.currentPosition}
+            hasPendingSignal={!!autoTrading.state.pendingSignal}
+            isEnabled={autoTrading.state.isEnabled}
+          />
         </div>
       </div>
     </div>
