@@ -11,7 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import TradingRecordModal from './TradingRecordModal';
 import BacktestModal from './BacktestModal';
 import TradingDocsModal from './TradingDocsModal';
-
+import OrderBook from './OrderBook';
 import { LIMIT_ORDER_CONFIG } from '@/lib/limitOrderConfig';
 
 // 스캘핑 시간대 적합도 데이터
@@ -562,7 +562,7 @@ const AutoTradingPanel = ({
       <ScalpingIndicator />
       
       {/* Status Message */}
-      <div className="relative z-10 mx-3 mb-3 px-3 py-2 rounded-md text-xs font-medium text-center" style={{
+      <div className="relative z-10 mx-3 mb-2 px-3 py-2 rounded-md text-xs font-medium text-center" style={{
         background: state.currentPosition ? 'rgba(0, 255, 136, 0.1)' :
           state.pendingSignal ? 'rgba(255, 255, 0, 0.1)' :
           isEnabled ? 'rgba(0, 255, 255, 0.1)' : 'rgba(50, 50, 70, 0.5)',
@@ -575,6 +575,11 @@ const AutoTradingPanel = ({
       }}>
         {state.statusMessage || (isEnabled ? '🔍 시그널 스캔 중...' : '자동매매를 시작하세요')}
       </div>
+
+      {/* Order Book - 호가창 */}
+      {isEnabled && state.currentSymbol && (
+        <OrderBook symbol={state.currentSymbol} isTestnet={isTestnet} />
+      )}
       
       {/* Warning */}
       {!isEnabled && (
