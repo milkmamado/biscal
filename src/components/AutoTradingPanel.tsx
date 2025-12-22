@@ -130,6 +130,10 @@ const AutoTradingPanel = ({
     status: string;
   }
   const [openOrders, setOpenOrders] = useState<OpenOrder[]>([]);
+  const activeSymbol = useMemo(
+    () => state.currentSymbol || viewingSymbol || 'BTCUSDT',
+    [state.currentSymbol, viewingSymbol]
+  );
   
   // 미체결 주문 조회
   const fetchOpenOrders = async (symbol: string) => {
@@ -153,11 +157,10 @@ const AutoTradingPanel = ({
   
   // 주문 취소
   const handleCancelOrder = async (orderId: number) => {
-    const symbol = state.currentSymbol || viewingSymbol || 'BTCUSDT';
     try {
-      await cancelOrder(symbol, orderId);
+      await cancelOrder(activeSymbol, orderId);
       toast.success('주문이 취소되었습니다');
-      fetchOpenOrders(symbol);
+      fetchOpenOrders(activeSymbol);
     } catch (error: any) {
       toast.error(`취소 실패: ${error.message}`);
     }
@@ -165,9 +168,8 @@ const AutoTradingPanel = ({
   
   // 일괄 취소
   const handleCancelAllOrders = async () => {
-    const symbol = state.currentSymbol || viewingSymbol || 'BTCUSDT';
     try {
-      await cancelAllOrders(symbol);
+      await cancelAllOrders(activeSymbol);
       toast.success('모든 주문이 취소되었습니다');
       setOpenOrders([]);
     } catch (error: any) {
@@ -175,15 +177,12 @@ const AutoTradingPanel = ({
     }
   };
   
-  // 심볼 변경 시 미체결 주문 조회
+  // 심볼 변경/초기 진입 시 미체결 주문 조회
   useEffect(() => {
-    const symbol = state.currentSymbol || viewingSymbol;
-    if (symbol) {
-      fetchOpenOrders(symbol);
-      const interval = setInterval(() => fetchOpenOrders(symbol), 5000);
-      return () => clearInterval(interval);
-    }
-  }, [state.currentSymbol, viewingSymbol]);
+    fetchOpenOrders(activeSymbol);
+    const interval = setInterval(() => fetchOpenOrders(activeSymbol), 5000);
+    return () => clearInterval(interval);
+  }, [activeSymbol]);
   
   // 잔고 가져오기
   const getTodayMidnightKST = () => {
@@ -649,28 +648,25 @@ const AutoTradingPanel = ({
       {/* Trade Logs - 제거됨: TradingLogsPanel로 분리 */}
 
       {/* Order Book - 호가창 (스캔 상태와 관계없이 항상 표시) */}
-      {(viewingSymbol || state.currentSymbol) && (
-        <OrderBook 
-          symbol={state.currentSymbol || viewingSymbol || 'BTCUSDT'} 
-          isTestnet={isTestnet}
-          hasPosition={!!currentPosition}
-          openOrders={openOrders}
-          onMarketEntry={(side) => {
-            console.log('📌 [AutoTradingPanel] onMarketEntry 호출:', side);
-            const symbol = state.currentSymbol || viewingSymbol || 'BTCUSDT';
-            console.log('📌 [AutoTradingPanel] 전달할 symbol:', symbol);
-            onMarketEntry?.(symbol, side);
-          }}
-          onPlaceOrder={(side, price) => {
-            console.log('📌 [AutoTradingPanel] onPlaceOrder 호출:', side, price);
-            const symbol = state.currentSymbol || viewingSymbol || 'BTCUSDT';
-            onLimitEntry?.(symbol, side, price);
-          }}
-          onCancelOrder={handleCancelOrder}
-          onCancelAllOrders={handleCancelAllOrders}
-          onMarketClose={onManualClose}
-        />
-      )}
+      <OrderBook 
+        symbol={activeSymbol} 
+        isTestnet={isTestnet}
+        hasPosition={!!currentPosition}
+        openOrders={openOrders}
+        onMarketEntry={(side) => {
+          console.log('📌 [AutoTradingPanel] onMarketEntry 호출:', side);
+          onMarketEntry?.(activeSymbol, side);
+        }}
+        onPlaceOrder={(side, price) => {
+          console.log('📌 [AutoTradingPanel] onPlaceOrder 호출:', side, price);
+          onLimitEntry?.(activeSymbol, side, price);
+          // 주문 직후 즉시 미체결 갱신
+          setTimeout(() => fetchOpenOrders(activeSymbol), 500);
+        }}
+        onCancelOrder={handleCancelOrder}
+        onCancelAllOrders={handleCancelAllOrders}
+        onMarketClose={onManualClose}
+      />
       
       {/* Warning */}
       {!isEnabled && (
