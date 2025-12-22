@@ -390,7 +390,10 @@ export function OrderBook({
           {!hasPosition && (
             <>
               <button
-                onClick={() => onMarketEntry?.('long')}
+                onClick={() => {
+                  console.log('📌 [OrderBook] 시장가 롱 버튼 클릭');
+                  onMarketEntry?.('long');
+                }}
                 className="py-2 rounded text-[11px] font-bold transition-all hover:opacity-90 active:scale-98"
                 style={{
                   background: 'linear-gradient(180deg, rgba(0, 200, 100, 0.4) 0%, rgba(0, 180, 80, 0.6) 100%)',
@@ -402,7 +405,10 @@ export function OrderBook({
                 시장가 롱
               </button>
               <button
-                onClick={() => onMarketEntry?.('short')}
+                onClick={() => {
+                  console.log('📌 [OrderBook] 시장가 숏 버튼 클릭');
+                  onMarketEntry?.('short');
+                }}
                 className="py-2 rounded text-[11px] font-bold transition-all hover:opacity-90 active:scale-98"
                 style={{
                   background: 'linear-gradient(180deg, rgba(255, 80, 100, 0.4) 0%, rgba(255, 50, 80, 0.6) 100%)',

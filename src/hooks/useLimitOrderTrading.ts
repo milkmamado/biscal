@@ -1270,6 +1270,9 @@ export function useLimitOrderTrading({
 
   // ===== 수동 시장가 진입 =====
   const manualMarketEntry = useCallback(async (symbol: string, direction: 'long' | 'short') => {
+    console.log(`📌 [manualMarketEntry] 호출됨: ${symbol} ${direction}`);
+    console.log(`📌 [manualMarketEntry] isEnabled: ${state.isEnabled}, currentPosition: ${!!state.currentPosition}, user: ${!!user}`);
+    
     if (!state.isEnabled) {
       toast.error('스캔을 먼저 활성화하세요');
       return;
@@ -1287,6 +1290,7 @@ export function useLimitOrderTrading({
       return;
     }
 
+    console.log(`🚀 [manualMarketEntry] 주문 시작: ${symbol} ${direction}`);
     processingRef.current = true;
     setState(prev => ({ ...prev, isProcessing: true, statusMessage: `⏳ ${symbol} ${direction === 'long' ? '롱' : '숏'} 시장가 진입 중...` }));
 
