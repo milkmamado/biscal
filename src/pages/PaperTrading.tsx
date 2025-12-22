@@ -11,6 +11,7 @@ import DualChartPanel from '@/components/DualChartPanel';
 import AutoTradingPanel from '@/components/AutoTradingPanel';
 import PaperApiKeySetup from '@/components/PaperApiKeySetup';
 import TradingSettingsPanel from '@/components/TradingSettingsPanel';
+import TradingLogsPanel from '@/components/TradingLogsPanel';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, FlaskConical } from 'lucide-react';
 import { toast } from 'sonner';
@@ -368,6 +369,12 @@ const PaperTrading = () => {
             takeProfitKrw={takeProfitKrw}
             onTakeProfitChange={setTakeProfitKrw}
             isAutoTradingEnabled={autoTrading.state.isEnabled}
+          />
+          <TradingLogsPanel
+            tradeLogs={autoTrading.state.tradeLogs}
+            krwRate={krwRate}
+            isEnabled={autoTrading.state.isEnabled}
+            onSelectSymbol={setSelectedSymbol}
           />
         </div>
       </div>
