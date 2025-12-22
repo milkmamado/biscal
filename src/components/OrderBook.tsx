@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 interface OrderBookProps {
   symbol: string;
   isTestnet?: boolean;
-  onPlaceOrder?: (side: 'buy' | 'sell', price: number) => void;
+  onPlaceOrder?: (side: 'long' | 'short', price: number) => void;
 }
 
 interface OrderBookEntry {
@@ -127,11 +127,11 @@ export function OrderBook({ symbol, isTestnet = false, onPlaceOrder }: OrderBook
   };
 
   // 주문 박스 더블클릭 핸들러
-  const handleOrderBoxDoubleClick = (side: 'buy' | 'sell', price: number) => {
+  const handleOrderBoxDoubleClick = (side: 'long' | 'short', price: number) => {
     if (onPlaceOrder) {
       onPlaceOrder(side, price);
     } else {
-      toast.info(`${side === 'buy' ? '매수' : '매도'} 주문 준비: ${formatPrice(price)}`);
+      toast.info(`${side === 'long' ? '롱' : '숏'} 주문 준비: ${formatPrice(price)}`);
     }
   };
 
@@ -165,16 +165,15 @@ export function OrderBook({ symbol, isTestnet = false, onPlaceOrder }: OrderBook
         </div>
       </div>
 
-      {/* Column Headers - 4열 (주문박스, 잔량, 가격, 잔량, 주문박스) */}
       <div className="grid grid-cols-5 px-1 py-0.5 text-[8px] text-gray-500 font-medium" style={{
         background: 'rgba(40, 40, 60, 0.5)',
         borderBottom: '1px solid rgba(100, 100, 120, 0.2)',
       }}>
-        <span className="text-center">매도</span>
+        <span className="text-center">숏</span>
         <span className="text-center">잔량</span>
         <span className="text-center">가격</span>
         <span className="text-center">잔량</span>
-        <span className="text-center">매수</span>
+        <span className="text-center">롱</span>
       </div>
 
       {/* Asks (매도호가) - 좌측에 잔량 그래프 */}
@@ -189,7 +188,7 @@ export function OrderBook({ symbol, isTestnet = false, onPlaceOrder }: OrderBook
                 borderBottom: '1px solid rgba(60, 60, 80, 0.3)',
               }}
             >
-              {/* 매도 주문 박스 (좌측 끝) */}
+              {/* 숏 주문 박스 (좌측 끝) */}
               <div className="flex items-center justify-center">
                 <div 
                   className="w-5 h-4 rounded-sm cursor-pointer hover:opacity-80 active:scale-95 transition-all flex items-center justify-center"
@@ -198,8 +197,8 @@ export function OrderBook({ symbol, isTestnet = false, onPlaceOrder }: OrderBook
                     border: '1px solid rgba(255, 80, 100, 0.5)',
                     boxShadow: '0 0 4px rgba(255, 80, 100, 0.3)',
                   }}
-                  onDoubleClick={() => handleOrderBoxDoubleClick('sell', ask.price)}
-                  title={`더블클릭: ${formatPrice(ask.price)}에 매도`}
+                  onDoubleClick={() => handleOrderBoxDoubleClick('short', ask.price)}
+                  title={`더블클릭: ${formatPrice(ask.price)}에 숏`}
                 >
                   <span className="text-[7px] font-bold text-red-300">S</span>
                 </div>
@@ -232,7 +231,7 @@ export function OrderBook({ symbol, isTestnet = false, onPlaceOrder }: OrderBook
                 <span className="text-gray-600">-</span>
               </div>
 
-              {/* 매수 주문 박스 - 비활성 */}
+              {/* 롱 주문 박스 - 비활성 */}
               <div className="flex items-center justify-center">
                 <div 
                   className="w-5 h-4 rounded-sm opacity-20"
@@ -273,7 +272,7 @@ export function OrderBook({ symbol, isTestnet = false, onPlaceOrder }: OrderBook
                 borderBottom: '1px solid rgba(60, 60, 80, 0.3)',
               }}
             >
-              {/* 매도 주문 박스 - 비활성 */}
+              {/* 숏 주문 박스 - 비활성 */}
               <div className="flex items-center justify-center">
                 <div 
                   className="w-5 h-4 rounded-sm opacity-20"
@@ -311,7 +310,7 @@ export function OrderBook({ symbol, isTestnet = false, onPlaceOrder }: OrderBook
                 </span>
               </div>
 
-              {/* 매수 주문 박스 (우측 끝) */}
+              {/* 롱 주문 박스 (우측 끝) */}
               <div className="flex items-center justify-center">
                 <div 
                   className="w-5 h-4 rounded-sm cursor-pointer hover:opacity-80 active:scale-95 transition-all flex items-center justify-center"
@@ -320,10 +319,10 @@ export function OrderBook({ symbol, isTestnet = false, onPlaceOrder }: OrderBook
                     border: '1px solid rgba(0, 200, 100, 0.5)',
                     boxShadow: '0 0 4px rgba(0, 200, 100, 0.3)',
                   }}
-                  onDoubleClick={() => handleOrderBoxDoubleClick('buy', bid.price)}
-                  title={`더블클릭: ${formatPrice(bid.price)}에 매수`}
+                  onDoubleClick={() => handleOrderBoxDoubleClick('long', bid.price)}
+                  title={`더블클릭: ${formatPrice(bid.price)}에 롱`}
                 >
-                  <span className="text-[7px] font-bold text-green-300">B</span>
+                  <span className="text-[7px] font-bold text-green-300">L</span>
                 </div>
               </div>
             </div>
