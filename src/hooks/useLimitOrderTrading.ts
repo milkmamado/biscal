@@ -1387,6 +1387,75 @@ export function useLimitOrderTrading({
     }
   }, [state.isEnabled, state.currentPosition, user, balanceUSD, leverage, isTestnet, placeMarketOrder, filterSettings, addLog]);
 
+  // ===== 수동 지정가 진입 =====
+  const manualLimitEntry = useCallback(async (symbol: string, direction: 'long' | 'short', price: number) => {
+    console.log(`📌 [manualLimitEntry] 호출됨: ${symbol} ${direction} @ ${price}`);
+    
+    if (!user) {
+      toast.error('로그인이 필요합니다');
+      return;
+    }
+    if (state.currentPosition) {
+      toast.error('이미 포지션이 있습니다');
+      return;
+    }
+    if (processingRef.current) {
+      toast.error('처리 중입니다');
+      return;
+    }
+
+    processingRef.current = true;
+    setState(prev => ({ ...prev, isProcessing: true, statusMessage: `⏳ ${symbol} 지정가 주문 중...` }));
+
+    try {
+      initAudio();
+      
+      // 포지션 사이즈 계산 (잔고의 10%)
+      const positionValueUSD = balanceUSD * 0.1 * leverage;
+      const quantity = positionValueUSD / price;
+
+      console.log(`📊 지정가 주문: ${symbol} ${direction} @ ${price}, qty: ${quantity}`);
+
+      const result = await placeLimitOrder(
+        symbol,
+        direction === 'long' ? 'BUY' : 'SELL',
+        quantity,
+        price,
+        false
+      );
+
+      if (result) {
+        playEntrySound();
+        toast.success(`📝 ${symbol.replace('USDT', '')} ${direction === 'long' ? '롱' : '숏'} 지정가 주문 완료! @ ${price}`);
+        
+        addLog({
+          symbol,
+          action: 'order',
+          side: direction,
+          price: price,
+          quantity: quantity,
+          reason: '수동 지정가 주문',
+        });
+
+        setState(prev => ({
+          ...prev,
+          isProcessing: false,
+          statusMessage: `📝 ${symbol} 지정가 대기 중...`,
+        }));
+      }
+    } catch (error: any) {
+      console.error('지정가 주문 실패:', error);
+      toast.error(`주문 실패: ${error.message}`);
+      setState(prev => ({
+        ...prev,
+        isProcessing: false,
+        statusMessage: '🔍 시그널 스캔 중...',
+      }));
+    } finally {
+      processingRef.current = false;
+    }
+  }, [state.currentPosition, user, balanceUSD, leverage, isTestnet, placeLimitOrder, addLog]);
+
   // ===== Cleanup =====
   useEffect(() => {
     return () => {
@@ -1404,6 +1473,7 @@ export function useLimitOrderTrading({
     closePosition: manualClosePosition,
     cancelEntry,
     manualMarketEntry,
+    manualLimitEntry,
     addLog,
   };
 }

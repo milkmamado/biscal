@@ -55,6 +55,7 @@ interface AutoTradingPanelProps {
   onToggleLossProtection?: () => void;
   onClearCooldown?: () => void;
   onMarketEntry?: (symbol: string, side: 'long' | 'short') => void;
+  onLimitEntry?: (symbol: string, side: 'long' | 'short', price: number) => void;
   currentPrice?: number;
   krwRate: number;
   leverage: number;
@@ -86,6 +87,7 @@ const AutoTradingPanel = ({
   onToggleLossProtection,
   onClearCooldown,
   onMarketEntry,
+  onLimitEntry,
   currentPrice = 0,
   krwRate,
   leverage,
@@ -590,6 +592,11 @@ const AutoTradingPanel = ({
             const symbol = state.currentSymbol || viewingSymbol || 'BTCUSDT';
             console.log('📌 [AutoTradingPanel] 전달할 symbol:', symbol);
             onMarketEntry?.(symbol, side);
+          }}
+          onPlaceOrder={(side, price) => {
+            console.log('📌 [AutoTradingPanel] onPlaceOrder 호출:', side, price);
+            const symbol = state.currentSymbol || viewingSymbol || 'BTCUSDT';
+            onLimitEntry?.(symbol, side, price);
           }}
           onMarketClose={onManualClose}
         />
