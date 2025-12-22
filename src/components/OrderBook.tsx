@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { formatPrice } from '@/lib/binance';
+import { toast } from 'sonner';
 
 interface OrderBookProps {
   symbol: string;
   isTestnet?: boolean;
+  onPlaceOrder?: (side: 'buy' | 'sell', price: number) => void;
 }
 
 interface OrderBookEntry {
@@ -23,7 +25,7 @@ const WS_URLS = {
   testnet: 'wss://stream.binancefuture.com/ws',
 };
 
-export function OrderBook({ symbol, isTestnet = false }: OrderBookProps) {
+export function OrderBook({ symbol, isTestnet = false, onPlaceOrder }: OrderBookProps) {
   const [orderBook, setOrderBook] = useState<OrderBookData | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
@@ -124,6 +126,15 @@ export function OrderBook({ symbol, isTestnet = false }: OrderBookProps) {
     return qty.toFixed(2);
   };
 
+  // 주문 박스 더블클릭 핸들러
+  const handleOrderBoxDoubleClick = (side: 'buy' | 'sell', price: number) => {
+    if (onPlaceOrder) {
+      onPlaceOrder(side, price);
+    } else {
+      toast.info(`${side === 'buy' ? '매수' : '매도'} 주문 준비: ${formatPrice(price)}`);
+    }
+  };
+
   if (!orderBook) {
     return (
       <div className="relative z-10 mx-3 mb-2 px-3 py-3 rounded-md text-center" style={{
@@ -154,14 +165,16 @@ export function OrderBook({ symbol, isTestnet = false }: OrderBookProps) {
         </div>
       </div>
 
-      {/* Column Headers */}
-      <div className="grid grid-cols-3 px-1 py-0.5 text-[8px] text-gray-500 font-medium" style={{
+      {/* Column Headers - 4열 (주문박스, 잔량, 가격, 잔량, 주문박스) */}
+      <div className="grid grid-cols-5 px-1 py-0.5 text-[8px] text-gray-500 font-medium" style={{
         background: 'rgba(40, 40, 60, 0.5)',
         borderBottom: '1px solid rgba(100, 100, 120, 0.2)',
       }}>
-        <span className="text-left pl-1">매도잔량</span>
+        <span className="text-center">매도</span>
+        <span className="text-center">잔량</span>
         <span className="text-center">가격</span>
-        <span className="text-right pr-1">매수잔량</span>
+        <span className="text-center">잔량</span>
+        <span className="text-center">매수</span>
       </div>
 
       {/* Asks (매도호가) - 좌측에 잔량 그래프 */}
@@ -171,13 +184,29 @@ export function OrderBook({ symbol, isTestnet = false }: OrderBookProps) {
           return (
             <div 
               key={`ask-${i}`} 
-              className="relative grid grid-cols-3 px-1 py-[3px] text-[10px]"
+              className="relative grid grid-cols-5 px-1 py-[3px] text-[10px]"
               style={{
                 borderBottom: '1px solid rgba(60, 60, 80, 0.3)',
               }}
             >
-              {/* 매도잔량 (좌측) + 그래프 */}
-              <div className="relative flex items-center justify-start">
+              {/* 매도 주문 박스 (좌측 끝) */}
+              <div className="flex items-center justify-center">
+                <div 
+                  className="w-5 h-4 rounded-sm cursor-pointer hover:opacity-80 active:scale-95 transition-all flex items-center justify-center"
+                  style={{
+                    background: 'linear-gradient(180deg, rgba(255, 80, 100, 0.3) 0%, rgba(255, 50, 80, 0.5) 100%)',
+                    border: '1px solid rgba(255, 80, 100, 0.5)',
+                    boxShadow: '0 0 4px rgba(255, 80, 100, 0.3)',
+                  }}
+                  onDoubleClick={() => handleOrderBoxDoubleClick('sell', ask.price)}
+                  title={`더블클릭: ${formatPrice(ask.price)}에 매도`}
+                >
+                  <span className="text-[7px] font-bold text-red-300">S</span>
+                </div>
+              </div>
+
+              {/* 매도잔량 + 그래프 */}
+              <div className="relative flex items-center justify-center">
                 {/* 그래프 바 (우측에서 좌측으로) */}
                 <div 
                   className="absolute right-0 top-0 bottom-0"
@@ -186,7 +215,7 @@ export function OrderBook({ symbol, isTestnet = false }: OrderBookProps) {
                     background: 'linear-gradient(270deg, rgba(255, 50, 100, 0.5) 0%, rgba(255, 50, 100, 0.1) 100%)',
                   }}
                 />
-                <span className="relative z-10 font-mono text-gray-300 pl-1">
+                <span className="relative z-10 font-mono text-gray-300">
                   {formatQty(ask.quantity)}
                 </span>
               </div>
@@ -199,8 +228,19 @@ export function OrderBook({ symbol, isTestnet = false }: OrderBookProps) {
               </div>
 
               {/* 매수잔량 (우측) - 비어있음 */}
-              <div className="flex items-center justify-end pr-1">
+              <div className="flex items-center justify-center">
                 <span className="text-gray-600">-</span>
+              </div>
+
+              {/* 매수 주문 박스 - 비활성 */}
+              <div className="flex items-center justify-center">
+                <div 
+                  className="w-5 h-4 rounded-sm opacity-20"
+                  style={{
+                    background: 'rgba(100, 100, 100, 0.3)',
+                    border: '1px solid rgba(100, 100, 100, 0.3)',
+                  }}
+                />
               </div>
             </div>
           );
@@ -228,13 +268,24 @@ export function OrderBook({ symbol, isTestnet = false }: OrderBookProps) {
           return (
             <div 
               key={`bid-${i}`} 
-              className="relative grid grid-cols-3 px-1 py-[3px] text-[10px]"
+              className="relative grid grid-cols-5 px-1 py-[3px] text-[10px]"
               style={{
                 borderBottom: '1px solid rgba(60, 60, 80, 0.3)',
               }}
             >
+              {/* 매도 주문 박스 - 비활성 */}
+              <div className="flex items-center justify-center">
+                <div 
+                  className="w-5 h-4 rounded-sm opacity-20"
+                  style={{
+                    background: 'rgba(100, 100, 100, 0.3)',
+                    border: '1px solid rgba(100, 100, 100, 0.3)',
+                  }}
+                />
+              </div>
+
               {/* 매도잔량 (좌측) - 비어있음 */}
-              <div className="flex items-center justify-start pl-1">
+              <div className="flex items-center justify-center">
                 <span className="text-gray-600">-</span>
               </div>
 
@@ -245,8 +296,8 @@ export function OrderBook({ symbol, isTestnet = false }: OrderBookProps) {
                 </span>
               </div>
 
-              {/* 매수잔량 (우측) + 그래프 */}
-              <div className="relative flex items-center justify-end">
+              {/* 매수잔량 + 그래프 */}
+              <div className="relative flex items-center justify-center">
                 {/* 그래프 바 (좌측에서 우측으로) */}
                 <div 
                   className="absolute left-0 top-0 bottom-0"
@@ -255,9 +306,25 @@ export function OrderBook({ symbol, isTestnet = false }: OrderBookProps) {
                     background: 'linear-gradient(90deg, rgba(0, 200, 100, 0.1) 0%, rgba(0, 200, 100, 0.5) 100%)',
                   }}
                 />
-                <span className="relative z-10 font-mono text-gray-300 pr-1">
+                <span className="relative z-10 font-mono text-gray-300">
                   {formatQty(bid.quantity)}
                 </span>
+              </div>
+
+              {/* 매수 주문 박스 (우측 끝) */}
+              <div className="flex items-center justify-center">
+                <div 
+                  className="w-5 h-4 rounded-sm cursor-pointer hover:opacity-80 active:scale-95 transition-all flex items-center justify-center"
+                  style={{
+                    background: 'linear-gradient(180deg, rgba(0, 200, 100, 0.3) 0%, rgba(0, 180, 80, 0.5) 100%)',
+                    border: '1px solid rgba(0, 200, 100, 0.5)',
+                    boxShadow: '0 0 4px rgba(0, 200, 100, 0.3)',
+                  }}
+                  onDoubleClick={() => handleOrderBoxDoubleClick('buy', bid.price)}
+                  title={`더블클릭: ${formatPrice(bid.price)}에 매수`}
+                >
+                  <span className="text-[7px] font-bold text-green-300">B</span>
+                </div>
               </div>
             </div>
           );
