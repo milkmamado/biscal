@@ -476,56 +476,73 @@ const AutoTradingPanel = ({
       )}
       
 
-      {/* Current Position */}
-      {currentPosition && currentPosition.entryPhase === 'active' && (
-        <div className="relative z-10 px-4 py-3" style={{
-          background: currentPosition.side === 'long' 
+      {/* Current Position Status - 항상 표시 */}
+      <div className="relative z-10 px-4 py-3" style={{
+        background: currentPosition && currentPosition.entryPhase === 'active'
+          ? currentPosition.side === 'long' 
             ? 'linear-gradient(90deg, rgba(0, 255, 136, 0.1) 0%, transparent 100%)'
-            : 'linear-gradient(90deg, rgba(255, 0, 136, 0.1) 0%, transparent 100%)',
-          borderBottom: `1px solid ${currentPosition.side === 'long' ? 'rgba(0, 255, 136, 0.2)' : 'rgba(255, 0, 136, 0.2)'}`,
-        }}>
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              {currentPosition.side === 'long' ? (
-                <TrendingUp className="w-4 h-4" style={{ color: '#00ff88' }} />
-              ) : (
-                <TrendingDown className="w-4 h-4" style={{ color: '#ff0088' }} />
-              )}
-              <span className="font-semibold text-sm" style={{
-                color: currentPosition.side === 'long' ? '#00ff88' : '#ff0088',
+            : 'linear-gradient(90deg, rgba(255, 0, 136, 0.1) 0%, transparent 100%)'
+          : 'rgba(30, 30, 50, 0.5)',
+        borderBottom: currentPosition && currentPosition.entryPhase === 'active'
+          ? `1px solid ${currentPosition.side === 'long' ? 'rgba(0, 255, 136, 0.2)' : 'rgba(255, 0, 136, 0.2)'}`
+          : '1px solid rgba(100, 100, 120, 0.2)',
+      }}>
+        {currentPosition && currentPosition.entryPhase === 'active' ? (
+          <>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                {currentPosition.side === 'long' ? (
+                  <TrendingUp className="w-4 h-4" style={{ color: '#00ff88' }} />
+                ) : (
+                  <TrendingDown className="w-4 h-4" style={{ color: '#ff0088' }} />
+                )}
+                <span className="font-semibold text-sm" style={{
+                  color: currentPosition.side === 'long' ? '#00ff88' : '#ff0088',
+                }}>
+                  {currentPosition.symbol.replace('USDT', '')} {currentPosition.side === 'long' ? '롱' : '숏'}
+                </span>
+              </div>
+              <span className="text-sm font-bold font-mono" style={{
+                color: currentPnL >= 0 ? '#00ff88' : '#ff0088',
               }}>
-                {currentPosition.symbol.replace('USDT', '')} {currentPosition.side === 'long' ? '롱' : '숏'}
+                {currentPnL >= 0 ? '+' : ''}₩{formatKRW(currentPnL)}
               </span>
             </div>
-            <span className="text-sm font-bold font-mono" style={{
-              color: currentPnL >= 0 ? '#00ff88' : '#ff0088',
-            }}>
-              {currentPnL >= 0 ? '+' : ''}₩{formatKRW(currentPnL)}
-            </span>
+            <div className="flex items-center justify-between text-[10px] text-gray-400">
+              <span>평단가: ${formatPrice(currentPosition.avgPrice)}</span>
+              <span>수량: {currentPosition.filledQuantity.toFixed(4)}</span>
+            </div>
+            <div className="flex gap-2 mt-2">
+              {onManualClose && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={onManualClose}
+                  className="w-full h-8 text-sm font-semibold"
+                  style={{
+                    background: 'linear-gradient(90deg, rgba(255, 0, 136, 0.8) 0%, rgba(255, 50, 100, 0.8) 100%)',
+                    border: '1px solid rgba(255, 0, 136, 0.5)',
+                  }}
+                  disabled={isProcessing}
+                >
+                  {isProcessing ? '처리중...' : '즉시 청산'}
+                </Button>
+              )}
+            </div>
+          </>
+        ) : (
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Activity className="w-4 h-4 text-gray-500" />
+              <span className="text-sm text-gray-400">포지션 없음</span>
+            </div>
+            <div className="text-right">
+              <span className="text-[10px] text-gray-500">평가손익</span>
+              <div className="text-sm font-mono font-semibold text-gray-500">₩0</div>
+            </div>
           </div>
-          <div className="flex items-center justify-between text-[10px] text-gray-400">
-            <span>평단가: ${formatPrice(currentPosition.avgPrice)}</span>
-            <span>수량: {currentPosition.filledQuantity.toFixed(4)}</span>
-          </div>
-          <div className="flex gap-2 mt-2">
-            {onManualClose && (
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={onManualClose}
-                className="w-full h-8 text-sm font-semibold"
-                style={{
-                  background: 'linear-gradient(90deg, rgba(255, 0, 136, 0.8) 0%, rgba(255, 50, 100, 0.8) 100%)',
-                  border: '1px solid rgba(255, 0, 136, 0.5)',
-                }}
-                disabled={isProcessing}
-              >
-                {isProcessing ? '처리중...' : '즉시 청산'}
-              </Button>
-            )}
-          </div>
-        </div>
-      )}
+        )}
+      </div>
 
       
       {/* Trade Logs - 제거됨: TradingLogsPanel로 분리 */}
