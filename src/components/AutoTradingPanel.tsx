@@ -54,6 +54,7 @@ interface AutoTradingPanelProps {
   onSwapSignal?: () => void;
   onToggleLossProtection?: () => void;
   onClearCooldown?: () => void;
+  onMarketEntry?: (symbol: string, side: 'long' | 'short') => void;
   currentPrice?: number;
   krwRate: number;
   leverage: number;
@@ -84,6 +85,7 @@ const AutoTradingPanel = ({
   onSwapSignal,
   onToggleLossProtection,
   onClearCooldown,
+  onMarketEntry,
   currentPrice = 0,
   krwRate,
   leverage,
@@ -318,7 +320,7 @@ const AutoTradingPanel = ({
           <span className="font-bold text-sm tracking-widest uppercase" style={{
             color: isEnabled ? '#00ffff' : '#888',
             textShadow: isEnabled ? '0 0 10px rgba(0, 255, 255, 0.8)' : 'none',
-          }}>Limit Order Trading</span>
+          }}>Signal Scanner</span>
           {isProcessing && (
             <div className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse" style={{
               boxShadow: '0 0 10px rgba(255, 255, 0, 0.8)',
@@ -579,7 +581,16 @@ const AutoTradingPanel = ({
 
       {/* Order Book - 호가창 (항상 표시) */}
       {isEnabled && (viewingSymbol || state.currentSymbol) && (
-        <OrderBook symbol={state.currentSymbol || viewingSymbol || 'BTCUSDT'} isTestnet={isTestnet} />
+        <OrderBook 
+          symbol={state.currentSymbol || viewingSymbol || 'BTCUSDT'} 
+          isTestnet={isTestnet}
+          hasPosition={!!currentPosition}
+          onMarketEntry={(side) => {
+            const symbol = state.currentSymbol || viewingSymbol || 'BTCUSDT';
+            onMarketEntry?.(symbol, side);
+          }}
+          onMarketClose={onManualClose}
+        />
       )}
       
       {/* Warning */}
@@ -590,7 +601,7 @@ const AutoTradingPanel = ({
         }}>
           <div className="flex items-center gap-2 text-[10px]" style={{ color: '#ffcc00' }}>
             <AlertTriangle className="w-3 h-3" />
-            <span>자동매매 비활성화 상태</span>
+            <span>스캔 비활성화 상태</span>
           </div>
         </div>
       )}

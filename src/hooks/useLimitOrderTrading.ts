@@ -1268,6 +1268,121 @@ export function useLimitOrderTrading({
     }
   }, [cancelPendingOrders, addLog]);
 
+  // ===== 수동 시장가 진입 =====
+  const manualMarketEntry = useCallback(async (symbol: string, direction: 'long' | 'short') => {
+    if (!state.isEnabled) {
+      toast.error('스캔을 먼저 활성화하세요');
+      return;
+    }
+    if (state.currentPosition) {
+      toast.error('이미 포지션이 있습니다');
+      return;
+    }
+    if (!user) {
+      toast.error('로그인이 필요합니다');
+      return;
+    }
+    if (processingRef.current) {
+      toast.error('처리 중입니다');
+      return;
+    }
+
+    processingRef.current = true;
+    setState(prev => ({ ...prev, isProcessing: true, statusMessage: `⏳ ${symbol} ${direction === 'long' ? '롱' : '숏'} 시장가 진입 중...` }));
+
+    try {
+      initAudio();
+      const precision = await fetchSymbolPrecision(symbol, isTestnet);
+      
+      // 전체 자금의 비율로 수량 계산
+      const positionSizeRatio = LIMIT_ORDER_CONFIG.POSITION_SIZE_PERCENT / 100;
+      const positionValueUSD = balanceUSD * positionSizeRatio * leverage;
+      
+      // 현재가 조회
+      const tickerRes = await fetch(`https://fapi.binance.com/fapi/v1/ticker/price?symbol=${symbol}`);
+      const tickerData = await tickerRes.json();
+      const currentPrice = parseFloat(tickerData.price);
+      
+      const totalQuantity = roundQuantity(positionValueUSD / currentPrice, precision);
+      
+      if (totalQuantity <= 0) {
+        toast.error('잔고가 부족합니다');
+        return;
+      }
+      
+      const orderSide = direction === 'long' ? 'BUY' : 'SELL';
+      
+      console.log(`🚀 [수동진입] ${symbol} ${direction} 시장가 ${totalQuantity}`);
+      
+      const result = await placeMarketOrder(symbol, orderSide, totalQuantity, false, currentPrice);
+      
+      if (!result || result.error) {
+        throw new Error(result?.error || '주문 실패');
+      }
+      
+      const filledPrice = parseFloat(result.avgPrice || currentPrice);
+      const filledQty = parseFloat(result.executedQty || totalQuantity);
+      
+      playEntrySound();
+      
+      // 손절가 계산
+      const slPercent = filterSettings?.stopLossPercent ?? LIMIT_ORDER_CONFIG.STOP_LOSS.PERCENT;
+      const slPrice = calculateStopLossPrice(filledPrice, direction);
+      
+      // 포지션 상태 저장
+      const newPosition: LimitOrderPosition = {
+        symbol,
+        side: direction,
+        entries: [{
+          price: filledPrice,
+          quantity: filledQty,
+          orderId: result.orderId,
+          status: 'FILLED',
+          filled: filledQty,
+          timestamp: Date.now(),
+        }],
+        filledQuantity: filledQty,
+        totalQuantity: filledQty,
+        avgPrice: filledPrice,
+        stopLossPrice: slPrice,
+        startTime: Date.now(),
+        entryPhase: 'active',
+        takeProfitOrders: [],
+      };
+      
+      currentPositionRef.current = newPosition;
+      setState(prev => ({
+        ...prev,
+        currentPosition: newPosition,
+        currentSymbol: symbol,
+        statusMessage: `✅ ${symbol} ${direction === 'long' ? '롱' : '숏'} 진입 완료`,
+        isProcessing: false,
+      }));
+      
+      addLog({
+        symbol,
+        action: 'fill',
+        side: direction,
+        price: filledPrice,
+        quantity: filledQty,
+        reason: '수동 시장가 진입',
+      });
+      
+      toast.success(`🚀 ${symbol.replace('USDT', '')} ${direction === 'long' ? '롱' : '숏'} 진입!`);
+      
+    } catch (error: any) {
+      console.error('수동 진입 실패:', error);
+      toast.error(`진입 실패: ${error.message}`);
+      setState(prev => ({
+        ...prev,
+        isProcessing: false,
+        statusMessage: '🔍 시그널 스캔 중...',
+      }));
+    } finally {
+      processingRef.current = false;
+    }
+  }, [state.isEnabled, state.currentPosition, user, balanceUSD, leverage, isTestnet, placeMarketOrder, filterSettings, addLog]);
+
   // ===== Cleanup =====
   useEffect(() => {
     return () => {
@@ -1284,6 +1399,7 @@ export function useLimitOrderTrading({
     checkTpSl,
     closePosition: manualClosePosition,
     cancelEntry,
+    manualMarketEntry,
     addLog,
   };
 }

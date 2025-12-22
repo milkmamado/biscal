@@ -129,43 +129,19 @@ const PaperTrading = () => {
     prevSignalsRef.current = new Map();
   }, [autoTrading.state.isEnabled]);
   
-  // 기술적 분석 시그널 감지 시 자동매매 트리거
+  // 시그널 감지 시 차트 종목만 변경 (자동 진입 제거)
   useEffect(() => {
     if (!autoTrading.state.isEnabled) return;
     if (justEnabledRef.current) return;
     if (activeSignals.length === 0) return;
-
     if (autoTrading.state.currentPosition) return;
-    if (autoTrading.state.pendingSignal) return;
 
-    const now = Date.now();
-    const retryCooldownMs = 2 * 60 * 1000;
-
-    for (const signal of activeSignals) {
-      const signalKey = `${signal.symbol}-${signal.direction}`;
-
-      if (signal.strength === 'weak') continue;
-
-      const lastAttempt = prevSignalsRef.current.get(signalKey);
-      if (lastAttempt && now - lastAttempt < retryCooldownMs) continue;
-
-      console.log(`🔥 [PaperTrading] Signal: ${signal.symbol} ${signal.direction} (${signal.strength})`);
-
-      prevSignalsRef.current.set(signalKey, now);
-
-      autoTrading.handleTechnicalSignal(
-        signal.symbol,
-        signal.direction,
-        signal.price,
-        signal.strength,
-        signal.reasons,
-        signal.indicators
-      );
-
-      setSelectedSymbol(signal.symbol);
-      break;
+    // 가장 강한 시그널의 종목으로 차트 변경
+    const strongSignal = activeSignals.find(s => s.strength !== 'weak');
+    if (strongSignal) {
+      setSelectedSymbol(strongSignal.symbol);
     }
-  }, [activeSignals, autoTrading.state.isEnabled, autoTrading.state.currentPosition, autoTrading.state.pendingSignal]);
+  }, [activeSignals, autoTrading.state.isEnabled, autoTrading.state.currentPosition]);
   
   // 포지션 보유 중일 때 해당 종목 차트 유지
   useEffect(() => {
@@ -328,6 +304,7 @@ const PaperTrading = () => {
             onToggle={autoTrading.toggleAutoTrading}
             onManualClose={handleManualClose}
             onCancelEntry={handleCancelEntry}
+            onMarketEntry={autoTrading.manualMarketEntry}
             currentPrice={currentAutoPrice}
             krwRate={krwRate}
             leverage={leverage}
