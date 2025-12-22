@@ -173,25 +173,25 @@ export function OrderBook({
   }
 
   return (
-    <div className="relative z-10 mx-3 mb-2 rounded-md overflow-hidden" style={{
+    <div className="relative z-10 mx-2 lg:mx-3 mb-1 lg:mb-2 rounded-md overflow-hidden flex-1 min-h-0 flex flex-col" style={{
       background: 'rgba(10, 10, 20, 0.95)',
       border: '1px solid rgba(100, 100, 120, 0.3)',
     }}>
       {/* Header */}
-      <div className="flex items-center justify-between px-2 py-1" style={{
+      <div className="flex items-center justify-between px-2 py-0.5 lg:py-1 shrink-0" style={{
         background: 'rgba(30, 30, 50, 0.8)',
         borderBottom: '1px solid rgba(100, 100, 120, 0.3)',
       }}>
         <div className="flex items-center gap-1.5">
-          <span className="text-[10px] font-bold text-gray-300">호가</span>
-          <span className="text-[9px] text-cyan-400 font-mono">{symbol.replace('USDT', '')}</span>
+          <span className="text-[9px] lg:text-[10px] font-bold text-gray-300">호가</span>
+          <span className="text-[8px] lg:text-[9px] text-cyan-400 font-mono">{symbol.replace('USDT', '')}</span>
         </div>
         <div className="flex items-center gap-1">
           <div className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
         </div>
       </div>
 
-      <div className="grid grid-cols-5 px-1 py-0.5 text-[8px] text-gray-500 font-medium" style={{
+      <div className="grid grid-cols-5 px-1 py-0.5 text-[7px] lg:text-[8px] text-gray-500 font-medium shrink-0" style={{
         background: 'rgba(40, 40, 60, 0.5)',
         borderBottom: '1px solid rgba(100, 100, 120, 0.2)',
       }}>
@@ -202,14 +202,17 @@ export function OrderBook({
         <span className="text-center">롱</span>
       </div>
 
+      {/* Scrollable order book area */}
+      <div className="flex-1 min-h-0 overflow-auto">
+
       {/* Asks (매도호가) - 좌측에 잔량 그래프 */}
       <div>
-        {orderBook.asks.map((ask, i) => {
+        {orderBook.asks.slice(0, 7).map((ask, i) => {
           const barWidth = maxQty > 0 ? (ask.quantity / maxQty) * 100 : 0;
           return (
             <div 
               key={`ask-${i}`} 
-              className="relative grid grid-cols-5 px-1 py-[3px] text-[10px]"
+              className="relative grid grid-cols-5 px-1 py-[2px] text-[9px] lg:py-[3px] lg:text-[10px]"
               style={{
                 borderBottom: '1px solid rgba(60, 60, 80, 0.3)',
               }}
@@ -295,12 +298,12 @@ export function OrderBook({
 
       {/* Bids (매수호가) - 우측에 잔량 그래프 */}
       <div>
-        {orderBook.bids.map((bid, i) => {
+        {orderBook.bids.slice(0, 7).map((bid, i) => {
           const barWidth = maxQty > 0 ? (bid.quantity / maxQty) * 100 : 0;
           return (
             <div 
               key={`bid-${i}`} 
-              className="relative grid grid-cols-5 px-1 py-[3px] text-[10px]"
+              className="relative grid grid-cols-5 px-1 py-[2px] text-[9px] lg:py-[3px] lg:text-[10px]"
               style={{
                 borderBottom: '1px solid rgba(60, 60, 80, 0.3)',
               }}
@@ -362,9 +365,10 @@ export function OrderBook({
           );
         })}
       </div>
+      </div> {/* End scrollable order book area */}
 
       {/* 미체결 수량 및 주문 컨트롤 */}
-      <div className="px-2 py-2 space-y-2" style={{
+      <div className="px-1.5 py-1.5 lg:px-2 lg:py-2 space-y-1.5 lg:space-y-2 shrink-0" style={{
         background: 'rgba(20, 20, 35, 0.9)',
         borderTop: '1px solid rgba(100, 100, 120, 0.3)',
       }}>
@@ -431,7 +435,7 @@ export function OrderBook({
         )}
 
         {/* 시장가 주문 버튼 */}
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-1.5 lg:gap-2">
           {/* 시장가 진입 버튼들 */}
           {!hasPosition && (
             <>
@@ -440,7 +444,7 @@ export function OrderBook({
                   console.log('📌 [OrderBook] 시장가 롱 버튼 클릭');
                   onMarketEntry?.('long');
                 }}
-                className="py-2 rounded text-[11px] font-bold transition-all hover:opacity-90 active:scale-98"
+                className="py-1.5 lg:py-2 rounded text-[10px] lg:text-[11px] font-bold transition-all hover:opacity-90 active:scale-98"
                 style={{
                   background: 'linear-gradient(180deg, rgba(0, 200, 100, 0.4) 0%, rgba(0, 180, 80, 0.6) 100%)',
                   border: '1px solid rgba(0, 200, 100, 0.5)',
@@ -455,7 +459,7 @@ export function OrderBook({
                   console.log('📌 [OrderBook] 시장가 숏 버튼 클릭');
                   onMarketEntry?.('short');
                 }}
-                className="py-2 rounded text-[11px] font-bold transition-all hover:opacity-90 active:scale-98"
+                className="py-1.5 lg:py-2 rounded text-[10px] lg:text-[11px] font-bold transition-all hover:opacity-90 active:scale-98"
                 style={{
                   background: 'linear-gradient(180deg, rgba(255, 80, 100, 0.4) 0%, rgba(255, 50, 80, 0.6) 100%)',
                   border: '1px solid rgba(255, 80, 100, 0.5)',
@@ -472,7 +476,7 @@ export function OrderBook({
           {hasPosition && onMarketClose && (
             <button
               onClick={onMarketClose}
-              className="col-span-2 py-2 rounded text-[11px] font-bold transition-all hover:opacity-90 active:scale-98"
+              className="col-span-2 py-1.5 lg:py-2 rounded text-[10px] lg:text-[11px] font-bold transition-all hover:opacity-90 active:scale-98"
               style={{
                 background: 'linear-gradient(180deg, rgba(255, 50, 100, 0.5) 0%, rgba(255, 0, 80, 0.7) 100%)',
                 border: '1px solid rgba(255, 50, 100, 0.6)',

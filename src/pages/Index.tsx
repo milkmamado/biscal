@@ -253,9 +253,10 @@ const Index = () => {
 
   return (
     <div className="h-screen bg-background p-1 overflow-hidden flex flex-col">
-      <div className="flex-1 min-h-0 grid grid-cols-12 gap-1">
-        {/* Left - Chart */}
-        <div className="col-span-8 flex flex-col min-h-0">
+      {/* 반응형 그리드: xl 이상에서는 12컬럼, lg에서 flex 레이아웃, md 이하에서는 세로 스택 */}
+      <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-1">
+        {/* Left - Chart: lg 이상에서 60~65%, md 이하에서 전체 너비 */}
+        <div className="flex-1 lg:flex-[6] xl:flex-[7] flex flex-col min-h-0 lg:min-h-full">
           <DualChartPanel 
             symbol={selectedSymbol} 
             hasPosition={!!autoTrading.state.currentPosition}
@@ -268,8 +269,8 @@ const Index = () => {
           />
         </div>
 
-        {/* Right - System Trading Panel */}
-        <div className="col-span-4 flex flex-col min-h-0 overflow-auto gap-1">
+        {/* Right - System Trading Panel: lg 이상에서 35~40%, md 이하에서 전체 너비 */}
+        <div className="flex-shrink-0 lg:flex-[4] xl:flex-[5] 2xl:flex-[4] flex flex-col min-h-0 lg:min-h-full lg:max-h-full overflow-auto lg:w-auto w-full" style={{ maxWidth: '100%' }}>
           <AutoTradingPanel
             state={autoTrading.state}
             onToggle={autoTrading.toggleAutoTrading}

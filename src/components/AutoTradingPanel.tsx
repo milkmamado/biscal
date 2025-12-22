@@ -369,7 +369,7 @@ const AutoTradingPanel = ({
       
       {/* Header */}
       <div className={cn(
-        "relative z-10 px-4 py-3 flex items-center justify-between",
+        "relative z-10 px-3 py-2 lg:px-4 lg:py-3 flex items-center justify-between shrink-0",
         isEnabled 
           ? "border-b border-cyan-500/30" 
           : "border-b border-border/30"
@@ -456,27 +456,27 @@ const AutoTradingPanel = ({
       </div>
       
       {/* Balance Section */}
-      <div className="relative z-10 px-3 py-3" style={{
+      <div className="relative z-10 px-2 py-2 lg:px-3 lg:py-3 shrink-0" style={{
         background: 'linear-gradient(180deg, rgba(0, 255, 255, 0.05) 0%, transparent 100%)',
         borderBottom: '1px solid rgba(0, 255, 255, 0.15)',
       }}>
         <div className="grid grid-cols-2 gap-2">
           <div>
             <div className="flex items-center gap-1">
-              <Wallet className="w-4 h-4 text-cyan-400" />
-              <span className="text-xs text-cyan-400/70">잔고</span>
+              <Wallet className="w-3 h-3 lg:w-4 lg:h-4 text-cyan-400" />
+              <span className="text-[10px] lg:text-xs text-cyan-400/70">잔고</span>
               <button onClick={fetchRealBalance} className="p-0.5 hover:bg-cyan-500/20 rounded">
-                <RefreshCw className={cn("w-3 h-3 text-cyan-400", balanceLoading && "animate-spin")} />
+                <RefreshCw className={cn("w-2.5 h-2.5 lg:w-3 lg:h-3 text-cyan-400", balanceLoading && "animate-spin")} />
               </button>
             </div>
-            <div className="text-lg font-bold font-mono text-cyan-300" style={{
+            <div className="text-sm lg:text-lg font-bold font-mono text-cyan-300" style={{
               textShadow: '0 0 10px rgba(0, 255, 255, 0.5)',
             }}>{balanceLoading ? '...' : `₩${formatKRW(balanceUSD)}`}</div>
           </div>
           <div className="text-right">
-            <span className="text-xs text-pink-400/70">수익률</span>
+            <span className="text-[10px] lg:text-xs text-pink-400/70">수익률</span>
             <div className={cn(
-              "text-lg font-bold font-mono"
+              "text-sm lg:text-lg font-bold font-mono"
             )} style={{
               color: dailyPnLPercent >= 0 ? '#00ff88' : '#ff0088',
               textShadow: dailyPnLPercent >= 0 ? '0 0 10px rgba(0, 255, 136, 0.6)' : '0 0 10px rgba(255, 0, 136, 0.6)',
@@ -485,12 +485,12 @@ const AutoTradingPanel = ({
             </div>
           </div>
         </div>
-        <div className="flex items-center justify-between mt-2 pt-2" style={{
+        <div className="flex items-center justify-between mt-1.5 pt-1.5 lg:mt-2 lg:pt-2" style={{
           borderTop: '1px solid rgba(0, 255, 255, 0.1)',
         }}>
           <div>
-            <span className="text-[10px] text-gray-500">실현손익</span>
-            <div className="text-sm font-mono font-semibold" style={{
+            <span className="text-[9px] lg:text-[10px] text-gray-500">실현손익</span>
+            <div className="text-xs lg:text-sm font-mono font-semibold" style={{
               color: realizedPnLUsd >= 0 ? '#00ff88' : '#ff0088',
               textShadow: realizedPnLUsd >= 0 ? '0 0 8px rgba(0, 255, 136, 0.5)' : '0 0 8px rgba(255, 0, 136, 0.5)',
             }}>
@@ -509,10 +509,10 @@ const AutoTradingPanel = ({
         </div>
         
         {/* 레버리지 선택 */}
-        <div className="flex items-center justify-between mt-2 pt-2" style={{
+        <div className="flex items-center justify-between mt-1.5 pt-1.5 lg:mt-2 lg:pt-2" style={{
           borderTop: '1px solid rgba(0, 255, 255, 0.1)',
         }}>
-          <span className="text-[10px] text-gray-500">레버리지</span>
+          <span className="text-[9px] lg:text-[10px] text-gray-500">레버리지</span>
           <div className="flex items-center gap-1">
             {LEVERAGE_OPTIONS.map((lev) => (
               <button
@@ -520,7 +520,7 @@ const AutoTradingPanel = ({
                 onClick={() => onLeverageChange(lev)}
                 disabled={isEnabled}
                 className={cn(
-                  "px-2 py-1 rounded text-[10px] font-bold transition-all",
+                  "px-1.5 py-0.5 lg:px-2 lg:py-1 rounded text-[9px] lg:text-[10px] font-bold transition-all",
                   leverage === lev 
                     ? "text-cyan-300" 
                     : "text-gray-500 hover:text-gray-300",
@@ -542,7 +542,7 @@ const AutoTradingPanel = ({
       
       {/* Pending Signal */}
       {pendingSignal && !currentPosition && (
-        <div className="relative z-10 px-4 py-3" style={{
+        <div className="relative z-10 px-3 py-2 lg:px-4 lg:py-3 shrink-0" style={{
           background: 'linear-gradient(90deg, rgba(255, 255, 0, 0.1) 0%, rgba(255, 200, 0, 0.05) 100%)',
           borderBottom: '1px solid rgba(255, 255, 0, 0.2)',
         }}>
@@ -551,8 +551,8 @@ const AutoTradingPanel = ({
               className="flex items-center gap-2 cursor-pointer hover:opacity-80"
               onClick={() => onSelectSymbol?.(pendingSignal.symbol)}
             >
-              <Clock className="w-4 h-4 text-yellow-400 animate-pulse" />
-              <span className="font-semibold text-sm text-yellow-400">
+              <Clock className="w-3 h-3 lg:w-4 lg:h-4 text-yellow-400 animate-pulse" />
+              <span className="font-semibold text-xs lg:text-sm text-yellow-400">
                 {pendingSignal.symbol} {pendingSignal.direction === 'short' ? '숏' : '롱'} 대기
               </span>
             </div>
@@ -561,7 +561,7 @@ const AutoTradingPanel = ({
                 size="sm"
                 variant="outline"
                 onClick={onSkipSignal}
-                className="h-6 px-2 text-[10px]"
+                className="h-5 lg:h-6 px-1.5 lg:px-2 text-[9px] lg:text-[10px]"
                 style={{
                   background: 'rgba(255, 0, 136, 0.1)',
                   border: '1px solid rgba(255, 0, 136, 0.3)',
@@ -577,7 +577,7 @@ const AutoTradingPanel = ({
       
 
       {/* Current Position Status - 항상 표시 */}
-      <div className="relative z-10 px-4 py-3" style={{
+      <div className="relative z-10 px-3 py-2 lg:px-4 lg:py-3 shrink-0" style={{
         background: currentPosition && currentPosition.entryPhase === 'active'
           ? currentPosition.side === 'long' 
             ? 'linear-gradient(90deg, rgba(0, 255, 136, 0.1) 0%, transparent 100%)'
@@ -589,36 +589,36 @@ const AutoTradingPanel = ({
       }}>
         {currentPosition && currentPosition.entryPhase === 'active' ? (
           <>
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between mb-1 lg:mb-2">
               <div className="flex items-center gap-2">
                 {currentPosition.side === 'long' ? (
-                  <TrendingUp className="w-4 h-4" style={{ color: '#00ff88' }} />
+                  <TrendingUp className="w-3 h-3 lg:w-4 lg:h-4" style={{ color: '#00ff88' }} />
                 ) : (
-                  <TrendingDown className="w-4 h-4" style={{ color: '#ff0088' }} />
+                  <TrendingDown className="w-3 h-3 lg:w-4 lg:h-4" style={{ color: '#ff0088' }} />
                 )}
-                <span className="font-semibold text-sm" style={{
+                <span className="font-semibold text-xs lg:text-sm" style={{
                   color: currentPosition.side === 'long' ? '#00ff88' : '#ff0088',
                 }}>
                   {currentPosition.symbol.replace('USDT', '')} {currentPosition.side === 'long' ? '롱' : '숏'}
                 </span>
               </div>
-              <span className="text-sm font-bold font-mono" style={{
+              <span className="text-xs lg:text-sm font-bold font-mono" style={{
                 color: currentPnL >= 0 ? '#00ff88' : '#ff0088',
               }}>
                 {currentPnL >= 0 ? '+' : ''}₩{formatKRW(currentPnL)}
               </span>
             </div>
-            <div className="flex items-center justify-between text-[10px] text-gray-400">
+            <div className="flex items-center justify-between text-[9px] lg:text-[10px] text-gray-400">
               <span>평단가: ${formatPrice(currentPosition.avgPrice)}</span>
               <span>수량: {currentPosition.filledQuantity.toFixed(4)}</span>
             </div>
-            <div className="flex gap-2 mt-2">
+            <div className="flex gap-2 mt-1.5 lg:mt-2">
               {onManualClose && (
                 <Button
                   variant="destructive"
                   size="sm"
                   onClick={onManualClose}
-                  className="w-full h-8 text-sm font-semibold"
+                  className="w-full h-6 lg:h-8 text-xs lg:text-sm font-semibold"
                   style={{
                     background: 'linear-gradient(90deg, rgba(255, 0, 136, 0.8) 0%, rgba(255, 50, 100, 0.8) 100%)',
                     border: '1px solid rgba(255, 0, 136, 0.5)',
@@ -633,12 +633,12 @@ const AutoTradingPanel = ({
         ) : (
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Activity className="w-4 h-4 text-gray-500" />
-              <span className="text-sm text-gray-400">포지션 없음</span>
+              <Activity className="w-3 h-3 lg:w-4 lg:h-4 text-gray-500" />
+              <span className="text-xs lg:text-sm text-gray-400">포지션 없음</span>
             </div>
             <div className="text-right">
-              <span className="text-[10px] text-gray-500">평가손익</span>
-              <div className="text-sm font-mono font-semibold text-gray-500">₩0</div>
+              <span className="text-[9px] lg:text-[10px] text-gray-500">평가손익</span>
+              <div className="text-xs lg:text-sm font-mono font-semibold text-gray-500">₩0</div>
             </div>
           </div>
         )}
