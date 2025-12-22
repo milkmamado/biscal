@@ -43,7 +43,7 @@ const getScalpingRating = () => {
   }
 };
 
-const LEVERAGE_OPTIONS = [1, 5, 10, 15, 20];
+const LEVERAGE_OPTIONS = [1, 5, 10];
 
 interface AutoTradingPanelProps {
   state: LimitOrderTradingState;
