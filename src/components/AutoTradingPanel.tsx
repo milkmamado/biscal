@@ -503,45 +503,6 @@ const AutoTradingPanel = ({
         </div>
       )}
       
-      {/* Entry Waiting - 진입 대기 상태 */}
-      {currentPosition && currentPosition.entryPhase === 'waiting' && (
-        <div className="relative z-10 px-4 py-3" style={{
-          background: 'linear-gradient(90deg, rgba(255, 200, 0, 0.15) 0%, rgba(255, 150, 0, 0.1) 100%)',
-          borderBottom: '1px solid rgba(255, 200, 0, 0.3)',
-        }}>
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <Clock className="w-4 h-4 text-yellow-400 animate-pulse" />
-              <span className="font-semibold text-sm text-yellow-400">
-                {currentPosition.symbol.replace('USDT', '')} {currentPosition.side === 'long' ? '롱' : '숏'} 진입 대기
-              </span>
-            </div>
-            <span className="text-xs text-yellow-300 animate-pulse">
-              체결 대기중...
-            </span>
-          </div>
-          <div className="flex items-center justify-between text-[10px] text-gray-400 mb-2">
-            <span>주문수량: {currentPosition.totalQuantity.toFixed(4)}</span>
-            <span>분할: {currentPosition.entries.length}개</span>
-          </div>
-          {onCancelEntry && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onCancelEntry}
-              className="w-full h-8 text-sm font-semibold"
-              style={{
-                background: 'rgba(255, 100, 0, 0.2)',
-                border: '1px solid rgba(255, 150, 0, 0.5)',
-                color: '#ffaa00',
-              }}
-              disabled={isProcessing}
-            >
-              {isProcessing ? '취소중...' : '🚫 진입 취소'}
-            </Button>
-          )}
-        </div>
-      )}
 
       {/* Current Position */}
       {currentPosition && currentPosition.entryPhase === 'active' && (
@@ -594,23 +555,6 @@ const AutoTradingPanel = ({
         </div>
       )}
 
-      {/* Entry Waiting Phase */}
-      {currentPosition && currentPosition.entryPhase === 'waiting' && (
-        <div className="relative z-10 px-4 py-3" style={{
-          background: 'linear-gradient(90deg, rgba(255, 200, 0, 0.1) 0%, transparent 100%)',
-          borderBottom: '1px solid rgba(255, 200, 0, 0.2)',
-        }}>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-yellow-400 animate-pulse" />
-            <span className="text-sm text-yellow-400 font-semibold">
-              {currentPosition.symbol} 10분할 지정가 체결 대기중...
-            </span>
-          </div>
-          <div className="text-[10px] text-gray-400 mt-1">
-            10초 내 미체결 시 자동 취소
-          </div>
-        </div>
-      )}
       
       {/* Trade Logs - 제거됨: TradingLogsPanel로 분리 */}
       
