@@ -123,8 +123,8 @@ const DualChartPanel = ({
           )}
         </div>
         
-        {/* Cyber Pigeon Area - 네온 효과 강화 */}
-        <div className="h-24 bg-gradient-to-b from-[#0a0a0a] via-[#0a0512] to-[#0d0d1a] border-t border-cyan-500/20 relative overflow-hidden shrink-0">
+        {/* Cyber Pigeon Area - 반응형 크기 */}
+        <div className="h-16 lg:h-20 xl:h-24 bg-gradient-to-b from-[#0a0a0a] via-[#0a0512] to-[#0d0d1a] border-t border-cyan-500/20 relative overflow-hidden shrink-0">
           {/* 강화된 네온 그라데이션 배경 */}
           <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/5 via-purple-500/5 to-pink-500/5" />
           
@@ -133,7 +133,6 @@ const DualChartPanel = ({
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-cyan-400/20 to-transparent blur-sm" />
           
           <CyberPigeon />
-          
           
           {/* 그리드 패턴 */}
           <div 
