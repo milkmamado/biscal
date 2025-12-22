@@ -72,6 +72,7 @@ interface AutoTradingPanelProps {
   majorCoinMode?: boolean;
   onToggleMajorCoinMode?: () => void;
   onToggleAiAnalysis?: () => void;
+  viewingSymbol?: string; // 호가창에 표시할 종목
 }
 
 const AutoTradingPanel = ({ 
@@ -95,6 +96,7 @@ const AutoTradingPanel = ({
   majorCoinMode = false,
   onToggleMajorCoinMode,
   onToggleAiAnalysis,
+  viewingSymbol,
 }: AutoTradingPanelProps) => {
   const { isEnabled, isProcessing, currentPosition, pendingSignal, todayStats, tradeLogs, aiAnalysis, isAiAnalyzing, aiEnabled } = state;
   const { user, signOut } = useAuth();
@@ -546,9 +548,9 @@ const AutoTradingPanel = ({
         {state.statusMessage || (isEnabled ? '🔍 시그널 스캔 중...' : '자동매매를 시작하세요')}
       </div>
 
-      {/* Order Book - 호가창 */}
-      {isEnabled && state.currentSymbol && (
-        <OrderBook symbol={state.currentSymbol} isTestnet={isTestnet} />
+      {/* Order Book - 호가창 (항상 표시) */}
+      {isEnabled && (viewingSymbol || state.currentSymbol) && (
+        <OrderBook symbol={state.currentSymbol || viewingSymbol || 'BTCUSDT'} isTestnet={isTestnet} />
       )}
       
       {/* Warning */}
