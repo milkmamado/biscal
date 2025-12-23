@@ -321,7 +321,7 @@ const AutoTradingPanel = ({
     }
   }, [refreshTrigger]);
   
-  // 현재 포지션 PnL - 바이낸스 API에서 제공하는 실제 미실현 손익 우선 사용
+  // 현재 포지션 PnL - 수수료 포함 예상 순손익
   const [lastValidPnL, setLastValidPnL] = useState(0);
   
   const currentPnL = useMemo(() => {
@@ -330,33 +330,44 @@ const AutoTradingPanel = ({
       return 0;
     }
     
-    // 바이낸스에서 제공하는 실제 미실현 손익이 있으면 사용 (가장 정확)
-    if (currentPosition.unrealizedPnl !== undefined && currentPosition.unrealizedPnl !== 0) {
-      return currentPosition.unrealizedPnl;
-    }
-    
-    // 폴백: 로컬 계산 (바이낸스 값이 아직 없을 때)
     if (!currentPosition.avgPrice || currentPosition.avgPrice === 0) {
       return 0;
     }
     if (!currentPrice || currentPrice === 0) {
       return lastValidPnL;
     }
+    
+    // 수수료 포함 순손익 계산
     const direction = currentPosition.side === 'long' ? 1 : -1;
     const priceDiff = (currentPrice - currentPosition.avgPrice) * direction;
-    return priceDiff * currentPosition.filledQuantity;
+    const grossPnl = priceDiff * currentPosition.filledQuantity;
+    
+    // 수수료 계산 (진입: 0.02% maker, 청산: 0.05% taker)
+    const entryFeeRate = 0.0002; // 0.02%
+    const exitFeeRate = 0.0005;  // 0.05%
+    const entryNotional = currentPosition.avgPrice * currentPosition.filledQuantity;
+    const exitNotional = currentPrice * currentPosition.filledQuantity;
+    const totalFee = (entryNotional * entryFeeRate) + (exitNotional * exitFeeRate);
+    
+    // 순손익 = 그로스 - 수수료
+    return grossPnl - totalFee;
   }, [currentPosition, currentPrice, lastValidPnL]);
   
   // 유효한 PnL 값 업데이트 (폴백용)
   useEffect(() => {
     if (currentPosition && currentPosition.filledQuantity > 0 && currentPosition.avgPrice > 0 && currentPrice && currentPrice > 0) {
-      // 바이낸스 값이 없을 때만 로컬 계산 값 저장
-      if (currentPosition.unrealizedPnl === undefined) {
-        const direction = currentPosition.side === 'long' ? 1 : -1;
-        const priceDiff = (currentPrice - currentPosition.avgPrice) * direction;
-        const newPnL = priceDiff * currentPosition.filledQuantity;
-        setLastValidPnL(newPnL);
-      }
+      const direction = currentPosition.side === 'long' ? 1 : -1;
+      const priceDiff = (currentPrice - currentPosition.avgPrice) * direction;
+      const grossPnl = priceDiff * currentPosition.filledQuantity;
+      
+      // 수수료 포함
+      const entryFeeRate = 0.0002;
+      const exitFeeRate = 0.0005;
+      const entryNotional = currentPosition.avgPrice * currentPosition.filledQuantity;
+      const exitNotional = currentPrice * currentPosition.filledQuantity;
+      const totalFee = (entryNotional * entryFeeRate) + (exitNotional * exitFeeRate);
+      
+      setLastValidPnL(grossPnl - totalFee);
     } else if (!currentPosition) {
       setLastValidPnL(0);
     }
