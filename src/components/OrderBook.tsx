@@ -12,11 +12,13 @@ interface OpenOrder {
   status: string;
 }
 
+type SplitOption = 1 | 5 | 10;
+
 interface OrderBookProps {
   symbol: string;
   isTestnet?: boolean;
-  onPlaceOrder?: (side: 'long' | 'short', price: number) => void;
-  onMarketEntry?: (side: 'long' | 'short') => void;
+  onPlaceOrder?: (side: 'long' | 'short', price: number, splitCount: SplitOption) => void;
+  onMarketEntry?: (side: 'long' | 'short', splitCount: SplitOption) => void;
   onMarketClose?: () => void;
   onCancelOrder?: (orderId: number) => Promise<void>;
   onCancelAllOrders?: () => Promise<void>;
@@ -54,6 +56,7 @@ export function OrderBook({
 }: OrderBookProps) {
   const [orderBook, setOrderBook] = useState<OrderBookData | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [splitCount, setSplitCount] = useState<SplitOption>(5);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -155,7 +158,7 @@ export function OrderBook({
   // 주문 박스 더블클릭 핸들러
   const handleOrderBoxDoubleClick = (side: 'long' | 'short', price: number) => {
     if (onPlaceOrder) {
-      onPlaceOrder(side, price);
+      onPlaceOrder(side, price, splitCount);
     } else {
       toast.info(`${side === 'long' ? '롱' : '숏'} 주문 준비: ${formatPrice(price)}`);
     }
@@ -434,6 +437,30 @@ export function OrderBook({
           </div>
         )}
 
+        {/* 분할 매수 옵션 */}
+        <div className="flex items-center justify-between mb-1.5">
+          <span className="text-[9px] text-gray-400">분할 매수</span>
+          <div className="flex gap-1">
+            {([1, 5, 10] as SplitOption[]).map((opt) => (
+              <button
+                key={opt}
+                onClick={() => setSplitCount(opt)}
+                className={`px-2 py-0.5 rounded text-[9px] font-semibold transition-all ${
+                  splitCount === opt
+                    ? 'text-cyan-300'
+                    : 'text-gray-500 hover:text-gray-300'
+                }`}
+                style={{
+                  background: splitCount === opt ? 'rgba(0, 255, 255, 0.2)' : 'rgba(50, 50, 70, 0.5)',
+                  border: `1px solid ${splitCount === opt ? 'rgba(0, 255, 255, 0.5)' : 'rgba(100, 100, 120, 0.3)'}`,
+                }}
+              >
+                {opt}분할
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* 시장가 주문 버튼 */}
         <div className="grid grid-cols-2 gap-1.5 lg:gap-2">
           {/* 시장가 진입 버튼들 */}
@@ -441,8 +468,8 @@ export function OrderBook({
             <>
               <button
                 onClick={() => {
-                  console.log('📌 [OrderBook] 시장가 롱 버튼 클릭');
-                  onMarketEntry?.('long');
+                  console.log(`📌 [OrderBook] 시장가 롱 버튼 클릭 (${splitCount}분할)`);
+                  onMarketEntry?.('long', splitCount);
                 }}
                 className="py-1.5 lg:py-2 rounded text-[10px] lg:text-[11px] font-bold transition-all hover:opacity-90 active:scale-98"
                 style={{
@@ -456,8 +483,8 @@ export function OrderBook({
               </button>
               <button
                 onClick={() => {
-                  console.log('📌 [OrderBook] 시장가 숏 버튼 클릭');
-                  onMarketEntry?.('short');
+                  console.log(`📌 [OrderBook] 시장가 숏 버튼 클릭 (${splitCount}분할)`);
+                  onMarketEntry?.('short', splitCount);
                 }}
                 className="py-1.5 lg:py-2 rounded text-[10px] lg:text-[11px] font-bold transition-all hover:opacity-90 active:scale-98"
                 style={{
