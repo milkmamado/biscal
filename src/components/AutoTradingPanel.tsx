@@ -461,63 +461,12 @@ const AutoTradingPanel = ({
         </div>
       </div>
       
-      {/* Balance Section */}
-      <div className="relative z-10 px-2 py-2 lg:px-3 lg:py-3 shrink-0" style={{
+      {/* 레버리지 & 분할매수 선택 (간소화) */}
+      <div className="relative z-10 px-2 py-1.5 lg:px-3 lg:py-2 shrink-0" style={{
         background: 'linear-gradient(180deg, rgba(0, 255, 255, 0.05) 0%, transparent 100%)',
         borderBottom: '1px solid rgba(0, 255, 255, 0.15)',
       }}>
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <div className="flex items-center gap-1">
-              <Wallet className="w-3 h-3 lg:w-4 lg:h-4 text-cyan-400" />
-              <span className="text-[10px] lg:text-xs text-cyan-400/70">잔고</span>
-              <button onClick={fetchRealBalance} className="p-0.5 hover:bg-cyan-500/20 rounded">
-                <RefreshCw className={cn("w-2.5 h-2.5 lg:w-3 lg:h-3 text-cyan-400", balanceLoading && "animate-spin")} />
-              </button>
-            </div>
-            <div className="text-sm lg:text-lg font-bold font-mono text-cyan-300" style={{
-              textShadow: '0 0 10px rgba(0, 255, 255, 0.5)',
-            }}>{balanceLoading ? '...' : `₩${formatKRW(balanceUSD)}`}</div>
-          </div>
-          <div className="text-right">
-            <span className="text-[10px] lg:text-xs text-pink-400/70">수익률</span>
-            <div className={cn(
-              "text-sm lg:text-lg font-bold font-mono"
-            )} style={{
-              color: dailyPnLPercent >= 0 ? '#00ff88' : '#ff0088',
-              textShadow: dailyPnLPercent >= 0 ? '0 0 10px rgba(0, 255, 136, 0.6)' : '0 0 10px rgba(255, 0, 136, 0.6)',
-            }}>
-              {dailyPnL >= 0 ? '+' : ''}{dailyPnLPercentStr}%
-            </div>
-          </div>
-        </div>
-        <div className="flex items-center justify-between mt-1.5 pt-1.5 lg:mt-2 lg:pt-2" style={{
-          borderTop: '1px solid rgba(0, 255, 255, 0.1)',
-        }}>
-          <div>
-            <span className="text-[9px] lg:text-[10px] text-gray-500">실현손익</span>
-            <div className="text-xs lg:text-sm font-mono font-semibold" style={{
-              color: realizedPnLUsd >= 0 ? '#00ff88' : '#ff0088',
-              textShadow: realizedPnLUsd >= 0 ? '0 0 8px rgba(0, 255, 136, 0.5)' : '0 0 8px rgba(255, 0, 136, 0.5)',
-            }}>
-              {realizedPnLUsd >= 0 ? '+' : ''}₩{formatKRW(realizedPnLUsd)}
-            </div>
-          </div>
-          <div className="flex items-center gap-1">
-            {currentPosition && (
-              <BacktestModal symbol={currentPosition.symbol} />
-            )}
-            {pendingSignal && !currentPosition && (
-              <BacktestModal symbol={pendingSignal.symbol} />
-            )}
-            <TradingRecordModal krwRate={krwRate} isTestnet={isTestnet} refreshTrigger={refreshTrigger} />
-          </div>
-        </div>
-        
-        {/* 레버리지 & 분할매수 선택 */}
-        <div className="flex items-center justify-between mt-1.5 pt-1.5 lg:mt-2 lg:pt-2" style={{
-          borderTop: '1px solid rgba(0, 255, 255, 0.1)',
-        }}>
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-[9px] lg:text-[10px] text-gray-500">레버리지</span>
             <div className="flex items-center gap-0.5">
@@ -567,6 +516,15 @@ const AutoTradingPanel = ({
                 </button>
               ))}
             </div>
+          </div>
+          <div className="flex items-center gap-1">
+            {currentPosition && (
+              <BacktestModal symbol={currentPosition.symbol} />
+            )}
+            {pendingSignal && !currentPosition && (
+              <BacktestModal symbol={pendingSignal.symbol} />
+            )}
+            <TradingRecordModal krwRate={krwRate} isTestnet={isTestnet} refreshTrigger={refreshTrigger} />
           </div>
         </div>
       </div>
@@ -708,6 +666,42 @@ const AutoTradingPanel = ({
         )}
       </div>
 
+      {/* 잔고 & 실현손익 (컴팩트) */}
+      <div className="relative z-10 px-2 py-1.5 lg:px-3 lg:py-2 shrink-0" style={{
+        background: 'rgba(20, 20, 35, 0.8)',
+        borderBottom: '1px solid rgba(100, 100, 120, 0.2)',
+      }}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Wallet className="w-3 h-3 text-cyan-400" />
+            <span className="text-[9px] lg:text-[10px] text-gray-400">잔고</span>
+            <span className="text-[10px] lg:text-xs font-mono font-semibold text-cyan-300">
+              {balanceLoading ? '...' : `₩${formatKRW(balanceUSD)}`}
+            </span>
+            <button onClick={fetchRealBalance} className="p-0.5 hover:bg-cyan-500/20 rounded">
+              <RefreshCw className={cn("w-2 h-2 text-cyan-400/60", balanceLoading && "animate-spin")} />
+            </button>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1">
+              <span className="text-[9px] text-gray-500">수익률</span>
+              <span className="text-[10px] lg:text-xs font-mono font-bold" style={{
+                color: dailyPnLPercent >= 0 ? '#00ff88' : '#ff0088',
+              }}>
+                {dailyPnL >= 0 ? '+' : ''}{dailyPnLPercentStr}%
+              </span>
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="text-[9px] text-gray-500">손익</span>
+              <span className="text-[10px] lg:text-xs font-mono font-semibold" style={{
+                color: realizedPnLUsd >= 0 ? '#00ff88' : '#ff0088',
+              }}>
+                {realizedPnLUsd >= 0 ? '+' : ''}₩{formatKRW(realizedPnLUsd)}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
       
       {/* Trade Logs - 제거됨: TradingLogsPanel로 분리 */}
 
