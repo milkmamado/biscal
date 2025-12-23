@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { formatPrice } from '@/lib/binance';
 import { toast } from 'sonner';
+import { RefreshCw } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -68,9 +69,35 @@ export function OrderBook({
 }: OrderBookProps) {
   const [orderBook, setOrderBook] = useState<OrderBookData | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [isReconnecting, setIsReconnecting] = useState(false);
   const [pendingOrder, setPendingOrder] = useState<{ side: 'long' | 'short'; price: number } | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // 수동 재연결
+  const handleManualReconnect = useCallback(() => {
+    if (isReconnecting) return;
+    setIsReconnecting(true);
+    
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+    if (wsRef.current) {
+      try {
+        wsRef.current.close();
+      } catch {
+        // ignore
+      }
+      wsRef.current = null;
+    }
+    setIsConnected(false);
+    
+    // 약간의 딜레이 후 재연결
+    setTimeout(() => {
+      setIsReconnecting(false);
+    }, 500);
+  }, [isReconnecting]);
 
   const processDepthData = useCallback((data: any) => {
     if (!data.b || !data.a) return;
@@ -150,7 +177,7 @@ export function OrderBook({
         wsRef.current = null;
       }
     };
-  }, [symbol, connect]);
+  }, [symbol, connect, isReconnecting]);
 
   // Calculate max quantity for bar width
   const maxQty = orderBook
@@ -206,9 +233,17 @@ export function OrderBook({
         <div className="flex items-center gap-1.5">
           <span className="text-[9px] lg:text-[10px] font-bold text-gray-300">호가</span>
           <span className="text-[8px] lg:text-[9px] text-cyan-400 font-mono">{symbol.replace('USDT', '')}</span>
+          <button
+            onClick={handleManualReconnect}
+            disabled={isReconnecting}
+            className="p-0.5 hover:bg-cyan-500/20 rounded transition-colors"
+            title="호가창 재연결"
+          >
+            <RefreshCw className={`w-2.5 h-2.5 text-gray-400 hover:text-cyan-400 ${isReconnecting ? 'animate-spin' : ''}`} />
+          </button>
         </div>
         <div className="flex items-center gap-1">
-          <div className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
+          <div className={`w-1.5 h-1.5 rounded-full transition-colors ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
         </div>
       </div>
 
@@ -228,7 +263,7 @@ export function OrderBook({
 
       {/* Asks (매도호가) - 좌측에 잔량 그래프 */}
       <div>
-        {orderBook.asks.slice(0, 7).map((ask, i) => {
+        {orderBook.asks.slice(0, 10).map((ask, i) => {
           const barWidth = maxQty > 0 ? (ask.quantity / maxQty) * 100 : 0;
           return (
             <div 
@@ -324,7 +359,7 @@ export function OrderBook({
 
       {/* Bids (매수호가) - 우측에 잔량 그래프 */}
       <div>
-        {orderBook.bids.slice(0, 7).map((bid, i) => {
+        {orderBook.bids.slice(0, 10).map((bid, i) => {
           const barWidth = maxQty > 0 ? (bid.quantity / maxQty) * 100 : 0;
           return (
             <div 
