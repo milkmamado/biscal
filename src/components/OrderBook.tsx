@@ -1,4 +1,4 @@
-// OrderBook v2 - Combined Stream with Velocity Indicator
+// OrderBook v3 - Combined Stream with Real Binance Trade Velocity - Updated 2025-12-23
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { formatPrice } from '@/lib/binance';
 import { toast } from 'sonner';
