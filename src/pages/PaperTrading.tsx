@@ -36,7 +36,7 @@ const PaperTrading = () => {
   const [macdFilterEnabled, setMacdFilterEnabled] = useState(true);
   const [bollingerFilterEnabled, setBollingerFilterEnabled] = useState(true);
   const [adxThreshold, setAdxThreshold] = useState(LIMIT_ORDER_CONFIG.SIGNAL.MIN_ADX);
-  const [stopLossPercent, setStopLossPercent] = useState(LIMIT_ORDER_CONFIG.STOP_LOSS.PERCENT);
+  const [stopLossKrw, setStopLossKrw] = useState(10000); // 기본 1만원 손절
   const [takeProfitKrw, setTakeProfitKrw] = useState(LIMIT_ORDER_CONFIG.TAKE_PROFIT.MIN_PROFIT_KRW);
 
   // 스크리닝 로그 실시간 업데이트
@@ -86,7 +86,7 @@ const PaperTrading = () => {
       macdEnabled: macdFilterEnabled,
       bollingerEnabled: bollingerFilterEnabled,
       adxThreshold,
-      stopLossPercent,
+      stopLossKrw,
       takeProfitKrw,
     },
   });
@@ -346,8 +346,8 @@ const PaperTrading = () => {
             onToggleBollingerFilter={setBollingerFilterEnabled}
             adxThreshold={adxThreshold}
             onAdxThresholdChange={setAdxThreshold}
-            stopLossPercent={stopLossPercent}
-            onStopLossChange={setStopLossPercent}
+            stopLossKrw={stopLossKrw}
+            onStopLossChange={setStopLossKrw}
             takeProfitKrw={takeProfitKrw}
             onTakeProfitChange={setTakeProfitKrw}
             isAutoTradingEnabled={autoTrading.state.isEnabled}
