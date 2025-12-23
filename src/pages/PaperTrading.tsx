@@ -255,10 +255,39 @@ const PaperTrading = () => {
     ? tickers.find(t => t.symbol === autoTrading.state.currentPosition?.symbol)?.price || 0
     : 0;
     
-  // 손절/익절 가격 계산
+  // 손절/익절 가격 계산 (원화 기반)
   const position = autoTrading.state.currentPosition;
-  const stopLossPrice = position?.stopLossPrice;
-  const takeProfitPrice = undefined;
+  const calculateSlTpPrices = () => {
+    if (!position) return { stopLossPrice: undefined, takeProfitPrice: undefined };
+    
+    const entryPrice = position.avgPrice;
+    const qty = position.totalQuantity;
+    const positionValueUsd = entryPrice * qty;
+    
+    // 원화 손익을 USD로 변환
+    const slUsd = stopLossKrw / krwRate;
+    const tpUsd = takeProfitKrw / krwRate;
+    
+    // 손익 퍼센트 계산
+    const slPercent = (slUsd / positionValueUsd) * 100;
+    const tpPercent = (tpUsd / positionValueUsd) * 100;
+    
+    // 가격 계산
+    let slPrice: number;
+    let tpPrice: number;
+    
+    if (position.side === 'long') {
+      slPrice = entryPrice * (1 - slPercent / 100 / leverage);
+      tpPrice = entryPrice * (1 + tpPercent / 100 / leverage);
+    } else {
+      slPrice = entryPrice * (1 + slPercent / 100 / leverage);
+      tpPrice = entryPrice * (1 - tpPercent / 100 / leverage);
+    }
+    
+    return { stopLossPrice: slPrice, takeProfitPrice: tpPrice };
+  };
+  
+  const { stopLossPrice, takeProfitPrice } = calculateSlTpPrices();
 
   return (
     <div className="h-screen bg-background p-1 overflow-hidden flex flex-col">
