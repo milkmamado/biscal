@@ -246,13 +246,18 @@ export function useLimitOrderTrading({
           const symbol = openPosition.symbol;
           const side: 'long' | 'short' = posAmt > 0 ? 'long' : 'short';
           const qty = Math.abs(posAmt);
+          // 바이낸스에서 제공하는 실제 미실현 손익
+          const unrealizedPnl = parseFloat(openPosition.unRealizedProfit || '0');
+          const markPrice = parseFloat(openPosition.markPrice || '0');
 
-          // 중복 동기화 방지
+          // 중복 동기화 방지 (unrealizedPnl 변경은 허용)
           const posKey = `${symbol}-${side}-${qty.toFixed(6)}`;
-          if (lastSyncedPositionRef.current === posKey) return;
-          lastSyncedPositionRef.current = posKey;
+          const isBrandNewPosition = lastSyncedPositionRef.current !== posKey;
+          if (isBrandNewPosition) {
+            lastSyncedPositionRef.current = posKey;
+          }
 
-          console.log(`🔄 [포지션 동기화] ${symbol} ${side} @ ${entryPrice} qty=${qty}`);
+          console.log(`🔄 [포지션 동기화] ${symbol} ${side} @ ${entryPrice} qty=${qty} PnL=$${unrealizedPnl.toFixed(2)}`);
 
           // 손절가는 참고용으로만 계산 (실제 손절은 원화 PnL 기준)
           const stopLossPrice = calculateStopLossPrice(entryPrice, side);
@@ -261,7 +266,7 @@ export function useLimitOrderTrading({
             const prevPos = prev.currentPosition;
             const nextStopLossPrice = calculateStopLossPrice(entryPrice, side);
 
-            // 같은 심볼/방향이면 수량/평단만 갱신 (추가 진입 반영)
+            // 같은 심볼/방향이면 수량/평단/PnL 갱신
             if (prevPos && prevPos.symbol === symbol && prevPos.side === side) {
               return {
                 ...prev,
@@ -272,6 +277,8 @@ export function useLimitOrderTrading({
                   totalQuantity: qty,
                   filledQuantity: qty,
                   stopLossPrice: nextStopLossPrice,
+                  unrealizedPnl,
+                  markPrice,
                 },
               };
             }
@@ -291,13 +298,14 @@ export function useLimitOrderTrading({
                 entryPhase: 'active',
                 takeProfitOrders: [],
                 stopLossPrice: nextStopLossPrice,
+                unrealizedPnl,
+                markPrice,
               },
               statusMessage: `✅ ${symbol} ${side === 'long' ? '롱' : '숏'} 포지션 감지!`,
             };
           });
 
-          const isNewPosition = !state.currentPosition || state.currentPosition.symbol !== symbol || state.currentPosition.side !== side;
-          if (isNewPosition) {
+          if (isBrandNewPosition) {
             toast.success(`✅ ${symbol.replace('USDT', '')} ${side === 'long' ? '롱' : '숏'} 체결! @ ${entryPrice.toFixed(2)}`);
             playEntrySound();
           }

@@ -308,7 +308,7 @@ const AutoTradingPanel = ({
     }
   }, [refreshTrigger]);
   
-  // 현재 포지션 PnL
+  // 현재 포지션 PnL - 바이낸스 API에서 제공하는 실제 미실현 손익 우선 사용
   const [lastValidPnL, setLastValidPnL] = useState(0);
   
   const currentPnL = useMemo(() => {
@@ -316,7 +316,13 @@ const AutoTradingPanel = ({
     if (!currentPosition || currentPosition.filledQuantity === 0) {
       return 0;
     }
-    // 평균가가 없으면 0 (아직 체결 전)
+    
+    // 바이낸스에서 제공하는 실제 미실현 손익이 있으면 사용 (가장 정확)
+    if (currentPosition.unrealizedPnl !== undefined && currentPosition.unrealizedPnl !== 0) {
+      return currentPosition.unrealizedPnl;
+    }
+    
+    // 폴백: 로컬 계산 (바이낸스 값이 아직 없을 때)
     if (!currentPosition.avgPrice || currentPosition.avgPrice === 0) {
       return 0;
     }
@@ -328,13 +334,16 @@ const AutoTradingPanel = ({
     return priceDiff * currentPosition.filledQuantity;
   }, [currentPosition, currentPrice, lastValidPnL]);
   
-  // 유효한 PnL 값 업데이트
+  // 유효한 PnL 값 업데이트 (폴백용)
   useEffect(() => {
     if (currentPosition && currentPosition.filledQuantity > 0 && currentPosition.avgPrice > 0 && currentPrice && currentPrice > 0) {
-      const direction = currentPosition.side === 'long' ? 1 : -1;
-      const priceDiff = (currentPrice - currentPosition.avgPrice) * direction;
-      const newPnL = priceDiff * currentPosition.filledQuantity;
-      setLastValidPnL(newPnL);
+      // 바이낸스 값이 없을 때만 로컬 계산 값 저장
+      if (currentPosition.unrealizedPnl === undefined) {
+        const direction = currentPosition.side === 'long' ? 1 : -1;
+        const priceDiff = (currentPrice - currentPosition.avgPrice) * direction;
+        const newPnL = priceDiff * currentPosition.filledQuantity;
+        setLastValidPnL(newPnL);
+      }
     } else if (!currentPosition) {
       setLastValidPnL(0);
     }

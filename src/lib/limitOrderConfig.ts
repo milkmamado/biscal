@@ -80,6 +80,8 @@ export interface LimitOrderPosition {
   entryPhase: 'ordering' | 'waiting' | 'active' | 'closing';
   takeProfitOrders: LimitOrderEntry[];
   stopLossPrice: number;
+  unrealizedPnl?: number;  // 바이낸스 API에서 가져온 실제 미실현 손익 (USD)
+  markPrice?: number;      // 바이낸스 마크가격
 }
 
 // ===== 유틸리티 함수 =====
