@@ -79,6 +79,7 @@ interface AutoTradingPanelProps {
   onToggleMajorCoinMode?: () => void;
   onToggleAiAnalysis?: () => void;
   viewingSymbol?: string; // 호가창에 표시할 종목
+  onOpenOrdersChange?: (orders: { orderId: number; price: number; side: 'BUY' | 'SELL'; origQty: number; executedQty: number; }[]) => void; // 미체결 주문 변경 콜백
 }
 
 const AutoTradingPanel = ({ 
@@ -107,6 +108,7 @@ const AutoTradingPanel = ({
   viewingSymbol,
   onPassSignal,
   onTogglePause,
+  onOpenOrdersChange,
 }: AutoTradingPanelProps) => {
   const { isEnabled, isProcessing, currentPosition, pendingSignal, todayStats, tradeLogs, aiAnalysis, isAiAnalyzing, aiEnabled } = state;
   const { user, signOut } = useAuth();
@@ -189,6 +191,17 @@ const AutoTradingPanel = ({
     const interval = setInterval(() => fetchOpenOrders(activeSymbol), 2000);
     return () => clearInterval(interval);
   }, [activeSymbol]);
+  
+  // 미체결 주문 변경 시 부모 컴포넌트에 알림
+  useEffect(() => {
+    onOpenOrdersChange?.(openOrders.map(o => ({
+      orderId: o.orderId,
+      price: o.price,
+      side: o.side,
+      origQty: o.origQty,
+      executedQty: o.executedQty,
+    })));
+  }, [openOrders, onOpenOrdersChange]);
   
   // 잔고 가져오기
   const getTodayMidnightKST = () => {
