@@ -182,10 +182,10 @@ const AutoTradingPanel = ({
     }
   };
   
-  // 심볼 변경/초기 진입 시 미체결 주문 조회
+  // 심볼 변경/초기 진입 시 미체결 주문 조회 (2초 간격으로 더 자주 갱신)
   useEffect(() => {
     fetchOpenOrders(activeSymbol);
-    const interval = setInterval(() => fetchOpenOrders(activeSymbol), 5000);
+    const interval = setInterval(() => fetchOpenOrders(activeSymbol), 2000);
     return () => clearInterval(interval);
   }, [activeSymbol]);
   
