@@ -461,14 +461,21 @@ export function OrderBook({
               </span>
             </div>
 
-            {/* 스프레드 */}
+            {/* 스프레드 + 스캘핑 적합도 */}
             <div className="flex flex-col items-center ml-1">
               <span className="text-[7px] text-gray-400">스프레드</span>
-              <span className="text-[9px] font-mono font-bold" style={{
-                color: orderBook.spreadPercent < 0.03 ? '#00ff88' : orderBook.spreadPercent < 0.08 ? '#ffcc00' : '#ff5064',
-              }}>
-                {orderBook.spreadPercent.toFixed(3)}%
-              </span>
+              <div className="flex items-center gap-1">
+                <span className="text-[9px] font-mono font-bold" style={{
+                  color: orderBook.spreadPercent < 0.03 ? '#00ff88' : orderBook.spreadPercent < 0.08 ? '#ffcc00' : '#ff5064',
+                }}>
+                  {orderBook.spreadPercent.toFixed(3)}%
+                </span>
+                <span className="text-[8px] font-semibold" style={{
+                  color: orderBook.spreadPercent < 0.03 ? '#00ff88' : orderBook.spreadPercent < 0.08 ? '#ffcc00' : '#ff5064',
+                }}>
+                  {orderBook.spreadPercent < 0.03 ? '적합' : orderBook.spreadPercent < 0.08 ? '보통' : '부적합'}
+                </span>
+              </div>
             </div>
 
             {/* 체결 속도 텍스트 */}
