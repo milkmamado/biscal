@@ -324,6 +324,56 @@ export const useBinanceApi = (options: UseBinanceApiOptions = {}) => {
     return callBinanceApi('placeOrder', params);
   }, [callBinanceApi, isTestnet]);
 
+  // STOP_MARKET 주문 (손절용)
+  const placeStopMarketOrder = useCallback(async (
+    symbol: string,
+    side: 'BUY' | 'SELL',  // 롱 포지션 손절: SELL, 숏 포지션 손절: BUY
+    quantity: number,
+    stopPrice: number
+  ) => {
+    const precision = await fetchSymbolPrecision(symbol, isTestnet);
+    const roundedQuantity = roundQuantity(quantity, precision);
+    const roundedStopPrice = roundPrice(stopPrice, precision);
+    
+    console.log(`🛑 [STOP_MARKET] ${symbol} ${side} 수량=${roundedQuantity} 손절가=${roundedStopPrice}`);
+    
+    const params: Record<string, any> = {
+      symbol,
+      side,
+      type: 'STOP_MARKET',
+      quantity: roundedQuantity,
+      stopPrice: roundedStopPrice,
+      closePosition: true,  // 전량 청산
+    };
+    
+    return callBinanceApi('placeOrder', params);
+  }, [callBinanceApi, isTestnet]);
+
+  // TAKE_PROFIT_MARKET 주문 (익절용)
+  const placeTakeProfitMarketOrder = useCallback(async (
+    symbol: string,
+    side: 'BUY' | 'SELL',  // 롱 포지션 익절: SELL, 숏 포지션 익절: BUY
+    quantity: number,
+    stopPrice: number
+  ) => {
+    const precision = await fetchSymbolPrecision(symbol, isTestnet);
+    const roundedQuantity = roundQuantity(quantity, precision);
+    const roundedStopPrice = roundPrice(stopPrice, precision);
+    
+    console.log(`💰 [TAKE_PROFIT_MARKET] ${symbol} ${side} 수량=${roundedQuantity} 익절가=${roundedStopPrice}`);
+    
+    const params: Record<string, any> = {
+      symbol,
+      side,
+      type: 'TAKE_PROFIT_MARKET',
+      quantity: roundedQuantity,
+      stopPrice: roundedStopPrice,
+      closePosition: true,  // 전량 청산
+    };
+    
+    return callBinanceApi('placeOrder', params);
+  }, [callBinanceApi, isTestnet]);
+
   const cancelOrder = useCallback(async (symbol: string, orderId: number) => {
     return callBinanceApi('cancelOrder', { symbol, orderId });
   }, [callBinanceApi]);
@@ -428,6 +478,8 @@ export const useBinanceApi = (options: UseBinanceApiOptions = {}) => {
     getOpenOrders,
     placeMarketOrder,
     placeLimitOrder,
+    placeStopMarketOrder,
+    placeTakeProfitMarketOrder,
     cancelOrder,
     cancelAllOrders,
     setLeverage,
