@@ -225,8 +225,10 @@ export function useLimitOrderTrading({
     if (!user) return;
 
     const syncPositionFromExchange = async () => {
-      // 이미 포지션이 있거나 처리 중이면 스킵
-      if (state.currentPosition || processingRef.current) return;
+      // 처리 중/진입 대기/청산 중이면 스킵 (상태 꼬임 방지)
+      if (processingRef.current) return;
+      if (state.currentPosition?.entryPhase === 'waiting') return;
+      if (state.currentPosition?.entryPhase === 'closing') return;
 
       try {
         const positions = await getPositions();
@@ -255,26 +257,50 @@ export function useLimitOrderTrading({
           // 손절가는 참고용으로만 계산 (실제 손절은 원화 PnL 기준)
           const stopLossPrice = calculateStopLossPrice(entryPrice, side);
 
-          setState(prev => ({
-            ...prev,
-            currentSymbol: symbol,
-            currentPosition: {
-              symbol,
-              side,
-              entries: [],
-              avgPrice: entryPrice,
-              totalQuantity: qty,
-              filledQuantity: qty,
-              startTime: Date.now(),
-              entryPhase: 'active',
-              takeProfitOrders: [],
-              stopLossPrice,
-            },
-            statusMessage: `✅ ${symbol} ${side === 'long' ? '롱' : '숏'} 포지션 감지!`,
-          }));
+          setState(prev => {
+            const prevPos = prev.currentPosition;
+            const nextStopLossPrice = calculateStopLossPrice(entryPrice, side);
 
-          toast.success(`✅ ${symbol.replace('USDT', '')} ${side === 'long' ? '롱' : '숏'} 체결! @ ${entryPrice.toFixed(2)}`);
-          playEntrySound();
+            // 같은 심볼/방향이면 수량/평단만 갱신 (추가 진입 반영)
+            if (prevPos && prevPos.symbol === symbol && prevPos.side === side) {
+              return {
+                ...prev,
+                currentSymbol: symbol,
+                currentPosition: {
+                  ...prevPos,
+                  avgPrice: entryPrice,
+                  totalQuantity: qty,
+                  filledQuantity: qty,
+                  stopLossPrice: nextStopLossPrice,
+                },
+              };
+            }
+
+            // 신규 포지션 감지
+            return {
+              ...prev,
+              currentSymbol: symbol,
+              currentPosition: {
+                symbol,
+                side,
+                entries: [],
+                avgPrice: entryPrice,
+                totalQuantity: qty,
+                filledQuantity: qty,
+                startTime: Date.now(),
+                entryPhase: 'active',
+                takeProfitOrders: [],
+                stopLossPrice: nextStopLossPrice,
+              },
+              statusMessage: `✅ ${symbol} ${side === 'long' ? '롱' : '숏'} 포지션 감지!`,
+            };
+          });
+
+          const isNewPosition = !state.currentPosition || state.currentPosition.symbol !== symbol || state.currentPosition.side !== side;
+          if (isNewPosition) {
+            toast.success(`✅ ${symbol.replace('USDT', '')} ${side === 'long' ? '롱' : '숏'} 체결! @ ${entryPrice.toFixed(2)}`);
+            playEntrySound();
+          }
         } else {
           // 포지션이 없으면 동기화 키 초기화
           if (lastSyncedPositionRef.current) {
@@ -1513,8 +1539,9 @@ export function useLimitOrderTrading({
       toast.error('로그인이 필요합니다');
       return;
     }
-    if (state.currentPosition) {
-      toast.error('이미 포지션이 있습니다');
+    const existing = state.currentPosition;
+    if (existing && (existing.symbol !== symbol || existing.side !== direction)) {
+      toast.error('다른 포지션이 있어 추가 진입 불가');
       return;
     }
     if (processingRef.current) {
@@ -1523,7 +1550,11 @@ export function useLimitOrderTrading({
     }
 
     processingRef.current = true;
-    setState(prev => ({ ...prev, isProcessing: true, statusMessage: `⏳ ${symbol} 지정가 주문 중...` }));
+    setState(prev => ({
+      ...prev,
+      isProcessing: true,
+      statusMessage: `⏳ ${symbol} ${existing ? '추가 진입' : ''} 지정가 주문 중...`,
+    }));
 
     try {
       initAudio();
