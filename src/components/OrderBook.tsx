@@ -79,9 +79,9 @@ export function OrderBook({
   const [pendingOrder, setPendingOrder] = useState<{ side: 'long' | 'short'; price: number } | null>(null);
   const [velocity, setVelocity] = useState<VelocityData>({ level: 0, changesPerSecond: 0 });
   const wsRef = useRef<WebSocket | null>(null);
+  const tradeWsRef = useRef<WebSocket | null>(null); // 체결 스트림용
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const lastDataRef = useRef<{ bids: string; asks: string; timestamp: number } | null>(null);
-  const changeCountRef = useRef<number[]>([]);
+  const tradeTimestampsRef = useRef<number[]>([]); // 실제 체결 타임스탬프
 
   // 수동 재연결
   const handleManualReconnect = useCallback(() => {
@@ -111,35 +111,6 @@ export function OrderBook({
   const processDepthData = useCallback((data: any) => {
     if (!data.b || !data.a) return;
 
-    const now = Date.now();
-    const currentBidsKey = JSON.stringify(data.b.slice(0, 5));
-    const currentAsksKey = JSON.stringify(data.a.slice(0, 5));
-
-    // 변화 감지
-    if (lastDataRef.current) {
-      const hasChange = 
-        lastDataRef.current.bids !== currentBidsKey || 
-        lastDataRef.current.asks !== currentAsksKey;
-      
-      if (hasChange) {
-        changeCountRef.current.push(now);
-      }
-    }
-    lastDataRef.current = { bids: currentBidsKey, asks: currentAsksKey, timestamp: now };
-
-    // 최근 1초 내 변화 횟수만 유지
-    changeCountRef.current = changeCountRef.current.filter(t => now - t < 1000);
-    const changesPerSecond = changeCountRef.current.length;
-
-    // 속도 레벨 계산 (0-4)
-    let level: 0 | 1 | 2 | 3 | 4 = 0;
-    if (changesPerSecond >= 8) level = 4;
-    else if (changesPerSecond >= 6) level = 3;
-    else if (changesPerSecond >= 4) level = 2;
-    else if (changesPerSecond >= 2) level = 1;
-    
-    setVelocity({ level, changesPerSecond });
-
     // Parse bids (buy orders) - sorted high to low
     const bids: OrderBookEntry[] = data.b
       .slice(0, 10)
@@ -165,6 +136,49 @@ export function OrderBook({
 
     setOrderBook({ bids, asks, spread, spreadPercent });
   }, []);
+
+  // 바이낸스 aggTrade 스트림으로 실제 체결 속도 측정
+  const connectTradeStream = useCallback(() => {
+    if (tradeWsRef.current?.readyState === WebSocket.OPEN) return;
+
+    const wsUrl = isTestnet ? WS_URLS.testnet : WS_URLS.mainnet;
+    const streamName = `${symbol.toLowerCase()}@aggTrade`;
+
+    try {
+      tradeWsRef.current = new WebSocket(`${wsUrl}/${streamName}`);
+
+      tradeWsRef.current.onmessage = () => {
+        const now = Date.now();
+        tradeTimestampsRef.current.push(now);
+        
+        // 최근 1초 내 체결만 유지
+        tradeTimestampsRef.current = tradeTimestampsRef.current.filter(t => now - t < 1000);
+        const tradesPerSecond = tradeTimestampsRef.current.length;
+
+        // 속도 레벨 계산 (실제 체결 기준)
+        let level: 0 | 1 | 2 | 3 | 4 = 0;
+        if (tradesPerSecond >= 50) level = 4;      // 초당 50건 이상: 매우 활발
+        else if (tradesPerSecond >= 30) level = 3; // 초당 30건 이상: 활발
+        else if (tradesPerSecond >= 15) level = 2; // 초당 15건 이상: 보통
+        else if (tradesPerSecond >= 5) level = 1;  // 초당 5건 이상: 약간
+        
+        setVelocity({ level, changesPerSecond: tradesPerSecond });
+      };
+
+      tradeWsRef.current.onerror = (e) => {
+        console.error('Trade stream error:', e);
+      };
+
+      tradeWsRef.current.onclose = () => {
+        // 3초 후 재연결
+        setTimeout(() => {
+          connectTradeStream();
+        }, 3000);
+      };
+    } catch (e) {
+      console.error('Trade stream connection error:', e);
+    }
+  }, [symbol, isTestnet]);
 
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
@@ -205,6 +219,7 @@ export function OrderBook({
 
   useEffect(() => {
     connect();
+    connectTradeStream(); // 체결 스트림도 연결
 
     return () => {
       if (reconnectTimeoutRef.current) {
@@ -214,8 +229,13 @@ export function OrderBook({
         wsRef.current.close();
         wsRef.current = null;
       }
+      if (tradeWsRef.current) {
+        tradeWsRef.current.close();
+        tradeWsRef.current = null;
+      }
+      tradeTimestampsRef.current = [];
     };
-  }, [symbol, connect, isReconnecting]);
+  }, [symbol, connect, connectTradeStream, isReconnecting]);
 
   // Calculate max quantity for bar width
   const maxQty = orderBook
