@@ -134,7 +134,7 @@ interface UseLimitOrderTradingProps {
     macdEnabled: boolean;
     bollingerEnabled: boolean;
     adxThreshold: number;
-    stopLossPercent: number;
+    stopLossKrw: number;  // 원화 기반 손절
     takeProfitKrw: number;
   };
 }
@@ -252,8 +252,8 @@ export function useLimitOrderTrading({
 
           console.log(`🔄 [포지션 동기화] ${symbol} ${side} @ ${entryPrice} qty=${qty}`);
 
-          const slPercent = filterSettings?.stopLossPercent ?? LIMIT_ORDER_CONFIG.STOP_LOSS.PERCENT;
-          const stopLossPrice = calculateStopLossPrice(entryPrice, side, slPercent);
+          // 손절가는 참고용으로만 계산 (실제 손절은 원화 PnL 기준)
+          const stopLossPrice = calculateStopLossPrice(entryPrice, side);
 
           setState(prev => ({
             ...prev,
@@ -696,9 +696,10 @@ export function useLimitOrderTrading({
         await closePositionMarket('tp', currentPrice);
         return;
       }
-      // 손절 체크 (저체결도 손절은 동일하게 적용)
-      if (shouldStopLoss(currentPrice, position.stopLossPrice, position.side)) {
-        console.log(`🛑 저체결 손절! 현재가 ${currentPrice} SL ${position.stopLossPrice}`);
+      // 손절 체크 (원화 기반)
+      const targetStopLossKrw = filterSettings?.stopLossKrw ?? 10000;
+      if (pnlKRW <= -targetStopLossKrw) {
+        console.log(`🛑 저체결 손절! ₩${Math.round(pnlKRW).toLocaleString()} <= -₩${targetStopLossKrw.toLocaleString()}`);
         await closePositionMarket('sl', currentPrice);
         return;
       }
@@ -707,9 +708,10 @@ export function useLimitOrderTrading({
     }
 
     // ===== 일반 모드 =====
-    // 손절 체크
-    if (shouldStopLoss(currentPrice, position.stopLossPrice, position.side)) {
-      console.log(`🛑 손절! 현재가 ${currentPrice} SL ${position.stopLossPrice}`);
+    // 손절 체크 (원화 기반)
+    const targetStopLossKrw = filterSettings?.stopLossKrw ?? 10000;
+    if (pnlKRW <= -targetStopLossKrw) {
+      console.log(`🛑 손절! ₩${Math.round(pnlKRW).toLocaleString()} <= -₩${targetStopLossKrw.toLocaleString()}`);
       await closePositionMarket('sl', currentPrice);
       return;
     }
@@ -1071,11 +1073,8 @@ export function useLimitOrderTrading({
       // 최종 체결 수량
       const totalFilledQty = filledQty + secondFilledQty;
       
-      // 손절가 계산
-      const slPercent = filterSettings?.stopLossPercent ?? LIMIT_ORDER_CONFIG.STOP_LOSS.PERCENT;
-      const stopLossPrice = side === 'long' 
-        ? finalAvgPrice * (1 - slPercent / 100) 
-        : finalAvgPrice * (1 + slPercent / 100);
+      // 손절가 계산 (참고용 - 실제 손절은 원화 PnL 기준)
+      const stopLossPrice = calculateStopLossPrice(finalAvgPrice, side);
 
       // 포지션 활성화
       setState(prev => {
@@ -1447,9 +1446,8 @@ export function useLimitOrderTrading({
       
       playEntrySound();
       
-      // 손절가 계산 (filterSettings 반영)
-      const slPercent = filterSettings?.stopLossPercent ?? LIMIT_ORDER_CONFIG.STOP_LOSS.PERCENT;
-      const slPrice = calculateStopLossPrice(avgFilledPrice, direction, slPercent);
+      // 손절가 계산 (참고용 - 실제 손절은 원화 PnL 기준)
+      const slPrice = calculateStopLossPrice(avgFilledPrice, direction);
       
       // 포지션 상태 저장
       const newPosition: LimitOrderPosition = {

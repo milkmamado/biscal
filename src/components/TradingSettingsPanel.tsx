@@ -3,7 +3,7 @@ import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Settings, SlidersHorizontal, Target, Filter, TrendingUp, BarChart3, Activity } from 'lucide-react';
+import { Settings, SlidersHorizontal, Target, Filter, TrendingUp, BarChart3, Activity, Shield } from 'lucide-react';
 
 interface TradingSettingsProps {
   // 필터 토글
@@ -21,10 +21,12 @@ interface TradingSettingsProps {
   // 퍼센티지 조정
   adxThreshold: number;
   onAdxThresholdChange: (value: number) => void;
-  stopLossPercent: number;
+  
+  // 손절 설정 (원화)
+  stopLossKrw: number;
   onStopLossChange: (value: number) => void;
   
-  // 익절 설정
+  // 익절 설정 (원화)
   takeProfitKrw: number;
   onTakeProfitChange: (value: number) => void;
   
@@ -45,7 +47,7 @@ export function TradingSettingsPanel({
   onToggleBollingerFilter,
   adxThreshold,
   onAdxThresholdChange,
-  stopLossPercent,
+  stopLossKrw,
   onStopLossChange,
   takeProfitKrw,
   onTakeProfitChange,
@@ -187,24 +189,46 @@ export function TradingSettingsPanel({
               </div>
             </div>
 
-            {/* 손절 퍼센트 */}
-            <div className="space-y-1">
-              <div className="flex items-center justify-between">
-                <Label className="text-[10px] text-muted-foreground">손절 %</Label>
-                <span className="text-[10px] font-mono text-red-400">-{stopLossPercent.toFixed(2)}%</span>
+            {/* 손절 설정 (원화) */}
+            <div className="space-y-2 pt-2 border-t border-border/30">
+              <div className="flex items-center gap-1">
+                <Shield className="w-3 h-3 text-red-400" />
+                <span className="text-[10px] font-semibold text-red-400">손절 설정</span>
               </div>
-              <Slider
-                value={[stopLossPercent * 100]}
-                onValueChange={([v]) => onStopLossChange(v / 100)}
-                min={5}
-                max={50}
-                step={1}
-                disabled={isAutoTradingEnabled}
-                className="h-4"
-              />
-              <div className="flex justify-between text-[8px] text-muted-foreground">
-                <span>0.05%</span>
-                <span>0.50%</span>
+
+              <div className="flex items-center gap-2">
+                <Label className="text-[10px] text-muted-foreground whitespace-nowrap">손절 금액</Label>
+                <div className="flex-1 flex items-center gap-1">
+                  <Input
+                    type="number"
+                    value={stopLossKrw}
+                    onChange={(e) => onStopLossChange(Number(e.target.value))}
+                    disabled={isAutoTradingEnabled}
+                    className="h-7 text-[10px] text-right font-mono bg-background/50"
+                    min={1000}
+                    max={100000}
+                    step={1000}
+                  />
+                  <span className="text-[10px] text-muted-foreground">원</span>
+                </div>
+              </div>
+
+              {/* 손절 빠른 선택 버튼 */}
+              <div className="flex gap-1">
+                {[10000, 20000, 30000, 40000, 50000].map((val) => (
+                  <button
+                    key={val}
+                    onClick={() => onStopLossChange(val)}
+                    disabled={isAutoTradingEnabled}
+                    className={`flex-1 py-1 text-[9px] rounded border transition-colors ${
+                      stopLossKrw === val
+                        ? 'bg-red-500/20 border-red-500/50 text-red-400'
+                        : 'bg-background/30 border-border/30 text-muted-foreground hover:border-red-500/30'
+                    } disabled:opacity-50`}
+                  >
+                    {val / 10000}만
+                  </button>
+                ))}
               </div>
             </div>
           </div>
@@ -233,9 +257,9 @@ export function TradingSettingsPanel({
               </div>
             </div>
 
-            {/* 빠른 선택 버튼 */}
+            {/* 익절 빠른 선택 버튼 */}
             <div className="flex gap-1">
-              {[5000, 10000, 15000, 20000].map((val) => (
+              {[10000, 20000, 30000, 40000, 50000].map((val) => (
                 <button
                   key={val}
                   onClick={() => onTakeProfitChange(val)}
@@ -246,7 +270,7 @@ export function TradingSettingsPanel({
                       : 'bg-background/30 border-border/30 text-muted-foreground hover:border-green-500/30'
                   } disabled:opacity-50`}
                 >
-                  {(val / 10000).toFixed(1)}만
+                  {val / 10000}만
                 </button>
               ))}
             </div>
