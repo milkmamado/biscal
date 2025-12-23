@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { cn } from '@/lib/utils';
-import { Bot, TrendingUp, TrendingDown, Activity, Clock, AlertTriangle, Star, RefreshCw, Wallet, LogOut, Shield, ShieldOff, Crown, Brain, Zap } from 'lucide-react';
+import { Bot, TrendingUp, TrendingDown, Activity, Clock, AlertTriangle, Star, RefreshCw, Wallet, LogOut, Shield, ShieldOff, Crown, Brain, Zap, SkipForward, Pause, Play } from 'lucide-react';
 import { toast } from 'sonner';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
@@ -66,11 +66,14 @@ interface AutoTradingPanelProps {
   refreshTrigger?: number;
   scanStatus?: {
     isScanning: boolean;
+    isPaused?: boolean;
     tickersCount: number;
     screenedCount: number;
     signalsCount: number;
     lastScanTime: number;
   };
+  onPassSignal?: () => void;
+  onTogglePause?: () => void;
   isTestnet?: boolean;
   majorCoinMode?: boolean;
   onToggleMajorCoinMode?: () => void;
@@ -102,6 +105,8 @@ const AutoTradingPanel = ({
   onToggleMajorCoinMode,
   onToggleAiAnalysis,
   viewingSymbol,
+  onPassSignal,
+  onTogglePause,
 }: AutoTradingPanelProps) => {
   const { isEnabled, isProcessing, currentPosition, pendingSignal, todayStats, tradeLogs, aiAnalysis, isAiAnalyzing, aiEnabled } = state;
   const { user, signOut } = useAuth();
@@ -539,6 +544,41 @@ const AutoTradingPanel = ({
         </div>
       </div>
       
+      {/* 🆕 시그널 발견 & 일시정지 상태 - 패스 버튼 */}
+      {scanStatus?.isPaused && scanStatus.signalsCount > 0 && !currentPosition && (
+        <div className="relative z-10 px-3 py-2 lg:px-4 lg:py-3 shrink-0" style={{
+          background: 'linear-gradient(90deg, rgba(255, 200, 0, 0.15) 0%, rgba(255, 150, 0, 0.1) 100%)',
+          borderBottom: '1px solid rgba(255, 200, 0, 0.3)',
+        }}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Pause className="w-3 h-3 lg:w-4 lg:h-4 text-yellow-400" />
+              <span className="font-semibold text-xs lg:text-sm text-yellow-400">
+                시그널 대기중 ({scanStatus.signalsCount}개)
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                onClick={onPassSignal}
+                className="h-5 lg:h-6 px-2 lg:px-3 text-[9px] lg:text-[10px] font-bold"
+                style={{
+                  background: 'linear-gradient(135deg, rgba(255, 100, 0, 0.8) 0%, rgba(255, 50, 0, 0.8) 100%)',
+                  border: '1px solid rgba(255, 150, 0, 0.5)',
+                  color: '#fff',
+                  boxShadow: '0 0 10px rgba(255, 100, 0, 0.4)',
+                }}
+              >
+                <SkipForward className="w-3 h-3 mr-1" />
+                패스
+              </Button>
+            </div>
+          </div>
+          <div className="text-[9px] lg:text-[10px] text-yellow-400/70 mt-1">
+            진입하려면 자동매매를 켜세요. 패스하면 다음 스캔이 시작됩니다.
+          </div>
+        </div>
+      )}
       
       {/* Pending Signal */}
       {pendingSignal && !currentPosition && (

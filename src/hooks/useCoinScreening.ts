@@ -143,6 +143,7 @@ export function useCoinScreening(
   const [activeSignals, setActiveSignals] = useState<TradingSignal[]>([]);
   const [isScanning, setIsScanning] = useState(false);
   const [lastScanTime, setLastScanTime] = useState(0);
+  const [isPaused, setIsPaused] = useState(false); // 🆕 시그널 발견 시 일시정지
 
   const tickersRef = useRef<TickerData[]>([]);
   const isMountedRef = useRef(true);
@@ -151,6 +152,7 @@ export function useCoinScreening(
   // 🆕 refs (interval/async에서 최신 상태 보장)
   const isScanningRef = useRef(false);
   const majorCoinModeRef = useRef(majorCoinMode);
+  const isPausedRef = useRef(false);
   
   // 🆕 메이저 코인 모드에 따라 기준 선택
   const baseCriteria = majorCoinMode ? MAJOR_CRITERIA : ALTCOIN_CRITERIA;
@@ -163,6 +165,11 @@ export function useCoinScreening(
     majorCoinModeRef.current = majorCoinMode;
   }, [criteria, majorCoinMode]);
   
+  // isPaused ref 동기화
+  useEffect(() => {
+    isPausedRef.current = isPaused;
+  }, [isPaused]);
+  
   // Update tickers ref
   useEffect(() => {
     tickersRef.current = tickers;
@@ -172,6 +179,7 @@ export function useCoinScreening(
   const runScreening = useCallback(async () => {
     if (!isMountedRef.current) return;
     if (isScanningRef.current) return;
+    if (isPausedRef.current) return; // 🆕 일시정지 중이면 스캔 안함
 
     const currentTickers = tickersRef.current;
     if (currentTickers.length === 0) return;
@@ -347,9 +355,11 @@ export function useCoinScreening(
       setActiveSignals(signals);
       setLastScanTime(Date.now());
       
-      // 스크리닝 결과 요약
+      // 🆕 시그널 발견 시 자동 일시정지
       if (signals.length > 0) {
-        addScreeningLog('complete', `완료! 시그널: ${signals.map(s => `${s.symbol.replace('USDT', '')} ${s.direction.toUpperCase()}`).join(', ')}`);
+        setIsPaused(true);
+        addScreeningLog('complete', `⏸️ 시그널 발견! 자동 스캔 일시정지 (패스하면 재개)`);
+        addScreeningLog('approve', `${signals.map(s => `${s.symbol.replace('USDT', '')} ${s.direction.toUpperCase()}`).join(', ')}`);
       } else {
         addScreeningLog('complete', `완료 - 시그널 없음 (${analyzed.length}개 분석)`);
       }
@@ -386,6 +396,30 @@ export function useCoinScreening(
   // 수동 스캔
   const manualScan = useCallback(() => {
     runScreening();
+  }, [runScreening]);
+  
+  // 🆕 패스: 현재 시그널 무시하고 스캔 재개
+  const passSignal = useCallback(() => {
+    setActiveSignals([]);
+    setScreenedSymbols([]);
+    setIsPaused(false);
+    addScreeningLog('start', '패스! 스캔 재개...');
+    // 즉시 새 스캔 시작
+    setTimeout(() => runScreening(), 500);
+  }, [runScreening]);
+  
+  // 🆕 스캔 일시정지/재개
+  const togglePause = useCallback(() => {
+    setIsPaused(prev => {
+      const newValue = !prev;
+      if (!newValue) {
+        addScreeningLog('start', '스캔 재개');
+        setTimeout(() => runScreening(), 500);
+      } else {
+        addScreeningLog('complete', '스캔 일시정지');
+      }
+      return newValue;
+    });
   }, [runScreening]);
   
   // 특정 심볼 기술적 분석
@@ -436,8 +470,11 @@ export function useCoinScreening(
     screenedSymbols,
     activeSignals,
     isScanning,
+    isPaused,
     lastScanTime,
     manualScan,
+    passSignal,
+    togglePause,
     analyzeSymbol,
   };
 }
