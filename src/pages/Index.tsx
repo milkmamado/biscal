@@ -80,7 +80,7 @@ const Index = () => {
     }));
   
   // 기술적 분석 기반 종목 스크리닝
-  const { activeSignals, isScanning, screenedSymbols, lastScanTime } = useCoinScreening(tickersForScreening, {}, majorCoinMode);
+  const { activeSignals, isScanning, isPaused, screenedSymbols, lastScanTime, passSignal, togglePause } = useCoinScreening(tickersForScreening, {}, majorCoinMode);
 
   // 이전 시그널 추적
   const prevSignalsRef = useRef<Map<string, number>>(new Map());
@@ -284,11 +284,14 @@ const Index = () => {
             refreshTrigger={refreshTrigger}
             scanStatus={{
               isScanning,
+              isPaused,
               tickersCount: tickersForScreening.length,
               screenedCount: screenedSymbols.length,
               signalsCount: activeSignals.length,
               lastScanTime,
             }}
+            onPassSignal={passSignal}
+            onTogglePause={togglePause}
             majorCoinMode={majorCoinMode}
             onToggleMajorCoinMode={() => setMajorCoinMode(prev => !prev)}
             onToggleAiAnalysis={autoTrading.toggleAiAnalysis}
