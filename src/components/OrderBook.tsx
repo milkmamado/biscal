@@ -174,7 +174,9 @@ export function OrderBook({
     const rs = wsRef.current?.readyState;
     if (rs === WebSocket.OPEN || rs === WebSocket.CONNECTING) return;
 
-    const wsUrl = isTestnet ? WS_URLS.testnet : WS_URLS.mainnet;
+    // ⚠️ 테스트넷 거래를 하더라도, 호가/체결(시장 데이터)은 메인넷을 사용
+    // (일부 종목은 테스트넷 호가 스트림이 멈추거나 존재하지 않아 UI가 정지된 것처럼 보임)
+    const wsUrl = WS_URLS.mainnet;
     const sym = symbol.toLowerCase();
     // Combined stream: depth20@100ms + aggTrade를 하나의 연결로
     const streams = `${sym}@depth20@100ms/${sym}@aggTrade`;
@@ -184,7 +186,9 @@ export function OrderBook({
 
       wsRef.current.onopen = () => {
         setIsConnected(true);
-        console.log(`[OrderBook] Combined stream connected: ${streams}`);
+        console.log(
+          `[OrderBook] Combined stream connected (trading=${isTestnet ? 'testnet' : 'mainnet'}, market=mainnet): ${streams}`
+        );
       };
 
       wsRef.current.onmessage = (event) => {
