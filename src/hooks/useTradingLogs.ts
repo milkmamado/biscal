@@ -94,26 +94,15 @@ export const useTradingLogs = (options: UseTradingLogsOptions = {}) => {
       console.log(`[TradingLogs] Fetched ${data?.length || 0} logs`);
 
       if (data && data.length > 0) {
-        // ✅ 표시/통계는 항상 '수수료 포함 최종 손익' 기준으로 계산
-        const feeRate = 0.0005; // 0.05% (taker 가정) / side
-        const calcNetPnl = (log: any) => {
-          const qty = Number(log.quantity);
-          const entry = Number(log.entry_price);
-          const exit = Number(log.exit_price);
-          const dir = String(log.side).toLowerCase() === 'long' ? 1 : -1;
-          const gross = (exit - entry) * dir * qty;
-          const fee = (entry * qty + exit * qty) * feeRate;
-          return gross - fee;
-        };
-
-        const totalPnL = data.reduce((sum, log) => sum + calcNetPnl(log), 0);
-        const winCount = data.filter(log => calcNetPnl(log) > 0).length;
-        const lossCount = data.filter(log => calcNetPnl(log) < 0).length;
+        // ✅ DB에 저장된 pnl_usd는 이미 수수료 포함 '최종 손익'
+        const totalPnL = data.reduce((sum, log: any) => sum + Number(log.pnl_usd), 0);
+        const winCount = data.filter((log: any) => Number(log.pnl_usd) > 0).length;
+        const lossCount = data.filter((log: any) => Number(log.pnl_usd) < 0).length;
         const tradeCount = data.length;
         const winRate = tradeCount > 0 ? (winCount / tradeCount) * 100 : 0;
 
-        console.log(`[TradingLogs] Stats(net): ${tradeCount}trades, PnL: $${totalPnL.toFixed(2)}`);
-        
+        console.log(`[TradingLogs] Stats(db): ${tradeCount}trades, PnL: $${totalPnL.toFixed(2)}`);
+
         setDailyStats({
           totalPnL,
           tradeCount,
@@ -124,8 +113,8 @@ export const useTradingLogs = (options: UseTradingLogsOptions = {}) => {
 
         // DB 로그를 UI용 형식으로 변환 (최신순 정렬)
         const convertedLogs: DbTradeLog[] = data
-          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-          .map(log => ({
+          .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+          .map((log: any) => ({
             id: log.id,
             timestamp: new Date(log.created_at).getTime(),
             symbol: log.symbol,
@@ -133,7 +122,7 @@ export const useTradingLogs = (options: UseTradingLogsOptions = {}) => {
             entryPrice: Number(log.entry_price),
             exitPrice: Number(log.exit_price),
             quantity: Number(log.quantity),
-            pnlUsd: calcNetPnl(log), // 수수료 포함 순손익
+            pnlUsd: Number(log.pnl_usd),
           }));
         setDbTradeLogs(convertedLogs);
       } else {
