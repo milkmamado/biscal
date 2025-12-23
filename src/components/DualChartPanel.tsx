@@ -4,6 +4,12 @@ import TickChart from './TickChart';
 import CyberPigeon from './CyberPigeon';
 import { ScreeningLog } from './ScreeningLogPanel';
 
+interface EntryPoint {
+  price: number;
+  quantity: number;
+  timestamp: number;
+}
+
 interface DualChartPanelProps {
   symbol: string;
   hasPosition?: boolean;
@@ -13,6 +19,7 @@ interface DualChartPanelProps {
   positionSide?: 'long' | 'short';
   onSelectSymbol?: (symbol: string) => void;
   screeningLogs?: ScreeningLog[];
+  entryPoints?: EntryPoint[];
 }
 
 const INTERVALS = [
@@ -34,6 +41,7 @@ const DualChartPanel = ({
   takeProfitPrice,
   positionSide,
   screeningLogs = [],
+  entryPoints = [],
 }: DualChartPanelProps) => {
   const [interval, setInterval] = useState(60);
   const prevSymbolRef = useRef<string>(symbol);
@@ -91,6 +99,7 @@ const DualChartPanel = ({
             stopLossPrice={hasPosition ? stopLossPrice : undefined}
             takeProfitPrice={hasPosition ? takeProfitPrice : undefined}
             positionSide={hasPosition ? positionSide : undefined}
+            entryPoints={hasPosition ? entryPoints : undefined}
           />
           
           {/* 스크리닝 로그 오버레이 - 차트 영역 중하단 */}

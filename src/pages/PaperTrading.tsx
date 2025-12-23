@@ -323,6 +323,11 @@ const PaperTrading = () => {
             positionSide={autoTrading.state.currentPosition?.side}
             onSelectSymbol={setSelectedSymbol}
             screeningLogs={screeningLogs}
+            entryPoints={autoTrading.state.currentPosition?.entries?.map(e => ({
+              price: e.price,
+              quantity: e.quantity,
+              timestamp: e.timestamp,
+            })) || []}
           />
         </div>
 
