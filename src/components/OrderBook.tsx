@@ -82,6 +82,7 @@ export function OrderBook({
   const [velocity, setVelocity] = useState<VelocityData>({ level: 0, changesPerSecond: 0 });
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const shouldReconnectRef = useRef(true);
   const tradeTimestampsRef = useRef<number[]>([]); // 실제 체결 타임스탬프
   const velocityUpdateRef = useRef<number>(0); // velocity 업데이트 쓰로틀링용
 
@@ -89,7 +90,8 @@ export function OrderBook({
   const handleManualReconnect = useCallback(() => {
     if (isReconnecting) return;
     setIsReconnecting(true);
-    
+    shouldReconnectRef.current = true;
+
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = null;
@@ -103,7 +105,7 @@ export function OrderBook({
       wsRef.current = null;
     }
     setIsConnected(false);
-    
+
     // 약간의 딜레이 후 재연결
     setTimeout(() => {
       setIsReconnecting(false);
@@ -111,10 +113,13 @@ export function OrderBook({
   }, [isReconnecting]);
 
   const processDepthData = useCallback((data: any) => {
-    if (!data.b || !data.a) return;
+    const bidsRaw = data?.b ?? data?.bids;
+    const asksRaw = data?.a ?? data?.asks;
+
+    if (!Array.isArray(bidsRaw) || !Array.isArray(asksRaw)) return;
 
     // Parse bids (buy orders) - sorted high to low
-    const bids: OrderBookEntry[] = data.b
+    const bids: OrderBookEntry[] = bidsRaw
       .slice(0, 10)
       .map((b: [string, string]) => ({
         price: parseFloat(b[0]),
@@ -122,17 +127,18 @@ export function OrderBook({
       }));
 
     // Parse asks (sell orders) - sorted low to high, then reverse for display
-    const asks: OrderBookEntry[] = data.a
+    const asksAscending: OrderBookEntry[] = asksRaw
       .slice(0, 10)
       .map((a: [string, string]) => ({
         price: parseFloat(a[0]),
         quantity: parseFloat(a[1]),
-      }))
-      .reverse(); // Reverse to show highest ask at top, lowest at bottom (near spread)
+      }));
+
+    const asks = [...asksAscending].reverse(); // Reverse to show highest ask at top, lowest at bottom (near spread)
 
     // Calculate spread
     const bestBid = bids[0]?.price || 0;
-    const bestAsk = data.a[0] ? parseFloat(data.a[0][0]) : 0;
+    const bestAsk = asksAscending[0]?.price || 0;
     const spread = bestAsk - bestBid;
     const spreadPercent = bestBid > 0 ? (spread / bestBid) * 100 : 0;
 
@@ -165,13 +171,14 @@ export function OrderBook({
 
   // Combined Stream으로 depth + aggTrade 동시 연결 (하나의 WebSocket으로 효율적)
   const connect = useCallback(() => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) return;
+    const rs = wsRef.current?.readyState;
+    if (rs === WebSocket.OPEN || rs === WebSocket.CONNECTING) return;
 
     const wsUrl = isTestnet ? WS_URLS.testnet : WS_URLS.mainnet;
     const sym = symbol.toLowerCase();
     // Combined stream: depth20@100ms + aggTrade를 하나의 연결로
     const streams = `${sym}@depth20@100ms/${sym}@aggTrade`;
-    
+
     try {
       wsRef.current = new WebSocket(`${wsUrl}?streams=${streams}`);
 
@@ -185,7 +192,7 @@ export function OrderBook({
           const message = JSON.parse(event.data);
           const data = message.data;
           const stream = message.stream;
-          
+
           if (stream?.includes('@depth')) {
             // 호가 데이터 처리
             processDepthData(data);
@@ -204,6 +211,8 @@ export function OrderBook({
 
       wsRef.current.onclose = () => {
         setIsConnected(false);
+        if (!shouldReconnectRef.current) return;
+
         reconnectTimeoutRef.current = setTimeout(() => {
           connect();
         }, 2000); // 2초로 단축
@@ -214,14 +223,22 @@ export function OrderBook({
   }, [symbol, isTestnet, processDepthData, processTradeData]);
 
   useEffect(() => {
+    shouldReconnectRef.current = true;
     connect();
 
     return () => {
+      shouldReconnectRef.current = false;
+
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
       }
       if (wsRef.current) {
-        wsRef.current.close();
+        try {
+          wsRef.current.close();
+        } catch {
+          // ignore
+        }
         wsRef.current = null;
       }
       tradeTimestampsRef.current = [];
