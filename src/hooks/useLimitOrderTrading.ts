@@ -134,8 +134,8 @@ interface UseLimitOrderTradingProps {
     macdEnabled: boolean;
     bollingerEnabled: boolean;
     adxThreshold: number;
-    stopLossKrw: number;  // 원화 기반 손절
-    takeProfitKrw: number;
+    stopLossUsdt: number;  // USDT 기반 손절
+    takeProfitUsdt: number; // USDT 기반 익절
   };
 }
 
@@ -593,8 +593,8 @@ export function useLimitOrderTrading({
       console.log(`📊 [잔량] ${position.symbol} 잔량 ${remainQty} → 4분할 TP 배치`);
 
       // 나머지 4분할 지정가 TP 배치
-      const targetProfitKrw = filterSettings?.takeProfitKrw ?? LIMIT_ORDER_CONFIG.TAKE_PROFIT.MIN_PROFIT_KRW;
-      const profitStepKrw = LIMIT_ORDER_CONFIG.TAKE_PROFIT.PROFIT_STEP_KRW;
+      const targetProfitUsdt = filterSettings?.takeProfitUsdt ?? 7;
+      const profitStepUsdt = 3; // $3 간격으로 분할
       const roundTripFeePercent = LIMIT_ORDER_CONFIG.MAKER_FEE * 2 / 100;
       const tpOrders: LimitOrderEntry[] = [];
       const splitCount = 4;
@@ -602,9 +602,8 @@ export function useLimitOrderTrading({
 
       for (let i = 0; i < splitCount; i++) {
         // TP2~TP5 (1차는 이미 체결됨)
-        const targetProfitForSplit = targetProfitKrw + (profitStepKrw * (i + 1));
-        const targetProfitUSD = targetProfitForSplit / krwRate;
-        const requiredPriceDiff = targetProfitUSD / position.filledQuantity + (avgPrice * roundTripFeePercent);
+        const targetProfitForSplit = targetProfitUsdt + (profitStepUsdt * (i + 1));
+        const requiredPriceDiff = targetProfitForSplit / position.filledQuantity + (avgPrice * roundTripFeePercent);
 
         let tpPrice: number;
         if (position.side === 'long') {
@@ -734,22 +733,22 @@ export function useLimitOrderTrading({
         await closePositionMarket('tp', currentPrice);
         return;
       }
-      // 손절 체크 (원화 기반)
-      const targetStopLossKrw = filterSettings?.stopLossKrw ?? 10000;
-      if (pnlKRW <= -targetStopLossKrw) {
-        console.log(`🛑 저체결 손절! ₩${Math.round(pnlKRW).toLocaleString()} <= -₩${targetStopLossKrw.toLocaleString()}`);
+      // 손절 체크 (USDT 기반)
+      const targetStopLossUsdt = filterSettings?.stopLossUsdt ?? 7;
+      if (pnlUSD <= -targetStopLossUsdt) {
+        console.log(`🛑 저체결 손절! $${pnlUSD.toFixed(2)} <= -$${targetStopLossUsdt}`);
         await closePositionMarket('sl', currentPrice);
         return;
       }
-      // 저체결 모드에서는 1만원 익절/타임스탑 무시, 손익분기만 대기
+      // 저체결 모드에서는 익절/타임스탑 무시, 손익분기만 대기
       return;
     }
 
     // ===== 일반 모드 =====
-    // 손절 체크 (원화 기반)
-    const targetStopLossKrw = filterSettings?.stopLossKrw ?? 10000;
-    if (pnlKRW <= -targetStopLossKrw) {
-      console.log(`🛑 손절! ₩${Math.round(pnlKRW).toLocaleString()} <= -₩${targetStopLossKrw.toLocaleString()}`);
+    // 손절 체크 (USDT 기반)
+    const targetStopLossUsdt = filterSettings?.stopLossUsdt ?? 7;
+    if (pnlUSD <= -targetStopLossUsdt) {
+      console.log(`🛑 손절! $${pnlUSD.toFixed(2)} <= -$${targetStopLossUsdt}`);
       await closePositionMarket('sl', currentPrice);
       return;
     }
@@ -761,10 +760,10 @@ export function useLimitOrderTrading({
       return;
     }
 
-    // 1만원 익절 체크 → 1차 시장가 익절 실행
-    const targetProfitKrw = filterSettings?.takeProfitKrw ?? LIMIT_ORDER_CONFIG.TAKE_PROFIT.MIN_PROFIT_KRW;
-    if (pnlKRW >= targetProfitKrw) {
-      console.log(`💰 익절 조건! ₩${Math.round(pnlKRW).toLocaleString()} >= ₩${targetProfitKrw.toLocaleString()}`);
+    // 익절 체크 (USDT 기반) → 1차 시장가 익절 실행
+    const targetProfitUsdt = filterSettings?.takeProfitUsdt ?? 7;
+    if (pnlUSD >= targetProfitUsdt) {
+      console.log(`💰 익절 조건! $${pnlUSD.toFixed(2)} >= $${targetProfitUsdt}`);
       await executeFirstTakeProfit(currentPrice);
       return;
     }
