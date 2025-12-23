@@ -1661,13 +1661,28 @@ export function useLimitOrderTrading({
         `📊 지정가 ${splitCount}분할 주문: ${symbol} ${direction} @ ${roundedPrice}, qty: ${roundedSplitQty} x ${splitCount} (레버리지: ${appliedLeverage}x)`
       );
 
-      // splitCount 만큼 개별 주문 생성 (호가창 '분할' 기대 동작)
+      // splitCount 만큼 개별 주문 생성 - 가격 분산!
+      // 롱: 클릭가격에서 아래로 분산 (5,4,3,2,1 식으로)
+      // 숏: 클릭가격에서 위로 분산 (1,2,3,4,5 식으로)
+      const priceStep = precision.tickSize * 10; // 틱사이즈 x 10 간격으로 분산
+      
       for (let i = 0; i < splitCount; i++) {
+        // 가격 분산 계산
+        // 롱: 첫 주문이 가장 높은 가격, 마지막이 가장 낮은 가격
+        // 숏: 첫 주문이 가장 낮은 가격, 마지막이 가장 높은 가격
+        const priceOffset = direction === 'long' 
+          ? -priceStep * i  // 롱: 아래로 분산
+          : priceStep * i;  // 숏: 위로 분산
+        
+        const orderPrice = roundPrice(roundedPrice + priceOffset, precision);
+        
+        console.log(`  📌 ${i + 1}/${splitCount} 주문: ${orderPrice} (offset: ${priceOffset > 0 ? '+' : ''}${priceOffset})`);
+        
         const result = await placeLimitOrder(
           symbol,
           direction === 'long' ? 'BUY' : 'SELL',
           roundedSplitQty,
-          roundedPrice,
+          orderPrice,
           false
         );
 
@@ -1679,10 +1694,15 @@ export function useLimitOrderTrading({
           symbol,
           action: 'order',
           side: direction,
-          price: roundedPrice,
+          price: orderPrice,
           quantity: roundedSplitQty,
-          reason: `수동 지정가 주문 (${i + 1}/${splitCount}분할)`,
+          reason: `수동 지정가 주문 (${i + 1}/${splitCount}분할) @ ${orderPrice}`,
         });
+        
+        // 연속 주문 방지 딜레이
+        if (i < splitCount - 1) {
+          await new Promise(resolve => setTimeout(resolve, 50));
+        }
       }
 
       playEntrySound();
