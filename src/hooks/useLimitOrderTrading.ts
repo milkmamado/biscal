@@ -1348,10 +1348,7 @@ export function useLimitOrderTrading({
     console.log(`📌 [manualMarketEntry] 호출됨: ${symbol} ${direction} (${splitCount}분할)`);
     console.log(`📌 [manualMarketEntry] isEnabled: ${state.isEnabled}, currentPosition: ${!!state.currentPosition}, user: ${!!user}`);
     
-    if (!state.isEnabled) {
-      toast.error('스캔을 먼저 활성화하세요');
-      return;
-    }
+    // 스캔 활성화 체크 제거 - 수동 진입은 언제든 가능해야 함
     if (state.currentPosition) {
       toast.error('이미 포지션이 있습니다');
       return;
@@ -1373,18 +1370,54 @@ export function useLimitOrderTrading({
       initAudio();
       const precision = await fetchSymbolPrecision(symbol, isTestnet);
       
+      // 테스트넷에 없는 코인 체크
+      if (precision.notFound) {
+        toast.error(`${symbol.replace('USDT', '')} 테스트넷 미지원`);
+        return;
+      }
+      
+      // 레버리지 설정 (중요!)
+      let appliedLeverage = leverage;
+      const leverageCandidates = Array.from(
+        new Set([leverage, 10, 5, 3, 2, 1].filter((v) => v <= leverage))
+      );
+
+      for (const lev of leverageCandidates) {
+        try {
+          const res = await setLeverage(symbol, lev);
+          appliedLeverage = lev;
+          if (!res?.alreadySet) {
+            console.log(`🧲 [Leverage] ${symbol} 적용: ${lev}x`);
+          }
+          break;
+        } catch (levError: any) {
+          console.warn(`레버리지 설정 실패(${lev}x):`, levError?.message);
+          continue;
+        }
+      }
+      
       // 전체 자금의 비율로 수량 계산
       const positionSizeRatio = LIMIT_ORDER_CONFIG.POSITION_SIZE_PERCENT / 100;
-      const positionValueUSD = balanceUSD * positionSizeRatio * leverage;
+      const positionValueUSD = balanceUSD * positionSizeRatio * appliedLeverage;
       
       // 현재가 조회
       const tickerRes = await fetch(`https://fapi.binance.com/fapi/v1/ticker/price?symbol=${symbol}`);
       const tickerData = await tickerRes.json();
       const currentPrice = parseFloat(tickerData.price);
       
-      // 분할당 수량 계산
+      if (!currentPrice || currentPrice <= 0) {
+        throw new Error('현재가 조회 실패');
+      }
+      
+      // 전체 수량 및 분할 수량 계산
       const totalQuantity = roundQuantity(positionValueUSD / currentPrice, precision);
       const splitQuantity = roundQuantity(totalQuantity / splitCount, precision);
+      
+      // 최소 주문 검증
+      const splitNotional = splitQuantity * currentPrice;
+      if (splitNotional < precision.minNotional) {
+        throw new Error(`분할당 주문 금액이 최소 ${precision.minNotional} USDT 이상이어야 합니다. 현재: ${splitNotional.toFixed(2)} USDT`);
+      }
       
       if (splitQuantity <= 0) {
         toast.error('잔고가 부족합니다');
@@ -1393,38 +1426,63 @@ export function useLimitOrderTrading({
       
       const orderSide = direction === 'long' ? 'BUY' : 'SELL';
       
-      console.log(`🚀 [수동진입] ${symbol} ${direction} 시장가 ${splitQuantity} (1/${splitCount}분할)`);
+      console.log(`🚀 [수동 시장가] ${symbol} ${direction} ${splitQuantity} x ${splitCount}분할 (총 ${totalQuantity})`);
       
-      const result = await placeMarketOrder(symbol, orderSide, splitQuantity, false, currentPrice);
+      // 분할 주문 실행
+      let totalFilledQty = 0;
+      let totalFilledValue = 0;
+      let successCount = 0;
       
-      if (!result || result.error) {
-        throw new Error(result?.error || '주문 실패');
+      for (let i = 0; i < splitCount; i++) {
+        try {
+          const result = await placeMarketOrder(symbol, orderSide, splitQuantity, false, currentPrice);
+          
+          if (result && !result.error) {
+            const filledQty = parseFloat(result.executedQty || splitQuantity);
+            const filledPrice = parseFloat(result.avgPrice || currentPrice);
+            totalFilledQty += filledQty;
+            totalFilledValue += filledQty * filledPrice;
+            successCount++;
+            console.log(`  ✅ ${i + 1}/${splitCount} 체결: ${filledQty} @ ${filledPrice}`);
+          } else {
+            console.warn(`  ❌ ${i + 1}/${splitCount} 실패:`, result?.error);
+          }
+          
+          // 주문 간 약간의 딜레이 (연속 주문 방지)
+          if (i < splitCount - 1) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+        } catch (orderError: any) {
+          console.error(`  ❌ ${i + 1}/${splitCount} 오류:`, orderError.message);
+        }
       }
       
-      const filledPrice = parseFloat(result.avgPrice || currentPrice);
-      const filledQty = parseFloat(result.executedQty || splitQuantity);
+      if (successCount === 0 || totalFilledQty === 0) {
+        throw new Error('모든 주문이 실패했습니다');
+      }
+      
+      const avgFilledPrice = totalFilledValue / totalFilledQty;
       
       playEntrySound();
       
       // 손절가 계산
-      const slPercent = filterSettings?.stopLossPercent ?? LIMIT_ORDER_CONFIG.STOP_LOSS.PERCENT;
-      const slPrice = calculateStopLossPrice(filledPrice, direction);
+      const slPrice = calculateStopLossPrice(avgFilledPrice, direction);
       
       // 포지션 상태 저장
       const newPosition: LimitOrderPosition = {
         symbol,
         side: direction,
         entries: [{
-          price: filledPrice,
-          quantity: filledQty,
-          orderId: result.orderId,
+          price: avgFilledPrice,
+          quantity: totalFilledQty,
+          orderId: 'manual-market',
           status: 'FILLED',
-          filled: filledQty,
+          filled: totalFilledQty,
           timestamp: Date.now(),
         }],
-        filledQuantity: filledQty,
-        totalQuantity: totalQuantity, // 전체 목표 수량
-        avgPrice: filledPrice,
+        filledQuantity: totalFilledQty,
+        totalQuantity: totalFilledQty,
+        avgPrice: avgFilledPrice,
         stopLossPrice: slPrice,
         startTime: Date.now(),
         entryPhase: 'active',
@@ -1432,11 +1490,13 @@ export function useLimitOrderTrading({
       };
       
       currentPositionRef.current = newPosition;
+      lastSyncedPositionRef.current = `${symbol}-${direction}-${totalFilledQty.toFixed(6)}`;
+      
       setState(prev => ({
         ...prev,
         currentPosition: newPosition,
         currentSymbol: symbol,
-        statusMessage: `✅ ${symbol} ${direction === 'long' ? '롱' : '숏'} 1/${splitCount} 진입 완료`,
+        statusMessage: `✅ ${symbol} ${direction === 'long' ? '롱' : '숏'} ${successCount}/${splitCount} 진입 완료`,
         isProcessing: false,
       }));
       
@@ -1444,12 +1504,12 @@ export function useLimitOrderTrading({
         symbol,
         action: 'fill',
         side: direction,
-        price: filledPrice,
-        quantity: filledQty,
-        reason: `수동 시장가 진입 (1/${splitCount}분할)`,
+        price: avgFilledPrice,
+        quantity: totalFilledQty,
+        reason: `수동 시장가 진입 (${successCount}/${splitCount}분할)`,
       });
       
-      toast.success(`🚀 ${symbol.replace('USDT', '')} ${direction === 'long' ? '롱' : '숏'} 1/${splitCount} 진입!`);
+      toast.success(`🚀 ${symbol.replace('USDT', '')} ${direction === 'long' ? '롱' : '숏'} ${successCount}/${splitCount} 체결! @ ${avgFilledPrice.toFixed(4)}`);
       
     } catch (error: any) {
       console.error('수동 진입 실패:', error);
@@ -1462,7 +1522,7 @@ export function useLimitOrderTrading({
     } finally {
       processingRef.current = false;
     }
-  }, [state.isEnabled, state.currentPosition, user, balanceUSD, leverage, isTestnet, placeMarketOrder, filterSettings, addLog]);
+  }, [state.currentPosition, user, balanceUSD, leverage, isTestnet, placeMarketOrder, setLeverage, filterSettings, addLog]);
 
   // ===== 수동 지정가 진입 (분할 매수 지원) =====
   const manualLimitEntry = useCallback(async (symbol: string, direction: 'long' | 'short', price: number, splitCount: number = 5) => {
