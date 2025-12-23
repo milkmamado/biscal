@@ -8,8 +8,12 @@ import { useTickerWebSocket } from '@/hooks/useTickerWebSocket';
 import { useWakeLock } from '@/hooks/useWakeLock';
 import { supabase } from '@/integrations/supabase/client';
 import DualChartPanel from '@/components/DualChartPanel';
-import AutoTradingPanel from '@/components/AutoTradingPanel';
+import AutoTradingPanel, { ScalpingIndicator } from '@/components/AutoTradingPanel';
 import ApiKeySetup from '@/components/ApiKeySetup';
+import TradingSettingsPanel from '@/components/TradingSettingsPanel';
+import TradingLogsPanel from '@/components/TradingLogsPanel';
+import { Button } from '@/components/ui/button';
+import { FlaskConical } from 'lucide-react';
 import { toast } from 'sonner';
 import { getScreeningLogs, ScreeningLog } from '@/components/ScreeningLogPanel';
 import { LIMIT_ORDER_CONFIG } from '@/lib/limitOrderConfig';
@@ -24,6 +28,19 @@ const Index = () => {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [majorCoinMode, setMajorCoinMode] = useState(true);
   const [screeningLogs, setScreeningLogs] = useState<ScreeningLog[]>([]);
+  
+  // 트레이딩 설정 상태 (테스트넷과 동일)
+  const [adxFilterEnabled, setAdxFilterEnabled] = useState(true);
+  const [volumeFilterEnabled, setVolumeFilterEnabled] = useState(true);
+  const [rsiFilterEnabled, setRsiFilterEnabled] = useState(true);
+  const [macdFilterEnabled, setMacdFilterEnabled] = useState(true);
+  const [bollingerFilterEnabled, setBollingerFilterEnabled] = useState(true);
+  const [adxThreshold, setAdxThreshold] = useState(LIMIT_ORDER_CONFIG.SIGNAL.MIN_ADX);
+  const [stopLossKrw, setStopLossKrw] = useState(10000);
+  const [takeProfitKrw, setTakeProfitKrw] = useState(LIMIT_ORDER_CONFIG.TAKE_PROFIT.MIN_PROFIT_KRW);
+  
+  // 미체결 주문 상태 (차트에 표시용)
+  const [openOrders, setOpenOrders] = useState<{ orderId: number; price: number; side: 'BUY' | 'SELL'; origQty: number; executedQty: number; }[]>([]);
 
   // 스크리닝 로그 실시간 업데이트
   useEffect(() => {
@@ -35,8 +52,11 @@ const Index = () => {
 
   const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
-  const { dailyStats, logTrade, fetchDailyStats } = useTradingLogs({ isTestnet: false });
-  const { tickers } = useTickerWebSocket();
+  const { dailyStats, dbTradeLogs, logTrade, fetchDailyStats } = useTradingLogs({ isTestnet: false });
+  
+  // Only connect WebSocket when user is authenticated and API keys are ready
+  const shouldConnectWebSocket = !!user && hasApiKeys === true;
+  const { tickers } = useTickerWebSocket(shouldConnectWebSocket, { isTestnet: false });
   
   // 청산 후 즉시 잔고 갱신
   const handleTradeComplete = useCallback(() => {
@@ -52,7 +72,7 @@ const Index = () => {
     totalPnL: dailyStats.totalPnL,
   };
   
-  // 지정가 매매 훅
+  // 지정가 매매 훅 (실거래)
   const autoTrading = useLimitOrderTrading({
     balanceUSD,
     leverage,
@@ -60,7 +80,18 @@ const Index = () => {
     onTradeComplete: handleTradeComplete,
     initialStats,
     logTrade,
+    isTestnet: false,
     majorCoinMode,
+    filterSettings: {
+      adxEnabled: adxFilterEnabled,
+      volumeEnabled: volumeFilterEnabled,
+      rsiEnabled: rsiFilterEnabled,
+      macdEnabled: macdFilterEnabled,
+      bollingerEnabled: bollingerFilterEnabled,
+      adxThreshold,
+      stopLossKrw,
+      takeProfitKrw,
+    },
   });
   
   // 자동매매 중 절전 방지
@@ -101,43 +132,19 @@ const Index = () => {
     prevSignalsRef.current = new Map();
   }, [autoTrading.state.isEnabled]);
   
-  // 기술적 분석 시그널 감지 시 자동매매 트리거
+  // 시그널 감지 시 차트 종목만 변경 (자동 진입은 수동으로)
   useEffect(() => {
     if (!autoTrading.state.isEnabled) return;
     if (justEnabledRef.current) return;
     if (activeSignals.length === 0) return;
-
     if (autoTrading.state.currentPosition) return;
-    if (autoTrading.state.pendingSignal) return;
 
-    const now = Date.now();
-    const retryCooldownMs = 2 * 60 * 1000;
-
-    for (const signal of activeSignals) {
-      const signalKey = `${signal.symbol}-${signal.direction}`;
-
-      if (signal.strength === 'weak') continue;
-
-      const lastAttempt = prevSignalsRef.current.get(signalKey);
-      if (lastAttempt && now - lastAttempt < retryCooldownMs) continue;
-
-      console.log(`🔥 Technical signal: ${signal.symbol} ${signal.direction} (${signal.strength})`, signal.reasons.slice(0, 3));
-
-      prevSignalsRef.current.set(signalKey, now);
-
-      autoTrading.handleTechnicalSignal(
-        signal.symbol,
-        signal.direction,
-        signal.price,
-        signal.strength,
-        signal.reasons,
-        signal.indicators
-      );
-
-      setSelectedSymbol(signal.symbol);
-      break;
+    // 가장 강한 시그널의 종목으로 차트 변경
+    const strongSignal = activeSignals.find(s => s.strength !== 'weak');
+    if (strongSignal) {
+      setSelectedSymbol(strongSignal.symbol);
     }
-  }, [activeSignals, autoTrading.state.isEnabled, autoTrading.state.currentPosition, autoTrading.state.pendingSignal]);
+  }, [activeSignals, autoTrading.state.isEnabled, autoTrading.state.currentPosition]);
   
   // 포지션 보유 중일 때 해당 종목 차트 유지
   useEffect(() => {
@@ -226,6 +233,11 @@ const Index = () => {
   const handleManualClose = () => {
     autoTrading.closePosition();
   };
+  
+  // 진입 취소 핸들러
+  const handleCancelEntry = () => {
+    autoTrading.cancelEntry();
+  };
 
   // Show loading
   if (loading || (user && checkingKeys)) {
@@ -241,22 +253,69 @@ const Index = () => {
     return <ApiKeySetup onComplete={handleApiKeyComplete} />;
   }
   
-  // 현재 가격 (자동매매 포지션용)
+  // 현재 가격
   const currentAutoPrice = autoTrading.state.currentPosition
     ? tickers.find(t => t.symbol === autoTrading.state.currentPosition?.symbol)?.price || 0
     : 0;
     
-  // 손절/익절 가격 계산
+  // 손절/익절 가격 계산 (원화 기반)
   const position = autoTrading.state.currentPosition;
-  const stopLossPrice = position?.stopLossPrice;
-  const takeProfitPrice = undefined; // 지정가 익절은 동적으로 계산
+  const calculateSlTpPrices = () => {
+    if (!position) return { stopLossPrice: undefined, takeProfitPrice: undefined };
+    
+    const entryPrice = position.avgPrice;
+    const qty = position.totalQuantity;
+    const positionValueUsd = entryPrice * qty;
+    
+    // 원화 손익을 USD로 변환
+    const slUsd = stopLossKrw / krwRate;
+    const tpUsd = takeProfitKrw / krwRate;
+    
+    // 손익 퍼센트 계산
+    const slPercent = (slUsd / positionValueUsd) * 100;
+    const tpPercent = (tpUsd / positionValueUsd) * 100;
+    
+    // 가격 계산
+    let slPrice: number;
+    let tpPrice: number;
+    
+    if (position.side === 'long') {
+      slPrice = entryPrice * (1 - slPercent / 100 / leverage);
+      tpPrice = entryPrice * (1 + tpPercent / 100 / leverage);
+    } else {
+      slPrice = entryPrice * (1 + slPercent / 100 / leverage);
+      tpPrice = entryPrice * (1 - tpPercent / 100 / leverage);
+    }
+    
+    return { stopLossPrice: slPrice, takeProfitPrice: tpPrice };
+  };
+  
+  const { stopLossPrice, takeProfitPrice } = calculateSlTpPrices();
 
   return (
     <div className="h-screen bg-background p-1 overflow-hidden flex flex-col">
-      {/* 반응형 그리드: xl 이상에서는 12컬럼, lg에서 flex 레이아웃, md 이하에서는 세로 스택 */}
-      <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-1">
-        {/* Left - Chart: lg 이상에서 60~65%, md 이하에서 전체 너비 */}
-        <div className="flex-1 lg:flex-[6] xl:flex-[7] flex flex-col min-h-0 lg:min-h-full">
+      {/* Real Trading Header */}
+      <div className="flex items-center justify-between px-2 py-1 border-b border-border/50 mb-1">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 px-3 py-1 rounded bg-green-500/20 border border-green-500/50">
+            <span className="text-sm font-bold text-green-400 tracking-wider">💰 實戰交易</span>
+          </div>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => navigate('/paper-trading')}
+          className="gap-1 h-7 px-2 border-amber-500/50 text-amber-400 hover:bg-amber-500/10"
+        >
+          <FlaskConical className="h-3 w-3" />
+          모의거래
+        </Button>
+      </div>
+
+      {/* Main Content - iPad Mini 7 (768x1024) 최적화 */}
+      <div className="flex-1 min-h-0 grid grid-cols-10 gap-1">
+        {/* Left - Chart */}
+        <div className="col-span-5 flex flex-col min-h-0">
           <DualChartPanel 
             symbol={selectedSymbol} 
             hasPosition={!!autoTrading.state.currentPosition}
@@ -266,15 +325,24 @@ const Index = () => {
             positionSide={autoTrading.state.currentPosition?.side}
             onSelectSymbol={setSelectedSymbol}
             screeningLogs={screeningLogs}
+            entryPoints={autoTrading.state.currentPosition?.entries?.map(e => ({
+              price: e.price,
+              quantity: e.quantity,
+              timestamp: e.timestamp,
+            })) || []}
+            openOrders={openOrders}
           />
         </div>
 
-        {/* Right - System Trading Panel: lg 이상에서 35~40%, md 이하에서 전체 너비 */}
-        <div className="flex-shrink-0 lg:flex-[4] xl:flex-[5] 2xl:flex-[4] flex flex-col min-h-0 lg:min-h-full lg:max-h-full overflow-auto lg:w-auto w-full" style={{ maxWidth: '100%' }}>
+        {/* Middle - Trading Panel */}
+        <div className="col-span-3 flex flex-col min-h-0 overflow-auto gap-1">
           <AutoTradingPanel
             state={autoTrading.state}
             onToggle={autoTrading.toggleAutoTrading}
             onManualClose={handleManualClose}
+            onCancelEntry={handleCancelEntry}
+            onMarketEntry={autoTrading.manualMarketEntry}
+            onLimitEntry={autoTrading.manualLimitEntry}
             currentPrice={currentAutoPrice}
             krwRate={krwRate}
             leverage={leverage}
@@ -292,9 +360,47 @@ const Index = () => {
             }}
             onPassSignal={passSignal}
             onTogglePause={togglePause}
+            isTestnet={false}
             majorCoinMode={majorCoinMode}
             onToggleMajorCoinMode={() => setMajorCoinMode(prev => !prev)}
             onToggleAiAnalysis={autoTrading.toggleAiAnalysis}
+            viewingSymbol={selectedSymbol}
+            onOpenOrdersChange={setOpenOrders}
+          />
+        </div>
+
+        {/* Right - Settings Panel */}
+        <div className="col-span-2 flex flex-col min-h-0 overflow-auto gap-1">
+          <TradingSettingsPanel
+            adxFilterEnabled={adxFilterEnabled}
+            onToggleAdxFilter={setAdxFilterEnabled}
+            volumeFilterEnabled={volumeFilterEnabled}
+            onToggleVolumeFilter={setVolumeFilterEnabled}
+            rsiFilterEnabled={rsiFilterEnabled}
+            onToggleRsiFilter={setRsiFilterEnabled}
+            macdFilterEnabled={macdFilterEnabled}
+            onToggleMacdFilter={setMacdFilterEnabled}
+            bollingerFilterEnabled={bollingerFilterEnabled}
+            onToggleBollingerFilter={setBollingerFilterEnabled}
+            adxThreshold={adxThreshold}
+            onAdxThresholdChange={setAdxThreshold}
+            stopLossKrw={stopLossKrw}
+            onStopLossChange={setStopLossKrw}
+            takeProfitKrw={takeProfitKrw}
+            onTakeProfitChange={setTakeProfitKrw}
+            isAutoTradingEnabled={autoTrading.state.isEnabled}
+          />
+          <TradingLogsPanel
+            dbTradeLogs={dbTradeLogs}
+            krwRate={krwRate}
+            isEnabled={autoTrading.state.isEnabled}
+            onSelectSymbol={setSelectedSymbol}
+          />
+          <ScalpingIndicator 
+            statusMessage={autoTrading.state.statusMessage}
+            hasPosition={!!autoTrading.state.currentPosition}
+            hasPendingSignal={!!autoTrading.state.pendingSignal}
+            isEnabled={autoTrading.state.isEnabled}
           />
         </div>
       </div>
