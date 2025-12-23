@@ -266,6 +266,7 @@ export function OrderBook({
 
   // 주문 박스 클릭 → 확인 모달 오픈 (모바일/터치에서도 안정적으로 동작)
   const handleOrderBoxClick = (side: 'long' | 'short', price: number) => {
+    console.log(`🎯 [OrderBook] 버튼 클릭: ${side === 'long' ? '롱(L)' : '숏(S)'} @ ${formatPrice(price)}`);
     if (!onPlaceOrder) {
       toast.info(`${side === 'long' ? '롱' : '숏'} 주문 준비: ${formatPrice(price)}`);
       return;
@@ -275,6 +276,7 @@ export function OrderBook({
 
   const handleConfirmPlaceOrder = () => {
     if (!pendingOrder || !onPlaceOrder) return;
+    console.log(`✅ [OrderBook] 주문 확정: ${pendingOrder.side === 'long' ? '롱(BUY)' : '숏(SELL)'} @ ${formatPrice(pendingOrder.price)}`);
     onPlaceOrder(pendingOrder.side, pendingOrder.price);
     setPendingOrder(null);
   };

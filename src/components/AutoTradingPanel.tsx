@@ -254,17 +254,15 @@ const AutoTradingPanel = ({
       const balances = await getBalances();
       const usdtBalance = balances?.find((b: any) => b.asset === 'USDT');
       if (usdtBalance) {
-        // 화면 표시는 총 잔고(기존 유지)
+        // 화면 표시와 포지션 사이징 모두 총 잔고 사용
+        // (가용 잔고 사용 시 이미 포지션 있으면 95% 계산이 적게 됨)
         const totalBalance =
           parseFloat(usdtBalance.balance) ||
           parseFloat(usdtBalance.crossWalletBalance) ||
           0;
 
-        // 포지션 사이징/진입에는 가용 잔고(availableBalance) 사용 → 마진 부족 방지
-        const availableBalance = parseFloat(usdtBalance.availableBalance) || totalBalance;
-
         setBalanceUSD(totalBalance);
-        onBalanceChange?.(availableBalance);
+        onBalanceChange?.(totalBalance);  // 총 잔고 기준으로 95% 계산
 
         if (isTestnet) {
           const realized = todayStats.totalPnL;
