@@ -1415,37 +1415,58 @@ export function useLimitOrderTrading({
       // 포지션 사이즈 계산 (잔고의 10%)
       const positionValueUSD = balanceUSD * 0.1 * leverage;
       const totalQuantity = positionValueUSD / price;
-      const splitQuantity = totalQuantity / splitCount;
+      const rawSplitQuantity = totalQuantity / splitCount;
 
-      console.log(`📊 지정가 주문: ${symbol} ${direction} @ ${price}, qty: ${splitQuantity} (1/${splitCount})`);
+      // 심볼 정밀도/최소 주문 조건 사전 검증
+      const precision = await fetchSymbolPrecision(symbol, isTestnet);
+      const roundedPrice = roundPrice(price, precision);
+      const roundedSplitQty = roundQuantity(rawSplitQuantity, precision);
 
-      const result = await placeLimitOrder(
-        symbol,
-        direction === 'long' ? 'BUY' : 'SELL',
-        splitQuantity,
-        price,
-        false
+      const splitNotional = roundedSplitQty * roundedPrice;
+      if (splitNotional < precision.minNotional) {
+        throw new Error(
+          `분할당 주문 금액이 최소 ${precision.minNotional} USDT 이상이어야 합니다. 현재(분할당): ${splitNotional.toFixed(2)} USDT`
+        );
+      }
+
+      console.log(
+        `📊 지정가 ${splitCount}분할 주문: ${symbol} ${direction} @ ${roundedPrice}, qty: ${roundedSplitQty} x ${splitCount}`
       );
 
-      if (result) {
-        playEntrySound();
-        toast.success(`📝 ${symbol.replace('USDT', '')} ${direction === 'long' ? '롱' : '숏'} 지정가 1/${splitCount} 주문 완료! @ ${price}`);
-        
+      // splitCount 만큼 개별 주문 생성 (호가창 '분할' 기대 동작)
+      for (let i = 0; i < splitCount; i++) {
+        const result = await placeLimitOrder(
+          symbol,
+          direction === 'long' ? 'BUY' : 'SELL',
+          roundedSplitQty,
+          roundedPrice,
+          false
+        );
+
+        if (!result) {
+          throw new Error('주문 응답이 없습니다');
+        }
+
         addLog({
           symbol,
           action: 'order',
           side: direction,
-          price: price,
-          quantity: splitQuantity,
-          reason: `수동 지정가 주문 (1/${splitCount}분할)`,
+          price: roundedPrice,
+          quantity: roundedSplitQty,
+          reason: `수동 지정가 주문 (${i + 1}/${splitCount}분할)`,
         });
-
-        setState(prev => ({
-          ...prev,
-          isProcessing: false,
-          statusMessage: `📝 ${symbol} 지정가 대기 중...`,
-        }));
       }
+
+      playEntrySound();
+      toast.success(
+        `📝 ${symbol.replace('USDT', '')} ${direction === 'long' ? '롱' : '숏'} 지정가 ${splitCount}분할 주문 완료! @ ${roundedPrice}`
+      );
+
+      setState(prev => ({
+        ...prev,
+        isProcessing: false,
+        statusMessage: `📝 ${symbol} 지정가 대기 중... (${splitCount}개)`,
+      }));
     } catch (error: any) {
       console.error('지정가 주문 실패:', error);
       toast.error(`주문 실패: ${error.message}`);
