@@ -55,8 +55,8 @@ interface AutoTradingPanelProps {
   onSwapSignal?: () => void;
   onToggleLossProtection?: () => void;
   onClearCooldown?: () => void;
-  onMarketEntry?: (symbol: string, side: 'long' | 'short') => void;
-  onLimitEntry?: (symbol: string, side: 'long' | 'short', price: number) => void;
+  onMarketEntry?: (symbol: string, side: 'long' | 'short', splitCount?: number) => void;
+  onLimitEntry?: (symbol: string, side: 'long' | 'short', price: number, splitCount?: number) => void;
   currentPrice?: number;
   krwRate: number;
   leverage: number;
@@ -693,13 +693,13 @@ const AutoTradingPanel = ({
         isTestnet={isTestnet}
         hasPosition={!!currentPosition}
         openOrders={openOrders}
-        onMarketEntry={(side) => {
-          console.log('📌 [AutoTradingPanel] onMarketEntry 호출:', side);
-          onMarketEntry?.(activeSymbol, side);
+        onMarketEntry={(side, splitCount) => {
+          console.log('📌 [AutoTradingPanel] onMarketEntry 호출:', side, splitCount);
+          onMarketEntry?.(activeSymbol, side, splitCount);
         }}
-        onPlaceOrder={(side, price) => {
-          console.log('📌 [AutoTradingPanel] onPlaceOrder 호출:', side, price);
-          onLimitEntry?.(activeSymbol, side, price);
+        onPlaceOrder={(side, price, splitCount) => {
+          console.log('📌 [AutoTradingPanel] onPlaceOrder 호출:', side, price, splitCount);
+          onLimitEntry?.(activeSymbol, side, price, splitCount);
           // 주문 직후 즉시 미체결 갱신
           setTimeout(() => fetchOpenOrders(activeSymbol), 500);
         }}
