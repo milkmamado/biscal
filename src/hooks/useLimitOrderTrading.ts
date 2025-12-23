@@ -252,7 +252,8 @@ export function useLimitOrderTrading({
 
           console.log(`🔄 [포지션 동기화] ${symbol} ${side} @ ${entryPrice} qty=${qty}`);
 
-          const stopLossPrice = calculateStopLossPrice(entryPrice, side);
+          const slPercent = filterSettings?.stopLossPercent ?? LIMIT_ORDER_CONFIG.STOP_LOSS.PERCENT;
+          const stopLossPrice = calculateStopLossPrice(entryPrice, side, slPercent);
 
           setState(prev => ({
             ...prev,
@@ -1446,8 +1447,9 @@ export function useLimitOrderTrading({
       
       playEntrySound();
       
-      // 손절가 계산
-      const slPrice = calculateStopLossPrice(avgFilledPrice, direction);
+      // 손절가 계산 (filterSettings 반영)
+      const slPercent = filterSettings?.stopLossPercent ?? LIMIT_ORDER_CONFIG.STOP_LOSS.PERCENT;
+      const slPrice = calculateStopLossPrice(avgFilledPrice, direction, slPercent);
       
       // 포지션 상태 저장
       const newPosition: LimitOrderPosition = {

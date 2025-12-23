@@ -200,12 +200,16 @@ export function calculatePnLPercent(
 
 /**
  * 손절가 계산
+ * @param avgPrice 평균 진입가
+ * @param side 포지션 방향
+ * @param customSlPercent 사용자 지정 손절률 (기본값: config에서 가져옴)
  */
 export function calculateStopLossPrice(
   avgPrice: number,
-  side: 'long' | 'short'
+  side: 'long' | 'short',
+  customSlPercent?: number
 ): number {
-  const slPercent = LIMIT_ORDER_CONFIG.STOP_LOSS.PERCENT / 100;
+  const slPercent = (customSlPercent ?? LIMIT_ORDER_CONFIG.STOP_LOSS.PERCENT) / 100;
   
   if (side === 'long') {
     return avgPrice * (1 - slPercent);
