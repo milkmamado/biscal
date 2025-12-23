@@ -38,7 +38,9 @@ const PaperTrading = () => {
   const [adxThreshold, setAdxThreshold] = useState(LIMIT_ORDER_CONFIG.SIGNAL.MIN_ADX);
   const [stopLossKrw, setStopLossKrw] = useState(10000); // 기본 1만원 손절
   const [takeProfitKrw, setTakeProfitKrw] = useState(LIMIT_ORDER_CONFIG.TAKE_PROFIT.MIN_PROFIT_KRW);
-
+  
+  // 미체결 주문 상태 (차트에 표시용)
+  const [openOrders, setOpenOrders] = useState<{ orderId: number; price: number; side: 'BUY' | 'SELL'; origQty: number; executedQty: number; }[]>([]);
   // 스크리닝 로그 실시간 업데이트
   useEffect(() => {
     const interval = setInterval(() => {
@@ -328,6 +330,7 @@ const PaperTrading = () => {
               quantity: e.quantity,
               timestamp: e.timestamp,
             })) || []}
+            openOrders={openOrders}
           />
         </div>
 
@@ -362,6 +365,7 @@ const PaperTrading = () => {
             onToggleMajorCoinMode={() => setMajorCoinMode(prev => !prev)}
             onToggleAiAnalysis={autoTrading.toggleAiAnalysis}
             viewingSymbol={selectedSymbol}
+            onOpenOrdersChange={setOpenOrders}
           />
         </div>
 

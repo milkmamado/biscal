@@ -10,6 +10,14 @@ interface EntryPoint {
   timestamp: number;
 }
 
+interface OpenOrder {
+  orderId: number;
+  price: number;
+  side: 'BUY' | 'SELL';
+  origQty: number;
+  executedQty: number;
+}
+
 interface DualChartPanelProps {
   symbol: string;
   hasPosition?: boolean;
@@ -20,6 +28,7 @@ interface DualChartPanelProps {
   onSelectSymbol?: (symbol: string) => void;
   screeningLogs?: ScreeningLog[];
   entryPoints?: EntryPoint[];
+  openOrders?: OpenOrder[];
 }
 
 const INTERVALS = [
@@ -42,6 +51,7 @@ const DualChartPanel = ({
   positionSide,
   screeningLogs = [],
   entryPoints = [],
+  openOrders = [],
 }: DualChartPanelProps) => {
   const [interval, setInterval] = useState(60);
   const prevSymbolRef = useRef<string>(symbol);
@@ -100,6 +110,7 @@ const DualChartPanel = ({
             takeProfitPrice={hasPosition ? takeProfitPrice : undefined}
             positionSide={hasPosition ? positionSide : undefined}
             entryPoints={hasPosition ? entryPoints : undefined}
+            openOrders={openOrders}
           />
           
           {/* 스크리닝 로그 오버레이 - 차트 영역 중하단 */}
