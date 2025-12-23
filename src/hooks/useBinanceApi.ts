@@ -232,6 +232,48 @@ export const useBinanceApi = (options: UseBinanceApiOptions = {}) => {
       }
     }
     
+    // maxQty 초과 시 분할 주문 (청산 시 필요)
+    if (roundedQuantity > precision.maxQty) {
+      console.log(`⚡ [분할주문] ${symbol} 수량 ${roundedQuantity} > maxQty ${precision.maxQty} → 분할 처리`);
+      
+      let remainingQty = roundedQuantity;
+      let lastResult: any = null;
+      
+      while (remainingQty > 0) {
+        const orderQty = Math.min(remainingQty, precision.maxQty);
+        const finalQty = roundQuantity(orderQty, precision);
+        
+        if (finalQty <= 0) break;
+        
+        const params: Record<string, any> = {
+          symbol,
+          side,
+          type: 'MARKET',
+          quantity: finalQty,
+        };
+        if (reduceOnly) {
+          params.reduceOnly = true;
+        }
+        
+        console.log(`📦 [분할주문] ${symbol} ${side} 수량=${finalQty} (남은: ${(remainingQty - finalQty).toFixed(4)})`);
+        lastResult = await callBinanceApi('placeOrder', params);
+        
+        if (lastResult?.error || lastResult?.code) {
+          console.error(`분할주문 실패:`, lastResult);
+          break;
+        }
+        
+        remainingQty -= finalQty;
+        
+        // 다음 주문 전 짧은 대기
+        if (remainingQty > 0) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      }
+      
+      return lastResult;
+    }
+    
     // Only include reduceOnly if true (Binance rejects reduceOnly: false for new positions)
     const params: Record<string, any> = {
       symbol,

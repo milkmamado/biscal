@@ -32,6 +32,7 @@ export interface SymbolPrecision {
   tickSize: number;
   stepSize: number;
   minQty: number;
+  maxQty: number;
   minNotional: number;
   notFound?: boolean; // 심볼이 거래소에 없음
 }
@@ -69,6 +70,7 @@ export async function fetchSymbolPrecision(symbol: string, isTestnet: boolean = 
         tickSize: 0.01,
         stepSize: 1,
         minQty: 1,
+        maxQty: 10000000, // 기본값: 매우 큰 값
         minNotional: 5,
         notFound: true, // 심볼 없음 표시
       };
@@ -86,6 +88,7 @@ export async function fetchSymbolPrecision(symbol: string, isTestnet: boolean = 
       tickSize: parseFloat(priceFilter?.tickSize || '0.01'),
       stepSize: parseFloat(lotSizeFilter?.stepSize || '1'),
       minQty: parseFloat(lotSizeFilter?.minQty || '1'),
+      maxQty: parseFloat(lotSizeFilter?.maxQty || '10000000'),
       minNotional: parseFloat(minNotionalFilter?.notional || '5'),
     };
 
@@ -105,6 +108,7 @@ export async function fetchSymbolPrecision(symbol: string, isTestnet: boolean = 
       tickSize: 0.01,
       stepSize: 1,
       minQty: 1,
+      maxQty: 10000000,
       minNotional: 5,
     };
   }
