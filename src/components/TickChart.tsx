@@ -18,6 +18,12 @@ interface OrderBook {
   lastUpdateId: number;
 }
 
+interface EntryPoint {
+  price: number;
+  quantity: number;
+  timestamp: number;
+}
+
 interface TickChartProps {
   symbol: string;
   orderBook?: OrderBook | null;
@@ -28,6 +34,7 @@ interface TickChartProps {
   stopLossPrice?: number; // 손절 예정 가격
   takeProfitPrice?: number; // 익절 예정 가격
   positionSide?: 'long' | 'short'; // 포지션 방향
+  entryPoints?: EntryPoint[]; // 분할 매수 포인트
 }
 
 const MAX_CANDLES = 200;
@@ -107,7 +114,7 @@ const getIntervalString = (seconds: number): string => {
   return '1d';
 };
 
-const TickChart = ({ symbol, orderBook = null, isConnected = false, height, interval = 60, entryPrice, stopLossPrice, takeProfitPrice, positionSide }: TickChartProps) => {
+const TickChart = ({ symbol, orderBook = null, isConnected = false, height, interval = 60, entryPrice, stopLossPrice, takeProfitPrice, positionSide, entryPoints = [] }: TickChartProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [candles, setCandles] = useState<Candle[]>([]);
@@ -653,6 +660,32 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
       ctx.fillText('TP', width - 25, tpY + 3);
     }
     
+    // 분할 매수 포인트 표시 (작은 점)
+    if (entryPoints && entryPoints.length > 0) {
+      entryPoints.forEach((entry, idx) => {
+        if (entry.price >= adjustedMin && entry.price <= adjustedMax) {
+          const entryY = CANVAS_PADDING / 2 + ((adjustedMax - entry.price) / adjustedRange) * priceChartHeight;
+          // 오른쪽 가격 라벨 영역에 점 표시 (요란하지 않게)
+          const dotX = width - 55 - (idx * 4); // 점들을 약간 오프셋
+          
+          // 작은 점 (사이버 느낌)
+          ctx.beginPath();
+          ctx.arc(dotX, entryY, 3, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(0, 255, 255, 0.8)'; // 사이버 청록색
+          ctx.fill();
+          
+          // 미세한 글로우
+          ctx.shadowColor = 'rgba(0, 255, 255, 0.5)';
+          ctx.shadowBlur = 4;
+          ctx.beginPath();
+          ctx.arc(dotX, entryY, 2, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+          ctx.fill();
+          ctx.shadowBlur = 0;
+        }
+      });
+    }
+    
     // 현재가 표시
     if (displayCandles.length > 0) {
       const currentCandle = displayCandles[displayCandles.length - 1];
@@ -669,7 +702,7 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
       ctx.setLineDash([]);
     }
     
-  }, [candles, containerHeight, isConnected, loading, visibleCount, entryPrice, stopLossPrice, takeProfitPrice]);
+  }, [candles, containerHeight, isConnected, loading, visibleCount, entryPrice, stopLossPrice, takeProfitPrice, entryPoints]);
   
   // 가격 포맷팅
   const formatPrice = (price: number): string => {
