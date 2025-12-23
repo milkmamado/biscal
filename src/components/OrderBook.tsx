@@ -1,6 +1,16 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { formatPrice } from '@/lib/binance';
 import { toast } from 'sonner';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 interface OpenOrder {
   orderId: number;
@@ -57,6 +67,7 @@ export function OrderBook({
   const [orderBook, setOrderBook] = useState<OrderBookData | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [splitCount, setSplitCount] = useState<SplitOption>(5);
+  const [pendingOrder, setPendingOrder] = useState<{ side: 'long' | 'short'; price: number } | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -155,13 +166,19 @@ export function OrderBook({
     return qty.toFixed(2);
   };
 
-  // 주문 박스 더블클릭 핸들러
-  const handleOrderBoxDoubleClick = (side: 'long' | 'short', price: number) => {
-    if (onPlaceOrder) {
-      onPlaceOrder(side, price, splitCount);
-    } else {
+  // 주문 박스 클릭 → 확인 모달 오픈 (모바일/터치에서도 안정적으로 동작)
+  const handleOrderBoxClick = (side: 'long' | 'short', price: number) => {
+    if (!onPlaceOrder) {
       toast.info(`${side === 'long' ? '롱' : '숏'} 주문 준비: ${formatPrice(price)}`);
+      return;
     }
+    setPendingOrder({ side, price });
+  };
+
+  const handleConfirmPlaceOrder = () => {
+    if (!pendingOrder || !onPlaceOrder) return;
+    onPlaceOrder(pendingOrder.side, pendingOrder.price, splitCount);
+    setPendingOrder(null);
   };
 
   if (!orderBook) {
@@ -229,8 +246,8 @@ export function OrderBook({
                     border: '1px solid rgba(255, 80, 100, 0.5)',
                     boxShadow: '0 0 4px rgba(255, 80, 100, 0.3)',
                   }}
-                  onDoubleClick={() => handleOrderBoxDoubleClick('short', ask.price)}
-                  title={`더블클릭: ${formatPrice(ask.price)}에 숏`}
+                  onClick={() => handleOrderBoxClick('short', ask.price)}
+                  title={`클릭: ${formatPrice(ask.price)}에 숏`}
                 >
                   <span className="text-[7px] font-bold text-red-300">S</span>
                 </div>
@@ -358,8 +375,8 @@ export function OrderBook({
                     border: '1px solid rgba(0, 200, 100, 0.5)',
                     boxShadow: '0 0 4px rgba(0, 200, 100, 0.3)',
                   }}
-                  onDoubleClick={() => handleOrderBoxDoubleClick('long', bid.price)}
-                  title={`더블클릭: ${formatPrice(bid.price)}에 롱`}
+                  onClick={() => handleOrderBoxClick('long', bid.price)}
+                  title={`클릭: ${formatPrice(bid.price)}에 롱`}
                 >
                   <span className="text-[7px] font-bold text-green-300">L</span>
                 </div>
@@ -369,6 +386,31 @@ export function OrderBook({
         })}
       </div>
       </div> {/* End scrollable order book area */}
+
+      <AlertDialog
+        open={!!pendingOrder}
+        onOpenChange={(open) => {
+          if (!open) setPendingOrder(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>지정가 주문 확인</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingOrder ? (
+                <span>
+                  {symbol.replace('USDT', '')} {pendingOrder.side === 'long' ? '롱' : '숏'} @ {formatPrice(pendingOrder.price)}
+                  {' '}({splitCount}분할)
+                </span>
+              ) : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmPlaceOrder}>주문 넣기</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* 미체결 수량 및 주문 컨트롤 */}
       <div className="px-1.5 py-1.5 lg:px-2 lg:py-2 space-y-1.5 lg:space-y-2 shrink-0" style={{
