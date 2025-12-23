@@ -255,23 +255,23 @@ export function OrderBook({
               </div>
 
               {/* 매도잔량 + 그래프 */}
-              <div className="relative flex items-center justify-center">
-                {/* 그래프 바 (우측에서 좌측으로) */}
+              <div className="relative flex items-center justify-center overflow-hidden">
+                {/* 그래프 바 (우측에서 좌측으로) - 부드러운 트랜지션 */}
                 <div 
-                  className="absolute right-0 top-0 bottom-0"
+                  className="absolute right-0 top-0 bottom-0 transition-all duration-150 ease-out"
                   style={{
                     width: `${barWidth}%`,
                     background: 'linear-gradient(270deg, rgba(255, 50, 100, 0.5) 0%, rgba(255, 50, 100, 0.1) 100%)',
                   }}
                 />
-                <span className="relative z-10 font-mono text-gray-300">
+                <span className="relative z-10 font-mono text-gray-300 transition-opacity duration-100">
                   {formatQty(ask.quantity)}
                 </span>
               </div>
 
               {/* 가격 (중앙) */}
               <div className="flex items-center justify-center">
-                <span className="font-mono font-semibold" style={{ color: '#ff5064' }}>
+                <span className="font-mono font-semibold transition-colors duration-100" style={{ color: '#ff5064' }}>
                   {formatPrice(ask.price)}
                 </span>
               </div>
@@ -357,22 +357,22 @@ export function OrderBook({
 
               {/* 가격 (중앙) */}
               <div className="flex items-center justify-center">
-                <span className="font-mono font-semibold" style={{ color: '#00c868' }}>
+                <span className="font-mono font-semibold transition-colors duration-100" style={{ color: '#00c868' }}>
                   {formatPrice(bid.price)}
                 </span>
               </div>
 
               {/* 매수잔량 + 그래프 */}
-              <div className="relative flex items-center justify-center">
-                {/* 그래프 바 (좌측에서 우측으로) */}
+              <div className="relative flex items-center justify-center overflow-hidden">
+                {/* 그래프 바 (좌측에서 우측으로) - 부드러운 트랜지션 */}
                 <div 
-                  className="absolute left-0 top-0 bottom-0"
+                  className="absolute left-0 top-0 bottom-0 transition-all duration-150 ease-out"
                   style={{
                     width: `${barWidth}%`,
                     background: 'linear-gradient(90deg, rgba(0, 200, 100, 0.1) 0%, rgba(0, 200, 100, 0.5) 100%)',
                   }}
                 />
-                <span className="relative z-10 font-mono text-gray-300">
+                <span className="relative z-10 font-mono text-gray-300 transition-opacity duration-100">
                   {formatQty(bid.quantity)}
                 </span>
               </div>
