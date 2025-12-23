@@ -24,6 +24,18 @@ interface DailyStats {
   winRate: number;
 }
 
+// DB 로그를 TradingLogsPanel 형식으로 변환하기 위한 인터페이스
+export interface DbTradeLog {
+  id: string;
+  timestamp: number;
+  symbol: string;
+  side: 'long' | 'short';
+  entryPrice: number;
+  exitPrice: number;
+  quantity: number;
+  pnlUsd: number;
+}
+
 interface UseTradingLogsOptions {
   isTestnet?: boolean;
 }
@@ -38,6 +50,7 @@ export const useTradingLogs = (options: UseTradingLogsOptions = {}) => {
     lossCount: 0,
     winRate: 0,
   });
+  const [dbTradeLogs, setDbTradeLogs] = useState<DbTradeLog[]>([]);
   const [loading, setLoading] = useState(false);
 
   // Get today's date in YYYY-MM-DD format (Korean timezone KST, UTC+9)
@@ -108,6 +121,21 @@ export const useTradingLogs = (options: UseTradingLogsOptions = {}) => {
           lossCount,
           winRate,
         });
+
+        // DB 로그를 UI용 형식으로 변환 (최신순 정렬)
+        const convertedLogs: DbTradeLog[] = data
+          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+          .map(log => ({
+            id: log.id,
+            timestamp: new Date(log.created_at).getTime(),
+            symbol: log.symbol,
+            side: log.side as 'long' | 'short',
+            entryPrice: Number(log.entry_price),
+            exitPrice: Number(log.exit_price),
+            quantity: Number(log.quantity),
+            pnlUsd: calcNetPnl(log), // 수수료 포함 순손익
+          }));
+        setDbTradeLogs(convertedLogs);
       } else {
         setDailyStats({
           totalPnL: 0,
@@ -116,6 +144,7 @@ export const useTradingLogs = (options: UseTradingLogsOptions = {}) => {
           lossCount: 0,
           winRate: 0,
         });
+        setDbTradeLogs([]);
       }
     } catch (error) {
       console.error('Error fetching daily stats:', error);
@@ -209,6 +238,7 @@ export const useTradingLogs = (options: UseTradingLogsOptions = {}) => {
 
   return {
     dailyStats,
+    dbTradeLogs,
     loading,
     logTrade,
     fetchDailyStats,

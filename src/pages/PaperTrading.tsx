@@ -51,7 +51,7 @@ const PaperTrading = () => {
 
   const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
-  const { dailyStats, logTrade, fetchDailyStats } = useTradingLogs({ isTestnet: true });
+  const { dailyStats, dbTradeLogs, logTrade, fetchDailyStats } = useTradingLogs({ isTestnet: true });
   
   // Only connect WebSocket when user is authenticated and API keys are ready
   const shouldConnectWebSocket = !!user && hasApiKeys === true;
@@ -391,7 +391,7 @@ const PaperTrading = () => {
             isAutoTradingEnabled={autoTrading.state.isEnabled}
           />
           <TradingLogsPanel
-            tradeLogs={autoTrading.state.tradeLogs}
+            dbTradeLogs={dbTradeLogs}
             krwRate={krwRate}
             isEnabled={autoTrading.state.isEnabled}
             onSelectSymbol={setSelectedSymbol}

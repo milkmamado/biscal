@@ -1,16 +1,16 @@
 import { useState } from 'react';
 import { Activity } from 'lucide-react';
-import { LimitOrderTradeLog } from '@/hooks/useLimitOrderTrading';
+import { DbTradeLog } from '@/hooks/useTradingLogs';
 
 interface TradingLogsPanelProps {
-  tradeLogs: LimitOrderTradeLog[];
+  dbTradeLogs: DbTradeLog[];
   krwRate: number;
   isEnabled: boolean;
   onSelectSymbol?: (symbol: string) => void;
 }
 
 export function TradingLogsPanel({
-  tradeLogs,
+  dbTradeLogs,
   krwRate,
   isEnabled,
   onSelectSymbol,
@@ -35,7 +35,7 @@ export function TradingLogsPanel({
         <div className="flex items-center gap-2">
           <Activity className="w-4 h-4 text-cyan-400" />
           <span className="text-xs font-semibold text-foreground">매매 로그</span>
-          <span className="text-[10px] text-muted-foreground">({tradeLogs.length})</span>
+          <span className="text-[10px] text-muted-foreground">({dbTradeLogs.length})</span>
         </div>
         <span className="text-[10px] text-muted-foreground">
           {isCollapsed ? '▼' : '▲'}
@@ -45,13 +45,13 @@ export function TradingLogsPanel({
       {!isCollapsed && (
         <div className="p-2">
           <div className="max-h-32 overflow-y-auto space-y-1 scrollbar-thin scrollbar-thumb-cyan-500/30 scrollbar-track-transparent">
-            {tradeLogs.length === 0 ? (
+            {dbTradeLogs.length === 0 ? (
               <div className="text-center py-3 text-xs text-muted-foreground">
-                {isEnabled ? '🔍 시그널 대기 중...' : '자동매매를 시작하세요'}
+                {isEnabled ? '🔍 시그널 대기 중...' : '오늘 매매 기록이 없습니다'}
               </div>
             ) : (
-              tradeLogs.slice(0, 10).map((log) => (
-                <TradeLogItem 
+              dbTradeLogs.slice(0, 10).map((log) => (
+                <DbTradeLogItem 
                   key={log.id} 
                   log={log} 
                   krwRate={krwRate} 
@@ -66,9 +66,9 @@ export function TradingLogsPanel({
   );
 }
 
-// Trade Log Item
-const TradeLogItem = ({ log, krwRate, onSelectSymbol }: { 
-  log: LimitOrderTradeLog; 
+// DB Trade Log Item - 실제 체결된 거래 표시
+const DbTradeLogItem = ({ log, krwRate, onSelectSymbol }: { 
+  log: DbTradeLog; 
   krwRate: number;
   onSelectSymbol?: (symbol: string) => void;
 }) => {
@@ -77,32 +77,19 @@ const TradeLogItem = ({ log, krwRate, onSelectSymbol }: {
     return date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   };
   
-  const getActionIcon = () => {
-    switch (log.action) {
-      case 'order': return '📝';
-      case 'fill': return '✅';
-      case 'cancel': return '🚫';
-      case 'tp': return '💰';
-      case 'sl': return '🛑';
-      case 'timeout': return '⏰';
-      case 'error': return '❌';
-      default: return '📋';
-    }
-  };
-  
   const getActionColor = () => {
-    switch (log.action) {
-      case 'tp': case 'fill': return '#00ff88';
-      case 'sl': case 'error': return '#ff0088';
-      case 'order': case 'cancel': case 'timeout': return '#ffff00';
-      default: return '#00ffff';
-    }
+    return log.pnlUsd >= 0 ? '#00ff88' : '#ff0088';
   };
   
   const formatKRW = (usd: number) => {
     const krw = usd * krwRate;
     return krw.toLocaleString('ko-KR', { maximumFractionDigits: 0 });
   };
+
+  // 가격 변화율 계산
+  const priceChange = log.side === 'long' 
+    ? ((log.exitPrice - log.entryPrice) / log.entryPrice) * 100
+    : ((log.entryPrice - log.exitPrice) / log.entryPrice) * 100;
   
   return (
     <div 
@@ -114,7 +101,7 @@ const TradeLogItem = ({ log, krwRate, onSelectSymbol }: {
       onClick={() => onSelectSymbol?.(log.symbol)}
     >
       <div className="flex items-center gap-2 min-w-0">
-        <span className="text-sm">{getActionIcon()}</span>
+        <span className="text-sm">{log.pnlUsd >= 0 ? '💰' : '🛑'}</span>
         <div className="min-w-0">
           <div className="flex items-center gap-1.5">
             <span className="text-[11px] font-mono font-semibold" style={{ color: getActionColor() }}>
@@ -124,21 +111,17 @@ const TradeLogItem = ({ log, krwRate, onSelectSymbol }: {
               {log.side === 'long' ? '롱' : '숏'}
             </span>
           </div>
-          {log.reason && (
-            <div className="text-[9px] text-gray-500 truncate max-w-[120px]">
-              {log.reason}
-            </div>
-          )}
+          <div className="text-[9px] text-gray-500 truncate max-w-[120px]">
+            {log.entryPrice.toFixed(2)} → {log.exitPrice.toFixed(2)} ({priceChange >= 0 ? '+' : ''}{priceChange.toFixed(2)}%)
+          </div>
         </div>
       </div>
       <div className="text-right flex-shrink-0">
-        {log.pnl !== undefined && (
-          <div className="text-[11px] font-mono font-semibold" style={{
-            color: log.pnl >= 0 ? '#00ff88' : '#ff0088',
-          }}>
-            {log.pnl >= 0 ? '+' : ''}₩{formatKRW(log.pnl)}
-          </div>
-        )}
+        <div className="text-[11px] font-mono font-semibold" style={{
+          color: log.pnlUsd >= 0 ? '#00ff88' : '#ff0088',
+        }}>
+          {log.pnlUsd >= 0 ? '+' : ''}₩{formatKRW(log.pnlUsd)}
+        </div>
         <div className="text-[9px] text-gray-600">{formatTime(log.timestamp)}</div>
       </div>
     </div>
