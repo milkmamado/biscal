@@ -310,10 +310,10 @@ const PaperTrading = () => {
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="flex-1 min-h-0 grid grid-cols-12 gap-1">
-        {/* Left - Chart (줄임) */}
-        <div className="col-span-6 flex flex-col min-h-0">
+      {/* Main Content - iPad Mini 7 (768x1024) 최적화 */}
+      <div className="flex-1 min-h-0 grid grid-cols-10 gap-1">
+        {/* Left - Chart */}
+        <div className="col-span-5 flex flex-col min-h-0">
           <DualChartPanel 
             symbol={selectedSymbol} 
             hasPosition={!!autoTrading.state.currentPosition}
@@ -361,7 +361,7 @@ const PaperTrading = () => {
         </div>
 
         {/* Right - Settings Panel */}
-        <div className="col-span-3 flex flex-col min-h-0 overflow-auto gap-1">
+        <div className="col-span-2 flex flex-col min-h-0 overflow-auto gap-1">
           <TradingSettingsPanel
             adxFilterEnabled={adxFilterEnabled}
             onToggleAdxFilter={setAdxFilterEnabled}
