@@ -406,61 +406,78 @@ export function OrderBook({
         })}
       </div>
 
-      {/* Spread Indicator with Velocity */}
-      <div className="flex items-center justify-center gap-2 py-1.5" style={{
-        background: 'linear-gradient(90deg, rgba(255, 50, 100, 0.15) 0%, rgba(50, 50, 80, 0.3) 50%, rgba(0, 200, 100, 0.15) 100%)',
-        borderTop: '1px solid rgba(100, 100, 120, 0.3)',
-        borderBottom: '1px solid rgba(100, 100, 120, 0.3)',
-      }}>
-        {/* 체결 속도 안테나 인디케이터 */}
-        <div 
-          className="flex items-end gap-[2px] mr-1" 
-          title={`체결 속도: ${velocity.changesPerSecond}회/초`}
-        >
-          {[1, 2, 3, 4].map((bar) => (
-            <div
-              key={bar}
-              className="transition-all duration-200"
-              style={{
-                width: '3px',
-                height: `${bar * 3 + 2}px`,
-                borderRadius: '1px',
-                background: velocity.level >= bar 
-                  ? velocity.level >= 3 
-                    ? '#00ff88' // 고속 - 녹색
-                    : velocity.level >= 2 
-                      ? '#ffcc00' // 중간 - 노란색
-                      : '#ff8844' // 저속 - 주황색
-                  : 'rgba(100, 100, 120, 0.3)', // 비활성
-                boxShadow: velocity.level >= bar && velocity.level >= 3 
-                  ? '0 0 6px rgba(0, 255, 136, 0.6)' 
-                  : 'none',
-              }}
-            />
-          ))}
-        </div>
-
-        <div className="flex items-center">
-          <span className="text-[9px] text-gray-400 mr-1">스프레드</span>
-          <span className="text-[10px] font-mono font-bold" style={{
-            color: orderBook.spreadPercent < 0.03 ? '#00ff88' : orderBook.spreadPercent < 0.08 ? '#ffcc00' : '#ff5064',
+      {/* Current Price Display (현재가 = 최우선 매수호가와 매도호가 중간) */}
+      {(() => {
+        // 현재가 = (최우선 매도호가 + 최우선 매수호가) / 2 또는 마지막 체결가 근사치
+        const bestAskPrice = orderBook.asks.length > 0 ? orderBook.asks[orderBook.asks.length - 1]?.price : 0;
+        const bestBidPrice = orderBook.bids.length > 0 ? orderBook.bids[0]?.price : 0;
+        const currentPrice = bestAskPrice && bestBidPrice 
+          ? (bestAskPrice + bestBidPrice) / 2 
+          : bestAskPrice || bestBidPrice;
+        
+        return (
+          <div className="flex items-center justify-center gap-1 py-2" style={{
+            background: 'linear-gradient(90deg, rgba(255, 50, 100, 0.15) 0%, rgba(100, 200, 255, 0.2) 50%, rgba(0, 200, 100, 0.15) 100%)',
+            borderTop: '1px solid rgba(100, 200, 255, 0.4)',
+            borderBottom: '1px solid rgba(100, 200, 255, 0.4)',
           }}>
-            {orderBook.spreadPercent.toFixed(3)}%
-          </span>
-        </div>
-        <span className="text-[8px]" style={{
-          color: orderBook.spreadPercent < 0.03 ? '#00ff88' : orderBook.spreadPercent < 0.08 ? '#ffcc00' : '#ff5064',
-        }}>
-          {orderBook.spreadPercent < 0.03 ? '· 스캘핑 최적' : orderBook.spreadPercent < 0.08 ? '· 적정' : '· 슬리피지 주의'}
-        </span>
+            {/* 체결 속도 안테나 인디케이터 */}
+            <div 
+              className="flex items-end gap-[2px] mr-1" 
+              title={`체결 속도: ${velocity.changesPerSecond}회/초`}
+            >
+              {[1, 2, 3, 4].map((bar) => (
+                <div
+                  key={bar}
+                  className="transition-all duration-200"
+                  style={{
+                    width: '3px',
+                    height: `${bar * 3 + 2}px`,
+                    borderRadius: '1px',
+                    background: velocity.level >= bar 
+                      ? velocity.level >= 3 
+                        ? '#00ff88' // 고속 - 녹색
+                        : velocity.level >= 2 
+                          ? '#ffcc00' // 중간 - 노란색
+                          : '#ff8844' // 저속 - 주황색
+                      : 'rgba(100, 100, 120, 0.3)', // 비활성
+                    boxShadow: velocity.level >= bar && velocity.level >= 3 
+                      ? '0 0 6px rgba(0, 255, 136, 0.6)' 
+                      : 'none',
+                  }}
+                />
+              ))}
+            </div>
 
-        {/* 체결 속도 텍스트 */}
-        <span className="text-[7px] ml-1" style={{
-          color: velocity.level >= 3 ? '#00ff88' : velocity.level >= 2 ? '#ffcc00' : '#ff8844',
-        }}>
-          {velocity.level >= 3 ? '🔥' : velocity.level >= 2 ? '⚡' : velocity.level >= 1 ? '·' : ''}
-        </span>
-      </div>
+            {/* 현재가 표시 */}
+            <div className="flex flex-col items-center mx-2">
+              <span className="text-[8px] text-cyan-400 font-medium">현재가</span>
+              <span className="text-[13px] font-mono font-bold text-cyan-300" style={{
+                textShadow: '0 0 8px rgba(100, 200, 255, 0.6)',
+              }}>
+                {formatPrice(currentPrice)}
+              </span>
+            </div>
+
+            {/* 스프레드 */}
+            <div className="flex flex-col items-center ml-1">
+              <span className="text-[7px] text-gray-400">스프레드</span>
+              <span className="text-[9px] font-mono font-bold" style={{
+                color: orderBook.spreadPercent < 0.03 ? '#00ff88' : orderBook.spreadPercent < 0.08 ? '#ffcc00' : '#ff5064',
+              }}>
+                {orderBook.spreadPercent.toFixed(3)}%
+              </span>
+            </div>
+
+            {/* 체결 속도 텍스트 */}
+            <span className="text-[8px] ml-1" style={{
+              color: velocity.level >= 3 ? '#00ff88' : velocity.level >= 2 ? '#ffcc00' : '#ff8844',
+            }}>
+              {velocity.level >= 3 ? '🔥' : velocity.level >= 2 ? '⚡' : velocity.level >= 1 ? '·' : ''}
+            </span>
+          </div>
+        );
+      })()}
 
       {/* Bids (매수호가) - 우측에 잔량 그래프 */}
       <div>
