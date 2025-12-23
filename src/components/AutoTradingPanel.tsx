@@ -574,9 +574,6 @@ const AutoTradingPanel = ({
               </Button>
             </div>
           </div>
-          <div className="text-[9px] lg:text-[10px] text-yellow-400/70 mt-1">
-            진입하려면 자동매매를 켜세요. 패스하면 다음 스캔이 시작됩니다.
-          </div>
         </div>
       )}
       
