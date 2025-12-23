@@ -750,19 +750,6 @@ export function useLimitOrderTrading({
       // 정밀도 조회
       const precision = await fetchSymbolPrecision(symbol, isTestnet);
       
-      // 테스트넷에 없는 코인 체크
-      if (precision.notFound) {
-        console.log(`🚫 [테스트넷] ${symbol} 미지원 코인 - 스킵`);
-        toast.warning(`${symbol.replace('USDT', '')} 테스트넷 미지원`);
-        setState(prev => ({ 
-          ...prev, 
-          isProcessing: false,
-          statusMessage: `❌ ${symbol.replace('USDT', '')} 테스트넷 미지원`,
-        }));
-        processingRef.current = false;
-        return;
-      }
-      
       // 레버리지 설정 (실패 시 단계적으로 낮춤)
       let appliedLeverage = leverage;
       const leverageCandidates = Array.from(
@@ -1369,12 +1356,6 @@ export function useLimitOrderTrading({
     try {
       initAudio();
       const precision = await fetchSymbolPrecision(symbol, isTestnet);
-      
-      // 테스트넷에 없는 코인 체크
-      if (precision.notFound) {
-        toast.error(`${symbol.replace('USDT', '')} 테스트넷 미지원`);
-        return;
-      }
       
       // 레버리지 설정 (중요!)
       let appliedLeverage = leverage;
