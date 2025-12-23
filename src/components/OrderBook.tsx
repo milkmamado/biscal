@@ -649,21 +649,7 @@ export function OrderBook({
           </div>
         )}
 
-        {/* 시장가 청산 버튼 (포지션 있을 때만) */}
-        {hasPosition && onMarketClose && (
-          <button
-            onClick={onMarketClose}
-            className="w-full py-1.5 lg:py-2 rounded text-[10px] lg:text-[11px] font-bold transition-all hover:opacity-90 active:scale-98"
-            style={{
-              background: 'linear-gradient(180deg, rgba(255, 50, 100, 0.5) 0%, rgba(255, 0, 80, 0.7) 100%)',
-              border: '1px solid rgba(255, 50, 100, 0.6)',
-              color: '#fff',
-              boxShadow: '0 0 10px rgba(255, 50, 100, 0.4)',
-            }}
-          >
-            시장가 청산
-          </button>
-        )}
+        {/* 시장가 청산 버튼 제거 - AutoTradingPanel의 "즉시 청산" 버튼으로 통합 */}
       </div>
     </div>
   );
