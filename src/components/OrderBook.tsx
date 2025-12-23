@@ -50,6 +50,12 @@ interface OrderBookData {
   spreadPercent: number;
 }
 
+// 체결 속도 측정용 인터페이스
+interface VelocityData {
+  level: 0 | 1 | 2 | 3 | 4; // 0: 정체, 1-4: 속도 레벨
+  changesPerSecond: number;
+}
+
 const WS_URLS = {
   mainnet: 'wss://fstream.binance.com/ws',
   testnet: 'wss://stream.binancefuture.com/ws',
@@ -71,8 +77,11 @@ export function OrderBook({
   const [isConnected, setIsConnected] = useState(false);
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [pendingOrder, setPendingOrder] = useState<{ side: 'long' | 'short'; price: number } | null>(null);
+  const [velocity, setVelocity] = useState<VelocityData>({ level: 0, changesPerSecond: 0 });
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastDataRef = useRef<{ bids: string; asks: string; timestamp: number } | null>(null);
+  const changeCountRef = useRef<number[]>([]);
 
   // 수동 재연결
   const handleManualReconnect = useCallback(() => {
@@ -101,6 +110,35 @@ export function OrderBook({
 
   const processDepthData = useCallback((data: any) => {
     if (!data.b || !data.a) return;
+
+    const now = Date.now();
+    const currentBidsKey = JSON.stringify(data.b.slice(0, 5));
+    const currentAsksKey = JSON.stringify(data.a.slice(0, 5));
+
+    // 변화 감지
+    if (lastDataRef.current) {
+      const hasChange = 
+        lastDataRef.current.bids !== currentBidsKey || 
+        lastDataRef.current.asks !== currentAsksKey;
+      
+      if (hasChange) {
+        changeCountRef.current.push(now);
+      }
+    }
+    lastDataRef.current = { bids: currentBidsKey, asks: currentAsksKey, timestamp: now };
+
+    // 최근 1초 내 변화 횟수만 유지
+    changeCountRef.current = changeCountRef.current.filter(t => now - t < 1000);
+    const changesPerSecond = changeCountRef.current.length;
+
+    // 속도 레벨 계산 (0-4)
+    let level: 0 | 1 | 2 | 3 | 4 = 0;
+    if (changesPerSecond >= 8) level = 4;
+    else if (changesPerSecond >= 6) level = 3;
+    else if (changesPerSecond >= 4) level = 2;
+    else if (changesPerSecond >= 2) level = 1;
+    
+    setVelocity({ level, changesPerSecond });
 
     // Parse bids (buy orders) - sorted high to low
     const bids: OrderBookEntry[] = data.b
@@ -336,12 +374,40 @@ export function OrderBook({
         })}
       </div>
 
-      {/* Spread Indicator */}
+      {/* Spread Indicator with Velocity */}
       <div className="flex items-center justify-center gap-2 py-1.5" style={{
         background: 'linear-gradient(90deg, rgba(255, 50, 100, 0.15) 0%, rgba(50, 50, 80, 0.3) 50%, rgba(0, 200, 100, 0.15) 100%)',
         borderTop: '1px solid rgba(100, 100, 120, 0.3)',
         borderBottom: '1px solid rgba(100, 100, 120, 0.3)',
       }}>
+        {/* 체결 속도 안테나 인디케이터 */}
+        <div 
+          className="flex items-end gap-[2px] mr-1" 
+          title={`체결 속도: ${velocity.changesPerSecond}회/초`}
+        >
+          {[1, 2, 3, 4].map((bar) => (
+            <div
+              key={bar}
+              className="transition-all duration-200"
+              style={{
+                width: '3px',
+                height: `${bar * 3 + 2}px`,
+                borderRadius: '1px',
+                background: velocity.level >= bar 
+                  ? velocity.level >= 3 
+                    ? '#00ff88' // 고속 - 녹색
+                    : velocity.level >= 2 
+                      ? '#ffcc00' // 중간 - 노란색
+                      : '#ff8844' // 저속 - 주황색
+                  : 'rgba(100, 100, 120, 0.3)', // 비활성
+                boxShadow: velocity.level >= bar && velocity.level >= 3 
+                  ? '0 0 6px rgba(0, 255, 136, 0.6)' 
+                  : 'none',
+              }}
+            />
+          ))}
+        </div>
+
         <div className="flex items-center">
           <span className="text-[9px] text-gray-400 mr-1">스프레드</span>
           <span className="text-[10px] font-mono font-bold" style={{
@@ -354,6 +420,13 @@ export function OrderBook({
           color: orderBook.spreadPercent < 0.03 ? '#00ff88' : orderBook.spreadPercent < 0.08 ? '#ffcc00' : '#ff5064',
         }}>
           {orderBook.spreadPercent < 0.03 ? '· 스캘핑 최적' : orderBook.spreadPercent < 0.08 ? '· 적정' : '· 슬리피지 주의'}
+        </span>
+
+        {/* 체결 속도 텍스트 */}
+        <span className="text-[7px] ml-1" style={{
+          color: velocity.level >= 3 ? '#00ff88' : velocity.level >= 2 ? '#ffcc00' : '#ff8844',
+        }}>
+          {velocity.level >= 3 ? '🔥' : velocity.level >= 2 ? '⚡' : velocity.level >= 1 ? '·' : ''}
         </span>
       </div>
 
