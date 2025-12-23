@@ -1777,6 +1777,125 @@ export function useLimitOrderTrading({
     }
   }, [state.currentPosition, user, balanceUSD, leverage, isTestnet, placeLimitOrder, addLog]);
 
+  // ===== 손절/익절 설정 변경 시 바이낸스 SL/TP 주문 업데이트 =====
+  const prevSlTpRef = useRef<{ sl: number; tp: number } | null>(null);
+  
+  useEffect(() => {
+    const currentSl = filterSettings?.stopLossUsdt ?? 7;
+    const currentTp = filterSettings?.takeProfitUsdt ?? 7;
+    
+    // 초기 로드 시 값 저장만 하고 리턴
+    if (!prevSlTpRef.current) {
+      prevSlTpRef.current = { sl: currentSl, tp: currentTp };
+      return;
+    }
+    
+    // 설정 변경 감지
+    const slChanged = prevSlTpRef.current.sl !== currentSl;
+    const tpChanged = prevSlTpRef.current.tp !== currentTp;
+    
+    if (!slChanged && !tpChanged) return;
+    
+    // 활성 포지션이 있을 때만 업데이트
+    const position = currentPositionRef.current;
+    if (!position || position.entryPhase !== 'active') {
+      prevSlTpRef.current = { sl: currentSl, tp: currentTp };
+      return;
+    }
+    
+    // 처리 중이면 스킵
+    if (processingRef.current) return;
+    
+    // 비동기로 SL/TP 업데이트 실행
+    const updateSlTpOrders = async () => {
+      console.log(`🔄 [SL/TP 변경 감지] SL: $${prevSlTpRef.current?.sl} → $${currentSl} | TP: $${prevSlTpRef.current?.tp} → $${currentTp}`);
+      prevSlTpRef.current = { sl: currentSl, tp: currentTp };
+      
+      try {
+        // 기존 미체결 주문 전량 취소 (SL/TP 포함)
+        console.log(`🚫 [SL/TP 업데이트] ${position.symbol} 기존 SL/TP 주문 취소 중...`);
+        await cancelAllOrders(position.symbol);
+        
+        // 잠시 대기 (취소 반영)
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        // 실제 포지션 조회
+        const positions = await getPositions(position.symbol);
+        const actualPosition = positions?.find((p: any) =>
+          p.symbol === position.symbol && Math.abs(parseFloat(p.positionAmt)) > 0
+        );
+        
+        if (!actualPosition) {
+          console.log(`⚠️ [SL/TP 업데이트] ${position.symbol} 포지션 없음, 스킵`);
+          return;
+        }
+        
+        const qty = Math.abs(parseFloat(actualPosition.positionAmt));
+        const avgPrice = parseFloat(actualPosition.entryPrice);
+        const closeSide = position.side === 'long' ? 'SELL' : 'BUY';
+        const positionValueUsd = avgPrice * qty;
+        
+        // 새 손절가/익절가 계산
+        const slPercent = (currentSl / positionValueUsd) * 100;
+        const tpPercent = (currentTp / positionValueUsd) * 100;
+        
+        let slPrice: number;
+        let tpPrice: number;
+        
+        if (position.side === 'long') {
+          slPrice = avgPrice * (1 - slPercent / 100);
+          tpPrice = avgPrice * (1 + tpPercent / 100);
+        } else {
+          slPrice = avgPrice * (1 + slPercent / 100);
+          tpPrice = avgPrice * (1 - tpPercent / 100);
+        }
+        
+        console.log(`📊 [새 SL/TP] 포지션가치=$${positionValueUsd.toFixed(2)} | SL=$${currentSl}→${slPrice.toFixed(4)} | TP=$${currentTp}→${tpPrice.toFixed(4)}`);
+        
+        // 새 STOP_MARKET 주문
+        try {
+          const slResult = await placeStopMarketOrder(position.symbol, closeSide, qty, slPrice);
+          if (slResult && !slResult.error) {
+            console.log(`✅ [STOP_MARKET] 재설정 완료! 손절가=${slPrice.toFixed(4)}`);
+            toast.success(`🛑 손절가 변경: $${slPrice.toFixed(2)}`);
+          }
+        } catch (slError: any) {
+          console.warn(`❌ STOP_MARKET 재설정 실패:`, slError?.message);
+        }
+        
+        // 새 TAKE_PROFIT_MARKET 주문
+        try {
+          const tpResult = await placeTakeProfitMarketOrder(position.symbol, closeSide, qty, tpPrice);
+          if (tpResult && !tpResult.error) {
+            console.log(`✅ [TAKE_PROFIT_MARKET] 재설정 완료! 익절가=${tpPrice.toFixed(4)}`);
+            toast.success(`💰 익절가 변경: $${tpPrice.toFixed(2)}`);
+          }
+        } catch (tpError: any) {
+          console.warn(`❌ TAKE_PROFIT_MARKET 재설정 실패:`, tpError?.message);
+        }
+        
+        // 포지션 상태에 새 손절가 저장
+        setState(prev => {
+          if (!prev.currentPosition) return prev;
+          return {
+            ...prev,
+            currentPosition: {
+              ...prev.currentPosition,
+              stopLossPrice: slPrice,
+            },
+            statusMessage: `✅ SL/TP 업데이트 완료!`,
+          };
+        });
+        
+      } catch (error: any) {
+        console.error('[SL/TP 업데이트 오류]', error);
+        toast.error('SL/TP 업데이트 실패');
+      }
+    };
+    
+    updateSlTpOrders();
+  }, [filterSettings?.stopLossUsdt, filterSettings?.takeProfitUsdt, cancelAllOrders, getPositions, placeStopMarketOrder, placeTakeProfitMarketOrder]);
+
   // ===== Cleanup =====
   useEffect(() => {
     return () => {
