@@ -280,15 +280,20 @@ export function OrderBook({
                 <span className="text-gray-600">-</span>
               </div>
 
-              {/* 롱 주문 박스 - 비활성 */}
+              {/* 롱 주문 박스 (매도호가에서도 활성) */}
               <div className="flex items-center justify-center">
                 <div 
-                  className="w-5 h-4 rounded-sm opacity-20"
+                  className="w-5 h-4 rounded-sm cursor-pointer hover:opacity-80 active:scale-95 transition-all flex items-center justify-center"
                   style={{
-                    background: 'rgba(100, 100, 100, 0.3)',
-                    border: '1px solid rgba(100, 100, 100, 0.3)',
+                    background: 'linear-gradient(180deg, rgba(0, 200, 100, 0.3) 0%, rgba(0, 180, 80, 0.5) 100%)',
+                    border: '1px solid rgba(0, 200, 100, 0.5)',
+                    boxShadow: '0 0 4px rgba(0, 200, 100, 0.3)',
                   }}
-                />
+                  onClick={() => handleOrderBoxClick('long', ask.price)}
+                  title={`클릭: ${formatPrice(ask.price)}에 롱`}
+                >
+                  <span className="text-[7px] font-bold text-green-300">L</span>
+                </div>
               </div>
             </div>
           );
@@ -328,15 +333,20 @@ export function OrderBook({
                 borderBottom: '1px solid rgba(60, 60, 80, 0.3)',
               }}
             >
-              {/* 숏 주문 박스 - 비활성 */}
+              {/* 숏 주문 박스 (매수호가에서도 활성) */}
               <div className="flex items-center justify-center">
                 <div 
-                  className="w-5 h-4 rounded-sm opacity-20"
+                  className="w-5 h-4 rounded-sm cursor-pointer hover:opacity-80 active:scale-95 transition-all flex items-center justify-center"
                   style={{
-                    background: 'rgba(100, 100, 100, 0.3)',
-                    border: '1px solid rgba(100, 100, 100, 0.3)',
+                    background: 'linear-gradient(180deg, rgba(255, 80, 100, 0.3) 0%, rgba(255, 50, 80, 0.5) 100%)',
+                    border: '1px solid rgba(255, 80, 100, 0.5)',
+                    boxShadow: '0 0 4px rgba(255, 80, 100, 0.3)',
                   }}
-                />
+                  onClick={() => handleOrderBoxClick('short', bid.price)}
+                  title={`클릭: ${formatPrice(bid.price)}에 숏`}
+                >
+                  <span className="text-[7px] font-bold text-red-300">S</span>
+                </div>
               </div>
 
               {/* 매도잔량 (좌측) - 비어있음 */}
