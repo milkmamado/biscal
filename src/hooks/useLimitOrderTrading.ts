@@ -1587,8 +1587,9 @@ export function useLimitOrderTrading({
         toast.warning(`⚠️ 레버리지 ${leverage}x → ${appliedLeverage}x로 적용됨`);
       }
       
-      // 포지션 사이즈 계산 (잔고의 10% × 적용된 레버리지)
-      const positionValueUSD = balanceUSD * 0.1 * appliedLeverage;
+      // 포지션 사이즈 계산 (잔고의 POSITION_SIZE_PERCENT% × 적용된 레버리지)
+      const positionSizeRatio = LIMIT_ORDER_CONFIG.POSITION_SIZE_PERCENT / 100;
+      const positionValueUSD = balanceUSD * positionSizeRatio * appliedLeverage;
       const totalQuantity = positionValueUSD / price;
       const rawSplitQuantity = totalQuantity / splitCount;
 
