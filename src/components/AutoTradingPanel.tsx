@@ -321,7 +321,7 @@ const AutoTradingPanel = ({
     }
   }, [refreshTrigger]);
   
-  // 현재 포지션 PnL - 수수료 포함 예상 순손익
+  // 현재 포지션 PnL - 바이낸스 unrealizedPnl 기반 + 예상 청산 수수료 차감
   const [lastValidPnL, setLastValidPnL] = useState(0);
   
   const currentPnL = useMemo(() => {
@@ -330,26 +330,31 @@ const AutoTradingPanel = ({
       return 0;
     }
     
-    if (!currentPosition.avgPrice || currentPosition.avgPrice === 0) {
-      return 0;
-    }
-    if (!currentPrice || currentPrice === 0) {
-      return lastValidPnL;
+    // 바이낸스 unrealizedPnl 사용 (수수료 미포함 그로스 PnL)
+    // 여기에 예상 청산 수수료를 빼서 순손익 표시
+    let grossPnl = 0;
+    
+    if (currentPosition.unrealizedPnl !== undefined && currentPosition.unrealizedPnl !== 0) {
+      // 바이낸스 API 값 사용
+      grossPnl = currentPosition.unrealizedPnl;
+    } else {
+      // 폴백: 로컬 계산
+      if (!currentPosition.avgPrice || currentPosition.avgPrice === 0 || !currentPrice || currentPrice === 0) {
+        return lastValidPnL;
+      }
+      const direction = currentPosition.side === 'long' ? 1 : -1;
+      const priceDiff = (currentPrice - currentPosition.avgPrice) * direction;
+      grossPnl = priceDiff * currentPosition.filledQuantity;
     }
     
-    // 수수료 포함 순손익 계산
-    const direction = currentPosition.side === 'long' ? 1 : -1;
-    const priceDiff = (currentPrice - currentPosition.avgPrice) * direction;
-    const grossPnl = priceDiff * currentPosition.filledQuantity;
-    
-    // 수수료 계산 (진입: 0.02% maker, 청산: 0.05% taker)
-    const entryFeeRate = 0.0002; // 0.02%
-    const exitFeeRate = 0.0005;  // 0.05%
+    // 예상 수수료 차감 (진입: 0.02% maker, 청산: 0.05% taker)
+    const entryFeeRate = 0.0002;
+    const exitFeeRate = 0.0005;
+    const markPrice = currentPosition.markPrice || currentPrice || currentPosition.avgPrice;
     const entryNotional = currentPosition.avgPrice * currentPosition.filledQuantity;
-    const exitNotional = currentPrice * currentPosition.filledQuantity;
+    const exitNotional = markPrice * currentPosition.filledQuantity;
     const totalFee = (entryNotional * entryFeeRate) + (exitNotional * exitFeeRate);
     
-    // 순손익 = 그로스 - 수수료
     return grossPnl - totalFee;
   }, [currentPosition, currentPrice, lastValidPnL]);
   
