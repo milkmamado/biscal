@@ -1559,13 +1559,39 @@ export function useLimitOrderTrading({
     try {
       initAudio();
       
-      // 포지션 사이즈 계산 (잔고의 10%)
-      const positionValueUSD = balanceUSD * 0.1 * leverage;
+      // 심볼 정밀도 조회
+      const precision = await fetchSymbolPrecision(symbol, isTestnet);
+      
+      // 레버리지 설정 (중요!)
+      let appliedLeverage = leverage;
+      const leverageCandidates = Array.from(
+        new Set([leverage, 10, 5, 3, 2, 1].filter((v) => v <= leverage))
+      );
+
+      for (const lev of leverageCandidates) {
+        try {
+          const res = await setLeverage(symbol, lev);
+          appliedLeverage = lev;
+          if (!res?.alreadySet) {
+            console.log(`🧲 [Leverage] ${symbol} 적용: ${lev}x`);
+          }
+          break;
+        } catch (levError: any) {
+          const msg = levError?.message || String(levError);
+          console.warn(`레버리지 설정 실패(${lev}x):`, msg);
+          continue;
+        }
+      }
+
+      if (appliedLeverage !== leverage) {
+        toast.warning(`⚠️ 레버리지 ${leverage}x → ${appliedLeverage}x로 적용됨`);
+      }
+      
+      // 포지션 사이즈 계산 (잔고의 10% × 적용된 레버리지)
+      const positionValueUSD = balanceUSD * 0.1 * appliedLeverage;
       const totalQuantity = positionValueUSD / price;
       const rawSplitQuantity = totalQuantity / splitCount;
 
-      // 심볼 정밀도/최소 주문 조건 사전 검증
-      const precision = await fetchSymbolPrecision(symbol, isTestnet);
       const roundedPrice = roundPrice(price, precision);
       const roundedSplitQty = roundQuantity(rawSplitQuantity, precision);
 
@@ -1577,7 +1603,7 @@ export function useLimitOrderTrading({
       }
 
       console.log(
-        `📊 지정가 ${splitCount}분할 주문: ${symbol} ${direction} @ ${roundedPrice}, qty: ${roundedSplitQty} x ${splitCount}`
+        `📊 지정가 ${splitCount}분할 주문: ${symbol} ${direction} @ ${roundedPrice}, qty: ${roundedSplitQty} x ${splitCount} (레버리지: ${appliedLeverage}x)`
       );
 
       // splitCount 만큼 개별 주문 생성 (호가창 '분할' 기대 동작)
