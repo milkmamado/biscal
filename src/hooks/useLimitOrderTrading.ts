@@ -1102,13 +1102,36 @@ export function useLimitOrderTrading({
       // 손절가 계산 (참고용 - 실제 손절은 원화 PnL 기준)
       const stopLossPrice = calculateStopLossPrice(finalAvgPrice, side);
 
-      // 포지션 활성화
+      // 포지션 활성화 (entries에 2차 진입도 추가)
       setState(prev => {
         if (!prev.currentPosition) return prev;
+        
+        // 기존 entries에 2차 시장가 진입 추가
+        const updatedEntries = [...prev.currentPosition.entries];
+        if (secondFilledQty > 0) {
+          updatedEntries.push({
+            orderId: `market_${Date.now()}`,
+            price: finalAvgPrice, // 2차는 시장가이므로 평균가 사용
+            quantity: secondFilledQty,
+            filled: secondFilledQty,
+            status: 'FILLED' as const,
+            timestamp: Date.now(),
+          });
+        }
+        // 1차 진입도 체결 상태로 업데이트
+        if (updatedEntries[0]) {
+          updatedEntries[0] = {
+            ...updatedEntries[0],
+            filled: filledQty,
+            status: 'FILLED' as const,
+          };
+        }
+        
         return {
           ...prev,
           currentPosition: {
             ...prev.currentPosition,
+            entries: updatedEntries,
             avgPrice: finalAvgPrice,
             filledQuantity: totalFilledQty,
             entryPhase: 'active',
