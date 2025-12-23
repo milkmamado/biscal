@@ -1,3 +1,4 @@
+// OrderBook v2 - Combined Stream with Velocity Indicator
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { formatPrice } from '@/lib/binance';
 import { toast } from 'sonner';
