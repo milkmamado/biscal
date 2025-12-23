@@ -22,12 +22,12 @@ interface TradingSettingsProps {
   adxThreshold: number;
   onAdxThresholdChange: (value: number) => void;
   
-  // 손절 설정 (원화)
-  stopLossKrw: number;
+  // 손절 설정 (USDT)
+  stopLossUsdt: number;
   onStopLossChange: (value: number) => void;
   
-  // 익절 설정 (원화)
-  takeProfitKrw: number;
+  // 익절 설정 (USDT)
+  takeProfitUsdt: number;
   onTakeProfitChange: (value: number) => void;
   
   // 상태
@@ -47,9 +47,9 @@ export function TradingSettingsPanel({
   onToggleBollingerFilter,
   adxThreshold,
   onAdxThresholdChange,
-  stopLossKrw,
+  stopLossUsdt,
   onStopLossChange,
-  takeProfitKrw,
+  takeProfitUsdt,
   onTakeProfitChange,
   isAutoTradingEnabled,
 }: TradingSettingsProps) {
@@ -189,7 +189,7 @@ export function TradingSettingsPanel({
               </div>
             </div>
 
-            {/* 손절 설정 (원화) */}
+            {/* 손절 설정 (USDT) */}
             <div className="space-y-2 pt-2 border-t border-border/30">
               <div className="flex items-center gap-1">
                 <Shield className="w-3 h-3 text-red-400" />
@@ -201,30 +201,30 @@ export function TradingSettingsPanel({
                 <div className="flex-1 flex items-center gap-1">
                   <Input
                     type="number"
-                    value={stopLossKrw}
+                    value={stopLossUsdt}
                     onChange={(e) => onStopLossChange(Number(e.target.value))}
                     className="h-7 text-[10px] text-right font-mono bg-background/50"
-                    min={1000}
-                    max={100000}
-                    step={1000}
+                    min={1}
+                    max={100}
+                    step={1}
                   />
-                  <span className="text-[10px] text-muted-foreground">원</span>
+                  <span className="text-[10px] text-muted-foreground">USDT</span>
                 </div>
               </div>
 
               {/* 손절 빠른 선택 버튼 */}
               <div className="flex gap-1">
-                {[10000, 20000, 30000, 40000, 50000].map((val) => (
+                {[5, 10, 15, 20, 30].map((val) => (
                   <button
                     key={val}
                     onClick={() => onStopLossChange(val)}
                     className={`flex-1 py-1 text-[9px] rounded border transition-colors ${
-                      stopLossKrw === val
+                      stopLossUsdt === val
                         ? 'bg-red-500/20 border-red-500/50 text-red-400'
                         : 'bg-background/30 border-border/30 text-muted-foreground hover:border-red-500/30'
                     }`}
                   >
-                    {val / 10000}만
+                    ${val}
                   </button>
                 ))}
               </div>
@@ -243,30 +243,30 @@ export function TradingSettingsPanel({
               <div className="flex-1 flex items-center gap-1">
                 <Input
                   type="number"
-                  value={takeProfitKrw}
+                  value={takeProfitUsdt}
                   onChange={(e) => onTakeProfitChange(Number(e.target.value))}
                   className="h-7 text-[10px] text-right font-mono bg-background/50"
-                  min={1000}
-                  max={100000}
-                  step={1000}
+                  min={1}
+                  max={100}
+                  step={1}
                 />
-                <span className="text-[10px] text-muted-foreground">원</span>
+                <span className="text-[10px] text-muted-foreground">USDT</span>
               </div>
             </div>
 
             {/* 익절 빠른 선택 버튼 */}
             <div className="flex gap-1">
-              {[10000, 20000, 30000, 40000, 50000].map((val) => (
+              {[5, 10, 15, 20, 30].map((val) => (
                 <button
                   key={val}
                   onClick={() => onTakeProfitChange(val)}
                   className={`flex-1 py-1 text-[9px] rounded border transition-colors ${
-                    takeProfitKrw === val
+                    takeProfitUsdt === val
                       ? 'bg-green-500/20 border-green-500/50 text-green-400'
                       : 'bg-background/30 border-border/30 text-muted-foreground hover:border-green-500/30'
                   }`}
                 >
-                  {val / 10000}만
+                  ${val}
                 </button>
               ))}
             </div>

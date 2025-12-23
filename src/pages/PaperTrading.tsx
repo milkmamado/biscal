@@ -36,8 +36,8 @@ const PaperTrading = () => {
   const [macdFilterEnabled, setMacdFilterEnabled] = useState(true);
   const [bollingerFilterEnabled, setBollingerFilterEnabled] = useState(true);
   const [adxThreshold, setAdxThreshold] = useState(LIMIT_ORDER_CONFIG.SIGNAL.MIN_ADX);
-  const [stopLossKrw, setStopLossKrw] = useState(10000); // 기본 1만원 손절
-  const [takeProfitKrw, setTakeProfitKrw] = useState(LIMIT_ORDER_CONFIG.TAKE_PROFIT.MIN_PROFIT_KRW);
+  const [stopLossUsdt, setStopLossUsdt] = useState(7); // 기본 7 USDT 손절
+  const [takeProfitUsdt, setTakeProfitUsdt] = useState(7); // 기본 7 USDT 익절
   
   // 미체결 주문 상태 (차트에 표시용)
   const [openOrders, setOpenOrders] = useState<{ orderId: number; price: number; side: 'BUY' | 'SELL'; origQty: number; executedQty: number; }[]>([]);
@@ -88,8 +88,8 @@ const PaperTrading = () => {
       macdEnabled: macdFilterEnabled,
       bollingerEnabled: bollingerFilterEnabled,
       adxThreshold,
-      stopLossKrw,
-      takeProfitKrw,
+      stopLossUsdt,
+      takeProfitUsdt,
     },
   });
   
@@ -266,13 +266,9 @@ const PaperTrading = () => {
     const qty = position.totalQuantity;
     const positionValueUsd = entryPrice * qty;
     
-    // 원화 손익을 USD로 변환
-    const slUsd = stopLossKrw / krwRate;
-    const tpUsd = takeProfitKrw / krwRate;
-    
-    // 손익 퍼센트 계산
-    const slPercent = (slUsd / positionValueUsd) * 100;
-    const tpPercent = (tpUsd / positionValueUsd) * 100;
+    // USDT 손익 퍼센트 계산
+    const slPercent = (stopLossUsdt / positionValueUsd) * 100;
+    const tpPercent = (takeProfitUsdt / positionValueUsd) * 100;
     
     // 가격 계산
     let slPrice: number;
@@ -384,10 +380,10 @@ const PaperTrading = () => {
             onToggleBollingerFilter={setBollingerFilterEnabled}
             adxThreshold={adxThreshold}
             onAdxThresholdChange={setAdxThreshold}
-            stopLossKrw={stopLossKrw}
-            onStopLossChange={setStopLossKrw}
-            takeProfitKrw={takeProfitKrw}
-            onTakeProfitChange={setTakeProfitKrw}
+            stopLossUsdt={stopLossUsdt}
+            onStopLossChange={setStopLossUsdt}
+            takeProfitUsdt={takeProfitUsdt}
+            onTakeProfitChange={setTakeProfitUsdt}
             isAutoTradingEnabled={autoTrading.state.isEnabled}
           />
           <TradingLogsPanel
