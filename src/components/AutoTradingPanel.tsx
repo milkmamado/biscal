@@ -314,7 +314,12 @@ const AutoTradingPanel = ({
   const [lastValidPnL, setLastValidPnL] = useState(0);
   
   const currentPnL = useMemo(() => {
-    if (!currentPosition || currentPosition.entryPhase !== 'active') {
+    // 포지션이 없거나, 체결 수량이 없으면 0
+    if (!currentPosition || currentPosition.filledQuantity === 0) {
+      return 0;
+    }
+    // 평균가가 없으면 0 (아직 체결 전)
+    if (!currentPosition.avgPrice || currentPosition.avgPrice === 0) {
       return 0;
     }
     if (!currentPrice || currentPrice === 0) {
@@ -327,7 +332,7 @@ const AutoTradingPanel = ({
   
   // 유효한 PnL 값 업데이트
   useEffect(() => {
-    if (currentPosition && currentPosition.entryPhase === 'active' && currentPrice && currentPrice > 0) {
+    if (currentPosition && currentPosition.filledQuantity > 0 && currentPosition.avgPrice > 0 && currentPrice && currentPrice > 0) {
       const direction = currentPosition.side === 'long' ? 1 : -1;
       const priceDiff = (currentPrice - currentPosition.avgPrice) * direction;
       const newPnL = priceDiff * currentPosition.filledQuantity;
@@ -600,16 +605,16 @@ const AutoTradingPanel = ({
 
       {/* Current Position Status - 항상 표시 */}
       <div className="relative z-10 px-3 py-2 lg:px-4 lg:py-3 shrink-0" style={{
-        background: currentPosition && currentPosition.entryPhase === 'active'
+        background: currentPosition && (currentPosition.entryPhase === 'active' || (currentPosition.filledQuantity > 0 && currentPosition.avgPrice > 0))
           ? currentPosition.side === 'long' 
             ? 'linear-gradient(90deg, rgba(0, 255, 136, 0.1) 0%, transparent 100%)'
             : 'linear-gradient(90deg, rgba(255, 0, 136, 0.1) 0%, transparent 100%)'
           : 'rgba(30, 30, 50, 0.5)',
-        borderBottom: currentPosition && currentPosition.entryPhase === 'active'
+        borderBottom: currentPosition && (currentPosition.entryPhase === 'active' || (currentPosition.filledQuantity > 0 && currentPosition.avgPrice > 0))
           ? `1px solid ${currentPosition.side === 'long' ? 'rgba(0, 255, 136, 0.2)' : 'rgba(255, 0, 136, 0.2)'}`
           : '1px solid rgba(100, 100, 120, 0.2)',
       }}>
-        {currentPosition && currentPosition.entryPhase === 'active' ? (
+        {currentPosition && (currentPosition.entryPhase === 'active' || (currentPosition.filledQuantity > 0 && currentPosition.avgPrice > 0)) ? (
           <>
             <div className="flex items-center justify-between mb-1 lg:mb-2">
               <div className="flex items-center gap-2">
@@ -622,6 +627,9 @@ const AutoTradingPanel = ({
                   color: currentPosition.side === 'long' ? '#00ff88' : '#ff0088',
                 }}>
                   {currentPosition.symbol.replace('USDT', '')} {currentPosition.side === 'long' ? '롱' : '숏'}
+                  {currentPosition.entryPhase === 'waiting' && (
+                    <span className="ml-1 text-[9px] text-yellow-400">(체결중)</span>
+                  )}
                 </span>
               </div>
               <span className="text-xs lg:text-sm font-bold font-mono" style={{
@@ -652,6 +660,27 @@ const AutoTradingPanel = ({
               )}
             </div>
           </>
+        ) : currentPosition && currentPosition.entryPhase === 'waiting' ? (
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {currentPosition.side === 'long' ? (
+                <TrendingUp className="w-3 h-3 lg:w-4 lg:h-4 animate-pulse" style={{ color: '#00ff88' }} />
+              ) : (
+                <TrendingDown className="w-3 h-3 lg:w-4 lg:h-4 animate-pulse" style={{ color: '#ff0088' }} />
+              )}
+              <span className="text-xs lg:text-sm" style={{
+                color: currentPosition.side === 'long' ? '#00ff88' : '#ff0088',
+              }}>
+                {currentPosition.symbol.replace('USDT', '')} 체결 대기중...
+              </span>
+            </div>
+            <div className="text-right">
+              <span className="text-[9px] lg:text-[10px] text-gray-500">목표수량</span>
+              <div className="text-xs lg:text-sm font-mono font-semibold text-yellow-400">
+                {currentPosition.totalQuantity.toFixed(4)}
+              </div>
+            </div>
+          </div>
         ) : (
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
