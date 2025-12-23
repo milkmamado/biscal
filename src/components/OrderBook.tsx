@@ -513,60 +513,21 @@ export function OrderBook({
           </div>
         </div>
 
-        {/* 시장가 주문 버튼 */}
-        <div className="grid grid-cols-2 gap-1.5 lg:gap-2">
-          {/* 시장가 진입 버튼들 */}
-          {!hasPosition && (
-            <>
-              <button
-                onClick={() => {
-                  console.log(`📌 [OrderBook] 시장가 롱 버튼 클릭 (${splitCount}분할)`);
-                  onMarketEntry?.('long', splitCount);
-                }}
-                className="py-1.5 lg:py-2 rounded text-[10px] lg:text-[11px] font-bold transition-all hover:opacity-90 active:scale-98"
-                style={{
-                  background: 'linear-gradient(180deg, rgba(0, 200, 100, 0.4) 0%, rgba(0, 180, 80, 0.6) 100%)',
-                  border: '1px solid rgba(0, 200, 100, 0.5)',
-                  color: '#00ff88',
-                  boxShadow: '0 0 8px rgba(0, 200, 100, 0.3)',
-                }}
-              >
-                시장가 롱
-              </button>
-              <button
-                onClick={() => {
-                  console.log(`📌 [OrderBook] 시장가 숏 버튼 클릭 (${splitCount}분할)`);
-                  onMarketEntry?.('short', splitCount);
-                }}
-                className="py-1.5 lg:py-2 rounded text-[10px] lg:text-[11px] font-bold transition-all hover:opacity-90 active:scale-98"
-                style={{
-                  background: 'linear-gradient(180deg, rgba(255, 80, 100, 0.4) 0%, rgba(255, 50, 80, 0.6) 100%)',
-                  border: '1px solid rgba(255, 80, 100, 0.5)',
-                  color: '#ff5064',
-                  boxShadow: '0 0 8px rgba(255, 80, 100, 0.3)',
-                }}
-              >
-                시장가 숏
-              </button>
-            </>
-          )}
-          
-          {/* 시장가 청산 버튼 */}
-          {hasPosition && onMarketClose && (
-            <button
-              onClick={onMarketClose}
-              className="col-span-2 py-1.5 lg:py-2 rounded text-[10px] lg:text-[11px] font-bold transition-all hover:opacity-90 active:scale-98"
-              style={{
-                background: 'linear-gradient(180deg, rgba(255, 50, 100, 0.5) 0%, rgba(255, 0, 80, 0.7) 100%)',
-                border: '1px solid rgba(255, 50, 100, 0.6)',
-                color: '#fff',
-                boxShadow: '0 0 10px rgba(255, 50, 100, 0.4)',
-              }}
-            >
-              시장가 청산
-            </button>
-          )}
-        </div>
+        {/* 시장가 청산 버튼 (포지션 있을 때만) */}
+        {hasPosition && onMarketClose && (
+          <button
+            onClick={onMarketClose}
+            className="w-full py-1.5 lg:py-2 rounded text-[10px] lg:text-[11px] font-bold transition-all hover:opacity-90 active:scale-98"
+            style={{
+              background: 'linear-gradient(180deg, rgba(255, 50, 100, 0.5) 0%, rgba(255, 0, 80, 0.7) 100%)',
+              border: '1px solid rgba(255, 50, 100, 0.6)',
+              color: '#fff',
+              boxShadow: '0 0 10px rgba(255, 50, 100, 0.4)',
+            }}
+          >
+            시장가 청산
+          </button>
+        )}
       </div>
     </div>
   );
