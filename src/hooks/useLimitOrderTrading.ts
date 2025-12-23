@@ -213,11 +213,86 @@ export function useLimitOrderTrading({
   const tpTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const currentPositionRef = useRef<LimitOrderPosition | null>(null);
   const checkEntryFillRef = useRef<(symbol: string, side: 'long' | 'short', isPartialWait?: boolean) => Promise<void>>();
+  const lastSyncedPositionRef = useRef<string | null>(null);
 
   // currentPosition을 ref로 동기화
   useEffect(() => {
     currentPositionRef.current = state.currentPosition;
   }, [state.currentPosition]);
+
+  // ===== 실제 포지션 주기적 동기화 (수동 지정가 체결 감지용) =====
+  useEffect(() => {
+    if (!user) return;
+
+    const syncPositionFromExchange = async () => {
+      // 이미 포지션이 있거나 처리 중이면 스킵
+      if (state.currentPosition || processingRef.current) return;
+
+      try {
+        const positions = await getPositions();
+        if (!positions || !Array.isArray(positions)) return;
+
+        // 실제 열린 포지션 찾기
+        const openPosition = positions.find((p: any) => {
+          const amt = parseFloat(p.positionAmt || '0');
+          return Math.abs(amt) > 0;
+        });
+
+        if (openPosition) {
+          const posAmt = parseFloat(openPosition.positionAmt);
+          const entryPrice = parseFloat(openPosition.entryPrice);
+          const symbol = openPosition.symbol;
+          const side: 'long' | 'short' = posAmt > 0 ? 'long' : 'short';
+          const qty = Math.abs(posAmt);
+
+          // 중복 동기화 방지
+          const posKey = `${symbol}-${side}-${qty.toFixed(6)}`;
+          if (lastSyncedPositionRef.current === posKey) return;
+          lastSyncedPositionRef.current = posKey;
+
+          console.log(`🔄 [포지션 동기화] ${symbol} ${side} @ ${entryPrice} qty=${qty}`);
+
+          const stopLossPrice = calculateStopLossPrice(entryPrice, side);
+
+          setState(prev => ({
+            ...prev,
+            currentSymbol: symbol,
+            currentPosition: {
+              symbol,
+              side,
+              entries: [],
+              avgPrice: entryPrice,
+              totalQuantity: qty,
+              filledQuantity: qty,
+              startTime: Date.now(),
+              entryPhase: 'active',
+              takeProfitOrders: [],
+              stopLossPrice,
+            },
+            statusMessage: `✅ ${symbol} ${side === 'long' ? '롱' : '숏'} 포지션 감지!`,
+          }));
+
+          toast.success(`✅ ${symbol.replace('USDT', '')} ${side === 'long' ? '롱' : '숏'} 체결! @ ${entryPrice.toFixed(2)}`);
+          playEntrySound();
+        } else {
+          // 포지션이 없으면 동기화 키 초기화
+          if (lastSyncedPositionRef.current) {
+            lastSyncedPositionRef.current = null;
+          }
+        }
+      } catch (error) {
+        // 조용히 실패 (네트워크 일시 오류 등)
+        console.warn('[포지션 동기화] 오류:', error);
+      }
+    };
+
+    // 3초마다 실제 포지션 확인
+    const interval = setInterval(syncPositionFromExchange, 3000);
+    // 초기 1회 실행
+    syncPositionFromExchange();
+
+    return () => clearInterval(interval);
+  }, [user, state.currentPosition, getPositions]);
 
   // ===== 로그 추가 =====
   const addLog = useCallback((log: Omit<LimitOrderTradeLog, 'id' | 'timestamp'>) => {
