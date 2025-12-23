@@ -27,50 +27,52 @@ const CyberPigeon = () => {
 
   return (
     <div className="absolute inset-0 overflow-hidden pointer-events-none flex items-center justify-center">
-      {/* 메인 네온 문구 - 중앙 */}
+      {/* 메인 히브리어 명언 - 중앙 */}
       <div 
-        className="relative flex items-center gap-8"
+        className="relative flex items-center gap-6"
         style={{
           transform: `translateX(${glitchOffset}px)`,
           opacity: flicker ? 0.4 : 1,
         }}
       >
-        {/* 왼쪽 한자 */}
+        {/* 왼쪽 히브리어 - 삶 */}
         <span 
-          className="text-lg font-bold tracking-wider neon-pulse"
+          className="text-xl font-bold tracking-wider"
           style={{
-            color: '#ff6b9d',
+            color: '#00f5ff',
             textShadow: `
-              0 0 5px #ff6b9d,
-              0 0 15px #ff6b9d,
-              0 0 30px #ff1493,
-              0 0 50px #ff1493
+              0 0 5px #00f5ff,
+              0 0 15px #00f5ff,
+              0 0 30px #0ff,
+              0 0 50px #0ff
             `,
+            animation: 'pulse 2s ease-in-out infinite',
           }}
         >
-          電脳都市
+          חַיִּים
         </span>
 
-        {/* 구분자 */}
+        {/* 구분자 - 다윗의 별 */}
         <span 
-          className="text-cyan-400/60 text-2xl"
+          className="text-cyan-400/70 text-xl"
           style={{
-            textShadow: '0 0 10px #00ffff',
+            textShadow: '0 0 10px #00ffff, 0 0 20px #00ffff',
+            animation: 'spin 8s linear infinite',
           }}
         >
-          ◆
+          ✡
         </span>
 
-        {/* 메인 일본어 텍스트 */}
+        {/* 메인 히브리어 명언 */}
         <div className="relative">
           {/* 외부 글로우 */}
-          <div className="absolute inset-0 blur-lg text-cyan-400 text-2xl font-bold tracking-wider opacity-70">
-            未来は今
+          <div className="absolute inset-0 blur-lg text-cyan-400 text-lg font-bold tracking-wider opacity-70">
+            בחר בחיים
           </div>
           
-          {/* 메인 텍스트 */}
+          {/* 메인 텍스트 - "Choose Life" (신명기 30:19) */}
           <h1 
-            className="relative text-2xl font-bold tracking-wider"
+            className="relative text-xl font-bold tracking-wider"
             style={{
               color: '#00f5ff',
               textShadow: `
@@ -83,101 +85,80 @@ const CyberPigeon = () => {
               `,
             }}
           >
-            未来は今
+            בחר בחיים
           </h1>
         </div>
 
-        {/* 구분자 */}
+        {/* 구분자 - 다윗의 별 */}
         <span 
-          className="text-pink-400/60 text-2xl"
+          className="text-pink-400/70 text-xl"
           style={{
-            textShadow: '0 0 10px #ff00ff',
+            textShadow: '0 0 10px #ff00ff, 0 0 20px #ff00ff',
+            animation: 'spin 8s linear infinite reverse',
           }}
         >
-          ◆
+          ✡
         </span>
 
-        {/* 오른쪽 한자 */}
+        {/* 오른쪽 히브리어 - 죽음 */}
         <span 
-          className="text-lg font-bold tracking-wider neon-pulse"
+          className="text-xl font-bold tracking-wider"
           style={{
-            color: '#7b68ee',
+            color: '#ff6b9d',
             textShadow: `
-              0 0 5px #7b68ee,
-              0 0 15px #7b68ee,
-              0 0 30px #9370db,
-              0 0 50px #9370db
+              0 0 5px #ff6b9d,
+              0 0 15px #ff6b9d,
+              0 0 30px #ff1493,
+              0 0 50px #ff1493
             `,
+            animation: 'pulse 2s ease-in-out infinite 0.5s',
           }}
         >
-          無限大
+          מָוֶת
         </span>
       </div>
 
-      {/* 서브 텍스트 - 하단 */}
-      <div 
-        className="absolute bottom-2 left-1/2 -translate-x-1/2"
-        style={{
-          transform: `translateX(-50%) translateX(${-glitchOffset}px)`,
-        }}
-      >
-        <p 
-          className="text-xs tracking-[0.4em] uppercase font-mono font-bold"
-          style={{
-            color: '#ff00ff',
-            textShadow: `
-              0 0 5px #ff00ff,
-              0 0 10px #ff00ff,
-              0 0 20px #ff00ff,
-              0 0 40px #ff00ff
-            `,
-          }}
-        >
-          Do or Die
-        </p>
-      </div>
-
-      {/* 좌측 아이콘들 */}
+      {/* 좌측 히브리어 */}
       <div className="absolute left-4 top-1/2 -translate-y-1/2 flex gap-4">
         <span 
-          className="text-lg"
+          className="text-base"
           style={{
             color: '#00ff88',
             textShadow: '0 0 10px #00ff88, 0 0 20px #00ff88, 0 0 30px #00ff88',
           }}
         >
-          夢
+          תקווה
         </span>
         <span 
-          className="text-lg"
+          className="text-base"
           style={{
             color: '#ffff00',
             textShadow: '0 0 10px #ffff00, 0 0 20px #ffff00, 0 0 30px #ffff00',
           }}
         >
-          希望
+          אמונה
         </span>
       </div>
 
-      {/* 우측 아이콘들 */}
+      {/* 우측 히브리어 */}
       <div className="absolute right-4 top-1/2 -translate-y-1/2 flex gap-4">
         <span 
-          className="text-lg"
+          className="text-base"
           style={{
             color: '#ff6600',
             textShadow: '0 0 10px #ff6600, 0 0 20px #ff6600, 0 0 30px #ff6600',
           }}
         >
-          革命
+          גורל
         </span>
         <span 
-          className="text-lg"
+          className="text-base"
           style={{
             color: '#00ffff',
             textShadow: '0 0 10px #00ffff, 0 0 20px #00ffff, 0 0 30px #00ffff',
           }}
         >
-          進化
+          נצח
         </span>
       </div>
 
