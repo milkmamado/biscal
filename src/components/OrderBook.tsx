@@ -56,9 +56,10 @@ interface VelocityData {
   changesPerSecond: number;
 }
 
+// Combined stream URL for better performance (single connection for multiple streams)
 const WS_URLS = {
-  mainnet: 'wss://fstream.binance.com/ws',
-  testnet: 'wss://stream.binancefuture.com/ws',
+  mainnet: 'wss://fstream.binance.com/stream',
+  testnet: 'wss://stream.binancefuture.com/stream',
 };
 
 export function OrderBook({ 
@@ -79,9 +80,9 @@ export function OrderBook({
   const [pendingOrder, setPendingOrder] = useState<{ side: 'long' | 'short'; price: number } | null>(null);
   const [velocity, setVelocity] = useState<VelocityData>({ level: 0, changesPerSecond: 0 });
   const wsRef = useRef<WebSocket | null>(null);
-  const tradeWsRef = useRef<WebSocket | null>(null); // 체결 스트림용
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const tradeTimestampsRef = useRef<number[]>([]); // 실제 체결 타임스탬프
+  const velocityUpdateRef = useRef<number>(0); // velocity 업데이트 쓰로틀링용
 
   // 수동 재연결
   const handleManualReconnect = useCallback(() => {
@@ -137,66 +138,60 @@ export function OrderBook({
     setOrderBook({ bids, asks, spread, spreadPercent });
   }, []);
 
-  // 바이낸스 aggTrade 스트림으로 실제 체결 속도 측정
-  const connectTradeStream = useCallback(() => {
-    if (tradeWsRef.current?.readyState === WebSocket.OPEN) return;
+  // 체결 데이터 처리 (aggTrade)
+  const processTradeData = useCallback(() => {
+    const now = Date.now();
+    tradeTimestampsRef.current.push(now);
+    
+    // 최근 1초 내 체결만 유지
+    tradeTimestampsRef.current = tradeTimestampsRef.current.filter(t => now - t < 1000);
+    const tradesPerSecond = tradeTimestampsRef.current.length;
 
-    const wsUrl = isTestnet ? WS_URLS.testnet : WS_URLS.mainnet;
-    const streamName = `${symbol.toLowerCase()}@aggTrade`;
-
-    try {
-      tradeWsRef.current = new WebSocket(`${wsUrl}/${streamName}`);
-
-      tradeWsRef.current.onmessage = () => {
-        const now = Date.now();
-        tradeTimestampsRef.current.push(now);
-        
-        // 최근 1초 내 체결만 유지
-        tradeTimestampsRef.current = tradeTimestampsRef.current.filter(t => now - t < 1000);
-        const tradesPerSecond = tradeTimestampsRef.current.length;
-
-        // 속도 레벨 계산 (실제 체결 기준)
-        let level: 0 | 1 | 2 | 3 | 4 = 0;
-        if (tradesPerSecond >= 50) level = 4;      // 초당 50건 이상: 매우 활발
-        else if (tradesPerSecond >= 30) level = 3; // 초당 30건 이상: 활발
-        else if (tradesPerSecond >= 15) level = 2; // 초당 15건 이상: 보통
-        else if (tradesPerSecond >= 5) level = 1;  // 초당 5건 이상: 약간
-        
-        setVelocity({ level, changesPerSecond: tradesPerSecond });
-      };
-
-      tradeWsRef.current.onerror = (e) => {
-        console.error('Trade stream error:', e);
-      };
-
-      tradeWsRef.current.onclose = () => {
-        // 3초 후 재연결
-        setTimeout(() => {
-          connectTradeStream();
-        }, 3000);
-      };
-    } catch (e) {
-      console.error('Trade stream connection error:', e);
+    // 200ms마다만 velocity 상태 업데이트 (성능 최적화)
+    if (now - velocityUpdateRef.current > 200) {
+      velocityUpdateRef.current = now;
+      
+      // 속도 레벨 계산 (실제 체결 기준)
+      let level: 0 | 1 | 2 | 3 | 4 = 0;
+      if (tradesPerSecond >= 50) level = 4;      // 초당 50건 이상: 매우 활발
+      else if (tradesPerSecond >= 30) level = 3; // 초당 30건 이상: 활발
+      else if (tradesPerSecond >= 15) level = 2; // 초당 15건 이상: 보통
+      else if (tradesPerSecond >= 5) level = 1;  // 초당 5건 이상: 약간
+      
+      setVelocity({ level, changesPerSecond: tradesPerSecond });
     }
-  }, [symbol, isTestnet]);
+  }, []);
 
+  // Combined Stream으로 depth + aggTrade 동시 연결 (하나의 WebSocket으로 효율적)
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
 
     const wsUrl = isTestnet ? WS_URLS.testnet : WS_URLS.mainnet;
-    const streamName = `${symbol.toLowerCase()}@depth20@100ms`;
+    const sym = symbol.toLowerCase();
+    // Combined stream: depth20@100ms + aggTrade를 하나의 연결로
+    const streams = `${sym}@depth20@100ms/${sym}@aggTrade`;
     
     try {
-      wsRef.current = new WebSocket(`${wsUrl}/${streamName}`);
+      wsRef.current = new WebSocket(`${wsUrl}?streams=${streams}`);
 
       wsRef.current.onopen = () => {
         setIsConnected(true);
+        console.log(`[OrderBook] Combined stream connected: ${streams}`);
       };
 
       wsRef.current.onmessage = (event) => {
         try {
-          const data = JSON.parse(event.data);
-          processDepthData(data);
+          const message = JSON.parse(event.data);
+          const data = message.data;
+          const stream = message.stream;
+          
+          if (stream?.includes('@depth')) {
+            // 호가 데이터 처리
+            processDepthData(data);
+          } else if (stream?.includes('@aggTrade')) {
+            // 체결 데이터 처리
+            processTradeData();
+          }
         } catch (e) {
           console.error('OrderBook parse error:', e);
         }
@@ -210,16 +205,15 @@ export function OrderBook({
         setIsConnected(false);
         reconnectTimeoutRef.current = setTimeout(() => {
           connect();
-        }, 3000);
+        }, 2000); // 2초로 단축
       };
     } catch (e) {
       console.error('OrderBook connection error:', e);
     }
-  }, [symbol, isTestnet, processDepthData]);
+  }, [symbol, isTestnet, processDepthData, processTradeData]);
 
   useEffect(() => {
     connect();
-    connectTradeStream(); // 체결 스트림도 연결
 
     return () => {
       if (reconnectTimeoutRef.current) {
@@ -229,13 +223,9 @@ export function OrderBook({
         wsRef.current.close();
         wsRef.current = null;
       }
-      if (tradeWsRef.current) {
-        tradeWsRef.current.close();
-        tradeWsRef.current = null;
-      }
       tradeTimestampsRef.current = [];
     };
-  }, [symbol, connect, connectTradeStream, isReconnecting]);
+  }, [symbol, connect, isReconnecting]);
 
   // Calculate max quantity for bar width
   const maxQty = orderBook
