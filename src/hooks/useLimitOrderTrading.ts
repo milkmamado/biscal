@@ -1439,9 +1439,19 @@ export function useLimitOrderTrading({
         throw new Error('현재가 조회 실패');
       }
       
-      // 전체 수량 및 분할 수량 계산
-      const totalQuantity = roundQuantity(positionValueUSD / currentPrice, precision);
-      const splitQuantity = roundQuantity(totalQuantity / splitCount, precision);
+      // 전체 수량 계산 (반올림은 마지막에만)
+      const rawTotalQuantity = positionValueUSD / currentPrice;
+      
+      // 분할 수량 계산: 1분할이면 전체, 아니면 분할
+      const rawSplitQuantity = splitCount === 1 ? rawTotalQuantity : rawTotalQuantity / splitCount;
+      const splitQuantity = roundQuantity(rawSplitQuantity, precision);
+      
+      // 실제 총 수량 계산
+      const actualTotalQty = splitQuantity * splitCount;
+      const actualTotalValue = actualTotalQty * currentPrice;
+      
+      console.log(`💰 [시장가 계산] balanceUSD=${balanceUSD.toFixed(2)} × ${(positionSizeRatio * 100).toFixed(0)}% × ${appliedLeverage}x = ${positionValueUSD.toFixed(2)} USDT`);
+      console.log(`📊 [시장가 수량] rawTotal=${rawTotalQuantity.toFixed(4)} → split(${splitCount}) → ${splitQuantity} × ${splitCount} = ${actualTotalQty.toFixed(4)} (${actualTotalValue.toFixed(2)} USDT)`);
       
       // 최소 주문 검증
       const splitNotional = splitQuantity * currentPrice;
@@ -1456,7 +1466,7 @@ export function useLimitOrderTrading({
       
       const orderSide = direction === 'long' ? 'BUY' : 'SELL';
       
-      console.log(`🚀 [수동 시장가] ${symbol} ${direction} ${splitQuantity} x ${splitCount}분할 (총 ${totalQuantity})`);
+      console.log(`🚀 [수동 시장가] ${symbol} ${direction} ${splitQuantity} x ${splitCount}분할 (총 ${actualTotalQty})`);
       
       // 분할 주문 실행
       let totalFilledQty = 0;
@@ -1614,10 +1624,19 @@ export function useLimitOrderTrading({
       const positionSizeRatio = LIMIT_ORDER_CONFIG.POSITION_SIZE_PERCENT / 100;
       const positionValueUSD = balanceUSD * positionSizeRatio * appliedLeverage;
       const totalQuantity = positionValueUSD / price;
-      const rawSplitQuantity = totalQuantity / splitCount;
+      
+      // 1분할인 경우 전체 수량, 아니면 분할
+      const rawSplitQuantity = splitCount === 1 ? totalQuantity : totalQuantity / splitCount;
 
       const roundedPrice = roundPrice(price, precision);
       const roundedSplitQty = roundQuantity(rawSplitQuantity, precision);
+      
+      // 실제 총 주문 수량 계산
+      const actualTotalQty = roundedSplitQty * splitCount;
+      const actualTotalValue = actualTotalQty * roundedPrice;
+
+      console.log(`💰 [지정가 계산] balanceUSD=${balanceUSD.toFixed(2)} × ${(positionSizeRatio * 100).toFixed(0)}% × ${appliedLeverage}x = ${positionValueUSD.toFixed(2)} USDT`);
+      console.log(`📊 [지정가 수량] totalQty=${totalQuantity.toFixed(4)} → split(${splitCount}) → ${roundedSplitQty} × ${splitCount} = ${actualTotalQty.toFixed(4)} (${actualTotalValue.toFixed(2)} USDT)`);
 
       const splitNotional = roundedSplitQty * roundedPrice;
       if (splitNotional < precision.minNotional) {
