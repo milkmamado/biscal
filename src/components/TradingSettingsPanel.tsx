@@ -203,7 +203,6 @@ export function TradingSettingsPanel({
                     type="number"
                     value={stopLossKrw}
                     onChange={(e) => onStopLossChange(Number(e.target.value))}
-                    disabled={isAutoTradingEnabled}
                     className="h-7 text-[10px] text-right font-mono bg-background/50"
                     min={1000}
                     max={100000}
@@ -219,12 +218,11 @@ export function TradingSettingsPanel({
                   <button
                     key={val}
                     onClick={() => onStopLossChange(val)}
-                    disabled={isAutoTradingEnabled}
                     className={`flex-1 py-1 text-[9px] rounded border transition-colors ${
                       stopLossKrw === val
                         ? 'bg-red-500/20 border-red-500/50 text-red-400'
                         : 'bg-background/30 border-border/30 text-muted-foreground hover:border-red-500/30'
-                    } disabled:opacity-50`}
+                    }`}
                   >
                     {val / 10000}만
                   </button>
@@ -247,7 +245,6 @@ export function TradingSettingsPanel({
                   type="number"
                   value={takeProfitKrw}
                   onChange={(e) => onTakeProfitChange(Number(e.target.value))}
-                  disabled={isAutoTradingEnabled}
                   className="h-7 text-[10px] text-right font-mono bg-background/50"
                   min={1000}
                   max={100000}
@@ -263,12 +260,11 @@ export function TradingSettingsPanel({
                 <button
                   key={val}
                   onClick={() => onTakeProfitChange(val)}
-                  disabled={isAutoTradingEnabled}
                   className={`flex-1 py-1 text-[9px] rounded border transition-colors ${
                     takeProfitKrw === val
                       ? 'bg-green-500/20 border-green-500/50 text-green-400'
                       : 'bg-background/30 border-border/30 text-muted-foreground hover:border-green-500/30'
-                  } disabled:opacity-50`}
+                  }`}
                 >
                   {val / 10000}만
                 </button>
@@ -276,10 +272,10 @@ export function TradingSettingsPanel({
             </div>
           </div>
 
-          {/* 자동매매 중 경고 */}
+          {/* 자동매매 중 안내 */}
           {isAutoTradingEnabled && (
-            <div className="text-[9px] text-center text-amber-400/80 bg-amber-500/10 rounded px-2 py-1">
-              ⚠️ 자동매매 중에는 설정 변경 불가
+            <div className="text-[9px] text-center text-cyan-400/80 bg-cyan-500/10 rounded px-2 py-1">
+              💡 손절/익절 설정은 실시간 반영됩니다
             </div>
           )}
         </div>
