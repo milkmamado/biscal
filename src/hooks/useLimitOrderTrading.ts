@@ -430,6 +430,10 @@ export function useLimitOrderTrading({
         throw new Error(closeResult?.error || '청산 실패');
       }
 
+      // 실제 체결 가격 가져오기 (바이낸스 응답에서)
+      const actualExitPrice = parseFloat(closeResult.avgPrice || closeResult.price || '0') || currentPrice;
+      console.log(`📊 [청산 체결] 예상가=${currentPrice.toFixed(6)} → 실제체결가=${actualExitPrice.toFixed(6)}`);
+
       // 잔량 확인 및 추가 청산
       await new Promise(resolve => setTimeout(resolve, 500));
       const remainingPositions = await getPositions(position.symbol);
@@ -448,14 +452,14 @@ export function useLimitOrderTrading({
         }
       }
 
-      // 손익 계산 (시장가 청산 = taker 수수료)
+      // 손익 계산 (실제 체결가 기준)
       const feeRate = LIMIT_ORDER_CONFIG.TAKER_FEE / 100;
       const entryFeeRate = LIMIT_ORDER_CONFIG.MAKER_FEE / 100;
       const direction = position.side === 'long' ? 1 : -1;
-      const priceDiff = (currentPrice - actualEntryPrice) * direction;
+      const priceDiff = (actualExitPrice - actualEntryPrice) * direction;
       const pnlGross = priceDiff * actualQty;
       const entryNotional = actualEntryPrice * actualQty;
-      const exitNotional = currentPrice * actualQty;
+      const exitNotional = actualExitPrice * actualQty;
       const feeUsd = (entryNotional * entryFeeRate) + (exitNotional * feeRate);
       const pnl = pnlGross - feeUsd;
       const isWin = pnl > 0;
@@ -486,7 +490,7 @@ export function useLimitOrderTrading({
         symbol: position.symbol,
         action: reason === 'tp' ? 'tp' : reason === 'sl' ? 'sl' : 'timeout',
         side: position.side,
-        price: currentPrice,
+        price: actualExitPrice,  // 실제 체결가
         quantity: actualQty,
         pnl,
         reason: reasonText[reason],
@@ -509,7 +513,7 @@ export function useLimitOrderTrading({
           symbol: position.symbol,
           side: position.side,
           entryPrice: actualEntryPrice,
-          exitPrice: currentPrice,
+          exitPrice: actualExitPrice,  // 실제 체결가
           quantity: actualQty,
           leverage,
           pnlUsd: pnl,
