@@ -103,6 +103,8 @@ interface UseLimitOrderTradingProps {
   balanceUSD: number;
   leverage: number;
   krwRate: number;
+  // 현재 화면에서 보고 있는 종목(호가창 기준)
+  viewingSymbol?: string;
   onTradeComplete?: () => void;
   initialStats?: {
     trades: number;
@@ -138,6 +140,7 @@ export function useLimitOrderTrading({
   balanceUSD,
   leverage: _leverage,
   krwRate,
+  viewingSymbol,
   onTradeComplete,
   initialStats,
   logTrade,
@@ -195,25 +198,65 @@ export function useLimitOrderTrading({
 
   // 시그널 발생 시 즉시 AI 분석 실행
   const lastAnalyzedSymbolRef = useRef<string | null>(null);
+
   useEffect(() => {
-    if (!state.aiEnabled || !state.isEnabled) return;
+    if (!user) return;
+    if (!state.aiEnabled) return;
+    if (!state.isEnabled) return;
     if (!state.pendingSignal) return;
-    
+
     const { symbol, indicators, signalPrice } = state.pendingSignal;
-    
-    // 같은 종목 중복 분석 방지
+
     if (lastAnalyzedSymbolRef.current === symbol) return;
     lastAnalyzedSymbolRef.current = symbol;
-    
+
     console.log(`[AI분석] 시그널 감지 → ${symbol} 분석 시작`);
     analyzeMarket(symbol, indicators, signalPrice, 0, 0)
-      .then(result => {
-        if (result) {
-          console.log(`[AI분석] ${symbol} 결과: ${result.marketCondition} (${result.confidence}%)`);
-        }
+      .then((result) => {
+        if (result) console.log(`[AI분석] ${symbol} 결과: ${result.marketCondition} (${result.confidence}%)`);
       })
-      .catch(err => console.warn('[AI분석] 실패:', err));
-  }, [state.pendingSignal, state.aiEnabled, state.isEnabled, analyzeMarket]);
+      .catch((err) => console.warn('[AI분석] 실패:', err));
+  }, [user, state.pendingSignal, state.aiEnabled, state.isEnabled, analyzeMarket]);
+
+  // 종목 선택(호가창 종목 변경) 시에도 즉시 AI 분석 (대기중 방지)
+  useEffect(() => {
+    if (!user) return;
+    if (!state.aiEnabled) return;
+    if (!state.isEnabled) return;
+    if (!viewingSymbol) return;
+
+    const symbol = viewingSymbol;
+    if (lastAnalyzedSymbolRef.current === symbol) return;
+
+    (async () => {
+      try {
+        const klines = await fetch5mKlines(symbol, 60);
+        if (!klines || klines.length < 30) return;
+
+        const klinesForCalc = klines.map((k: any, idx: number) => ({
+          openTime: idx,
+          closeTime: idx,
+          open: k.open,
+          high: k.high,
+          low: k.low,
+          close: k.close,
+          volume: k.volume,
+        }));
+
+        const indicators = calculateAllIndicators(klinesForCalc as any);
+        if (!indicators) return;
+
+        const lastClose = klinesForCalc[klinesForCalc.length - 1]?.close ?? 0;
+        if (!lastClose) return;
+
+        lastAnalyzedSymbolRef.current = symbol;
+        console.log(`[AI분석] 종목 변경 → ${symbol} 즉시 분석 시작`);
+        await analyzeMarket(symbol, indicators, lastClose, 0, 0);
+      } catch (err) {
+        console.warn('[AI분석] 종목 변경 분석 실패:', err);
+      }
+    })();
+  }, [user, viewingSymbol, state.aiEnabled, state.isEnabled, analyzeMarket]);
 
   // 초기 통계 업데이트
   useEffect(() => {
