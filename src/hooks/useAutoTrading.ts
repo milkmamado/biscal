@@ -781,16 +781,6 @@ export function useAutoTrading({
       toast.info(`🛡️ 브레이크이븐 활성화! 손절이 +${currentConfig.BREAKEVEN_SL}%로 이동`);
     }
 
-    // 브레이크이븐 타임아웃 체크 (2분 내 TP 미도달 시 수익 확정 청산)
-    if (tpState.breakEvenActivated && tpState.breakEvenActivatedAt) {
-      const beElapsedSec = (Date.now() - tpState.breakEvenActivatedAt) / 1000;
-      if (beElapsedSec >= currentConfig.BREAKEVEN_TIMEOUT_SEC && pnlPercent > 0) {
-        console.log(`⏱️ [checkTpSl] BE 타임아웃 수익 확정: ${beElapsedSec.toFixed(0)}초 경과, 현재 수익 +${pnlPercent.toFixed(2)}%`);
-        toast.success(`⏱️ 2분 타임아웃! +${pnlPercent.toFixed(2)}% 수익 확정 청산`);
-        await closePosition('tp', currentPrice);
-        return;
-      }
-    }
 
     // ============================================
     // 3단계: 브레이크이븐 손절 (트레일링 BE 포함)
