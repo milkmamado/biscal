@@ -751,6 +751,9 @@ const AutoTradingPanel = ({
         hasPosition={!!currentPosition}
         openOrders={openOrders}
         splitCount={splitCount}
+        aiAnalysis={aiAnalysis}
+        aiEnabled={aiEnabled}
+        isAiAnalyzing={isAiAnalyzing}
         onMarketEntry={(side) => {
           console.log('📌 [AutoTradingPanel] onMarketEntry 호출:', side, splitCount);
           onMarketEntry?.(activeSymbol, side, splitCount);

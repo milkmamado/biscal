@@ -1,8 +1,8 @@
-// OrderBook v3 - Combined Stream with Real Binance Trade Velocity - Updated 2025-12-23
+// OrderBook v3.1 - Combined Stream with Real Binance Trade Velocity + AI Direction - Updated 2025-12-24
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { formatPrice } from '@/lib/binance';
 import { toast } from 'sonner';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,6 +26,13 @@ interface OpenOrder {
 
 type SplitOption = 1 | 5 | 10;
 
+// AI 분석 결과 인터페이스
+interface AIAnalysis {
+  marketCondition: 'TRENDING_UP' | 'TRENDING_DOWN' | 'RANGING' | 'VOLATILE' | 'QUIET';
+  confidence: number;
+  recommendation: 'AGGRESSIVE' | 'NORMAL' | 'CONSERVATIVE' | 'STOP';
+}
+
 interface OrderBookProps {
   symbol: string;
   splitCount?: 1 | 5 | 10;
@@ -36,6 +43,9 @@ interface OrderBookProps {
   onCancelAllOrders?: () => Promise<void>;
   openOrders?: OpenOrder[];
   hasPosition?: boolean;
+  aiAnalysis?: AIAnalysis | null;
+  aiEnabled?: boolean;
+  isAiAnalyzing?: boolean;
 }
 
 interface OrderBookEntry {
@@ -69,6 +79,9 @@ export function OrderBook({
   onCancelAllOrders,
   openOrders = [],
   hasPosition = false,
+  aiAnalysis = null,
+  aiEnabled = false,
+  isAiAnalyzing = false,
 }: OrderBookProps) {
   const [orderBook, setOrderBook] = useState<OrderBookData | null>(null);
   const [isConnected, setIsConnected] = useState(false);
@@ -474,6 +487,61 @@ export function OrderBook({
             }}>
               {velocity.level >= 3 ? '🔥' : velocity.level >= 2 ? '⚡' : velocity.level >= 1 ? '·' : ''}
             </span>
+
+            {/* AI 방향 추천 아이콘 */}
+            {aiEnabled && (
+              <div 
+                className="flex items-center gap-0.5 ml-2 px-1.5 py-0.5 rounded"
+                style={{
+                  background: isAiAnalyzing 
+                    ? 'rgba(100, 100, 120, 0.3)' 
+                    : aiAnalysis?.marketCondition === 'TRENDING_UP' 
+                      ? 'rgba(0, 255, 136, 0.2)' 
+                      : aiAnalysis?.marketCondition === 'TRENDING_DOWN' 
+                        ? 'rgba(255, 80, 100, 0.2)' 
+                        : 'rgba(255, 200, 0, 0.2)',
+                  border: isAiAnalyzing 
+                    ? '1px solid rgba(100, 100, 120, 0.5)' 
+                    : aiAnalysis?.marketCondition === 'TRENDING_UP' 
+                      ? '1px solid rgba(0, 255, 136, 0.5)' 
+                      : aiAnalysis?.marketCondition === 'TRENDING_DOWN' 
+                        ? '1px solid rgba(255, 80, 100, 0.5)' 
+                        : '1px solid rgba(255, 200, 0, 0.5)',
+                }}
+                title={isAiAnalyzing 
+                  ? 'AI 분석 중...' 
+                  : aiAnalysis 
+                    ? `AI: ${aiAnalysis.marketCondition} (${aiAnalysis.confidence}% 신뢰도)` 
+                    : 'AI 분석 대기'}
+              >
+                {isAiAnalyzing ? (
+                  <div className="w-3 h-3 border border-cyan-400 border-t-transparent rounded-full animate-spin" />
+                ) : aiAnalysis?.marketCondition === 'TRENDING_UP' ? (
+                  <TrendingUp className="w-3 h-3 text-green-400" />
+                ) : aiAnalysis?.marketCondition === 'TRENDING_DOWN' ? (
+                  <TrendingDown className="w-3 h-3 text-red-400" />
+                ) : (
+                  <Minus className="w-3 h-3 text-yellow-400" />
+                )}
+                <span className="text-[7px] font-bold" style={{
+                  color: isAiAnalyzing 
+                    ? '#888' 
+                    : aiAnalysis?.marketCondition === 'TRENDING_UP' 
+                      ? '#00ff88' 
+                      : aiAnalysis?.marketCondition === 'TRENDING_DOWN' 
+                        ? '#ff5064' 
+                        : '#ffcc00',
+                }}>
+                  {isAiAnalyzing 
+                    ? 'AI' 
+                    : aiAnalysis?.marketCondition === 'TRENDING_UP' 
+                      ? 'L' 
+                      : aiAnalysis?.marketCondition === 'TRENDING_DOWN' 
+                        ? 'S' 
+                        : '-'}
+                </span>
+              </div>
+            )}
           </div>
         );
       })()}
