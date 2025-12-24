@@ -167,7 +167,8 @@ export default function Auth() {
         title: "로그인 성공",
         description: "환영합니다!"
       });
-      setStep('mode-select');
+      // 바로 현물매매로 이동 (선택화면 스킵)
+      navigate('/');
     } catch (error: any) {
       toast({
         title: "인증 실패",
