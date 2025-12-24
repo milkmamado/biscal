@@ -36,6 +36,7 @@ interface AIAnalysis {
 interface OrderBookProps {
   symbol: string;
   splitCount?: 1 | 5 | 10;
+  leverage?: number;
   onPlaceOrder?: (side: 'long' | 'short', price: number) => void;
   onMarketEntry?: (side: 'long' | 'short') => void;
   onMarketClose?: () => void;
@@ -73,6 +74,7 @@ const WS_URL = 'wss://fstream.binance.com/stream';
 export function OrderBook({ 
   symbol, 
   splitCount = 5,
+  leverage = 10,
   onPlaceOrder,
   onMarketEntry,
   onMarketClose,
@@ -661,13 +663,30 @@ export function OrderBook({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>지정가 주문 확인</AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogDescription asChild>
               {pendingOrder ? (
-                <span>
-                  {symbol.replace('USDT', '')} {pendingOrder.side === 'long' ? '롱' : '숏'} @ {formatPrice(pendingOrder.price)}
-                  {' '}({splitCount}분할)
-                </span>
-              ) : null}
+                <div className="space-y-1">
+                  <div className="font-semibold text-foreground">
+                    {symbol.replace('USDT', '')} {pendingOrder.side === 'long' ? '롱(BUY)' : '숏(SELL)'} @ {formatPrice(pendingOrder.price)}
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="px-1.5 py-0.5 rounded text-xs font-bold" style={{
+                      background: 'rgba(0, 255, 255, 0.15)',
+                      border: '1px solid rgba(0, 255, 255, 0.3)',
+                      color: '#00ffff',
+                    }}>
+                      {leverage}x 레버리지
+                    </span>
+                    <span className="px-1.5 py-0.5 rounded text-xs font-bold" style={{
+                      background: 'rgba(255, 200, 0, 0.15)',
+                      border: '1px solid rgba(255, 200, 0, 0.3)',
+                      color: '#ffcc00',
+                    }}>
+                      {splitCount}분할 진입
+                    </span>
+                  </div>
+                </div>
+              ) : <span>주문 정보 없음</span>}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
