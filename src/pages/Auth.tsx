@@ -67,20 +67,24 @@ export default function Auth() {
 
     try {
       if (isLogin) {
-        setPendingOtp(true);
-        
+        // 먼저 로그인 시도로 계정 유효성 검증
         const { error } = await signIn(email, password);
         if (error) {
-          setPendingOtp(false);
           let message = "로그인에 실패했습니다";
           if (error.message.includes("Invalid login credentials")) {
             message = "이메일 또는 비밀번호가 올바르지 않습니다";
           }
           console.log("로그인 실패:", message);
+          setIsLoading(false);
+          return;
         }
 
+        // 로그인 성공 후 로그아웃하고 OTP 발송
         await supabase.auth.signOut();
         
+        // 인증 코드 발송
+        await sendVerificationCode(email);
+        setPendingOtp(true);
         console.log("인증 코드 발송: 이메일로 6자리 인증 코드를 발송했습니다");
         setStep('otp');
       } else {
