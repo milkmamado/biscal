@@ -291,14 +291,6 @@ const Index = () => {
 
   return (
     <div className="h-screen bg-background p-1 overflow-hidden flex flex-col">
-      {/* Real Trading Header */}
-      <div className="flex items-center justify-between px-2 py-1 border-b border-border/50 mb-1">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5 px-3 py-1 rounded bg-green-500/20 border border-green-500/50">
-            <span className="text-sm font-bold text-green-400 tracking-wider">💰 實戰交易</span>
-          </div>
-        </div>
-      </div>
 
       {/* Main Content - iPad Mini 7 (768x1024) 최적화 */}
       <div className="flex-1 min-h-0 grid grid-cols-10 gap-1">
