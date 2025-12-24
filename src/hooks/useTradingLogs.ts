@@ -13,7 +13,6 @@ interface TradingLog {
   leverage: number;
   pnl_usd: number;
   created_at: string;
-  is_testnet: boolean;
 }
 
 interface DailyStats {
@@ -36,13 +35,7 @@ export interface DbTradeLog {
   pnlUsd: number;
 }
 
-interface UseTradingLogsOptions {
-  isTestnet?: boolean;
-}
-
-export const useTradingLogs = (options: UseTradingLogsOptions = {}) => {
-  const { isTestnet = false } = options;
-  
+export const useTradingLogs = () => {
   const [dailyStats, setDailyStats] = useState<DailyStats>({
     totalPnL: 0,
     tradeCount: 0,
@@ -77,14 +70,14 @@ export const useTradingLogs = (options: UseTradingLogsOptions = {}) => {
       }
 
       const today = getTodayDate();
-      console.log(`[TradingLogs] Fetching logs for ${today}, isTestnet: ${isTestnet}`);
+      console.log(`[TradingLogs] Fetching logs for ${today}`);
       
       const { data, error } = await supabase
         .from('daily_trading_logs')
         .select('*')
         .eq('user_id', user.id)
         .eq('trade_date', today)
-        .eq('is_testnet', isTestnet);
+        .eq('is_testnet', false);
 
       if (error) {
         console.error('Failed to fetch trading logs:', error);
@@ -140,7 +133,7 @@ export const useTradingLogs = (options: UseTradingLogsOptions = {}) => {
     } finally {
       setLoading(false);
     }
-  }, [isTestnet]);
+  }, []);
 
   // Log a completed trade
   const logTrade = useCallback(async (trade: {
@@ -170,7 +163,7 @@ export const useTradingLogs = (options: UseTradingLogsOptions = {}) => {
           quantity: trade.quantity,
           leverage: trade.leverage,
           pnl_usd: trade.pnlUsd,
-          is_testnet: isTestnet, // 테스트넷/실거래 구분
+          is_testnet: false,
         });
 
       if (error) {
@@ -194,7 +187,7 @@ export const useTradingLogs = (options: UseTradingLogsOptions = {}) => {
     } catch (error) {
       console.error('Error logging trade:', error);
     }
-  }, [isTestnet]);
+  }, []);
 
   // Reset daily stats (for new day)
   const resetDailyStats = useCallback(() => {

@@ -1,7 +1,6 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { fetchSymbolPrecision, roundQuantity, roundPrice } from '@/lib/binance';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/integrations/supabase/client';
 
 // VPS 직접 호출 (Edge Function 우회로 ~300ms 단축)
 const VPS_DIRECT_URL = 'https://api.biscal.me/api/direct';
@@ -40,67 +39,19 @@ export interface BinanceAccountInfo {
   positions: BinancePosition[];
 }
 
-interface UseBinanceApiOptions {
-  isTestnet?: boolean;
-}
-
-export const useBinanceApi = (options: UseBinanceApiOptions = {}) => {
-  const { isTestnet = false } = options;
-  
+export const useBinanceApi = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ipError, setIpError] = useState<string | null>(null);
   const [apiLatency, setApiLatency] = useState<number>(0);
   const latencyHistoryRef = useRef<number[]>([]);
   const { user } = useAuth();
-  
-  // 테스트넷 API 키 캐시
-  const [testnetKeys, setTestnetKeys] = useState<{ apiKey: string; apiSecret: string } | null>(null);
-  
-  // 테스트넷 모드일 때 DB에서 API 키 가져오기
-  useEffect(() => {
-    const fetchTestnetKeys = async () => {
-      if (!isTestnet || !user) {
-        setTestnetKeys(null);
-        return;
-      }
-      
-      try {
-        const { data } = await supabase
-          .from('user_api_keys')
-          .select('api_key, api_secret')
-          .eq('user_id', user.id)
-          .eq('is_testnet', true)
-          .maybeSingle();
-        
-        if (data?.api_key && data?.api_secret) {
-          setTestnetKeys({
-            apiKey: data.api_key,
-            apiSecret: data.api_secret,
-          });
-          console.log('[useBinanceApi] Testnet keys loaded');
-        } else {
-          setTestnetKeys(null);
-        }
-      } catch (err) {
-        console.error('[useBinanceApi] Failed to fetch testnet keys:', err);
-      }
-    };
-    
-    fetchTestnetKeys();
-  }, [isTestnet, user]);
 
   // VPS 직접 호출 (Edge Function 우회)
   const callVpsDirect = useCallback(async (action: string, params: Record<string, any> = {}): Promise<any> => {
     const startTime = performance.now();
     
-    // 테스트넷일 경우 API 키와 플래그 추가
     const body: Record<string, any> = { action, params };
-    if (isTestnet && testnetKeys) {
-      body.isTestnet = true;
-      body.testnetApiKey = testnetKeys.apiKey;
-      body.testnetApiSecret = testnetKeys.apiSecret;
-    }
     
     const response = await fetch(VPS_DIRECT_URL, {
       method: 'POST',
@@ -112,7 +63,7 @@ export const useBinanceApi = (options: UseBinanceApiOptions = {}) => {
     });
     
     const latency = Math.round(performance.now() - startTime);
-    console.log(`[VPS Direct${isTestnet ? ' TESTNET' : ''}] ${action}: ${latency}ms`);
+    console.log(`[VPS Direct] ${action}: ${latency}ms`);
     
     // 최근 10개 레이턴시의 평균 계산
     latencyHistoryRef.current.push(latency);
@@ -129,17 +80,11 @@ export const useBinanceApi = (options: UseBinanceApiOptions = {}) => {
     }
     
     return response.json();
-  }, [isTestnet, testnetKeys]);
+  }, []);
 
   const callBinanceApi = useCallback(async (action: string, params: Record<string, any> = {}, retryCount: number = 0): Promise<any> => {
     // Skip API call if user is not logged in
     if (!user) {
-      return null;
-    }
-    
-    // 테스트넷 모드인데 키가 아직 로드되지 않았으면 대기
-    if (isTestnet && !testnetKeys) {
-      console.log('[useBinanceApi] Waiting for testnet keys...');
       return null;
     }
     
@@ -196,7 +141,7 @@ export const useBinanceApi = (options: UseBinanceApiOptions = {}) => {
     } finally {
       setLoading(false);
     }
-  }, [user, callVpsDirect, isTestnet, testnetKeys]);
+  }, [user, callVpsDirect]);
 
   const getAccountInfo = useCallback(async (): Promise<BinanceAccountInfo> => {
     return callBinanceApi('getAccountInfo');
@@ -213,6 +158,7 @@ export const useBinanceApi = (options: UseBinanceApiOptions = {}) => {
   const getOpenOrders = useCallback(async (symbol?: string): Promise<any[]> => {
     return callBinanceApi('getOpenOrders', symbol ? { symbol } : {});
   }, [callBinanceApi]);
+
   const placeMarketOrder = useCallback(async (
     symbol: string,
     side: 'BUY' | 'SELL',
@@ -221,7 +167,7 @@ export const useBinanceApi = (options: UseBinanceApiOptions = {}) => {
     currentPrice?: number
   ) => {
     // Fetch precision and round quantity
-    const precision = await fetchSymbolPrecision(symbol, isTestnet);
+    const precision = await fetchSymbolPrecision(symbol);
     const roundedQuantity = roundQuantity(quantity, precision);
     
     // Validate minimum notional (skip for reduceOnly orders)
@@ -286,7 +232,7 @@ export const useBinanceApi = (options: UseBinanceApiOptions = {}) => {
     }
     
     return callBinanceApi('placeOrder', params);
-  }, [callBinanceApi, isTestnet]);
+  }, [callBinanceApi]);
 
   const placeLimitOrder = useCallback(async (
     symbol: string,
@@ -296,7 +242,7 @@ export const useBinanceApi = (options: UseBinanceApiOptions = {}) => {
     reduceOnly: boolean = false
   ) => {
     // Fetch precision and round quantity/price
-    const precision = await fetchSymbolPrecision(symbol, isTestnet);
+    const precision = await fetchSymbolPrecision(symbol);
     const roundedQuantity = roundQuantity(quantity, precision);
     const roundedPrice = roundPrice(price, precision);
     
@@ -322,7 +268,7 @@ export const useBinanceApi = (options: UseBinanceApiOptions = {}) => {
     }
     
     return callBinanceApi('placeOrder', params);
-  }, [callBinanceApi, isTestnet]);
+  }, [callBinanceApi]);
 
   // STOP_MARKET 주문 (손절용)
   const placeStopMarketOrder = useCallback(async (
@@ -331,7 +277,7 @@ export const useBinanceApi = (options: UseBinanceApiOptions = {}) => {
     quantity: number,
     stopPrice: number
   ) => {
-    const precision = await fetchSymbolPrecision(symbol, isTestnet);
+    const precision = await fetchSymbolPrecision(symbol);
     const roundedQuantity = roundQuantity(quantity, precision);
     const roundedStopPrice = roundPrice(stopPrice, precision);
     
@@ -347,7 +293,7 @@ export const useBinanceApi = (options: UseBinanceApiOptions = {}) => {
     };
     
     return callBinanceApi('placeOrder', params);
-  }, [callBinanceApi, isTestnet]);
+  }, [callBinanceApi]);
 
   // TAKE_PROFIT_MARKET 주문 (익절용)
   const placeTakeProfitMarketOrder = useCallback(async (
@@ -356,7 +302,7 @@ export const useBinanceApi = (options: UseBinanceApiOptions = {}) => {
     quantity: number,
     stopPrice: number
   ) => {
-    const precision = await fetchSymbolPrecision(symbol, isTestnet);
+    const precision = await fetchSymbolPrecision(symbol);
     const roundedQuantity = roundQuantity(quantity, precision);
     const roundedStopPrice = roundPrice(stopPrice, precision);
     
@@ -372,7 +318,7 @@ export const useBinanceApi = (options: UseBinanceApiOptions = {}) => {
     };
     
     return callBinanceApi('placeOrder', params);
-  }, [callBinanceApi, isTestnet]);
+  }, [callBinanceApi]);
 
   const cancelOrder = useCallback(async (symbol: string, orderId: number) => {
     return callBinanceApi('cancelOrder', { symbol, orderId });
@@ -395,11 +341,6 @@ export const useBinanceApi = (options: UseBinanceApiOptions = {}) => {
     async (startTime: number, endTime?: number, incomeType?: string) => {
       // Skip API call if user is not logged in
       if (!user) {
-        return null;
-      }
-      
-      // 테스트넷 모드인데 키가 아직 로드되지 않았으면 대기
-      if (isTestnet && !testnetKeys) {
         return null;
       }
 
@@ -462,7 +403,7 @@ export const useBinanceApi = (options: UseBinanceApiOptions = {}) => {
         setLoading(false);
       }
     },
-    [user, callVpsDirect, isTestnet, testnetKeys]
+    [user, callVpsDirect]
   );
 
   return {
@@ -470,7 +411,6 @@ export const useBinanceApi = (options: UseBinanceApiOptions = {}) => {
     error,
     ipError,
     apiLatency,
-    isTestnetReady: !isTestnet || !!testnetKeys,
     callBinanceApi,
     getAccountInfo,
     getBalances,

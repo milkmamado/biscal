@@ -13,7 +13,7 @@ import ApiKeySetup from '@/components/ApiKeySetup';
 import TradingSettingsPanel from '@/components/TradingSettingsPanel';
 import TradingLogsPanel from '@/components/TradingLogsPanel';
 import { Button } from '@/components/ui/button';
-import { FlaskConical } from 'lucide-react';
+
 import { toast } from 'sonner';
 import { getScreeningLogs, ScreeningLog } from '@/components/ScreeningLogPanel';
 import { LIMIT_ORDER_CONFIG } from '@/lib/limitOrderConfig';
@@ -52,11 +52,11 @@ const Index = () => {
 
   const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
-  const { dailyStats, dbTradeLogs, logTrade, fetchDailyStats } = useTradingLogs({ isTestnet: false });
+  const { dailyStats, dbTradeLogs, logTrade, fetchDailyStats } = useTradingLogs();
   
   // Only connect WebSocket when user is authenticated and API keys are ready
   const shouldConnectWebSocket = !!user && hasApiKeys === true;
-  const { tickers } = useTickerWebSocket(shouldConnectWebSocket, { isTestnet: false });
+  const { tickers } = useTickerWebSocket(shouldConnectWebSocket);
   
   // 청산 후 즉시 잔고 갱신
   const handleTradeComplete = useCallback(() => {
@@ -80,7 +80,6 @@ const Index = () => {
     onTradeComplete: handleTradeComplete,
     initialStats,
     logTrade,
-    isTestnet: false,
     majorCoinMode,
     filterSettings: {
       adxEnabled: adxFilterEnabled,
@@ -297,15 +296,6 @@ const Index = () => {
             <span className="text-sm font-bold text-green-400 tracking-wider">💰 實戰交易</span>
           </div>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => navigate('/paper-trading')}
-          className="gap-1 h-7 px-2 border-amber-500/50 text-amber-400 hover:bg-amber-500/10"
-        >
-          <FlaskConical className="h-3 w-3" />
-          모의거래
-        </Button>
       </div>
 
       {/* Main Content - iPad Mini 7 (768x1024) 최적화 */}
@@ -356,7 +346,6 @@ const Index = () => {
             }}
             onPassSignal={passSignal}
             onTogglePause={togglePause}
-            isTestnet={false}
             majorCoinMode={majorCoinMode}
             onToggleMajorCoinMode={() => setMajorCoinMode(prev => !prev)}
             onToggleAiAnalysis={autoTrading.toggleAiAnalysis}
