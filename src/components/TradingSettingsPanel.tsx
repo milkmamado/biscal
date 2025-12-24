@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
 import { Input } from '@/components/ui/input';
@@ -54,6 +54,41 @@ export function TradingSettingsPanel({
   isAutoTradingEnabled,
 }: TradingSettingsProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
+  
+  // 로컬 입력 상태 (Enter나 blur 시에만 실제 적용)
+  const [localStopLoss, setLocalStopLoss] = useState(String(stopLossUsdt));
+  const [localTakeProfit, setLocalTakeProfit] = useState(String(takeProfitUsdt));
+  
+  // props 변경 시 로컬 상태 동기화 (버튼 클릭 등)
+  useEffect(() => {
+    setLocalStopLoss(String(stopLossUsdt));
+  }, [stopLossUsdt]);
+  
+  useEffect(() => {
+    setLocalTakeProfit(String(takeProfitUsdt));
+  }, [takeProfitUsdt]);
+  
+  // 손절 적용 함수
+  const applyStopLoss = () => {
+    const value = Number(localStopLoss);
+    if (!isNaN(value) && value >= 0.1) {
+      onStopLossChange(value);
+    } else {
+      // 유효하지 않으면 이전 값으로 복원
+      setLocalStopLoss(String(stopLossUsdt));
+    }
+  };
+  
+  // 익절 적용 함수
+  const applyTakeProfit = () => {
+    const value = Number(localTakeProfit);
+    if (!isNaN(value) && value >= 0.1) {
+      onTakeProfitChange(value);
+    } else {
+      // 유효하지 않으면 이전 값으로 복원
+      setLocalTakeProfit(String(takeProfitUsdt));
+    }
+  };
 
   return (
     <div 
@@ -200,13 +235,18 @@ export function TradingSettingsPanel({
                 <Label className="text-[10px] text-muted-foreground whitespace-nowrap">손절 금액</Label>
                 <div className="flex-1 flex items-center gap-1">
                   <Input
-                    type="number"
-                    value={stopLossUsdt}
-                    onChange={(e) => onStopLossChange(Number(e.target.value))}
+                    type="text"
+                    inputMode="decimal"
+                    value={localStopLoss}
+                    onChange={(e) => setLocalStopLoss(e.target.value)}
+                    onBlur={applyStopLoss}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        applyStopLoss();
+                        (e.target as HTMLInputElement).blur();
+                      }
+                    }}
                     className="h-7 text-[10px] text-right font-mono bg-background/50"
-                    min={1}
-                    max={100}
-                    step={1}
                   />
                   <span className="text-[10px] text-muted-foreground">USDT</span>
                 </div>
@@ -242,13 +282,18 @@ export function TradingSettingsPanel({
               <Label className="text-[10px] text-muted-foreground whitespace-nowrap">목표 수익</Label>
               <div className="flex-1 flex items-center gap-1">
                 <Input
-                  type="number"
-                  value={takeProfitUsdt}
-                  onChange={(e) => onTakeProfitChange(Number(e.target.value))}
+                  type="text"
+                  inputMode="decimal"
+                  value={localTakeProfit}
+                  onChange={(e) => setLocalTakeProfit(e.target.value)}
+                  onBlur={applyTakeProfit}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      applyTakeProfit();
+                      (e.target as HTMLInputElement).blur();
+                    }
+                  }}
                   className="h-7 text-[10px] text-right font-mono bg-background/50"
-                  min={1}
-                  max={100}
-                  step={1}
                 />
                 <span className="text-[10px] text-muted-foreground">USDT</span>
               </div>
