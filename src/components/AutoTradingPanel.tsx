@@ -668,11 +668,18 @@ const AutoTradingPanel = ({
                   )}
                 </span>
               </div>
-              <span className="text-xs lg:text-sm font-bold font-mono" style={{
-                color: currentPnL >= 0 ? '#00ff88' : '#ff0088',
-              }}>
-                {currentPnL >= 0 ? '+' : ''}₩{formatKRW(currentPnL)}
-              </span>
+              <div className="text-right">
+                <div className="text-xs lg:text-sm font-bold font-mono" style={{
+                  color: currentPnL >= 0 ? '#00ff88' : '#ff0088',
+                }}>
+                  {currentPnL >= 0 ? '+' : ''}{currentPnL.toFixed(2)} USDT
+                </div>
+                <div className="text-[9px] lg:text-[10px] font-mono" style={{
+                  color: currentPnL >= 0 ? 'rgba(0, 255, 136, 0.7)' : 'rgba(255, 0, 136, 0.7)',
+                }}>
+                  ({currentPnL >= 0 ? '+' : ''}₩{formatKRW(currentPnL)})
+                </div>
+              </div>
             </div>
             <div className="flex items-center justify-between text-[9px] lg:text-[10px] text-gray-400">
               <span>평단가: ${formatPrice(currentPosition.avgPrice)}</span>
