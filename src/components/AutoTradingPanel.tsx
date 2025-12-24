@@ -112,7 +112,7 @@ const AutoTradingPanel = ({
 }: AutoTradingPanelProps) => {
   const { isEnabled, isProcessing, currentPosition, pendingSignal, todayStats, tradeLogs, aiAnalysis, isAiAnalyzing, aiEnabled } = state;
   const { user, signOut } = useAuth();
-  const { getBalances, getIncomeHistory, getOpenOrders, cancelOrder, cancelAllOrders } = useBinanceApi({ isTestnet });
+  const { getBalances, getIncomeHistory, getOpenOrders, cancelOrder, cancelAllOrders } = useBinanceApi();
   
   const handleSignOut = async () => {
     await signOut();

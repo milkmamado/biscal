@@ -285,8 +285,7 @@ export function useAutoTrading({
     getPositions,
     cancelAllOrders,
     setLeverage,
-    isTestnetReady,
-  } = useBinanceApi({ isTestnet });
+  } = useBinanceApi();
 
   // 🆕 메이저 코인 모드에 따른 동적 설정
   const tradingConfig = getTradingConfig(majorCoinMode);
@@ -1237,7 +1236,7 @@ export function useAutoTrading({
       const atrPercent = (indicators.atr / currentPrice) * 100;
       const rawQty = calculateDynamicPositionSize(balanceUSD, leverage, currentPrice, atrPercent);
 
-      const precision = await fetchSymbolPrecision(symbol, isTestnet);
+      const precision = await fetchSymbolPrecision(symbol);
       const quantity = roundQuantity(rawQty, precision);
       console.log(`[executeEntry] rawQty=${rawQty.toFixed(4)} → quantity=${quantity} (stepSize=${precision.stepSize}, qtyPrec=${precision.quantityPrecision})`);
 

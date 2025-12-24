@@ -181,7 +181,7 @@ export function useLimitOrderTrading({
     setLeverage,
     cancelAllOrders,
     getOpenOrders,
-  } = useBinanceApi({ isTestnet });
+  } = useBinanceApi();
   
   const { analysis: aiAnalysisResult, isAnalyzing: isAiAnalyzing } = useMarketAnalysis({ 
     mode: majorCoinMode ? 'MAJOR' : 'ALTCOIN' 
@@ -622,7 +622,7 @@ export function useLimitOrderTrading({
     setState(prev => ({ ...prev, isProcessing: true }));
 
     try {
-      const precision = await fetchSymbolPrecision(position.symbol, isTestnet);
+      const precision = await fetchSymbolPrecision(position.symbol);
       const orderSide = position.side === 'long' ? 'SELL' : 'BUY';
       
       // 1차 익절: 20% 시장가 청산
@@ -861,7 +861,7 @@ export function useLimitOrderTrading({
 
     try {
       // 정밀도 조회
-      const precision = await fetchSymbolPrecision(symbol, isTestnet);
+      const precision = await fetchSymbolPrecision(symbol);
       
       // 레버리지 설정 (실패 시 단계적으로 낮춤)
       let appliedLeverage = leverage;
@@ -1536,7 +1536,7 @@ export function useLimitOrderTrading({
 
     try {
       initAudio();
-      const precision = await fetchSymbolPrecision(symbol, isTestnet);
+      const precision = await fetchSymbolPrecision(symbol);
       
       // 레버리지 설정 (중요!)
       let appliedLeverage = leverage;
@@ -1787,7 +1787,7 @@ export function useLimitOrderTrading({
       initAudio();
       
       // 심볼 정밀도 조회
-      const precision = await fetchSymbolPrecision(symbol, isTestnet);
+      const precision = await fetchSymbolPrecision(symbol);
       
       // 레버리지 설정 (중요!)
       let appliedLeverage = leverage;

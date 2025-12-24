@@ -40,28 +40,21 @@ export interface SymbolPrecision {
 // Cache for symbol precision info
 const symbolPrecisionCache: Map<string, SymbolPrecision> = new Map();
 
-// Fetch symbol precision info (with testnet support)
-export async function fetchSymbolPrecision(symbol: string, isTestnet: boolean = false): Promise<SymbolPrecision> {
-  const cacheKey = `${symbol}-${isTestnet ? 'testnet' : 'mainnet'}`;
-  
+// Fetch symbol precision info
+export async function fetchSymbolPrecision(symbol: string): Promise<SymbolPrecision> {
   // Check cache first
-  if (symbolPrecisionCache.has(cacheKey)) {
-    return symbolPrecisionCache.get(cacheKey)!;
+  if (symbolPrecisionCache.has(symbol)) {
+    return symbolPrecisionCache.get(symbol)!;
   }
 
-  // 테스트넷과 메인넷 URL 구분
-  const baseUrl = isTestnet 
-    ? 'https://testnet.binancefuture.com'
-    : BASE_URL;
-
   try {
-    const response = await fetch(`${baseUrl}/fapi/v1/exchangeInfo`);
+    const response = await fetch(`${BASE_URL}/fapi/v1/exchangeInfo`);
     const data = await response.json();
     
     const symbolInfo = data.symbols.find((s: any) => s.symbol === symbol);
     
     if (!symbolInfo) {
-      console.warn(`[fetchSymbolPrecision] ${symbol} not found on ${isTestnet ? 'testnet' : 'mainnet'}`);
+      console.warn(`[fetchSymbolPrecision] ${symbol} not found`);
       // Return with notFound flag
       return {
         symbol,
@@ -92,10 +85,10 @@ export async function fetchSymbolPrecision(symbol: string, isTestnet: boolean = 
       minNotional: parseFloat(minNotionalFilter?.notional || '5'),
     };
 
-    console.log(`[fetchSymbolPrecision] ${symbol} (${isTestnet ? 'testnet' : 'mainnet'}): qtyPrec=${precision.quantityPrecision}, stepSize=${precision.stepSize}`);
+    console.log(`[fetchSymbolPrecision] ${symbol}: qtyPrec=${precision.quantityPrecision}, stepSize=${precision.stepSize}`);
 
     // Cache the result
-    symbolPrecisionCache.set(cacheKey, precision);
+    symbolPrecisionCache.set(symbol, precision);
 
     return precision;
   } catch (error) {
