@@ -1781,6 +1781,8 @@ export function useLimitOrderTrading({
   const prevSlTpRef = useRef<{ sl: number; tp: number } | null>(null);
   
   useEffect(() => {
+    let isMounted = true;
+    
     const currentSl = filterSettings?.stopLossUsdt ?? 7;
     const currentTp = filterSettings?.takeProfitUsdt ?? 7;
     
@@ -1816,11 +1818,18 @@ export function useLimitOrderTrading({
         console.log(`🚫 [SL/TP 업데이트] ${position.symbol} 기존 SL/TP 주문 취소 중...`);
         await cancelAllOrders(position.symbol);
         
+        if (!isMounted) return;
+        
         // 잠시 대기 (취소 반영)
         await new Promise(resolve => setTimeout(resolve, 300));
         
+        if (!isMounted) return;
+        
         // 실제 포지션 조회
         const positions = await getPositions(position.symbol);
+        
+        if (!isMounted) return;
+        
         const actualPosition = positions?.find((p: any) =>
           p.symbol === position.symbol && Math.abs(parseFloat(p.positionAmt)) > 0
         );
@@ -1855,7 +1864,7 @@ export function useLimitOrderTrading({
         // 새 STOP_MARKET 주문
         try {
           const slResult = await placeStopMarketOrder(position.symbol, closeSide, qty, slPrice);
-          if (slResult && !slResult.error) {
+          if (isMounted && slResult && !slResult.error) {
             console.log(`✅ [STOP_MARKET] 재설정 완료! 손절가=${slPrice.toFixed(4)}`);
             toast.success(`🛑 손절가 변경: $${slPrice.toFixed(2)}`);
           }
@@ -1863,16 +1872,20 @@ export function useLimitOrderTrading({
           console.warn(`❌ STOP_MARKET 재설정 실패:`, slError?.message);
         }
         
+        if (!isMounted) return;
+        
         // 새 TAKE_PROFIT_MARKET 주문
         try {
           const tpResult = await placeTakeProfitMarketOrder(position.symbol, closeSide, qty, tpPrice);
-          if (tpResult && !tpResult.error) {
+          if (isMounted && tpResult && !tpResult.error) {
             console.log(`✅ [TAKE_PROFIT_MARKET] 재설정 완료! 익절가=${tpPrice.toFixed(4)}`);
             toast.success(`💰 익절가 변경: $${tpPrice.toFixed(2)}`);
           }
         } catch (tpError: any) {
           console.warn(`❌ TAKE_PROFIT_MARKET 재설정 실패:`, tpError?.message);
         }
+        
+        if (!isMounted) return;
         
         // 포지션 상태에 새 손절가 저장
         setState(prev => {
@@ -1889,11 +1902,17 @@ export function useLimitOrderTrading({
         
       } catch (error: any) {
         console.error('[SL/TP 업데이트 오류]', error);
-        toast.error('SL/TP 업데이트 실패');
+        if (isMounted) {
+          toast.error('SL/TP 업데이트 실패');
+        }
       }
     };
     
     updateSlTpOrders();
+    
+    return () => {
+      isMounted = false;
+    };
   }, [filterSettings?.stopLossUsdt, filterSettings?.takeProfitUsdt, cancelAllOrders, getPositions, placeStopMarketOrder, placeTakeProfitMarketOrder]);
 
   // ===== Cleanup =====
