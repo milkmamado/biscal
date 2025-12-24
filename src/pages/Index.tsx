@@ -332,6 +332,8 @@ const Index = () => {
             krwRate={krwRate}
             leverage={leverage}
             onLeverageChange={setLeverage}
+            splitCount={splitCount}
+            onSplitCountChange={setSplitCount}
             onSelectSymbol={setSelectedSymbol}
             onBalanceChange={handleBalanceChange}
             refreshTrigger={refreshTrigger}

@@ -59,6 +59,8 @@ interface AutoTradingPanelProps {
   krwRate: number;
   leverage: number;
   onLeverageChange: (leverage: number) => void;
+  splitCount: 1 | 5 | 10;
+  onSplitCountChange: (count: 1 | 5 | 10) => void;
   onSelectSymbol?: (symbol: string) => void;
   onBalanceChange?: (balance: number) => void;
   refreshTrigger?: number;
@@ -75,9 +77,9 @@ interface AutoTradingPanelProps {
   majorCoinMode?: boolean;
   onToggleMajorCoinMode?: () => void;
   onToggleAiAnalysis?: () => void;
-  onAnalyzeAI?: () => void; // AI 분석 버튼 클릭 콜백
-  viewingSymbol?: string; // 호가창에 표시할 종목
-  onOpenOrdersChange?: (orders: { orderId: number; price: number; side: 'BUY' | 'SELL'; origQty: number; executedQty: number; }[]) => void; // 미체결 주문 변경 콜백
+  onAnalyzeAI?: () => void;
+  viewingSymbol?: string;
+  onOpenOrdersChange?: (orders: { orderId: number; price: number; side: 'BUY' | 'SELL'; origQty: number; executedQty: number; }[]) => void;
 }
 
 const AutoTradingPanel = ({ 
@@ -95,6 +97,8 @@ const AutoTradingPanel = ({
   krwRate,
   leverage,
   onLeverageChange,
+  splitCount,
+  onSplitCountChange,
   onSelectSymbol,
   onBalanceChange,
   refreshTrigger = 0,
@@ -135,7 +139,6 @@ const AutoTradingPanel = ({
     status: string;
   }
   const [openOrders, setOpenOrders] = useState<OpenOrder[]>([]);
-  const [splitCount, setSplitCount] = useState<1 | 5 | 10>(5);
   const activeSymbol = useMemo(
     () => state.currentSymbol || viewingSymbol || 'BTCUSDT',
     [state.currentSymbol, viewingSymbol]
