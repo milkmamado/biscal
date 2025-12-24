@@ -75,6 +75,7 @@ interface AutoTradingPanelProps {
   majorCoinMode?: boolean;
   onToggleMajorCoinMode?: () => void;
   onToggleAiAnalysis?: () => void;
+  onAnalyzeAI?: () => void; // AI 분석 버튼 클릭 콜백
   viewingSymbol?: string; // 호가창에 표시할 종목
   onOpenOrdersChange?: (orders: { orderId: number; price: number; side: 'BUY' | 'SELL'; origQty: number; executedQty: number; }[]) => void; // 미체결 주문 변경 콜백
 }
@@ -101,6 +102,7 @@ const AutoTradingPanel = ({
   majorCoinMode = false,
   onToggleMajorCoinMode,
   onToggleAiAnalysis,
+  onAnalyzeAI,
   viewingSymbol,
   onPassSignal,
   onTogglePause,
@@ -754,6 +756,7 @@ const AutoTradingPanel = ({
         aiAnalysis={aiAnalysis}
         aiEnabled={aiEnabled}
         isAiAnalyzing={isAiAnalyzing}
+        onAnalyzeAI={onAnalyzeAI}
         onMarketEntry={(side) => {
           console.log('📌 [AutoTradingPanel] onMarketEntry 호출:', side, splitCount);
           onMarketEntry?.(activeSymbol, side, splitCount);

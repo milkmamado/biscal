@@ -41,6 +41,7 @@ interface OrderBookProps {
   onMarketClose?: () => void;
   onCancelOrder?: (orderId: number) => Promise<void>;
   onCancelAllOrders?: () => Promise<void>;
+  onAnalyzeAI?: () => void; // AI 분석 버튼 클릭 콜백
   openOrders?: OpenOrder[];
   hasPosition?: boolean;
   aiAnalysis?: AIAnalysis | null;
@@ -77,6 +78,7 @@ export function OrderBook({
   onMarketClose,
   onCancelOrder,
   onCancelAllOrders,
+  onAnalyzeAI,
   openOrders = [],
   hasPosition = false,
   aiAnalysis = null,
@@ -517,8 +519,14 @@ export function OrderBook({
               const confidenceText = aiAnalysis ? ` ${aiAnalysis.confidence}%` : '';
 
               return (
-                <div 
-                  className="flex items-center gap-0.5 ml-2 px-1.5 py-0.5 rounded cursor-help"
+                <button 
+                  onClick={() => {
+                    if (!isAiAnalyzing && onAnalyzeAI) {
+                      onAnalyzeAI();
+                    }
+                  }}
+                  disabled={isAiAnalyzing}
+                  className="flex items-center gap-0.5 ml-2 px-1.5 py-0.5 rounded cursor-pointer hover:opacity-80 active:scale-95 transition-all disabled:cursor-wait"
                   style={{
                     background: style.bg,
                     border: `1px solid ${style.border}`,
@@ -526,8 +534,8 @@ export function OrderBook({
                   title={isAiAnalyzing 
                     ? 'AI 분석 중...' 
                     : aiAnalysis 
-                      ? `AI: ${aiAnalysis.marketCondition} (${aiAnalysis.confidence}% 신뢰도)\n추천: ${aiAnalysis.recommendation}` 
-                      : 'AI 분석 대기'}
+                      ? `AI: ${aiAnalysis.marketCondition} (${aiAnalysis.confidence}% 신뢰도)\n추천: ${aiAnalysis.recommendation}\n클릭하여 재분석` 
+                      : '클릭하여 AI 분석 시작'}
                 >
                   {isAiAnalyzing ? (
                     <div className="w-3 h-3 border border-cyan-400 border-t-transparent rounded-full animate-spin" />
@@ -545,7 +553,7 @@ export function OrderBook({
                   <span className="text-[7px] font-bold" style={{ color: style.color }}>
                     {style.label}{confidenceText}
                   </span>
-                </div>
+                </button>
               );
             })()}
 
