@@ -29,6 +29,7 @@ export interface MarketAnalysisResult {
 interface UseMarketAnalysisProps {
   mode: TradingMode;
   enabled?: boolean;
+  showToasts?: boolean; // 토스트 알림 표시 여부 (자동매매 켜진 경우에만 true)
 }
 
 interface MarketDataForAI {
@@ -46,7 +47,7 @@ interface MarketDataForAI {
   recentTrades?: { pnl: number; symbol: string; side: string }[];
 }
 
-export function useMarketAnalysis({ mode, enabled = true }: UseMarketAnalysisProps) {
+export function useMarketAnalysis({ mode, enabled = true, showToasts = false }: UseMarketAnalysisProps) {
   const [analysis, setAnalysis] = useState<MarketAnalysisResult | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [dynamicConfig, setDynamicConfig] = useState<TradingConfig>(getBaseConfig(mode));
@@ -180,15 +181,17 @@ export function useMarketAnalysis({ mode, enabled = true }: UseMarketAnalysisPro
     );
     setDynamicConfig(newConfig);
     
-    // 경고 표시
-    if (result.warnings.length > 0 && result.recommendation === 'STOP') {
-      toast.warning('⚠️ AI 분석: 거래 중지 권장', {
-        description: result.warnings[0],
-      });
-    } else if (result.recommendation === 'CONSERVATIVE') {
-      toast.info('📉 AI 분석: 보수적 거래 권장', {
-        description: result.reasoning,
-      });
+    // 경고 표시 (자동매매 중일 때만)
+    if (showToasts) {
+      if (result.warnings.length > 0 && result.recommendation === 'STOP') {
+        toast.warning('⚠️ AI 분석: 거래 중지 권장', {
+          description: result.warnings[0],
+        });
+      } else if (result.recommendation === 'CONSERVATIVE') {
+        toast.info('📉 AI 분석: 보수적 거래 권장', {
+          description: result.reasoning,
+        });
+      }
     }
   }, [mode]);
 
