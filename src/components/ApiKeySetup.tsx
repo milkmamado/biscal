@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { useToast } from '@/hooks/use-toast';
+
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Key, Eye, EyeOff, CheckCircle, AlertCircle, ExternalLink, LogOut } from 'lucide-react';
@@ -22,7 +22,7 @@ const ApiKeySetup = ({ onComplete }: ApiKeySetupProps) => {
   const [hasKeys, setHasKeys] = useState(false);
   const [showSetupForm, setShowSetupForm] = useState(false);
   const { user, signOut } = useAuth();
-  const { toast } = useToast();
+  
 
   const handleLogout = async () => {
     await signOut();
@@ -56,20 +56,12 @@ const ApiKeySetup = ({ onComplete }: ApiKeySetupProps) => {
 
   const validateAndSaveKeys = async () => {
     if (!apiKey.trim() || !apiSecret.trim()) {
-      toast({
-        title: '입력 오류',
-        description: 'API Key와 Secret Key를 모두 입력해주세요.',
-        variant: 'destructive',
-      });
+      console.log('입력 오류: API Key와 Secret Key를 모두 입력해주세요.');
       return;
     }
 
     if (!user) {
-      toast({
-        title: '인증 오류',
-        description: '로그인이 필요합니다.',
-        variant: 'destructive',
-      });
+      console.log('인증 오류: 로그인이 필요합니다.');
       return;
     }
 
@@ -113,10 +105,7 @@ const ApiKeySetup = ({ onComplete }: ApiKeySetupProps) => {
         throw new Error(data?.error || 'API 연결 테스트 실패');
       }
 
-      toast({
-        title: '✅ API 연동 성공',
-        description: '바이낸스 계정이 연결되었습니다.',
-      });
+      console.log('✅ API 연동 성공: 바이낸스 계정이 연결되었습니다.');
 
       setHasKeys(true);
       setShowSetupForm(false);
@@ -125,11 +114,7 @@ const ApiKeySetup = ({ onComplete }: ApiKeySetupProps) => {
       onComplete();
     } catch (error: any) {
       console.error('API key save error:', error);
-      toast({
-        title: 'API 연동 실패',
-        description: error.message || '유효하지 않은 API Key입니다. 권한을 확인해주세요.',
-        variant: 'destructive',
-      });
+      console.error('API 연동 실패:', error.message || '유효하지 않은 API Key입니다. 권한을 확인해주세요.');
     } finally {
       setIsLoading(false);
     }
