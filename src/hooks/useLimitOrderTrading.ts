@@ -193,6 +193,28 @@ export function useLimitOrderTrading({
     }));
   }, [aiAnalysisResult, isAiAnalyzing]);
 
+  // 시그널 발생 시 즉시 AI 분석 실행
+  const lastAnalyzedSymbolRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!state.aiEnabled || !state.isEnabled) return;
+    if (!state.pendingSignal) return;
+    
+    const { symbol, indicators, signalPrice } = state.pendingSignal;
+    
+    // 같은 종목 중복 분석 방지
+    if (lastAnalyzedSymbolRef.current === symbol) return;
+    lastAnalyzedSymbolRef.current = symbol;
+    
+    console.log(`[AI분석] 시그널 감지 → ${symbol} 분석 시작`);
+    analyzeMarket(symbol, indicators, signalPrice, 0, 0)
+      .then(result => {
+        if (result) {
+          console.log(`[AI분석] ${symbol} 결과: ${result.marketCondition} (${result.confidence}%)`);
+        }
+      })
+      .catch(err => console.warn('[AI분석] 실패:', err));
+  }, [state.pendingSignal, state.aiEnabled, state.isEnabled, analyzeMarket]);
+
   // 초기 통계 업데이트
   useEffect(() => {
     if (initialStats) {
@@ -822,17 +844,7 @@ export function useLimitOrderTrading({
 
     console.log(`🎯 [시그널] ${symbol} ${direction} (${strength})${filterStatus}`);
     
-    // AI 분석 실행 (활성화된 경우)
-    if (state.aiEnabled) {
-      // 비동기로 AI 분석 실행 (시그널 표시는 바로 진행)
-      analyzeMarket(
-        symbol,
-        indicators,
-        price,
-        0, // priceChange24h - 별도 API 필요하므로 0으로 전달
-        0  // volume24h - 별도 API 필요하므로 0으로 전달
-      ).catch(err => console.warn('[AI분석] 실패:', err));
-    }
+    // AI 분석은 useEffect에서 pendingSignal 변경 시 자동 실행됨
     
     // 시그널만 표시 (자동 진입 없음 - 수동 진입용)
     setState(prev => ({
@@ -849,7 +861,7 @@ export function useLimitOrderTrading({
       statusMessage: `🎯 ${symbol.replace('USDT', '')} ${direction === 'long' ? '롱' : '숏'} 시그널 (${strength})`,
     }));
 
-  }, [state.isEnabled, state.currentPosition, state.pendingSignal, state.aiEnabled, user, balanceUSD, analyzeMarket]);
+  }, [state.isEnabled, state.currentPosition, state.pendingSignal, user, balanceUSD]);
 
   // ===== 수동 청산 =====
   const manualClosePosition = useCallback(async () => {
