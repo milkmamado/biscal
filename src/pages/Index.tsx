@@ -14,7 +14,7 @@ import TradingSettingsPanel from '@/components/TradingSettingsPanel';
 import TradingLogsPanel from '@/components/TradingLogsPanel';
 import { Button } from '@/components/ui/button';
 
-import { toast } from 'sonner';
+
 import { getScreeningLogs, ScreeningLog } from '@/components/ScreeningLogPanel';
 import { LIMIT_ORDER_CONFIG } from '@/lib/limitOrderConfig';
 
