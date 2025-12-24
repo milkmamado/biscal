@@ -1,11 +1,12 @@
 /**
- * ⚡ 2단계 진입 전략 매매 훅 v2.1
+ * ⚡ 분할 매매 훅 v3.0
  * 
  * 특징:
- * 1. 1차: 50% 지정가 진입
- * 2. 2차: 1차 체결 시 50% 시장가 즉시 진입
- * 3. 미체결 문제 해결 & 빠른 회전
- * 4. 실거래 전용 (테스트넷 제거됨)
+ * 1. 자동매매: 시그널 스캔 전용 (종목 탐지)
+ * 2. 수동 진입: 분할 시장가 / 분할 지정가
+ * 3. 레버리지 1x/5x/10x, 분할 1/5/10 선택 가능
+ * 4. 바이낸스 SL/TP 주문 연동
+ * 5. 실거래 전용
  */
 
 import { useState, useCallback, useEffect, useRef } from 'react';
@@ -20,13 +21,6 @@ import {
   LIMIT_ORDER_CONFIG,
   LimitOrderEntry,
   LimitOrderPosition,
-  generateFirstEntryPrice,
-  generateTakeProfitPrices,
-  calculateFillRatio,
-  calculateAvgFillPrice,
-  calculatePnLPercent,
-  calculateStopLossPrice,
-  shouldStopLoss,
   shouldTimeStop,
 } from '@/lib/limitOrderConfig';
 
@@ -210,10 +204,7 @@ export function useLimitOrderTrading({
 
   const processingRef = useRef(false);
   const lastEntryTimeRef = useRef(0);
-  const entryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const tpTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const currentPositionRef = useRef<LimitOrderPosition | null>(null);
-  const checkEntryFillRef = useRef<(symbol: string, side: 'long' | 'short', isPartialWait?: boolean) => Promise<void>>();
   const lastSyncedPositionRef = useRef<string | null>(null);
 
   // currentPosition을 ref로 동기화
@@ -423,10 +414,7 @@ export function useLimitOrderTrading({
         initAudio();
         toast.success(`⚡ 지정가 빠른 회전 매매 시작`);
       } else {
-        toast.info('지정가 매매 중지');
-        // 타이머 정리
-        if (entryTimeoutRef.current) clearTimeout(entryTimeoutRef.current);
-        if (tpTimeoutRef.current) clearTimeout(tpTimeoutRef.current);
+        toast.info('시그널 스캔 중지');
       }
       return {
         ...prev,
@@ -609,163 +597,6 @@ export function useLimitOrderTrading({
     }
   }, [state.currentPosition, placeMarketOrder, getPositions, cancelPendingOrders, krwRate, leverage, addLog, onTradeComplete, logTrade]);
 
-  // ===== 1차 익절 후 4분할 TP 배치 =====
-  const executeFirstTakeProfit = useCallback(async (
-    currentPrice: number
-  ) => {
-    const position = currentPositionRef.current;
-    if (!position || position.entryPhase !== 'active') return;
-    if (processingRef.current) return;
-
-    processingRef.current = true;
-    setState(prev => ({ ...prev, isProcessing: true }));
-
-    try {
-      const precision = await fetchSymbolPrecision(position.symbol);
-      const orderSide = position.side === 'long' ? 'SELL' : 'BUY';
-      
-      // 1차 익절: 20% 시장가 청산
-      const firstTpQty = roundQuantity(position.filledQuantity * 0.2, precision);
-      
-      console.log(`💰 [1차익절] ${position.symbol} 시장가 ${firstTpQty} 청산`);
-      const firstTpResult = await placeMarketOrder(position.symbol, orderSide, firstTpQty, true, currentPrice);
-      
-      if (!firstTpResult || firstTpResult.error) {
-        console.error('1차 익절 실패:', firstTpResult?.error);
-        // 실패해도 계속 진행
-      } else {
-        playTpSound();
-        const pnlKRW = Math.round((currentPrice - position.avgPrice) * (position.side === 'long' ? 1 : -1) * firstTpQty * krwRate);
-        toast.success(`💰 1차 익절! +₩${pnlKRW.toLocaleString()}`);
-      }
-
-      // 잔량 확인
-      await new Promise(resolve => setTimeout(resolve, 500));
-      const positions = await getPositions(position.symbol);
-      const actualPosition = positions?.find((p: any) =>
-        p.symbol === position.symbol && Math.abs(parseFloat(p.positionAmt)) > 0
-      );
-
-      if (!actualPosition) {
-        // 전량 청산됨
-        console.log(`✅ [익절완료] ${position.symbol} 전량 청산됨`);
-        setState(prev => ({
-          ...prev,
-          currentPosition: null,
-          currentSymbol: null,
-          statusMessage: '🔍 다음 시그널 대기...',
-        }));
-        processingRef.current = false;
-        setState(prev => ({ ...prev, isProcessing: false }));
-        return;
-      }
-
-      const remainQty = Math.abs(parseFloat(actualPosition.positionAmt));
-      const avgPrice = parseFloat(actualPosition.entryPrice);
-      console.log(`📊 [잔량] ${position.symbol} 잔량 ${remainQty} → 4분할 TP 배치`);
-
-      // 나머지 4분할 지정가 TP 배치
-      const targetProfitUsdt = filterSettings?.takeProfitUsdt ?? 7;
-      const profitStepUsdt = 3; // $3 간격으로 분할
-      const roundTripFeePercent = LIMIT_ORDER_CONFIG.MAKER_FEE * 2 / 100;
-      const tpOrders: LimitOrderEntry[] = [];
-      const splitCount = 4;
-      const splitQty = roundQuantity(remainQty / splitCount, precision);
-
-      for (let i = 0; i < splitCount; i++) {
-        // TP2~TP5 (1차는 이미 체결됨)
-        const targetProfitForSplit = targetProfitUsdt + (profitStepUsdt * (i + 1));
-        const requiredPriceDiff = targetProfitForSplit / position.filledQuantity + (avgPrice * roundTripFeePercent);
-
-        let tpPrice: number;
-        if (position.side === 'long') {
-          tpPrice = avgPrice + requiredPriceDiff;
-        } else {
-          tpPrice = avgPrice - requiredPriceDiff;
-        }
-        tpPrice = roundPrice(tpPrice, precision);
-
-        const qty = i === splitCount - 1
-          ? roundQuantity(remainQty - (splitQty * (splitCount - 1)), precision)
-          : splitQty;
-
-        if (qty <= 0) continue;
-
-        try {
-          const result = await placeLimitOrder(position.symbol, orderSide, qty, tpPrice, true);
-          if (result && !result.error) {
-            tpOrders.push({
-              orderId: result.orderId,
-              price: tpPrice,
-              quantity: qty,
-              filled: 0,
-              status: 'NEW',
-              timestamp: Date.now(),
-            });
-            console.log(`  ✅ TP${i + 2}: ${tpPrice.toFixed(precision.pricePrecision)} × ${qty}`);
-          }
-        } catch (err) {
-          console.error(`  ❌ TP${i + 2} 실패:`, err);
-        }
-      }
-
-      // 포지션 업데이트 + 10초 타이머 시작
-      setState(prev => {
-        if (!prev.currentPosition) return prev;
-        return {
-          ...prev,
-          currentPosition: {
-            ...prev.currentPosition,
-            filledQuantity: remainQty,
-            takeProfitOrders: tpOrders,
-            entryPhase: 'closing' as const, // 익절 진행 중
-          },
-          statusMessage: `⏳ ${position.symbol.replace('USDT', '')} 잔량 TP 대기 (10초)...`,
-        };
-      });
-
-      // 10초 후 잔량 시장가 청산
-      tpTimeoutRef.current = setTimeout(async () => {
-        const currentPos = currentPositionRef.current;
-        if (!currentPos) return;
-
-        console.log(`⏰ [타임아웃] ${currentPos.symbol} 10초 경과 → 잔량 시장가 청산`);
-
-        // 미체결 TP 취소
-        await cancelPendingOrders(currentPos.symbol);
-
-        // 잔량 확인 및 청산
-        const finalPositions = await getPositions(currentPos.symbol);
-        const finalPosition = finalPositions?.find((p: any) =>
-          p.symbol === currentPos.symbol && Math.abs(parseFloat(p.positionAmt)) > 0
-        );
-
-        if (finalPosition) {
-          const finalQty = Math.abs(parseFloat(finalPosition.positionAmt));
-          const markPrice = parseFloat((finalPosition as any).markPrice || (finalPosition as any).entryPrice || '0');
-          if (finalQty > 0) {
-            await closePositionMarket('tp', markPrice);
-          }
-        } else {
-          setState(prev => ({
-            ...prev,
-            currentPosition: null,
-            currentSymbol: null,
-            statusMessage: '🔍 다음 시그널 대기...',
-          }));
-        }
-
-        tpTimeoutRef.current = null;
-      }, 10000); // 10초
-
-    } catch (error) {
-      console.error('익절 실행 실패:', error);
-    } finally {
-      processingRef.current = false;
-      setState(prev => ({ ...prev, isProcessing: false }));
-    }
-  }, [placeMarketOrder, placeLimitOrder, getPositions, cancelPendingOrders, closePositionMarket, krwRate, filterSettings]);
-
   // ===== TP/SL 체크 =====
   const checkTpSl = useCallback(async (currentPrice: number) => {
     if (!state.currentPosition) return;
@@ -785,7 +616,7 @@ export function useLimitOrderTrading({
 
     // 저체결 손익분기 모드 체크
     const isLowFillBreakeven = (position as any).isLowFillBreakeven === true;
-    const breakEvenBuffer = LIMIT_ORDER_CONFIG.ENTRY.BREAKEVEN_FEE_BUFFER ?? 0.1;
+    const breakEvenBuffer = 0.1; // 손익분기 청산 시 수수료 버퍼 (%)
 
     // 상태 메시지 업데이트
     setState(prev => ({
@@ -832,470 +663,17 @@ export function useLimitOrderTrading({
       return;
     }
 
-    // 익절 체크 (USDT 기반) → 1차 시장가 익절 실행
+    // 익절 체크 (USDT 기반) → 전량 시장가 청산
     const targetProfitUsdt = filterSettings?.takeProfitUsdt ?? 7;
     if (pnlUSD >= targetProfitUsdt) {
-      console.log(`💰 익절 조건! $${pnlUSD.toFixed(2)} >= $${targetProfitUsdt}`);
-      await executeFirstTakeProfit(currentPrice);
+      console.log(`💰 익절! $${pnlUSD.toFixed(2)} >= $${targetProfitUsdt}`);
+      await closePositionMarket('tp', currentPrice);
       return;
     }
 
-  }, [state.currentPosition, closePositionMarket, krwRate, filterSettings, executeFirstTakeProfit]);
+  }, [state.currentPosition, closePositionMarket, krwRate, filterSettings]);
 
-  // ===== 2단계 진입 전략 =====
-  const executeLimitEntry = useCallback(async (
-    symbol: string,
-    side: 'long' | 'short',
-    currentPrice: number,
-    indicators: TechnicalIndicators
-  ) => {
-    if (processingRef.current) return;
-
-    processingRef.current = true;
-    setState(prev => ({ 
-      ...prev, 
-      isProcessing: true,
-      statusMessage: `📝 ${symbol.replace('USDT', '')} 2단계 진입 준비...`,
-    }));
-
-    try {
-      // 정밀도 조회
-      const precision = await fetchSymbolPrecision(symbol);
-      
-      // 레버리지 설정 (실패 시 단계적으로 낮춤)
-      let appliedLeverage = leverage;
-      const leverageCandidates = Array.from(
-        new Set([leverage, 10, 5, 3, 2, 1].filter((v) => v <= leverage))
-      );
-
-      for (const lev of leverageCandidates) {
-        try {
-          const res = await setLeverage(symbol, lev);
-          appliedLeverage = lev;
-          if (!res?.alreadySet) {
-            console.log(`🧲 [Leverage] ${symbol} 적용: ${lev}x`);
-          }
-          break;
-        } catch (levError: any) {
-          const msg = levError?.message || String(levError);
-          console.warn(`레버리지 설정 실패(${lev}x):`, msg);
-          continue;
-        }
-      }
-
-      // 전체 포지션 계산
-      const positionSizePercent = LIMIT_ORDER_CONFIG.POSITION_SIZE_PERCENT / 100;
-      const entryBalance = balanceUSD * positionSizePercent;
-      const buyingPower = entryBalance * appliedLeverage;
-      const totalQty = buyingPower / currentPrice;
-      
-      // 1차: 50% 지정가
-      const firstEntryPercent = LIMIT_ORDER_CONFIG.ENTRY.FIRST_ENTRY_PERCENT / 100;
-      const firstQtyRaw = totalQty * firstEntryPercent;
-      const firstQty = roundQuantity(firstQtyRaw, precision);
-      
-      // 2차: 50% 시장가 (1차 체결 후)
-      const secondEntryPercent = LIMIT_ORDER_CONFIG.ENTRY.SECOND_ENTRY_PERCENT / 100;
-      const secondQtyRaw = totalQty * secondEntryPercent;
-      const secondQty = roundQuantity(secondQtyRaw, precision);
-
-      const qtyDigits = Math.min(8, Math.max(0, precision.quantityPrecision));
-
-      console.log(
-        `💳 [Sizing] bal=${balanceUSD.toFixed(2)}USDT lev=${appliedLeverage}x | 1차=${firstQty.toFixed(qtyDigits)} 2차=${secondQty.toFixed(qtyDigits)}`
-      );
-
-      // 1차 지정가 가격 생성
-      const firstEntryPrice = generateFirstEntryPrice(currentPrice, side, precision.tickSize);
-      const roundedFirstPrice = roundPrice(firstEntryPrice, precision);
-      const orderSide = side === 'long' ? 'BUY' : 'SELL';
-      
-      console.log(`📝 [1차 지정가] ${symbol} ${orderSide} 가격=${roundedFirstPrice} 수량=${firstQty.toFixed(qtyDigits)}`);
-
-      // 1차 지정가 주문 실행 (포지션 한도 초과 시 수량 축소 재시도)
-      let orderResult: any = null;
-      let actualFirstQty = firstQty;
-      let actualSecondQty = secondQty;
-      const maxRetries = 3;
-      const reductionFactors = [1.0, 0.5, 0.25]; // 100%, 50%, 25%
-
-      for (let attempt = 0; attempt < maxRetries; attempt++) {
-        const factor = reductionFactors[attempt];
-        actualFirstQty = roundQuantity(firstQty * factor, precision);
-        actualSecondQty = roundQuantity(secondQty * factor, precision);
-
-        if (attempt > 0) {
-          console.log(`🔄 [재시도 ${attempt}] 포지션 한도 초과 → 수량 ${(factor * 100).toFixed(0)}%로 축소: 1차=${actualFirstQty} 2차=${actualSecondQty}`);
-        }
-
-        try {
-          orderResult = await placeLimitOrder(symbol, orderSide, actualFirstQty, roundedFirstPrice);
-
-          if (orderResult && orderResult.orderId && !orderResult.error) {
-            // 성공
-            break;
-          }
-
-          const errMsg = orderResult?.error || orderResult?.msg || orderResult?.message || '';
-          
-          // 포지션 한도 초과 에러인 경우 재시도
-          if (errMsg.includes('Exceeded the maximum allowable position') || 
-              errMsg.includes('position at current leverage')) {
-            console.warn(`⚠️ [포지션 한도 초과] ${symbol} attempt ${attempt + 1}/${maxRetries}`);
-            if (attempt < maxRetries - 1) continue; // 다음 시도
-          }
-
-          // 다른 에러면 바로 throw
-          throw new Error(`1차 지정가 주문 실패: ${errMsg}`);
-        } catch (orderError: any) {
-          const errMsg = orderError?.message || String(orderError);
-          
-          // 포지션 한도 초과 에러인 경우 재시도
-          if ((errMsg.includes('Exceeded the maximum allowable position') || 
-               errMsg.includes('position at current leverage')) &&
-              attempt < maxRetries - 1) {
-            console.warn(`⚠️ [포지션 한도 초과] ${symbol} attempt ${attempt + 1}/${maxRetries}`);
-            continue;
-          }
-          throw orderError;
-        }
-      }
-      
-      if (!orderResult || !orderResult.orderId) {
-        throw new Error(`1차 지정가 주문 실패: 포지션 한도 초과 (수량 25%로도 불가)`);
-      }
-
-      const orderId = orderResult.orderId.toString();
-      const entries: LimitOrderEntry[] = [{
-        orderId,
-        price: roundedFirstPrice,
-        quantity: actualFirstQty,
-        filled: 0,
-        status: 'NEW',
-        timestamp: Date.now(),
-      }];
-
-      // 포지션 생성 (진입 대기 상태) - actualSecondQty 저장
-      const newPosition: LimitOrderPosition = {
-        symbol,
-        side,
-        entries,
-        avgPrice: 0,
-        totalQuantity: actualFirstQty + actualSecondQty, // 전체 목표 수량 (축소 반영)
-        filledQuantity: 0,
-        startTime: Date.now(),
-        entryPhase: 'waiting',
-        takeProfitOrders: [],
-        stopLossPrice: 0,
-        // 추가 정보 (2차 진입용)
-        pendingSecondQty: actualSecondQty,
-      } as any;
-
-      setState(prev => ({
-        ...prev,
-        pendingSignal: null,
-        currentPosition: newPosition,
-        currentSymbol: symbol,
-        entryOrderIds: [orderId],
-        entryStartTime: Date.now(),
-        statusMessage: `⏳ ${symbol.replace('USDT', '')} 1차 체결 대기 (${LIMIT_ORDER_CONFIG.ENTRY.TIMEOUT_SEC}초)...`,
-      }));
-
-      addLog({
-        symbol,
-        action: 'order',
-        side,
-        price: roundedFirstPrice,
-        quantity: actualFirstQty,
-        reason: actualFirstQty < firstQty 
-          ? `1차 지정가 진입 (한도축소 ${((actualFirstQty / firstQty) * 100).toFixed(0)}%)`
-          : `1차 지정가 진입 (50%)`,
-      });
-
-      lastEntryTimeRef.current = Date.now();
-
-      // 타임아웃 설정
-      entryTimeoutRef.current = setTimeout(async () => {
-        if (checkEntryFillRef.current) {
-          await checkEntryFillRef.current(symbol, side, false);
-        }
-      }, LIMIT_ORDER_CONFIG.ENTRY.TIMEOUT_SEC * 1000);
-
-      playEntrySound();
-      toast.info(`📝 ${side === 'long' ? '롱' : '숏'} 1차 지정가 진입`);
-
-    } catch (error: any) {
-      console.error('Entry error:', error);
-      lastEntryTimeRef.current = Date.now();
-
-      setState(prev => ({ 
-        ...prev, 
-        pendingSignal: null, 
-        currentPosition: null,
-        entryOrderIds: [],
-        entryStartTime: null,
-        statusMessage: '🔍 다음 시그널 대기...' 
-      }));
-
-      addLog({
-        symbol,
-        action: 'error',
-        side,
-        price: currentPrice,
-        quantity: 0,
-        reason: error.message || '진입 실패',
-      });
-      toast.error(`진입 실패: ${error.message || '오류'}`);
-    } finally {
-      processingRef.current = false;
-      setState(prev => ({ ...prev, isProcessing: false }));
-    }
-  }, [balanceUSD, leverage, placeLimitOrder, setLeverage, addLog]);
-
-  // ===== 체결 확인 (2단계 진입) =====
-  const checkEntryFill = useCallback(async (symbol: string, side: 'long' | 'short', isRetry: boolean = false) => {
-    const currentPos = currentPositionRef.current;
-    if (!currentPos || currentPos.entryPhase !== 'waiting') {
-      console.log(`[checkEntryFill] ${symbol} 스킵 - position: ${!!currentPos}, phase: ${currentPos?.entryPhase}`);
-      return;
-    }
-
-    try {
-      // 포지션 조회
-      const positions = await getPositions(symbol);
-      
-      // API가 null을 반환하면 (테스트넷 키 미로드 등) 강제 취소 처리
-      if (!positions) {
-        console.warn(`⚠️ [checkEntryFill] ${symbol} API 응답 없음 → 강제 취소 처리`);
-        await cancelPendingOrders(symbol);
-        
-        setState(prev => ({
-          ...prev,
-          currentPosition: null,
-          currentSymbol: null,
-          entryOrderIds: [],
-          entryStartTime: null,
-          statusMessage: '⚠️ API 오류, 다음 종목 스캔...',
-        }));
-
-        addLog({
-          symbol,
-          action: 'cancel',
-          side,
-          price: 0,
-          quantity: 0,
-          reason: `API 응답 없음 (키 미로드)`,
-        });
-        
-        toast.warning(`⚠️ ${symbol.replace('USDT', '')} API 오류로 취소`);
-        return;
-      }
-      
-      const actualPosition = positions.find((p: any) =>
-        p.symbol === symbol && Math.abs(parseFloat(p.positionAmt)) > 0
-      );
-
-      const filledQty = actualPosition ? Math.abs(parseFloat(actualPosition.positionAmt)) : 0;
-      const firstEntryQty = currentPos.entries[0]?.quantity || 0;
-      const fillRatio = firstEntryQty > 0 ? filledQty / firstEntryQty : 0;
-
-      if (filledQty === 0) {
-        // 완전 미체결 → 변동성 없음, 전량 취소
-        console.log(`🚫 [타임아웃] ${symbol} ${LIMIT_ORDER_CONFIG.ENTRY.TIMEOUT_SEC}초 내 미체결 → 전량 취소`);
-        await cancelPendingOrders(symbol);
-        
-        setState(prev => ({
-          ...prev,
-          currentPosition: null,
-          currentSymbol: null,
-          entryOrderIds: [],
-          entryStartTime: null,
-          statusMessage: '🔍 변동성 부족, 다음 종목 스캔...',
-        }));
-
-        addLog({
-          symbol,
-          action: 'cancel',
-          side,
-          price: 0,
-          quantity: 0,
-          reason: `${LIMIT_ORDER_CONFIG.ENTRY.TIMEOUT_SEC}초 내 미체결 (변동성 부족)`,
-        });
-
-        toast.info(`🚫 ${symbol.replace('USDT', '')} 변동성 부족, 다음 종목 탐색`);
-        return;
-      }
-
-      // 1차 지정가 체결됨 → 미체결 주문 취소 후 2차 시장가 진입
-      console.log(`✅ [1차 체결] ${symbol} 체결률: ${(fillRatio * 100).toFixed(1)}% (${filledQty})`);
-      await cancelPendingOrders(symbol);
-
-      const avgPrice = parseFloat(actualPosition!.entryPrice);
-      const pendingSecondQty = (currentPos as any).pendingSecondQty || 0;
-      const orderSide = side === 'long' ? 'BUY' : 'SELL';
-
-      // 2차 시장가 진입
-      let secondFilledQty = 0;
-      let finalAvgPrice = avgPrice;
-      
-      if (pendingSecondQty > 0) {
-        console.log(`📈 [2차 시장가] ${symbol} ${orderSide} 수량=${pendingSecondQty.toFixed(8)}`);
-        
-        try {
-          const marketResult = await placeMarketOrder(symbol, orderSide, pendingSecondQty, false);
-          
-          if (marketResult && !marketResult.error) {
-            // 2차 체결 후 포지션 재조회
-            await new Promise(resolve => setTimeout(resolve, 500)); // 0.5초 대기
-            const updatedPositions = await getPositions(symbol);
-            const updatedPos = updatedPositions?.find((p: any) =>
-              p.symbol === symbol && Math.abs(parseFloat(p.positionAmt)) > 0
-            );
-            
-            if (updatedPos) {
-              secondFilledQty = Math.abs(parseFloat(updatedPos.positionAmt)) - filledQty;
-              finalAvgPrice = parseFloat(updatedPos.entryPrice);
-              console.log(`✅ [2차 체결] 추가 수량=${secondFilledQty.toFixed(8)} 평균가=${finalAvgPrice}`);
-            }
-
-            addLog({
-              symbol,
-              action: 'fill',
-              side,
-              price: finalAvgPrice,
-              quantity: secondFilledQty,
-              reason: `2차 시장가 진입 (50%)`,
-            });
-
-            toast.success(`✅ 2차 시장가 체결!`);
-          } else {
-            const errMsg = marketResult?.error || marketResult?.msg || '2차 시장가 실패';
-            console.warn(`2차 시장가 실패:`, errMsg);
-            toast.warning(`2차 시장가 실패: ${errMsg}`);
-          }
-        } catch (marketError: any) {
-          console.warn(`2차 시장가 예외:`, marketError?.message);
-          toast.warning(`2차 시장가 실패`);
-        }
-      }
-
-      // 최종 체결 수량
-      const totalFilledQty = filledQty + secondFilledQty;
-      
-      // ===== 바이낸스에 STOP_MARKET / TAKE_PROFIT_MARKET 주문 설정 =====
-      const closeSide = side === 'long' ? 'SELL' : 'BUY';
-      const positionValueUsd = finalAvgPrice * totalFilledQty;
-      
-      // USDT 기반 손절/익절 금액
-      const targetStopLossUsdt = filterSettings?.stopLossUsdt ?? 7;
-      const targetTakeProfitUsdt = filterSettings?.takeProfitUsdt ?? 7;
-      
-      // 손절가/익절가 계산 (USDT 금액 기반)
-      const slPercent = (targetStopLossUsdt / positionValueUsd) * 100;
-      const tpPercent = (targetTakeProfitUsdt / positionValueUsd) * 100;
-      
-      let slPrice: number;
-      let tpPrice: number;
-      
-      if (side === 'long') {
-        slPrice = finalAvgPrice * (1 - slPercent / 100);
-        tpPrice = finalAvgPrice * (1 + tpPercent / 100);
-      } else {
-        slPrice = finalAvgPrice * (1 + slPercent / 100);
-        tpPrice = finalAvgPrice * (1 - tpPercent / 100);
-      }
-      
-      console.log(`📊 [SL/TP 계산] 포지션가치=$${positionValueUsd.toFixed(2)} | SL=$${targetStopLossUsdt}→${slPrice.toFixed(4)} | TP=$${targetTakeProfitUsdt}→${tpPrice.toFixed(4)}`);
-      
-      // STOP_MARKET 주문 (손절)
-      try {
-        const slResult = await placeStopMarketOrder(symbol, closeSide, totalFilledQty, slPrice);
-        if (slResult && !slResult.error) {
-          console.log(`✅ [STOP_MARKET] 설정 완료! 손절가=${slPrice.toFixed(4)}`);
-          toast.info(`🛑 손절 주문 설정: $${slPrice.toFixed(4)}`);
-        } else {
-          console.warn(`❌ STOP_MARKET 실패:`, slResult?.error || slResult?.msg);
-        }
-      } catch (slError: any) {
-        console.warn(`❌ STOP_MARKET 예외:`, slError?.message);
-      }
-      
-      // TAKE_PROFIT_MARKET 주문 (익절)
-      try {
-        const tpResult = await placeTakeProfitMarketOrder(symbol, closeSide, totalFilledQty, tpPrice);
-        if (tpResult && !tpResult.error) {
-          console.log(`✅ [TAKE_PROFIT_MARKET] 설정 완료! 익절가=${tpPrice.toFixed(4)}`);
-          toast.info(`💰 익절 주문 설정: $${tpPrice.toFixed(4)}`);
-        } else {
-          console.warn(`❌ TAKE_PROFIT_MARKET 실패:`, tpResult?.error || tpResult?.msg);
-        }
-      } catch (tpError: any) {
-        console.warn(`❌ TAKE_PROFIT_MARKET 예외:`, tpError?.message);
-      }
-
-      // 포지션 활성화 (entries에 2차 진입도 추가)
-      setState(prev => {
-        if (!prev.currentPosition) return prev;
-        
-        // 기존 entries에 2차 시장가 진입 추가
-        const updatedEntries = [...prev.currentPosition.entries];
-        if (secondFilledQty > 0) {
-          updatedEntries.push({
-            orderId: `market_${Date.now()}`,
-            price: finalAvgPrice, // 2차는 시장가이므로 평균가 사용
-            quantity: secondFilledQty,
-            filled: secondFilledQty,
-            status: 'FILLED' as const,
-            timestamp: Date.now(),
-          });
-        }
-        // 1차 진입도 체결 상태로 업데이트
-        if (updatedEntries[0]) {
-          updatedEntries[0] = {
-            ...updatedEntries[0],
-            filled: filledQty,
-            status: 'FILLED' as const,
-          };
-        }
-        
-        return {
-          ...prev,
-          currentPosition: {
-            ...prev.currentPosition,
-            entries: updatedEntries,
-            avgPrice: finalAvgPrice,
-            filledQuantity: totalFilledQty,
-            entryPhase: 'active',
-            startTime: Date.now(),
-            stopLossPrice: slPrice,
-          },
-          entryOrderIds: [],
-          statusMessage: `🔄 ${symbol.replace('USDT', '')} ${side === 'long' ? '롱' : '숏'} 활성화 (SL/TP 설정됨)`,
-        };
-      });
-
-      addLog({
-        symbol,
-        action: 'fill',
-        side,
-        price: finalAvgPrice,
-        quantity: totalFilledQty,
-        reason: `2단계 진입 완료 + SL/TP 설정`,
-      });
-
-      toast.success(`✅ ${side === 'long' ? '롱' : '숏'} 진입 완료! SL/TP 자동 설정됨`);
-
-    } catch (error: any) {
-      console.error('체결 확인 실패:', error);
-    }
-  }, [getPositions, cancelPendingOrders, addLog, filterSettings, placeMarketOrder, placeStopMarketOrder, placeTakeProfitMarketOrder]);
-
-  // checkEntryFill을 ref에 저장 (재귀 호출용)
-  useEffect(() => {
-    checkEntryFillRef.current = checkEntryFill;
-  }, [checkEntryFill]);
-
-  // ===== 시그널 핸들러 =====
+  // ===== 시그널 핸들러 (스캔 전용 - 진입은 수동) =====
   const handleTechnicalSignal = useCallback(async (
     symbol: string,
     direction: 'long' | 'short',
@@ -1438,10 +816,22 @@ export function useLimitOrderTrading({
 
     console.log(`🎯 [시그널] ${symbol} ${direction} (${strength})${filterStatus}`);
     
-    // 즉시 진입 (지정가 주문)
-    await executeLimitEntry(symbol, direction, price, indicators);
+    // 시그널만 표시 (자동 진입 없음 - 수동 진입용)
+    setState(prev => ({
+      ...prev,
+      pendingSignal: {
+        symbol,
+        direction,
+        strength,
+        reasons,
+        signalTime: Date.now(),
+        signalPrice: price,
+        indicators,
+      },
+      statusMessage: `🎯 ${symbol.replace('USDT', '')} ${direction === 'long' ? '롱' : '숏'} 시그널 (${strength})`,
+    }));
 
-  }, [state.isEnabled, state.currentPosition, state.pendingSignal, user, balanceUSD, executeLimitEntry]);
+  }, [state.isEnabled, state.currentPosition, state.pendingSignal, user, balanceUSD]);
 
   // ===== 수동 청산 =====
   const manualClosePosition = useCallback(async () => {
@@ -1473,13 +863,7 @@ export function useLimitOrderTrading({
     }
 
     try {
-      console.log(`🚫 [수동취소] ${currentPos.symbol} 진입 대기 주문 취소`);
-      
-      // 타임아웃 취소
-      if (entryTimeoutRef.current) {
-        clearTimeout(entryTimeoutRef.current);
-        entryTimeoutRef.current = null;
-      }
+      console.log(`🚫 [수동취소] ${currentPos.symbol} 미체결 주문 취소`);
 
       // 미체결 주문 취소
       await cancelPendingOrders(currentPos.symbol);
@@ -2048,12 +1432,7 @@ export function useLimitOrderTrading({
   }, [filterSettings?.stopLossUsdt, filterSettings?.takeProfitUsdt, cancelAllOrders, getPositions, placeStopMarketOrder, placeTakeProfitMarketOrder]);
 
   // ===== Cleanup =====
-  useEffect(() => {
-    return () => {
-      if (entryTimeoutRef.current) clearTimeout(entryTimeoutRef.current);
-      if (tpTimeoutRef.current) clearTimeout(tpTimeoutRef.current);
-    };
-  }, []);
+  // (레거시 타임아웃 로직 제거됨)
 
   return {
     state,
