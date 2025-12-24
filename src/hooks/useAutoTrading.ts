@@ -10,7 +10,7 @@ import { useBinanceApi } from './useBinanceApi';
 import { useAuth } from './useAuth';
 import { fetchSymbolPrecision, roundQuantity } from '@/lib/binance';
 import { playEntrySound, playTpSound, playSlSound, initAudio } from '@/lib/sounds';
-import { toast } from 'sonner';
+
 import {
   calculateAllIndicators,
   checkLongSignal,
@@ -381,9 +381,9 @@ export function useAutoTrading({
       const modeLabel = majorCoinModeRef.current ? '메이저 코인' : '잡코인';
       if (newEnabled) {
         initAudio();
-        toast.success(`🤖 ${modeLabel} 스캘핑 시스템 시작`);
+        console.log(`🤖 ${modeLabel} 스캘핑 시스템 시작`);
       } else {
-        toast.info('자동매매 중지');
+        console.log('자동매매 중지');
       }
       return {
         ...prev,
@@ -505,7 +505,6 @@ export function useAutoTrading({
         if (coinRecord.consecutiveLosses >= CONFIG.COIN_MAX_CONSECUTIVE_LOSSES) {
           coinRecord.cooldownUntil = Date.now() + CONFIG.COIN_COOLDOWN_MINUTES * 60 * 1000;
           console.log(`⏸️ [closePosition] ${position.symbol} ${CONFIG.COIN_MAX_CONSECUTIVE_LOSSES}연속 손절 → ${CONFIG.COIN_COOLDOWN_MINUTES}분 쿨다운`);
-          toast.warning(`⏸️ ${position.symbol.replace('USDT', '')} ${CONFIG.COIN_MAX_CONSECUTIVE_LOSSES}연속 손절! ${CONFIG.COIN_COOLDOWN_MINUTES}분간 해당 코인 거래 중지`);
         }
         
         coinLossRecordRef.current.set(position.symbol, coinRecord);
@@ -520,7 +519,7 @@ export function useAutoTrading({
       
       // 연속 손실 경고 (보호 기능 켜져 있을 때만)
       if (state.lossProtectionEnabled && !isWin && state.consecutiveLosses + 1 >= CONFIG.MAX_CONSECUTIVE_LOSSES) {
-        toast.warning(`⏸️ 연속 ${CONFIG.MAX_CONSECUTIVE_LOSSES}손실! ${CONFIG.LOSS_COOLDOWN_MINUTES}분간 자동매매 일시 중지`);
+        console.log(`⏸️ 연속 ${CONFIG.MAX_CONSECUTIVE_LOSSES}손실! ${CONFIG.LOSS_COOLDOWN_MINUTES}분간 자동매매 일시 중지`);
       }
 
       const reasonText = {
@@ -548,9 +547,7 @@ export function useAutoTrading({
         playSlSound();
       }
 
-      toast[isWin ? 'success' : 'error'](
-        `${isWin ? '✅' : '❌'} ${reasonText} | ${pnl >= 0 ? '+' : ''}₩${pnlKRW.toLocaleString()}`
-      );
+      console.log(`${isWin ? '✅' : '❌'} ${reasonText} | ${pnl >= 0 ? '+' : ''}₩${pnlKRW.toLocaleString()}`);
 
       if (logTrade) {
         logTrade({
@@ -659,7 +656,6 @@ export function useAutoTrading({
       
       if (dangerousImbalance) {
         console.log(`🚨 [스마트손절] 오더북 긴급 탈출! 불균형: ${orderbookImbalance.toFixed(0)}%, 손실: ${pnlPercent.toFixed(2)}%`);
-        toast.warning(`🚨 오더북 긴급 탈출! 불균형 ${Math.abs(orderbookImbalance).toFixed(0)}%`);
         await closePosition('sl', currentPrice);
         return;
       }
@@ -681,7 +677,6 @@ export function useAutoTrading({
             pnlPercent <= -earlySL.STAGE1_PERCENT && 
             position.earlySLStage < 1) {
           console.log(`⚡ [스마트손절] 1단계 발동! ${holdTimeSec.toFixed(0)}초, ${pnlPercent.toFixed(2)}% → 50% 청산`);
-          toast.warning(`⚡ 조기 손절 1단계! ${pnlPercent.toFixed(2)}% (50% 청산)`);
           
           // 50% 분할 청산
           const reduceQty = position.remainingQuantity * earlySL.STAGE1_REDUCE;
@@ -747,7 +742,6 @@ export function useAutoTrading({
             pnlPercent <= -earlySL.STAGE2_PERCENT && 
             position.earlySLStage === 1) {
           console.log(`⚡ [스마트손절] 2단계 발동! ${holdTimeSec.toFixed(0)}초, ${pnlPercent.toFixed(2)}% → 남은 전량 청산`);
-          toast.error(`⚡ 조기 손절 2단계! ${pnlPercent.toFixed(2)}% (전량 청산)`);
           await closePosition('sl', currentPrice);
           return;
         }
@@ -778,7 +772,7 @@ export function useAutoTrading({
           },
         };
       });
-      toast.info(`🛡️ 브레이크이븐 활성화! 손절이 +${currentConfig.BREAKEVEN_SL}%로 이동`);
+      console.log(`🛡️ 브레이크이븐 활성화! 손절이 +${currentConfig.BREAKEVEN_SL}%로 이동`);
     }
 
 
@@ -794,7 +788,6 @@ export function useAutoTrading({
       
       if (pnlPercent <= trailingBeSl) {
         console.log(`🛡️ [트레일링BE] 수익확정 청산! 최고:+${position.maxPnlPercent.toFixed(2)}% → BE선:+${trailingBeSl.toFixed(2)}% → 현재:+${pnlPercent.toFixed(2)}%`);
-        toast.success(`🛡️ 트레일링BE 익절! +${pnlPercent.toFixed(2)}% (최고 +${position.maxPnlPercent.toFixed(2)}%)`);
         await closePosition('tp', currentPrice);
         return;
       }
@@ -823,7 +816,6 @@ export function useAutoTrading({
     // 트레일링 활성화 체크
     if (trendConfig.USE_TRAILING && !position.trailingActivated && pnlPercent >= trendConfig.TRAILING_ACTIVATION) {
       console.log(`🎯 [동적TP] ${trendLabel} 트레일링 활성화! +${pnlPercent.toFixed(2)}% >= +${trendConfig.TRAILING_ACTIVATION}%`);
-      toast.info(`🎯 트레일링 활성화! (${trendLabel}) 고점 추적 시작`);
       setState(prev => {
         if (!prev.currentPosition) return prev;
         return {
@@ -842,7 +834,6 @@ export function useAutoTrading({
       
       if (dropFromMax >= trendConfig.TRAILING_DISTANCE && pnlPercent > 0) {
         console.log(`🎯 [동적TP] 트레일링 청산! 고점 +${position.maxPnlPercent.toFixed(2)}% → 현재 +${pnlPercent.toFixed(2)}% (하락폭: ${dropFromMax.toFixed(2)}%)`);
-        toast.success(`🎯 트레일링 익절! +${pnlPercent.toFixed(2)}% (고점 대비 -${dropFromMax.toFixed(2)}%)`);
         await closePosition('tp', currentPrice);
         return;
       }
@@ -851,7 +842,6 @@ export function useAutoTrading({
     // 고정 TP 체크 (트레일링 미사용 시 또는 TP_PERCENT 도달 시)
     if (!tpState.tpHit && pnlPercent >= trendConfig.TP_PERCENT) {
       console.log(`🎯 [동적TP] ${trendLabel} 목표가 도달! +${pnlPercent.toFixed(2)}% >= +${trendConfig.TP_PERCENT}%`);
-      toast.success(`🎯 ${trendLabel} 익절! +${pnlPercent.toFixed(2)}%`);
       await closePosition('tp', currentPrice);
       return;
     }
