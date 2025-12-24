@@ -337,9 +337,8 @@ export function OrderBook({
 
       {/* Scrollable order book area */}
       <div className="flex-1 min-h-0 overflow-auto">
-
-      {/* Asks (매도호가) - 좌측에 잔량 그래프 */}
-      <div>
+        {/* Asks (매도호가) - 좌측에 잔량 그래프 */}
+        <div>
         {orderBook.asks.slice(0, 10).map((ask, i) => {
           const barWidth = maxQty > 0 ? (ask.quantity / maxQty) * 100 : 0;
           return (
