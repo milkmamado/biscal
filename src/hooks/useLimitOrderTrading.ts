@@ -176,8 +176,9 @@ export function useLimitOrderTrading({
     getOpenOrders,
   } = useBinanceApi();
   
-  const { analysis: aiAnalysisResult, isAnalyzing: isAiAnalyzing } = useMarketAnalysis({ 
-    mode: majorCoinMode ? 'MAJOR' : 'ALTCOIN' 
+  const { analysis: aiAnalysisResult, isAnalyzing: isAiAnalyzing, analyzeMarket, resetAnalysis } = useMarketAnalysis({ 
+    mode: majorCoinMode ? 'MAJOR' : 'ALTCOIN',
+    enabled: state.aiEnabled,
   });
 
   const majorCoinModeRef = useRef(majorCoinMode);
@@ -427,12 +428,17 @@ export function useLimitOrderTrading({
 
   // ===== AI 분석 토글 =====
   const toggleAiAnalysis = useCallback(() => {
+    const newEnabled = !state.aiEnabled;
     setState(prev => ({
       ...prev,
-      aiEnabled: !prev.aiEnabled,
+      aiEnabled: newEnabled,
+      aiAnalysis: newEnabled ? prev.aiAnalysis : null,
     }));
-    toast.info(state.aiEnabled ? 'AI 분석 OFF' : 'AI 분석 ON');
-  }, [state.aiEnabled]);
+    if (!newEnabled) {
+      resetAnalysis();
+    }
+    toast.info(newEnabled ? 'AI 분석 ON' : 'AI 분석 OFF');
+  }, [state.aiEnabled, resetAnalysis]);
 
   // ===== 미체결 주문 취소 =====
   const cancelPendingOrders = useCallback(async (symbol: string) => {
@@ -816,6 +822,18 @@ export function useLimitOrderTrading({
 
     console.log(`🎯 [시그널] ${symbol} ${direction} (${strength})${filterStatus}`);
     
+    // AI 분석 실행 (활성화된 경우)
+    if (state.aiEnabled) {
+      // 비동기로 AI 분석 실행 (시그널 표시는 바로 진행)
+      analyzeMarket(
+        symbol,
+        indicators,
+        price,
+        0, // priceChange24h - 별도 API 필요하므로 0으로 전달
+        0  // volume24h - 별도 API 필요하므로 0으로 전달
+      ).catch(err => console.warn('[AI분석] 실패:', err));
+    }
+    
     // 시그널만 표시 (자동 진입 없음 - 수동 진입용)
     setState(prev => ({
       ...prev,
@@ -831,7 +849,7 @@ export function useLimitOrderTrading({
       statusMessage: `🎯 ${symbol.replace('USDT', '')} ${direction === 'long' ? '롱' : '숏'} 시그널 (${strength})`,
     }));
 
-  }, [state.isEnabled, state.currentPosition, state.pendingSignal, user, balanceUSD]);
+  }, [state.isEnabled, state.currentPosition, state.pendingSignal, state.aiEnabled, user, balanceUSD, analyzeMarket]);
 
   // ===== 수동 청산 =====
   const manualClosePosition = useCallback(async () => {
