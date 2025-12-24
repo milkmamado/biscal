@@ -13,6 +13,7 @@ import ApiKeySetup from '@/components/ApiKeySetup';
 import TradingSettingsPanel from '@/components/TradingSettingsPanel';
 import SignalScannerPanel from '@/components/SignalScannerPanel';
 import ScalpingRatingPanel from '@/components/ScalpingRatingPanel';
+import BiscalLogo from '@/components/BiscalLogo';
 import { Button } from '@/components/ui/button';
 
 
@@ -391,6 +392,7 @@ const Index = () => {
             isAutoTradingEnabled={autoTrading.state.isEnabled}
           />
           <ScalpingRatingPanel />
+          <BiscalLogo />
         </div>
       </div>
     </div>
