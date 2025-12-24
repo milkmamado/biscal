@@ -258,7 +258,7 @@ const Index = () => {
     ? tickers.find(t => t.symbol === autoTrading.state.currentPosition?.symbol)?.price || 0
     : 0;
     
-  // 손절/익절 가격 계산 (원화 기반)
+  // 손절/익절 가격 계산 (USDT 손익 기준)
   const position = autoTrading.state.currentPosition;
   const calculateSlTpPrices = () => {
     if (!position) return { stopLossPrice: undefined, takeProfitPrice: undefined };
@@ -267,20 +267,21 @@ const Index = () => {
     const qty = position.totalQuantity;
     const positionValueUsd = entryPrice * qty;
     
-    // USDT 손익 퍼센트 계산
+    // USDT 손익 → 가격 변동률 계산
+    // 레버리지는 이미 qty에 반영됨 (balanceUSD * leverage / price = qty)
+    // 따라서 가격 변동 = 손익USDT / 포지션명목가치
     const slPercent = (stopLossUsdt / positionValueUsd) * 100;
     const tpPercent = (takeProfitUsdt / positionValueUsd) * 100;
     
-    // 가격 계산
     let slPrice: number;
     let tpPrice: number;
     
     if (position.side === 'long') {
-      slPrice = entryPrice * (1 - slPercent / 100 / leverage);
-      tpPrice = entryPrice * (1 + tpPercent / 100 / leverage);
+      slPrice = entryPrice * (1 - slPercent / 100);
+      tpPrice = entryPrice * (1 + tpPercent / 100);
     } else {
-      slPrice = entryPrice * (1 + slPercent / 100 / leverage);
-      tpPrice = entryPrice * (1 - tpPercent / 100 / leverage);
+      slPrice = entryPrice * (1 + slPercent / 100);
+      tpPrice = entryPrice * (1 - tpPercent / 100);
     }
     
     return { stopLossPrice: slPrice, takeProfitPrice: tpPrice };
