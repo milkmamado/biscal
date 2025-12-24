@@ -370,12 +370,6 @@ const Index = () => {
             onTakeProfitChange={setTakeProfitUsdt}
             isAutoTradingEnabled={autoTrading.state.isEnabled}
           />
-          <ScalpingIndicator 
-            statusMessage={autoTrading.state.statusMessage}
-            hasPosition={!!autoTrading.state.currentPosition}
-            hasPendingSignal={!!autoTrading.state.pendingSignal}
-            isEnabled={autoTrading.state.isEnabled}
-          />
         </div>
       </div>
     </div>
