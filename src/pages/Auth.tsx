@@ -273,8 +273,8 @@ export default function Auth() {
                 </Button>
               </form>
               
-              {/* Toggle between login and signup */}
-              <div className="text-center mt-4">
+              {/* Toggle between login and signup - 임시 숨김 */}
+              {/* <div className="text-center mt-4">
                 <button
                   type="button"
                   onClick={() => setIsLogin(!isLogin)}
@@ -282,7 +282,7 @@ export default function Auth() {
                 >
                   {isLogin ? '계정이 없으신가요? 회원가입' : '이미 계정이 있으신가요? 로그인'}
                 </button>
-              </div>
+              </div> */}
             </>
           ) : step === 'otp' ? (
             <div className="space-y-6">
