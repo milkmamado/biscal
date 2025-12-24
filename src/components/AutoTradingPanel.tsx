@@ -592,36 +592,87 @@ const AutoTradingPanel = ({
         onMarketClose={onManualClose}
       />
       
-      {/* 🆕 시그널 발견 & 일시정지 상태 - 패스 버튼 (호가창 아래) */}
+      {/* 🆕 시그널 발견 & 일시정지 상태 - 사이버펑크 스타일 */}
       {scanStatus?.isPaused && scanStatus.signalsCount > 0 && !currentPosition && (
-        <div className="relative z-10 px-3 py-2 lg:px-4 lg:py-3 shrink-0" style={{
-          background: 'linear-gradient(90deg, rgba(255, 200, 0, 0.15) 0%, rgba(255, 150, 0, 0.1) 100%)',
-          borderTop: '1px solid rgba(255, 200, 0, 0.3)',
-        }}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Pause className="w-3 h-3 lg:w-4 lg:h-4 text-yellow-400" />
-              <span className="font-semibold text-xs lg:text-sm text-yellow-400">
-                시그널 대기중 ({scanStatus.signalsCount}개)
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
+        <div 
+          className="relative z-10 shrink-0 overflow-hidden"
+          style={{
+            background: 'linear-gradient(135deg, rgba(10, 10, 20, 0.95) 0%, rgba(20, 10, 30, 0.95) 50%, rgba(10, 15, 25, 0.95) 100%)',
+            borderTop: '2px solid',
+            borderImage: 'linear-gradient(90deg, transparent, #00ffff, #ff0088, transparent) 1',
+          }}
+        >
+          {/* 배경 그리드 */}
+          <div
+            className="absolute inset-0 opacity-10"
+            style={{
+              backgroundImage: `
+                linear-gradient(rgba(0, 255, 255, 0.5) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 255, 255, 0.5) 1px, transparent 1px)
+              `,
+              backgroundSize: '12px 12px',
+            }}
+          />
+          
+          {/* 글로우 효과 */}
+          <div
+            className="absolute inset-0"
+            style={{
+              background: 'radial-gradient(ellipse at left, rgba(0, 255, 255, 0.1) 0%, transparent 50%)',
+            }}
+          />
+
+          <div className="relative z-10 px-3 py-2 lg:px-4 lg:py-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div
+                  className="relative"
+                  style={{
+                    filter: 'drop-shadow(0 0 8px rgba(0, 255, 255, 0.8))',
+                  }}
+                >
+                  <Zap className="w-4 h-4 lg:w-5 lg:h-5 text-cyan-400 animate-pulse" />
+                </div>
+                <div className="flex flex-col">
+                  <span 
+                    className="font-bold text-xs lg:text-sm tracking-wider uppercase"
+                    style={{
+                      color: '#00ffff',
+                      textShadow: '0 0 10px rgba(0, 255, 255, 0.6), 0 0 20px rgba(0, 255, 255, 0.3)',
+                    }}
+                  >
+                    시그널 대기중
+                  </span>
+                  <span className="text-[9px] lg:text-[10px] text-cyan-400/70 font-mono">
+                    {scanStatus.signalsCount}개 발견됨
+                  </span>
+                </div>
+              </div>
               <Button
                 size="sm"
                 onClick={onPassSignal}
-                className="h-5 lg:h-6 px-2 lg:px-3 text-[9px] lg:text-[10px] font-bold"
+                className="h-6 lg:h-7 px-3 lg:px-4 text-[10px] lg:text-xs font-bold tracking-wider uppercase border-0"
                 style={{
-                  background: 'linear-gradient(135deg, rgba(255, 100, 0, 0.8) 0%, rgba(255, 50, 0, 0.8) 100%)',
-                  border: '1px solid rgba(255, 150, 0, 0.5)',
+                  background: 'linear-gradient(135deg, rgba(255, 0, 136, 0.8) 0%, rgba(200, 0, 100, 0.9) 100%)',
                   color: '#fff',
-                  boxShadow: '0 0 10px rgba(255, 100, 0, 0.4)',
+                  boxShadow: '0 0 15px rgba(255, 0, 136, 0.5), inset 0 0 10px rgba(255, 255, 255, 0.1)',
+                  textShadow: '0 0 5px rgba(255, 255, 255, 0.5)',
                 }}
               >
-                <SkipForward className="w-3 h-3 mr-1" />
+                <SkipForward className="w-3.5 h-3.5 mr-1" style={{ filter: 'drop-shadow(0 0 3px #fff)' }} />
                 패스
               </Button>
             </div>
           </div>
+          
+          {/* 하단 네온 라인 */}
+          <div
+            className="h-[1px] w-full"
+            style={{
+              background: 'linear-gradient(90deg, transparent 0%, #00ffff 30%, #ff0088 70%, transparent 100%)',
+              boxShadow: '0 0 8px rgba(0, 255, 255, 0.4)',
+            }}
+          />
         </div>
       )}
       
