@@ -772,18 +772,6 @@ const AutoTradingPanel = ({
         onMarketClose={onManualClose}
       />
       
-      {/* Warning */}
-      {!isEnabled && (
-        <div className="relative z-10 px-4 py-2" style={{
-          background: 'rgba(255, 200, 0, 0.1)',
-          borderTop: '1px solid rgba(255, 200, 0, 0.2)',
-        }}>
-          <div className="flex items-center gap-2 text-[10px]" style={{ color: '#ffcc00' }}>
-            <AlertTriangle className="w-3 h-3" />
-            <span>스캔 비활성화 상태</span>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
