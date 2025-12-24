@@ -590,12 +590,10 @@ const AutoTradingPanel = ({
         onCancelOrder={handleCancelOrder}
         onCancelAllOrders={handleCancelAllOrders}
         onMarketClose={onManualClose}
-      />
-      
-      {/* 🆕 시그널 발견 & 일시정지 상태 - 사이버펑크 스타일 */}
+      />{/* 🆕 시그널 발견 & 일시정지 상태 - 사이버펑크 스타일 */}
       {scanStatus?.isPaused && scanStatus.signalsCount > 0 && !currentPosition && (
         <div 
-          className="relative z-10 shrink-0 overflow-hidden"
+          className="relative z-10 shrink-0 overflow-hidden -mt-[1px]"
           style={{
             background: 'linear-gradient(135deg, rgba(10, 10, 20, 0.95) 0%, rgba(20, 10, 30, 0.95) 50%, rgba(10, 15, 25, 0.95) 100%)',
             borderTop: '2px solid',
