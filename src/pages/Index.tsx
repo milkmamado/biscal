@@ -12,6 +12,7 @@ import AutoTradingPanel from '@/components/AutoTradingPanel';
 import ApiKeySetup from '@/components/ApiKeySetup';
 import TradingSettingsPanel from '@/components/TradingSettingsPanel';
 import SignalScannerPanel from '@/components/SignalScannerPanel';
+import ScalpingRatingPanel from '@/components/ScalpingRatingPanel';
 import { Button } from '@/components/ui/button';
 
 
@@ -389,6 +390,7 @@ const Index = () => {
             onTakeProfitChange={setTakeProfitUsdt}
             isAutoTradingEnabled={autoTrading.state.isEnabled}
           />
+          <ScalpingRatingPanel />
         </div>
       </div>
     </div>
