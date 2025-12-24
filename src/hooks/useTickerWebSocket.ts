@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { SymbolInfo } from '@/lib/binance';
-import { toast } from 'sonner';
+
 
 const WS_URL = 'wss://fstream.binance.com/ws/!ticker@arr';
 
@@ -135,7 +135,7 @@ export const useTickerWebSocket = (enabled: boolean = true) => {
         const now = Date.now();
         if (now - lastDisconnectNotification > 5000) {
           lastDisconnectNotification = now;
-          toast.error('연결 오류 발생, 재연결 중...');
+          console.error('연결 오류 발생, 재연결 중...');
         }
       };
 
@@ -151,7 +151,7 @@ export const useTickerWebSocket = (enabled: boolean = true) => {
             const now = Date.now();
             if (now - lastDisconnectNotification > 5000) {
               lastDisconnectNotification = now;
-              toast.error('서버 과부하로 연결 끊김, 재연결 중...');
+              console.error('서버 과부하로 연결 끊김, 재연결 중...');
             }
           }
           // 재연결 (더 빠르게 - 1초)
