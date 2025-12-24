@@ -8,10 +8,10 @@ import { useTickerWebSocket } from '@/hooks/useTickerWebSocket';
 import { useWakeLock } from '@/hooks/useWakeLock';
 import { supabase } from '@/integrations/supabase/client';
 import DualChartPanel from '@/components/DualChartPanel';
-import AutoTradingPanel, { ScalpingIndicator } from '@/components/AutoTradingPanel';
+import AutoTradingPanel from '@/components/AutoTradingPanel';
 import ApiKeySetup from '@/components/ApiKeySetup';
 import TradingSettingsPanel from '@/components/TradingSettingsPanel';
-
+import SignalScannerPanel from '@/components/SignalScannerPanel';
 import { Button } from '@/components/ui/button';
 
 
@@ -41,6 +41,9 @@ const Index = () => {
   
   // 미체결 주문 상태 (차트에 표시용)
   const [openOrders, setOpenOrders] = useState<{ orderId: number; price: number; side: 'BUY' | 'SELL'; origQty: number; executedQty: number; }[]>([]);
+  
+  // 분할 매수 상태
+  const [splitCount, setSplitCount] = useState<1 | 5 | 10>(5);
 
   // 스크리닝 로그 실시간 업데이트
   useEffect(() => {
@@ -351,6 +354,22 @@ const Index = () => {
 
         {/* Right - Settings Panel */}
         <div className="col-span-2 flex flex-col min-h-0 overflow-auto gap-1">
+          <SignalScannerPanel
+            isEnabled={autoTrading.state.isEnabled}
+            isProcessing={autoTrading.state.isProcessing}
+            onToggle={autoTrading.toggleAutoTrading}
+            leverage={leverage}
+            onLeverageChange={setLeverage}
+            splitCount={splitCount}
+            onSplitCountChange={setSplitCount}
+            majorCoinMode={majorCoinMode}
+            onToggleMajorCoinMode={() => setMajorCoinMode(prev => !prev)}
+            aiEnabled={autoTrading.state.aiEnabled}
+            isAiAnalyzing={autoTrading.state.isAiAnalyzing}
+            onToggleAiAnalysis={autoTrading.toggleAiAnalysis}
+            krwRate={krwRate}
+            refreshTrigger={refreshTrigger}
+          />
           <TradingSettingsPanel
             adxFilterEnabled={adxFilterEnabled}
             onToggleAdxFilter={setAdxFilterEnabled}
