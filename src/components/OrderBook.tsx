@@ -298,7 +298,7 @@ export function OrderBook({
   }
 
   return (
-    <div className="relative z-10 mx-2 lg:mx-3 mb-1 lg:mb-2 rounded-md overflow-hidden flex-1 min-h-0 flex flex-col" style={{
+    <div className="relative z-10 mx-2 lg:mx-3 mb-1 lg:mb-2 rounded-md overflow-hidden flex flex-col" style={{
       background: 'rgba(10, 10, 20, 0.95)',
       border: '1px solid rgba(100, 100, 120, 0.3)',
     }}>
@@ -336,7 +336,7 @@ export function OrderBook({
       </div>
 
       {/* Scrollable order book area */}
-      <div className="flex-1 min-h-0 overflow-auto">
+      <div className="overflow-auto">
         {/* Asks (매도호가) - 좌측에 잔량 그래프 */}
         <div>
         {orderBook.asks.slice(0, 10).map((ask, i) => {
