@@ -278,18 +278,17 @@ export const useBinanceApi = () => {
     stopPrice: number
   ) => {
     const precision = await fetchSymbolPrecision(symbol);
-    const roundedQuantity = roundQuantity(quantity, precision);
     const roundedStopPrice = roundPrice(stopPrice, precision);
     
-    console.log(`🛑 [STOP_MARKET] ${symbol} ${side} 수량=${roundedQuantity} 손절가=${roundedStopPrice}`);
+    console.log(`🛑 [STOP_MARKET] ${symbol} ${side} 손절가=${roundedStopPrice} (closePosition=true)`);
     
+    // closePosition=true 사용 시 quantity 제거 (바이낸스 규칙)
     const params: Record<string, any> = {
       symbol,
       side,
       type: 'STOP_MARKET',
-      quantity: roundedQuantity,
       stopPrice: roundedStopPrice,
-      closePosition: true,  // 전량 청산
+      closePosition: 'true',  // 문자열로 전달
     };
     
     return callBinanceApi('placeOrder', params);
@@ -303,18 +302,17 @@ export const useBinanceApi = () => {
     stopPrice: number
   ) => {
     const precision = await fetchSymbolPrecision(symbol);
-    const roundedQuantity = roundQuantity(quantity, precision);
     const roundedStopPrice = roundPrice(stopPrice, precision);
     
-    console.log(`💰 [TAKE_PROFIT_MARKET] ${symbol} ${side} 수량=${roundedQuantity} 익절가=${roundedStopPrice}`);
+    console.log(`💰 [TAKE_PROFIT_MARKET] ${symbol} ${side} 익절가=${roundedStopPrice} (closePosition=true)`);
     
+    // closePosition=true 사용 시 quantity 제거 (바이낸스 규칙)
     const params: Record<string, any> = {
       symbol,
       side,
       type: 'TAKE_PROFIT_MARKET',
-      quantity: roundedQuantity,
       stopPrice: roundedStopPrice,
-      closePosition: true,  // 전량 청산
+      closePosition: 'true',  // 문자열로 전달
     };
     
     return callBinanceApi('placeOrder', params);
