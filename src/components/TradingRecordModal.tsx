@@ -35,11 +35,10 @@ interface MonthlyStats {
 
 interface TradingRecordModalProps {
   krwRate: number;
-  isTestnet?: boolean;
   refreshTrigger?: number;
 }
 
-const TradingRecordModal = ({ krwRate, isTestnet = false, refreshTrigger = 0 }: TradingRecordModalProps) => {
+const TradingRecordModal = ({ krwRate, refreshTrigger = 0 }: TradingRecordModalProps) => {
   const [open, setOpen] = useState(false);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
@@ -69,7 +68,7 @@ const TradingRecordModal = ({ krwRate, isTestnet = false, refreshTrigger = 0 }: 
         .from('daily_balance_snapshots')
         .select('*')
         .eq('user_id', user.id)
-        .eq('is_testnet', isTestnet)
+        .eq('is_testnet', false)
         .gte('snapshot_date', startDate)
         .lt('snapshot_date', endDate)
         .order('snapshot_date', { ascending: true });
@@ -86,7 +85,7 @@ const TradingRecordModal = ({ krwRate, isTestnet = false, refreshTrigger = 0 }: 
         .from('daily_balance_snapshots')
         .select('closing_balance_usd')
         .eq('user_id', user.id)
-        .eq('is_testnet', isTestnet)
+        .eq('is_testnet', false)
         .eq('snapshot_date', prevMonthEndDate)
         .maybeSingle();
 
@@ -135,7 +134,7 @@ const TradingRecordModal = ({ krwRate, isTestnet = false, refreshTrigger = 0 }: 
         .from('daily_balance_snapshots')
         .select('snapshot_date, closing_balance_usd, daily_income_usd, deposit_usd, withdrawal_usd')
         .eq('user_id', user.id)
-        .eq('is_testnet', isTestnet)
+        .eq('is_testnet', false)
         .order('snapshot_date', { ascending: true });
 
       if (error) {
@@ -176,7 +175,7 @@ const TradingRecordModal = ({ krwRate, isTestnet = false, refreshTrigger = 0 }: 
         .from('daily_trading_logs')
         .select('*')
         .eq('user_id', user.id)
-        .eq('is_testnet', isTestnet)
+        .eq('is_testnet', false)
         .eq('trade_date', today)
         .order('created_at', { ascending: false });
 
@@ -209,7 +208,7 @@ const TradingRecordModal = ({ krwRate, isTestnet = false, refreshTrigger = 0 }: 
       fetchCumulativeStats();
       fetchTodayTrades();
     }
-  }, [open, selectedYear, selectedMonth, refreshTrigger, isTestnet]);
+  }, [open, selectedYear, selectedMonth, refreshTrigger]);
 
   const handlePrevMonth = () => {
     if (selectedMonth === 1) {

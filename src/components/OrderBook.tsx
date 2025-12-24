@@ -28,7 +28,6 @@ type SplitOption = 1 | 5 | 10;
 
 interface OrderBookProps {
   symbol: string;
-  isTestnet?: boolean;
   splitCount?: 1 | 5 | 10;
   onPlaceOrder?: (side: 'long' | 'short', price: number) => void;
   onMarketEntry?: (side: 'long' | 'short') => void;
@@ -58,14 +57,10 @@ interface VelocityData {
 }
 
 // Combined stream URL for better performance (single connection for multiple streams)
-const WS_URLS = {
-  mainnet: 'wss://fstream.binance.com/stream',
-  testnet: 'wss://stream.binancefuture.com/stream',
-};
+const WS_URL = 'wss://fstream.binance.com/stream';
 
 export function OrderBook({ 
   symbol, 
-  isTestnet = false, 
   splitCount = 5,
   onPlaceOrder,
   onMarketEntry,
@@ -174,21 +169,16 @@ export function OrderBook({
     const rs = wsRef.current?.readyState;
     if (rs === WebSocket.OPEN || rs === WebSocket.CONNECTING) return;
 
-    // ⚠️ 테스트넷 거래를 하더라도, 호가/체결(시장 데이터)은 메인넷을 사용
-    // (일부 종목은 테스트넷 호가 스트림이 멈추거나 존재하지 않아 UI가 정지된 것처럼 보임)
-    const wsUrl = WS_URLS.mainnet;
     const sym = symbol.toLowerCase();
     // Combined stream: depth20@100ms + aggTrade를 하나의 연결로
     const streams = `${sym}@depth20@100ms/${sym}@aggTrade`;
 
     try {
-      wsRef.current = new WebSocket(`${wsUrl}?streams=${streams}`);
+      wsRef.current = new WebSocket(`${WS_URL}?streams=${streams}`);
 
       wsRef.current.onopen = () => {
         setIsConnected(true);
-        console.log(
-          `[OrderBook] Combined stream connected (trading=${isTestnet ? 'testnet' : 'mainnet'}, market=mainnet): ${streams}`
-        );
+        console.log(`[OrderBook] Combined stream connected: ${streams}`);
       };
 
       wsRef.current.onmessage = (event) => {
@@ -224,7 +214,7 @@ export function OrderBook({
     } catch (e) {
       console.error('OrderBook connection error:', e);
     }
-  }, [symbol, isTestnet, processDepthData, processTradeData]);
+  }, [symbol, processDepthData, processTradeData]);
 
   useEffect(() => {
     shouldReconnectRef.current = true;

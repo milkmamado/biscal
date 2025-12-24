@@ -125,7 +125,6 @@ interface UseAutoTradingProps {
     leverage: number;
     pnlUsd: number;
   }) => Promise<void>;
-  isTestnet?: boolean; // 테스트넷 모드
   majorCoinMode?: boolean; // 🆕 메이저 코인 모드
 }
 
@@ -275,7 +274,6 @@ export function useAutoTrading({
   onTradeComplete,
   initialStats,
   logTrade,
-  isTestnet = false,
   majorCoinMode = false, // 🆕 메이저 코인 모드
 }: UseAutoTradingProps) {
   const { user } = useAuth();

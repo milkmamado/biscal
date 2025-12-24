@@ -125,7 +125,6 @@ interface UseLimitOrderTradingProps {
     pnlUsd: number;
   }) => void;
   majorCoinMode?: boolean;
-  isTestnet?: boolean;
   // 필터 설정
   filterSettings?: {
     adxEnabled: boolean;
@@ -148,7 +147,6 @@ export function useLimitOrderTrading({
   initialStats,
   logTrade,
   majorCoinMode = true,
-  isTestnet = false,
   filterSettings,
 }: UseLimitOrderTradingProps) {
   // PaperTrading/Index에서 전달된 레버리지를 우선 사용 (기본값은 config)
@@ -765,7 +763,7 @@ export function useLimitOrderTrading({
       processingRef.current = false;
       setState(prev => ({ ...prev, isProcessing: false }));
     }
-  }, [placeMarketOrder, placeLimitOrder, getPositions, cancelPendingOrders, closePositionMarket, krwRate, filterSettings, isTestnet]);
+  }, [placeMarketOrder, placeLimitOrder, getPositions, cancelPendingOrders, closePositionMarket, krwRate, filterSettings]);
 
   // ===== TP/SL 체크 =====
   const checkTpSl = useCallback(async (currentPrice: number) => {
@@ -1051,7 +1049,7 @@ export function useLimitOrderTrading({
       processingRef.current = false;
       setState(prev => ({ ...prev, isProcessing: false }));
     }
-  }, [balanceUSD, leverage, placeLimitOrder, setLeverage, addLog, isTestnet]);
+  }, [balanceUSD, leverage, placeLimitOrder, setLeverage, addLog]);
 
   // ===== 체결 확인 (2단계 진입) =====
   const checkEntryFill = useCallback(async (symbol: string, side: 'long' | 'short', isRetry: boolean = false) => {
@@ -1756,7 +1754,7 @@ export function useLimitOrderTrading({
     } finally {
       processingRef.current = false;
     }
-  }, [state.currentPosition, user, balanceUSD, leverage, isTestnet, placeMarketOrder, setLeverage, filterSettings, addLog, getPositions, placeStopMarketOrder, placeTakeProfitMarketOrder]);
+  }, [state.currentPosition, user, balanceUSD, leverage, placeMarketOrder, setLeverage, filterSettings, addLog, getPositions, placeStopMarketOrder, placeTakeProfitMarketOrder]);
 
   // ===== 수동 지정가 진입 (분할 매수 지원) =====
   const manualLimitEntry = useCallback(async (symbol: string, direction: 'long' | 'short', price: number, splitCount: number = 5) => {
@@ -1908,7 +1906,7 @@ export function useLimitOrderTrading({
     } finally {
       processingRef.current = false;
     }
-  }, [state.currentPosition, user, balanceUSD, leverage, isTestnet, placeLimitOrder, addLog]);
+  }, [state.currentPosition, user, balanceUSD, leverage, placeLimitOrder, addLog]);
 
   // ===== 손절/익절 설정 변경 시 바이낸스 SL/TP 주문 업데이트 =====
   const prevSlTpRef = useRef<{ sl: number; tp: number } | null>(null);
