@@ -223,7 +223,6 @@ export function useLimitOrderTrading({
   useEffect(() => {
     if (!user) return;
     if (!state.aiEnabled) return;
-    if (!state.isEnabled) return;
     if (!viewingSymbol) return;
 
     const symbol = viewingSymbol;
