@@ -223,6 +223,9 @@ export function useLimitOrderTrading({
   }, [state.currentPosition]);
 
   // ===== 실제 포지션 주기적 동기화 (수동 지정가 체결 감지용) =====
+  // 신규 포지션 감지 시 SL/TP 설정을 위한 ref
+  const slTpSettingInProgressRef = useRef<string | null>(null);
+  
   useEffect(() => {
     if (!user) return;
 
@@ -261,12 +264,26 @@ export function useLimitOrderTrading({
 
           console.log(`🔄 [포지션 동기화] ${symbol} ${side} @ ${entryPrice} qty=${qty} PnL=$${unrealizedPnl.toFixed(2)}`);
 
-          // 손절가는 참고용으로만 계산 (실제 손절은 원화 PnL 기준)
-          const stopLossPrice = calculateStopLossPrice(entryPrice, side);
+          // 손절가 계산
+          const positionValueUsd = entryPrice * qty;
+          const targetStopLossUsdt = filterSettings?.stopLossUsdt ?? 7;
+          const targetTakeProfitUsdt = filterSettings?.takeProfitUsdt ?? 7;
+          const slPercent = (targetStopLossUsdt / positionValueUsd) * 100;
+          const tpPercent = (targetTakeProfitUsdt / positionValueUsd) * 100;
+          
+          let slPrice: number;
+          let tpPrice: number;
+          
+          if (side === 'long') {
+            slPrice = entryPrice * (1 - slPercent / 100);
+            tpPrice = entryPrice * (1 + tpPercent / 100);
+          } else {
+            slPrice = entryPrice * (1 + slPercent / 100);
+            tpPrice = entryPrice * (1 - tpPercent / 100);
+          }
 
           setState(prev => {
             const prevPos = prev.currentPosition;
-            const nextStopLossPrice = calculateStopLossPrice(entryPrice, side);
 
             // 같은 심볼/방향이면 수량/평단/PnL 갱신
             if (prevPos && prevPos.symbol === symbol && prevPos.side === side) {
@@ -278,7 +295,7 @@ export function useLimitOrderTrading({
                   avgPrice: entryPrice,
                   totalQuantity: qty,
                   filledQuantity: qty,
-                  stopLossPrice: nextStopLossPrice,
+                  stopLossPrice: slPrice,
                   unrealizedPnl,
                   markPrice,
                 },
@@ -299,7 +316,7 @@ export function useLimitOrderTrading({
                 startTime: Date.now(),
                 entryPhase: 'active',
                 takeProfitOrders: [],
-                stopLossPrice: nextStopLossPrice,
+                stopLossPrice: slPrice,
                 unrealizedPnl,
                 markPrice,
               },
@@ -307,7 +324,39 @@ export function useLimitOrderTrading({
             };
           });
 
-          if (isBrandNewPosition) {
+          // ===== 신규 포지션 감지 시 바이낸스에 SL/TP 자동 설정 =====
+          if (isBrandNewPosition && slTpSettingInProgressRef.current !== posKey) {
+            slTpSettingInProgressRef.current = posKey;
+            
+            const closeSide = side === 'long' ? 'SELL' : 'BUY';
+            
+            console.log(`📊 [신규 포지션 SL/TP 설정] ${symbol} | SL=$${targetStopLossUsdt}→${slPrice.toFixed(4)} | TP=$${targetTakeProfitUsdt}→${tpPrice.toFixed(4)}`);
+            
+            // STOP_MARKET 주문
+            try {
+              const slResult = await placeStopMarketOrder(symbol, closeSide, qty, slPrice);
+              if (slResult && !slResult.error) {
+                console.log(`✅ [STOP_MARKET] 설정 완료! 손절가=${slPrice.toFixed(4)}`);
+                toast.info(`🛑 손절 주문 설정: $${slPrice.toFixed(2)}`);
+              }
+            } catch (slError: any) {
+              console.warn(`❌ STOP_MARKET 실패:`, slError?.message);
+            }
+            
+            // TAKE_PROFIT_MARKET 주문
+            try {
+              const tpResult = await placeTakeProfitMarketOrder(symbol, closeSide, qty, tpPrice);
+              if (tpResult && !tpResult.error) {
+                console.log(`✅ [TAKE_PROFIT_MARKET] 설정 완료! 익절가=${tpPrice.toFixed(4)}`);
+                toast.info(`💰 익절 주문 설정: $${tpPrice.toFixed(2)}`);
+              }
+            } catch (tpError: any) {
+              console.warn(`❌ TAKE_PROFIT_MARKET 실패:`, tpError?.message);
+            }
+            
+            toast.success(`✅ ${symbol.replace('USDT', '')} ${side === 'long' ? '롱' : '숏'} 체결! SL/TP 자동 설정됨`);
+            playEntrySound();
+          } else if (isBrandNewPosition) {
             toast.success(`✅ ${symbol.replace('USDT', '')} ${side === 'long' ? '롱' : '숏'} 체결! @ ${entryPrice.toFixed(2)}`);
             playEntrySound();
           }
@@ -315,6 +364,7 @@ export function useLimitOrderTrading({
           // 포지션이 없으면 동기화 키 초기화
           if (lastSyncedPositionRef.current) {
             lastSyncedPositionRef.current = null;
+            slTpSettingInProgressRef.current = null;
           }
         }
       } catch (error) {
@@ -329,7 +379,7 @@ export function useLimitOrderTrading({
     syncPositionFromExchange();
 
     return () => clearInterval(interval);
-  }, [user, state.currentPosition, getPositions]);
+  }, [user, state.currentPosition, getPositions, filterSettings, placeStopMarketOrder, placeTakeProfitMarketOrder]);
 
   // ===== 로그 추가 =====
   const addLog = useCallback((log: Omit<LimitOrderTradeLog, 'id' | 'timestamp'>) => {
