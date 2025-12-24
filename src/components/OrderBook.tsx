@@ -489,59 +489,65 @@ export function OrderBook({
             </span>
 
             {/* AI 방향 추천 아이콘 */}
-            {aiEnabled && (
-              <div 
-                className="flex items-center gap-0.5 ml-2 px-1.5 py-0.5 rounded"
-                style={{
-                  background: isAiAnalyzing 
-                    ? 'rgba(100, 100, 120, 0.3)' 
-                    : aiAnalysis?.marketCondition === 'TRENDING_UP' 
-                      ? 'rgba(0, 255, 136, 0.2)' 
-                      : aiAnalysis?.marketCondition === 'TRENDING_DOWN' 
-                        ? 'rgba(255, 80, 100, 0.2)' 
-                        : 'rgba(255, 200, 0, 0.2)',
-                  border: isAiAnalyzing 
-                    ? '1px solid rgba(100, 100, 120, 0.5)' 
-                    : aiAnalysis?.marketCondition === 'TRENDING_UP' 
-                      ? '1px solid rgba(0, 255, 136, 0.5)' 
-                      : aiAnalysis?.marketCondition === 'TRENDING_DOWN' 
-                        ? '1px solid rgba(255, 80, 100, 0.5)' 
-                        : '1px solid rgba(255, 200, 0, 0.5)',
-                }}
-                title={isAiAnalyzing 
-                  ? 'AI 분석 중...' 
-                  : aiAnalysis 
-                    ? `AI: ${aiAnalysis.marketCondition} (${aiAnalysis.confidence}% 신뢰도)` 
-                    : 'AI 분석 대기'}
-              >
-                {isAiAnalyzing ? (
-                  <div className="w-3 h-3 border border-cyan-400 border-t-transparent rounded-full animate-spin" />
-                ) : aiAnalysis?.marketCondition === 'TRENDING_UP' ? (
-                  <TrendingUp className="w-3 h-3 text-green-400" />
-                ) : aiAnalysis?.marketCondition === 'TRENDING_DOWN' ? (
-                  <TrendingDown className="w-3 h-3 text-red-400" />
-                ) : (
-                  <Minus className="w-3 h-3 text-yellow-400" />
-                )}
-                <span className="text-[7px] font-bold" style={{
-                  color: isAiAnalyzing 
-                    ? '#888' 
-                    : aiAnalysis?.marketCondition === 'TRENDING_UP' 
-                      ? '#00ff88' 
-                      : aiAnalysis?.marketCondition === 'TRENDING_DOWN' 
-                        ? '#ff5064' 
-                        : '#ffcc00',
-                }}>
-                  {isAiAnalyzing 
-                    ? 'AI' 
-                    : aiAnalysis?.marketCondition === 'TRENDING_UP' 
-                      ? 'L' 
-                      : aiAnalysis?.marketCondition === 'TRENDING_DOWN' 
-                        ? 'S' 
-                        : '-'}
-                </span>
-              </div>
-            )}
+            {aiEnabled && (() => {
+              // 상태별 스타일 및 라벨 정의
+              const getAiStyle = () => {
+                if (isAiAnalyzing) {
+                  return { bg: 'rgba(100, 100, 120, 0.3)', border: 'rgba(100, 100, 120, 0.5)', color: '#888', label: '...' };
+                }
+                if (!aiAnalysis) {
+                  return { bg: 'rgba(100, 100, 120, 0.2)', border: 'rgba(100, 100, 120, 0.4)', color: '#888', label: '대기' };
+                }
+                switch (aiAnalysis.marketCondition) {
+                  case 'TRENDING_UP':
+                    return { bg: 'rgba(0, 255, 136, 0.2)', border: 'rgba(0, 255, 136, 0.5)', color: '#00ff88', label: '롱' };
+                  case 'TRENDING_DOWN':
+                    return { bg: 'rgba(255, 80, 100, 0.2)', border: 'rgba(255, 80, 100, 0.5)', color: '#ff5064', label: '숏' };
+                  case 'RANGING':
+                    return { bg: 'rgba(100, 200, 255, 0.2)', border: 'rgba(100, 200, 255, 0.5)', color: '#64c8ff', label: '횡보' };
+                  case 'VOLATILE':
+                    return { bg: 'rgba(255, 150, 0, 0.2)', border: 'rgba(255, 150, 0, 0.5)', color: '#ff9600', label: '변동' };
+                  case 'QUIET':
+                  default:
+                    return { bg: 'rgba(180, 180, 180, 0.2)', border: 'rgba(180, 180, 180, 0.5)', color: '#b4b4b4', label: '관망' };
+                }
+              };
+
+              const style = getAiStyle();
+              const confidenceText = aiAnalysis ? ` ${aiAnalysis.confidence}%` : '';
+
+              return (
+                <div 
+                  className="flex items-center gap-0.5 ml-2 px-1.5 py-0.5 rounded cursor-help"
+                  style={{
+                    background: style.bg,
+                    border: `1px solid ${style.border}`,
+                  }}
+                  title={isAiAnalyzing 
+                    ? 'AI 분석 중...' 
+                    : aiAnalysis 
+                      ? `AI: ${aiAnalysis.marketCondition} (${aiAnalysis.confidence}% 신뢰도)\n추천: ${aiAnalysis.recommendation}` 
+                      : 'AI 분석 대기'}
+                >
+                  {isAiAnalyzing ? (
+                    <div className="w-3 h-3 border border-cyan-400 border-t-transparent rounded-full animate-spin" />
+                  ) : aiAnalysis?.marketCondition === 'TRENDING_UP' ? (
+                    <TrendingUp className="w-3 h-3" style={{ color: style.color }} />
+                  ) : aiAnalysis?.marketCondition === 'TRENDING_DOWN' ? (
+                    <TrendingDown className="w-3 h-3" style={{ color: style.color }} />
+                  ) : aiAnalysis?.marketCondition === 'RANGING' ? (
+                    <Minus className="w-3 h-3" style={{ color: style.color }} />
+                  ) : aiAnalysis?.marketCondition === 'VOLATILE' ? (
+                    <TrendingUp className="w-3 h-3" style={{ color: style.color, transform: 'rotate(45deg)' }} />
+                  ) : (
+                    <Minus className="w-3 h-3" style={{ color: style.color }} />
+                  )}
+                  <span className="text-[7px] font-bold" style={{ color: style.color }}>
+                    {style.label}{confidenceText}
+                  </span>
+                </div>
+              );
+            })()}
           </div>
         );
       })()}
