@@ -77,6 +77,7 @@ const Index = () => {
     balanceUSD,
     leverage,
     krwRate,
+    viewingSymbol: selectedSymbol,
     onTradeComplete: handleTradeComplete,
     initialStats,
     logTrade,
