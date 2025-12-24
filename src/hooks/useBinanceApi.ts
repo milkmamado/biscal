@@ -273,48 +273,56 @@ export const useBinanceApi = () => {
   // STOP_MARKET 주문 (손절용)
   const placeStopMarketOrder = useCallback(async (
     symbol: string,
-    side: 'BUY' | 'SELL',  // 롱 포지션 손절: SELL, 숏 포지션 손절: BUY
+    side: 'BUY' | 'SELL', // 롱 포지션 손절: SELL, 숏 포지션 손절: BUY
     quantity: number,
-    stopPrice: number
+    stopPrice: number,
+    positionSide?: 'LONG' | 'SHORT'
   ) => {
     const precision = await fetchSymbolPrecision(symbol);
     const roundedStopPrice = roundPrice(stopPrice, precision);
-    
-    console.log(`🛑 [STOP_MARKET] ${symbol} ${side} 손절가=${roundedStopPrice} (closePosition=true)`);
-    
+
+    console.log(
+      `🛑 [STOP_MARKET] ${symbol} ${side} 손절가=${roundedStopPrice} (closePosition=true${positionSide ? `, positionSide=${positionSide}` : ''})`
+    );
+
     // closePosition=true 사용 시 quantity 제거 (바이낸스 규칙)
     const params: Record<string, any> = {
       symbol,
       side,
       type: 'STOP_MARKET',
       stopPrice: roundedStopPrice,
-      closePosition: 'true',  // 문자열로 전달
+      closePosition: 'true', // 문자열로 전달
+      ...(positionSide ? { positionSide } : {}),
     };
-    
+
     return callBinanceApi('placeOrder', params);
   }, [callBinanceApi]);
 
   // TAKE_PROFIT_MARKET 주문 (익절용)
   const placeTakeProfitMarketOrder = useCallback(async (
     symbol: string,
-    side: 'BUY' | 'SELL',  // 롱 포지션 익절: SELL, 숏 포지션 익절: BUY
+    side: 'BUY' | 'SELL', // 롱 포지션 익절: SELL, 숏 포지션 익절: BUY
     quantity: number,
-    stopPrice: number
+    stopPrice: number,
+    positionSide?: 'LONG' | 'SHORT'
   ) => {
     const precision = await fetchSymbolPrecision(symbol);
     const roundedStopPrice = roundPrice(stopPrice, precision);
-    
-    console.log(`💰 [TAKE_PROFIT_MARKET] ${symbol} ${side} 익절가=${roundedStopPrice} (closePosition=true)`);
-    
+
+    console.log(
+      `💰 [TAKE_PROFIT_MARKET] ${symbol} ${side} 익절가=${roundedStopPrice} (closePosition=true${positionSide ? `, positionSide=${positionSide}` : ''})`
+    );
+
     // closePosition=true 사용 시 quantity 제거 (바이낸스 규칙)
     const params: Record<string, any> = {
       symbol,
       side,
       type: 'TAKE_PROFIT_MARKET',
       stopPrice: roundedStopPrice,
-      closePosition: 'true',  // 문자열로 전달
+      closePosition: 'true', // 문자열로 전달
+      ...(positionSide ? { positionSide } : {}),
     };
-    
+
     return callBinanceApi('placeOrder', params);
   }, [callBinanceApi]);
 
