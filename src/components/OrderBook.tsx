@@ -549,19 +549,21 @@ export function OrderBook({
               );
             })()}
 
-            {/* 미체결 주문 표시 (AI 분석 옆) */}
+            {/* 미체결 주문 표시 (클릭 시 전체 취소) */}
             {openOrders.length > 0 && (
-              <div 
-                className="flex items-center gap-1 ml-2 px-1.5 py-0.5 rounded cursor-help"
+              <button 
+                onClick={onCancelAllOrders}
+                className="flex items-center gap-1 ml-2 px-1.5 py-0.5 rounded cursor-pointer hover:opacity-80 active:scale-95 transition-all"
                 style={{
                   background: 'rgba(255, 200, 0, 0.15)',
                   border: '1px solid rgba(255, 200, 0, 0.4)',
                 }}
-                title={`미체결 ${openOrders.length}건`}
+                title={`미체결 ${openOrders.length}건 - 클릭하면 전체 취소`}
               >
                 <span className="text-[7px] font-bold text-yellow-400">미체결</span>
                 <span className="text-[8px] font-mono font-bold text-yellow-300">{openOrders.length}</span>
-              </div>
+                <span className="text-[7px] text-red-400">✕</span>
+              </button>
             )}
           </div>
         );
@@ -668,63 +670,6 @@ export function OrderBook({
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* 미체결 주문 상세 목록 (주문이 있을 때만 표시) */}
-      {openOrders.length > 0 && (
-        <div className="px-1.5 py-1 shrink-0" style={{
-          background: 'rgba(20, 20, 35, 0.9)',
-          borderTop: '1px solid rgba(100, 100, 120, 0.3)',
-        }}>
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-[9px] text-gray-400">미체결 ({openOrders.length})</span>
-            {onCancelAllOrders && (
-              <button
-                onClick={onCancelAllOrders}
-                className="px-1.5 py-0.5 rounded text-[8px] font-semibold transition-all hover:opacity-80 active:scale-95"
-                style={{
-                  background: 'rgba(255, 100, 100, 0.2)',
-                  border: '1px solid rgba(255, 100, 100, 0.4)',
-                  color: '#ff6666',
-                }}
-              >
-                일괄취소
-              </button>
-            )}
-          </div>
-          <div className="space-y-0.5 max-h-[60px] overflow-y-auto">
-            {openOrders.map((order) => (
-              <div 
-                key={order.orderId} 
-                className="flex items-center justify-between px-1.5 py-0.5 rounded text-[9px]"
-                style={{
-                  background: order.side === 'BUY' ? 'rgba(0, 200, 100, 0.1)' : 'rgba(255, 80, 100, 0.1)',
-                  border: `1px solid ${order.side === 'BUY' ? 'rgba(0, 200, 100, 0.3)' : 'rgba(255, 80, 100, 0.3)'}`,
-                }}
-              >
-                <div className="flex items-center gap-1.5">
-                  <span className={`font-bold ${order.side === 'BUY' ? 'text-green-400' : 'text-red-400'}`}>
-                    {order.side === 'BUY' ? 'L' : 'S'}
-                  </span>
-                  <span className="font-mono text-gray-300">{formatPrice(order.price)}</span>
-                  <span className="font-mono text-yellow-400 text-[8px]">×{(order.origQty - order.executedQty).toFixed(3)}</span>
-                </div>
-                {onCancelOrder && (
-                  <button
-                    onClick={() => onCancelOrder(order.orderId)}
-                    className="px-1 py-0.5 rounded text-[7px] font-semibold transition-all hover:opacity-80"
-                    style={{
-                      background: 'rgba(255, 100, 100, 0.2)',
-                      border: '1px solid rgba(255, 100, 100, 0.4)',
-                      color: '#ff6666',
-                    }}
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
