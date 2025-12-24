@@ -218,13 +218,22 @@ export function useLimitOrderTrading({
       .catch((err) => console.warn('[AI분석] 실패:', err));
   }, [user, state.pendingSignal, state.aiEnabled, state.isEnabled, analyzeMarket]);
 
-  // 종목 선택(호가창 종목 변경) 시에도 즉시 AI 분석 (대기중 방지)
+  // 종목 선택(호가창 종목 변경) 시에도 즉시 AI 분석 (자동매매 상태와 무관하게 항상 실행)
+  const prevViewingSymbolRef = useRef<string | null>(null);
+  
   useEffect(() => {
     if (!user) return;
     if (!state.aiEnabled) return;
     if (!viewingSymbol) return;
 
     const symbol = viewingSymbol;
+    
+    // 종목이 실제로 변경된 경우 ref 리셋 (패스 후 동일 종목 재분석 허용)
+    if (prevViewingSymbolRef.current !== symbol) {
+      prevViewingSymbolRef.current = symbol;
+      lastAnalyzedSymbolRef.current = null; // 리셋하여 재분석 허용
+    }
+    
     if (lastAnalyzedSymbolRef.current === symbol) return;
 
     (async () => {
@@ -255,7 +264,7 @@ export function useLimitOrderTrading({
         console.warn('[AI분석] 종목 변경 분석 실패:', err);
       }
     })();
-  }, [user, viewingSymbol, state.aiEnabled, state.isEnabled, analyzeMarket]);
+  }, [user, viewingSymbol, state.aiEnabled, analyzeMarket]);
 
   // 초기 통계 업데이트
   useEffect(() => {
