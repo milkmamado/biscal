@@ -21,6 +21,7 @@ import {
   LimitOrderEntry,
   LimitOrderPosition,
 } from '@/lib/limitOrderConfig';
+import { toast } from 'sonner';
 
 // 1분봉 조회
 const fetch1mKlines = async (symbol: string, limit: number = 10) => {
@@ -1192,10 +1193,17 @@ export function useLimitOrderTrading({
         reason: `수동 시장가 진입 (${successCount}/${splitCount}분할) + SL/TP`,
       });
       
+      toast.success(`${symbol.replace('USDT', '')} ${direction === 'long' ? '롱' : '숏'} 체결`, {
+        description: `${splitCount}분할 시장가 진입 완료 (SL/TP 설정됨)`,
+      });
       console.log(`🚀 ${symbol.replace('USDT', '')} ${direction === 'long' ? '롱' : '숏'} 체결! SL/TP 자동 설정됨`);
       
     } catch (error: any) {
       console.error('수동 진입 실패:', error);
+      const errorMsg = error?.message || '주문 처리 중 오류가 발생했습니다';
+      toast.error('시장가 주문 실패', {
+        description: errorMsg,
+      });
       setState(prev => ({
         ...prev,
         isProcessing: false,
@@ -1334,6 +1342,9 @@ export function useLimitOrderTrading({
       }
 
       playEntrySound();
+      toast.success(`${symbol.replace('USDT', '')} 지정가 주문 완료`, {
+        description: `${direction === 'long' ? '롱' : '숏'} ${splitCount}분할 @ ${roundedPrice}`,
+      });
       console.log(`📝 ${symbol.replace('USDT', '')} ${direction === 'long' ? '롱' : '숏'} 지정가 ${splitCount}분할 주문 완료! @ ${roundedPrice}`);
 
       setState(prev => ({
@@ -1343,6 +1354,10 @@ export function useLimitOrderTrading({
       }));
     } catch (error: any) {
       console.error('지정가 주문 실패:', error);
+      const errorMsg = error?.message || '주문 처리 중 오류가 발생했습니다';
+      toast.error('지정가 주문 실패', {
+        description: errorMsg,
+      });
       setState(prev => ({
         ...prev,
         isProcessing: false,
