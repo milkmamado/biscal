@@ -428,44 +428,76 @@ const AutoTradingPanel = ({
       )}
       
 
-      {/* Current Position Status - 항상 표시 */}
-      <div className="relative z-10 px-3 py-2 lg:px-4 lg:py-3 shrink-0" style={{
-        background: currentPosition && (currentPosition.entryPhase === 'active' || (currentPosition.filledQuantity > 0 && currentPosition.avgPrice > 0))
-          ? currentPosition.side === 'long' 
-            ? 'linear-gradient(90deg, rgba(0, 255, 136, 0.1) 0%, transparent 100%)'
-            : 'linear-gradient(90deg, rgba(255, 0, 136, 0.1) 0%, transparent 100%)'
-          : 'rgba(30, 30, 50, 0.5)',
-        borderBottom: currentPosition && (currentPosition.entryPhase === 'active' || (currentPosition.filledQuantity > 0 && currentPosition.avgPrice > 0))
-          ? `1px solid ${currentPosition.side === 'long' ? 'rgba(0, 255, 136, 0.2)' : 'rgba(255, 0, 136, 0.2)'}`
-          : '1px solid rgba(100, 100, 120, 0.2)',
-      }}>
-        {currentPosition && (currentPosition.entryPhase === 'active' || (currentPosition.filledQuantity > 0 && currentPosition.avgPrice > 0)) ? (
+      {/* Current Position Status - 사이버펑크 스타일 */}
+      <div 
+        className="relative z-10 shrink-0 overflow-hidden"
+        style={{
+          background: currentPosition && (currentPosition.entryPhase === 'active' || (currentPosition.filledQuantity > 0 && currentPosition.avgPrice > 0))
+            ? currentPosition.side === 'long' 
+              ? 'linear-gradient(135deg, rgba(0, 50, 30, 0.95) 0%, rgba(0, 30, 20, 0.95) 100%)'
+              : 'linear-gradient(135deg, rgba(50, 10, 30, 0.95) 0%, rgba(30, 5, 20, 0.95) 100%)'
+            : 'linear-gradient(135deg, rgba(10, 10, 20, 0.95) 0%, rgba(15, 15, 25, 0.95) 100%)',
+          borderTop: '2px solid',
+          borderImage: currentPosition && (currentPosition.entryPhase === 'active' || (currentPosition.filledQuantity > 0 && currentPosition.avgPrice > 0))
+            ? currentPosition.side === 'long'
+              ? 'linear-gradient(90deg, transparent, #00ff88, #00ffff, transparent) 1'
+              : 'linear-gradient(90deg, transparent, #ff0088, #ff00ff, transparent) 1'
+            : 'linear-gradient(90deg, transparent, rgba(100,100,120,0.5), transparent) 1',
+        }}
+      >
+        {/* 배경 그리드 */}
+        <div
+          className="absolute inset-0 opacity-5"
+          style={{
+            backgroundImage: `
+              linear-gradient(rgba(0, 255, 255, 0.5) 1px, transparent 1px),
+              linear-gradient(90deg, rgba(0, 255, 255, 0.5) 1px, transparent 1px)
+            `,
+            backgroundSize: '12px 12px',
+          }}
+        />
+        
+        <div className="relative z-10 px-3 py-2 lg:px-4 lg:py-3">
+          {currentPosition && (currentPosition.entryPhase === 'active' || (currentPosition.filledQuantity > 0 && currentPosition.avgPrice > 0)) ? (
           <>
             <div className="flex items-center justify-between mb-1 lg:mb-2">
               <div className="flex items-center gap-2">
-                {currentPosition.side === 'long' ? (
-                  <TrendingUp className="w-3 h-3 lg:w-4 lg:h-4" style={{ color: '#00ff88' }} />
-                ) : (
-                  <TrendingDown className="w-3 h-3 lg:w-4 lg:h-4" style={{ color: '#ff0088' }} />
-                )}
-                <span className="font-semibold text-xs lg:text-sm" style={{
-                  color: currentPosition.side === 'long' ? '#00ff88' : '#ff0088',
-                }}>
+                <div style={{ filter: `drop-shadow(0 0 8px ${currentPosition.side === 'long' ? '#00ff88' : '#ff0088'})` }}>
+                  {currentPosition.side === 'long' ? (
+                    <TrendingUp className="w-4 h-4 lg:w-5 lg:h-5" style={{ color: '#00ff88' }} />
+                  ) : (
+                    <TrendingDown className="w-4 h-4 lg:w-5 lg:h-5" style={{ color: '#ff0088' }} />
+                  )}
+                </div>
+                <span 
+                  className="font-bold text-xs lg:text-sm tracking-wider uppercase"
+                  style={{
+                    color: currentPosition.side === 'long' ? '#00ff88' : '#ff0088',
+                    textShadow: `0 0 10px ${currentPosition.side === 'long' ? 'rgba(0, 255, 136, 0.6)' : 'rgba(255, 0, 136, 0.6)'}`,
+                  }}
+                >
                   {currentPosition.symbol.replace('USDT', '')} {currentPosition.side === 'long' ? '롱' : '숏'}
                   {currentPosition.entryPhase === 'waiting' && (
-                    <span className="ml-1 text-[9px] text-yellow-400">(체결중)</span>
+                    <span className="ml-1 text-[9px] text-yellow-400 animate-pulse">(체결중)</span>
                   )}
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-sm lg:text-base font-bold font-mono" style={{
-                  color: currentPnL >= 0 ? '#00ff88' : '#ff0088',
-                }}>
+                <span 
+                  className="text-sm lg:text-base font-bold font-mono"
+                  style={{
+                    color: currentPnL >= 0 ? '#00ff88' : '#ff0088',
+                    textShadow: `0 0 8px ${currentPnL >= 0 ? 'rgba(0, 255, 136, 0.5)' : 'rgba(255, 0, 136, 0.5)'}`,
+                  }}
+                >
                   {currentPnL >= 0 ? '+' : ''}{currentPnL.toFixed(2)} USDT
                 </span>
-                <span className="text-sm lg:text-base font-bold font-mono" style={{
-                  color: currentPnL >= 0 ? 'rgba(0, 255, 136, 0.8)' : 'rgba(255, 0, 136, 0.8)',
-                }}>
+                <span 
+                  className="text-sm lg:text-base font-bold font-mono"
+                  style={{
+                    color: currentPnL >= 0 ? 'rgba(0, 255, 136, 0.8)' : 'rgba(255, 0, 136, 0.8)',
+                  }}
+                >
                   ({currentPnL >= 0 ? '+' : ''}₩{formatKRW(currentPnL)})
                 </span>
               </div>
@@ -480,10 +512,11 @@ const AutoTradingPanel = ({
                   variant="destructive"
                   size="sm"
                   onClick={onManualClose}
-                  className="w-full h-6 lg:h-8 text-xs lg:text-sm font-semibold"
+                  className="w-full h-6 lg:h-8 text-xs lg:text-sm font-bold tracking-wider uppercase border-0"
                   style={{
-                    background: 'linear-gradient(90deg, rgba(255, 0, 136, 0.8) 0%, rgba(255, 50, 100, 0.8) 100%)',
-                    border: '1px solid rgba(255, 0, 136, 0.5)',
+                    background: 'linear-gradient(135deg, rgba(255, 0, 136, 0.8) 0%, rgba(200, 0, 100, 0.9) 100%)',
+                    boxShadow: '0 0 15px rgba(255, 0, 136, 0.4), inset 0 0 10px rgba(255, 255, 255, 0.1)',
+                    textShadow: '0 0 5px rgba(255, 255, 255, 0.5)',
                   }}
                   disabled={isProcessing}
                 >
@@ -495,20 +528,32 @@ const AutoTradingPanel = ({
         ) : currentPosition && currentPosition.entryPhase === 'waiting' ? (
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              {currentPosition.side === 'long' ? (
-                <TrendingUp className="w-3 h-3 lg:w-4 lg:h-4 animate-pulse" style={{ color: '#00ff88' }} />
-              ) : (
-                <TrendingDown className="w-3 h-3 lg:w-4 lg:h-4 animate-pulse" style={{ color: '#ff0088' }} />
-              )}
-              <span className="text-xs lg:text-sm" style={{
-                color: currentPosition.side === 'long' ? '#00ff88' : '#ff0088',
-              }}>
+              <div style={{ filter: `drop-shadow(0 0 8px ${currentPosition.side === 'long' ? '#00ff88' : '#ff0088'})` }}>
+                {currentPosition.side === 'long' ? (
+                  <TrendingUp className="w-4 h-4 lg:w-5 lg:h-5 animate-pulse" style={{ color: '#00ff88' }} />
+                ) : (
+                  <TrendingDown className="w-4 h-4 lg:w-5 lg:h-5 animate-pulse" style={{ color: '#ff0088' }} />
+                )}
+              </div>
+              <span 
+                className="text-xs lg:text-sm font-bold tracking-wider"
+                style={{
+                  color: currentPosition.side === 'long' ? '#00ff88' : '#ff0088',
+                  textShadow: `0 0 10px ${currentPosition.side === 'long' ? 'rgba(0, 255, 136, 0.6)' : 'rgba(255, 0, 136, 0.6)'}`,
+                }}
+              >
                 {currentPosition.symbol.replace('USDT', '')} 체결 대기중...
               </span>
             </div>
             <div className="text-right">
-              <span className="text-[9px] lg:text-[10px] text-gray-500">목표수량</span>
-              <div className="text-xs lg:text-sm font-mono font-semibold text-yellow-400">
+              <span className="text-[9px] lg:text-[10px] text-cyan-400/70">목표수량</span>
+              <div 
+                className="text-xs lg:text-sm font-mono font-bold"
+                style={{
+                  color: '#00ffff',
+                  textShadow: '0 0 8px rgba(0, 255, 255, 0.5)',
+                }}
+              >
                 {currentPosition.totalQuantity.toFixed(4)}
               </div>
             </div>
@@ -516,15 +561,49 @@ const AutoTradingPanel = ({
         ) : (
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Activity className="w-3 h-3 lg:w-4 lg:h-4 text-gray-500" />
-              <span className="text-xs lg:text-sm text-gray-400">포지션 없음</span>
+              <div style={{ filter: 'drop-shadow(0 0 5px rgba(100, 100, 150, 0.5))' }}>
+                <Activity className="w-4 h-4 lg:w-5 lg:h-5 text-gray-500" />
+              </div>
+              <div className="flex flex-col">
+                <span 
+                  className="text-xs lg:text-sm font-bold tracking-wider uppercase"
+                  style={{
+                    color: 'rgba(150, 150, 180, 0.9)',
+                    textShadow: '0 0 5px rgba(100, 100, 150, 0.3)',
+                  }}
+                >
+                  포지션 없음
+                </span>
+                <span className="text-[9px] text-gray-600">대기 상태</span>
+              </div>
             </div>
             <div className="text-right">
               <span className="text-[9px] lg:text-[10px] text-gray-500">평가손익</span>
-              <div className="text-xs lg:text-sm font-mono font-semibold text-gray-500">₩0</div>
+              <div 
+                className="text-xs lg:text-sm font-mono font-bold"
+                style={{
+                  color: 'rgba(100, 100, 120, 0.8)',
+                }}
+              >
+                ₩0
+              </div>
             </div>
           </div>
         )}
+        </div>
+        
+        {/* 하단 네온 라인 */}
+        <div
+          className="h-[1px] w-full"
+          style={{
+            background: currentPosition && (currentPosition.entryPhase === 'active' || (currentPosition.filledQuantity > 0 && currentPosition.avgPrice > 0))
+              ? currentPosition.side === 'long'
+                ? 'linear-gradient(90deg, transparent 0%, #00ff88 30%, #00ffff 70%, transparent 100%)'
+                : 'linear-gradient(90deg, transparent 0%, #ff0088 30%, #ff00ff 70%, transparent 100%)'
+              : 'linear-gradient(90deg, transparent 0%, rgba(100,100,120,0.5) 50%, transparent 100%)',
+            boxShadow: currentPosition ? '0 0 8px rgba(0, 255, 255, 0.3)' : 'none',
+          }}
+        />
       </div>
 
       {/* 잔고 & 실현손익 (컴팩트) */}
