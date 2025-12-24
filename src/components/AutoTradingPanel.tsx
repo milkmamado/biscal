@@ -651,10 +651,10 @@ const AutoTradingPanel = ({
       {/* Order Book - 호가창 (스캔 상태와 관계없이 항상 표시) */}
       <OrderBook 
         symbol={activeSymbol} 
-        
         hasPosition={!!currentPosition}
         openOrders={openOrders}
         splitCount={splitCount}
+        leverage={leverage}
         aiAnalysis={aiAnalysis}
         aiEnabled={aiEnabled}
         isAiAnalyzing={isAiAnalyzing}
@@ -672,7 +672,8 @@ const AutoTradingPanel = ({
         onCancelOrder={handleCancelOrder}
         onCancelAllOrders={handleCancelAllOrders}
         onMarketClose={onManualClose}
-      />{/* 🆕 시그널 발견 & 일시정지 상태 - 사이버펑크 스타일 */}
+      />
+      {/* 🆕 시그널 발견 & 일시정지 상태 - 사이버펑크 스타일 */}
       {scanStatus?.isPaused && scanStatus.signalsCount > 0 && !currentPosition && (
         <div 
           className="relative z-10 shrink-0 overflow-hidden -mt-[1px]"
