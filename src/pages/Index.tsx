@@ -11,7 +11,7 @@ import DualChartPanel from '@/components/DualChartPanel';
 import AutoTradingPanel, { ScalpingIndicator } from '@/components/AutoTradingPanel';
 import ApiKeySetup from '@/components/ApiKeySetup';
 import TradingSettingsPanel from '@/components/TradingSettingsPanel';
-import TradingLogsPanel from '@/components/TradingLogsPanel';
+
 import { Button } from '@/components/ui/button';
 
 
@@ -369,12 +369,6 @@ const Index = () => {
             takeProfitUsdt={takeProfitUsdt}
             onTakeProfitChange={setTakeProfitUsdt}
             isAutoTradingEnabled={autoTrading.state.isEnabled}
-          />
-          <TradingLogsPanel
-            dbTradeLogs={dbTradeLogs}
-            krwRate={krwRate}
-            isEnabled={autoTrading.state.isEnabled}
-            onSelectSymbol={setSelectedSymbol}
           />
           <ScalpingIndicator 
             statusMessage={autoTrading.state.statusMessage}
