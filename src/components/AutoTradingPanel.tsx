@@ -10,7 +10,6 @@ import { useBinanceApi } from '@/hooks/useBinanceApi';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import TradingRecordModal from './TradingRecordModal';
-import BacktestModal from './BacktestModal';
 import TradingDocsModal from './TradingDocsModal';
 import OrderBook from './OrderBook';
 import { LIMIT_ORDER_CONFIG } from '@/lib/limitOrderConfig';
@@ -536,12 +535,6 @@ const AutoTradingPanel = ({
             </div>
           </div>
           <div className="flex items-center gap-1">
-            {currentPosition && (
-              <BacktestModal symbol={currentPosition.symbol} />
-            )}
-            {pendingSignal && !currentPosition && (
-              <BacktestModal symbol={pendingSignal.symbol} />
-            )}
             <TradingRecordModal krwRate={krwRate} refreshTrigger={refreshTrigger} />
           </div>
         </div>
