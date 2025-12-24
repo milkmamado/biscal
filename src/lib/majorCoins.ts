@@ -100,7 +100,6 @@ export const MAJOR_COIN_TRADING_CONFIG = {
   BREAKEVEN_TRIGGER: 0.05,   // +0.05% 도달 시 BE
   BREAKEVEN_SL: 0.03,        // BE 손절선 +0.03%
   BREAKEVEN_TRAILING_GAP: 0.02, // 트레일링 BE gap 0.02%
-  BREAKEVEN_TIMEOUT_SEC: 90, // BE 후 90초 타임아웃
   
   // 시장 환경 필터 (메이저는 더 완화)
   MIN_ADX_FOR_TREND: 18,     // 최소 ADX 18 (조금 완화)
@@ -149,7 +148,6 @@ export const ALTCOIN_TRADING_CONFIG = {
   BREAKEVEN_TRIGGER: 0.06,
   BREAKEVEN_SL: 0.05,
   BREAKEVEN_TRAILING_GAP: 0.03,
-  BREAKEVEN_TIMEOUT_SEC: 120,
   
   MIN_ADX_FOR_TREND: 20,
   TIME_STOP_MINUTES: 15,
