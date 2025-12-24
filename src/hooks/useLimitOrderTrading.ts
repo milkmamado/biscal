@@ -218,53 +218,43 @@ export function useLimitOrderTrading({
       .catch((err) => console.warn('[AI분석] 실패:', err));
   }, [user, state.pendingSignal, state.aiEnabled, state.isEnabled, analyzeMarket]);
 
-  // 종목 선택(호가창 종목 변경) 시에도 즉시 AI 분석 (자동매매 상태와 무관하게 항상 실행)
-  const prevViewingSymbolRef = useRef<string | null>(null);
-  
-  useEffect(() => {
+  // 수동 AI 분석 함수 (버튼 클릭 시 호출)
+  const manualAnalyzeMarket = useCallback(async () => {
     if (!user) return;
     if (!state.aiEnabled) return;
     if (!viewingSymbol) return;
 
     const symbol = viewingSymbol;
-    
-    // 종목이 실제로 변경된 경우 ref 리셋 (패스 후 동일 종목 재분석 허용)
-    if (prevViewingSymbolRef.current !== symbol) {
-      prevViewingSymbolRef.current = symbol;
-      lastAnalyzedSymbolRef.current = null; // 리셋하여 재분석 허용
-    }
-    
-    if (lastAnalyzedSymbolRef.current === symbol) return;
 
-    (async () => {
-      try {
-        const klines = await fetch5mKlines(symbol, 60);
-        if (!klines || klines.length < 30) return;
-
-        const klinesForCalc = klines.map((k: any, idx: number) => ({
-          openTime: idx,
-          closeTime: idx,
-          open: k.open,
-          high: k.high,
-          low: k.low,
-          close: k.close,
-          volume: k.volume,
-        }));
-
-        const indicators = calculateAllIndicators(klinesForCalc as any);
-        if (!indicators) return;
-
-        const lastClose = klinesForCalc[klinesForCalc.length - 1]?.close ?? 0;
-        if (!lastClose) return;
-
-        lastAnalyzedSymbolRef.current = symbol;
-        console.log(`[AI분석] 종목 변경 → ${symbol} 즉시 분석 시작`);
-        await analyzeMarket(symbol, indicators, lastClose, 0, 0);
-      } catch (err) {
-        console.warn('[AI분석] 종목 변경 분석 실패:', err);
+    try {
+      const klines = await fetch5mKlines(symbol, 60);
+      if (!klines || klines.length < 30) {
+        console.warn('[AI분석] 데이터 부족');
+        return;
       }
-    })();
-  }, [user, viewingSymbol, state.aiEnabled, analyzeMarket]);
+
+      const klinesForCalc = klines.map((k: any, idx: number) => ({
+        openTime: idx,
+        closeTime: idx,
+        open: k.open,
+        high: k.high,
+        low: k.low,
+        close: k.close,
+        volume: k.volume,
+      }));
+
+      const indicators = calculateAllIndicators(klinesForCalc as any);
+      if (!indicators) return;
+
+      const lastClose = klinesForCalc[klinesForCalc.length - 1]?.close ?? 0;
+      if (!lastClose) return;
+
+      console.log(`[AI분석] 수동 분석 시작 → ${symbol}`);
+      await analyzeMarket(symbol, indicators, lastClose, 0, 0);
+    } catch (err) {
+      console.warn('[AI분석] 수동 분석 실패:', err);
+    }
+  }, [user, viewingSymbol, state.aiEnabled, analyzeMarket, fetch5mKlines]);
 
   // 초기 통계 업데이트
   useEffect(() => {
@@ -1530,6 +1520,7 @@ export function useLimitOrderTrading({
     cancelEntry,
     manualMarketEntry,
     manualLimitEntry,
+    manualAnalyzeMarket,
     addLog,
   };
 }

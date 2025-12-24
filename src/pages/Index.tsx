@@ -351,6 +351,7 @@ const Index = () => {
             majorCoinMode={majorCoinMode}
             onToggleMajorCoinMode={() => setMajorCoinMode(prev => !prev)}
             onToggleAiAnalysis={autoTrading.toggleAiAnalysis}
+            onAnalyzeAI={autoTrading.manualAnalyzeMarket}
             viewingSymbol={selectedSymbol}
             onOpenOrdersChange={setOpenOrders}
           />
