@@ -1302,17 +1302,15 @@ export function useLimitOrderTrading({
       );
 
       // splitCount 만큼 개별 주문 생성 - 가격 분산!
-      // 롱: 클릭가격에서 아래로 분산 (5,4,3,2,1 식으로)
-      // 숏: 클릭가격에서 위로 분산 (1,2,3,4,5 식으로)
+      // 롱: 클릭가격에서 아래로 분산 (더 낮은 가격에서 매수하려고)
+      // 숏: 클릭가격에서 아래로 분산 (클릭가격부터 아래로, 체결되면 더 유리)
+      // → 둘 다 클릭가격부터 아래로 분산하여 클릭한 가격 이상에서 체결되지 않도록 함
       const priceStep = precision.tickSize * 10; // 틱사이즈 x 10 간격으로 분산
       
       for (let i = 0; i < splitCount; i++) {
-        // 가격 분산 계산
-        // 롱: 첫 주문이 가장 높은 가격, 마지막이 가장 낮은 가격
-        // 숏: 첫 주문이 가장 낮은 가격, 마지막이 가장 높은 가격
-        const priceOffset = direction === 'long' 
-          ? -priceStep * i  // 롱: 아래로 분산
-          : priceStep * i;  // 숏: 위로 분산
+        // 롱/숏 모두 클릭 가격에서 아래로 분산
+        // i=0: 클릭 가격 그대로, i=1,2,3...: 아래로 분산
+        const priceOffset = -priceStep * i;
         
         const orderPrice = roundPrice(roundedPrice + priceOffset, precision);
         
