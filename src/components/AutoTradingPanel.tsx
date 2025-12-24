@@ -10,7 +10,6 @@ import { useBinanceApi } from '@/hooks/useBinanceApi';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import TradingRecordModal from './TradingRecordModal';
-import TradingDocsModal from './TradingDocsModal';
 import OrderBook from './OrderBook';
 import { LIMIT_ORDER_CONFIG } from '@/lib/limitOrderConfig';
 
@@ -438,8 +437,6 @@ const AutoTradingPanel = ({
           >
             <Crown className="w-4 h-4" />
           </button>
-          {/* 매매 가이드 문서 */}
-          <TradingDocsModal majorCoinMode={majorCoinMode} />
           {/* AI 분석 토글 */}
           <button
             onClick={onToggleAiAnalysis}
