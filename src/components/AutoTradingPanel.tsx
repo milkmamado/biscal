@@ -74,7 +74,6 @@ interface AutoTradingPanelProps {
   };
   onPassSignal?: () => void;
   onTogglePause?: () => void;
-  isTestnet?: boolean;
   majorCoinMode?: boolean;
   onToggleMajorCoinMode?: () => void;
   onToggleAiAnalysis?: () => void;
@@ -101,7 +100,6 @@ const AutoTradingPanel = ({
   onBalanceChange,
   refreshTrigger = 0,
   scanStatus,
-  isTestnet = false,
   majorCoinMode = false,
   onToggleMajorCoinMode,
   onToggleAiAnalysis,
@@ -253,7 +251,7 @@ const AutoTradingPanel = ({
           daily_income_usd: realizedFromBinance,
           deposit_usd: deposits,
           withdrawal_usd: withdrawals,
-          is_testnet: isTestnet,
+          is_testnet: false,
         }, { onConflict: 'user_id,snapshot_date,is_testnet' });
       }
     } catch (error) {
@@ -277,27 +275,8 @@ const AutoTradingPanel = ({
         setBalanceUSD(totalBalance);
         onBalanceChange?.(totalBalance);  // 총 잔고 기준으로 95% 계산
 
-        if (isTestnet) {
-          const realized = todayStats.totalPnL;
-          setTodayDeposits(0);
-          setTodayRealizedPnL(realized);
-          setPreviousDayBalance(totalBalance - realized);
-
-          const { data: { user: authUser } } = await supabase.auth.getUser();
-          if (authUser) {
-            await supabase.from('daily_balance_snapshots').upsert({
-              user_id: authUser.id,
-              snapshot_date: getTodayDate(),
-              closing_balance_usd: totalBalance,
-              daily_income_usd: realized,
-              deposit_usd: 0,
-              withdrawal_usd: 0,
-              is_testnet: true,
-            }, { onConflict: 'user_id,snapshot_date,is_testnet' });
-          }
-        } else {
-          fetchTodayRealizedPnL(totalBalance);
-        }
+        // 바이낸스 income history 조회
+        fetchTodayRealizedPnL(totalBalance);
       }
     } catch (error) {
       console.error('Failed to fetch balance:', error);
@@ -388,9 +367,7 @@ const AutoTradingPanel = ({
   };
   
   // Daily P&L calculations
-  const realizedPnLUsd = isTestnet
-    ? todayStats.totalPnL
-    : (todayRealizedPnL !== 0 ? todayRealizedPnL : todayStats.totalPnL);
+  const realizedPnLUsd = todayRealizedPnL !== 0 ? todayRealizedPnL : todayStats.totalPnL;
 
   const dailyPnL = realizedPnLUsd;
   const effectiveStartingBalance = (previousDayBalance !== null ? Math.max(0, previousDayBalance) : 0) + todayDeposits;
@@ -565,7 +542,7 @@ const AutoTradingPanel = ({
             {pendingSignal && !currentPosition && (
               <BacktestModal symbol={pendingSignal.symbol} />
             )}
-            <TradingRecordModal krwRate={krwRate} isTestnet={isTestnet} refreshTrigger={refreshTrigger} />
+            <TradingRecordModal krwRate={krwRate} refreshTrigger={refreshTrigger} />
           </div>
         </div>
       </div>
@@ -780,7 +757,7 @@ const AutoTradingPanel = ({
       {/* Order Book - 호가창 (스캔 상태와 관계없이 항상 표시) */}
       <OrderBook 
         symbol={activeSymbol} 
-        isTestnet={isTestnet}
+        
         hasPosition={!!currentPosition}
         openOrders={openOrders}
         splitCount={splitCount}
