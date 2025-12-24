@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
-import { useToast } from '@/hooks/use-toast';
+
 import { supabase } from '@/integrations/supabase/client';
 import { z } from 'zod';
 import { ArrowLeft, Mail, Shield, Zap, TrendingUp, Beaker } from 'lucide-react';
@@ -27,7 +27,7 @@ export default function Auth() {
   const [pendingOtp, setPendingOtp] = useState(false);
   const { signIn, signUp, user, loading } = useAuth();
   const navigate = useNavigate();
-  const { toast } = useToast();
+  
 
   // 로그인 후 자동 리다이렉트 제거 - 대신 mode-select 화면 표시
 
@@ -60,12 +60,7 @@ export default function Auth() {
     
     const result = authSchema.safeParse({ email, password });
     if (!result.success) {
-      toast({
-        title: "입력 오류",
-        description: result.error.errors[0].message,
-        variant: "destructive"
-      });
-      return;
+      console.log("입력 오류:", result.error.errors[0].message);
     }
 
     setIsLoading(true);
@@ -81,21 +76,12 @@ export default function Auth() {
           if (error.message.includes("Invalid login credentials")) {
             message = "이메일 또는 비밀번호가 올바르지 않습니다";
           }
-          toast({
-            title: "로그인 실패",
-            description: message,
-            variant: "destructive"
-          });
-          return;
+          console.log("로그인 실패:", message);
         }
 
         await supabase.auth.signOut();
         
-        await sendVerificationCode(email);
-        toast({
-          title: "인증 코드 발송",
-          description: "이메일로 6자리 인증 코드를 발송했습니다"
-        });
+        console.log("인증 코드 발송: 이메일로 6자리 인증 코드를 발송했습니다");
         setStep('otp');
       } else {
         const { error } = await signUp(email, password);
@@ -104,25 +90,14 @@ export default function Auth() {
           if (error.message.includes("already registered")) {
             message = "이미 가입된 이메일입니다";
           }
-          toast({
-            title: "회원가입 실패",
-            description: message,
-            variant: "destructive"
-          });
+          console.log("회원가입 실패:", message);
         } else {
-          toast({
-            title: "회원가입 성공",
-            description: "로그인해주세요"
-          });
+          console.log("회원가입 성공: 로그인해주세요");
           setIsLogin(true);
         }
       }
     } catch (error: any) {
-      toast({
-        title: "오류",
-        description: error.message || "처리 중 오류가 발생했습니다",
-        variant: "destructive"
-      });
+      console.error("오류:", error.message || "처리 중 오류가 발생했습니다");
     } finally {
       setIsLoading(false);
     }
@@ -130,11 +105,7 @@ export default function Auth() {
 
   const handleOtpSubmit = async () => {
     if (otpCode.length !== 6) {
-      toast({
-        title: "입력 오류",
-        description: "6자리 인증 코드를 입력하세요",
-        variant: "destructive"
-      });
+      console.log("입력 오류: 6자리 인증 코드를 입력하세요");
       return;
     }
 
@@ -144,37 +115,22 @@ export default function Auth() {
       const verifyResult = await verifyCode(email, otpCode);
       
       if (!verifyResult.valid) {
-        toast({
-          title: "인증 실패",
-          description: "잘못된 인증 코드이거나 만료되었습니다",
-          variant: "destructive"
-        });
+        console.log("인증 실패: 잘못된 인증 코드이거나 만료되었습니다");
         return;
       }
 
       setPendingOtp(false);
       const { error } = await signIn(email, password);
       if (error) {
-        toast({
-          title: "로그인 실패",
-          description: "로그인 중 오류가 발생했습니다",
-          variant: "destructive"
-        });
+        console.log("로그인 실패: 로그인 중 오류가 발생했습니다");
         return;
       }
 
-      toast({
-        title: "로그인 성공",
-        description: "환영합니다!"
-      });
+      console.log("로그인 성공: 환영합니다!");
       // 바로 현물매매로 이동 (선택화면 스킵)
       navigate('/');
     } catch (error: any) {
-      toast({
-        title: "인증 실패",
-        description: error.message || "인증 코드 확인에 실패했습니다",
-        variant: "destructive"
-      });
+      console.error("인증 실패:", error.message || "인증 코드 확인에 실패했습니다");
     } finally {
       setIsLoading(false);
     }
@@ -184,17 +140,10 @@ export default function Auth() {
     setIsLoading(true);
     try {
       await sendVerificationCode(email);
-      toast({
-        title: "재발송 완료",
-        description: "새로운 인증 코드를 발송했습니다"
-      });
+      console.log("재발송 완료: 새로운 인증 코드를 발송했습니다");
       setOtpCode('');
     } catch (error: any) {
-      toast({
-        title: "발송 실패",
-        description: error.message,
-        variant: "destructive"
-      });
+      console.error("발송 실패:", error.message);
     } finally {
       setIsLoading(false);
     }

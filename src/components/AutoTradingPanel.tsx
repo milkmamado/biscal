@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { Bot, TrendingUp, TrendingDown, Activity, Clock, AlertTriangle, Star, RefreshCw, Wallet, LogOut, Shield, ShieldOff, Crown, Brain, Zap, SkipForward, Pause, Play } from 'lucide-react';
-import { toast } from 'sonner';
+
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { LimitOrderTradingState, LimitOrderTradeLog } from '@/hooks/useLimitOrderTrading';
@@ -163,10 +163,10 @@ const AutoTradingPanel = ({
   const handleCancelOrder = async (orderId: number) => {
     try {
       await cancelOrder(activeSymbol, orderId);
-      toast.success('주문이 취소되었습니다');
+      console.log('주문이 취소되었습니다');
       fetchOpenOrders(activeSymbol);
     } catch (error: any) {
-      toast.error(`취소 실패: ${error.message}`);
+      console.error(`취소 실패: ${error.message}`);
     }
   };
   
@@ -174,10 +174,10 @@ const AutoTradingPanel = ({
   const handleCancelAllOrders = async () => {
     try {
       await cancelAllOrders(activeSymbol);
-      toast.success('모든 주문이 취소되었습니다');
+      console.log('모든 주문이 취소되었습니다');
       setOpenOrders([]);
     } catch (error: any) {
-      toast.error(`일괄 취소 실패: ${error.message}`);
+      console.error(`일괄 취소 실패: ${error.message}`);
     }
   };
   

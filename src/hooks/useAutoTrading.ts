@@ -1006,7 +1006,7 @@ export function useAutoTrading({
         consecutiveLosses: 0,
         statusMessage: '✅ 휴식 완료! 자동매매 재개',
       }));
-      toast.success('✅ 휴식 완료! 자동매매 재개');
+      console.log('✅ 휴식 완료! 자동매매 재개');
     }
 
     // 쿨다운 체크
@@ -1118,7 +1118,7 @@ export function useAutoTrading({
       reason: `${strength} 시그널 대기 - 봉 완성 확인 중`,
     });
 
-    toast.info(`⏳ ${symbol.replace('USDT', '')} 봉 완성 대기 (${direction === 'long' ? '롱' : '숏'} 예정)`);
+    console.log(`⏳ ${symbol.replace('USDT', '')} 봉 완성 대기 (${direction === 'long' ? '롱' : '숏'} 예정)`);
 
   }, [state.isEnabled, state.currentPosition, state.pendingSignal, user, balanceUSD, addLog]);
 
@@ -1306,7 +1306,7 @@ export function useAutoTrading({
       playEntrySound();
       const cuteEmojis = ['🚀', '💫', '✨', '🎯', '💰', '🔥', '⚡'];
       const randomEmoji = cuteEmojis[Math.floor(Math.random() * cuteEmojis.length)];
-      toast.success(`${randomEmoji} ${side === 'long' ? '롱' : '숏'} 진입! ${symbol.replace('USDT', '')} @ $${(avgPrice > 0 ? avgPrice : currentPrice).toFixed(2)}`);
+      console.log(`${randomEmoji} ${side === 'long' ? '롱' : '숏'} 진입! ${symbol.replace('USDT', '')} @ $${(avgPrice > 0 ? avgPrice : currentPrice).toFixed(2)}`);
 
     } catch (error: any) {
       console.error('Entry error:', error);
@@ -1320,7 +1320,7 @@ export function useAutoTrading({
         quantity: 0,
         reason: error.message || '진입 실패',
       });
-      toast.error(`진입 실패: ${error.message || '오류'}`);
+      console.error(`진입 실패: ${error.message || '오류'}`);
     } finally {
       processingRef.current = false;
       setState(prev => ({ ...prev, isProcessing: false }));
@@ -1373,7 +1373,7 @@ export function useAutoTrading({
 
     if (directionChanged) {
       console.log(`🔄 [processPendingSignal] 방향 반전! ${pending.direction} → ${finalDirection} (${analysis.confidence}%)`);
-      toast.warning(`🔄 AI 분석: ${pending.direction === 'long' ? '롱' : '숏'} → ${finalDirection === 'long' ? '롱' : '숏'} 반전 (${analysis.reason})`);
+      console.log(`🔄 AI 분석: ${pending.direction === 'long' ? '롱' : '숏'} → ${finalDirection === 'long' ? '롱' : '숏'} 반전 (${analysis.reason})`);
       
       addLog({
         symbol: pending.symbol,
@@ -1385,14 +1385,14 @@ export function useAutoTrading({
       });
     } else {
       console.log(`✅ [processPendingSignal] 방향 유지: ${finalDirection} (${analysis.confidence}%)`);
-      toast.success(`✅ AI 확인: ${finalDirection === 'long' ? '롱' : '숏'} 진입 (${analysis.reason})`);
+      console.log(`✅ AI 확인: ${finalDirection === 'long' ? '롱' : '숏'} 진입 (${analysis.reason})`);
     }
 
     // 🆕 신뢰도 기준 강화: 55% 이상 필요 (분석 실패/중립도 스킵)
     const MIN_CONFIDENCE = 55;
     if (analysis.confidence < MIN_CONFIDENCE || analysis.reason === '분석 없음' || analysis.reason === '분석 실패') {
       console.log(`⚠️ [processPendingSignal] 신뢰도 부족 또는 분석 실패 (${analysis.confidence}%) - 스킵`);
-      toast.warning(`⚠️ 분석 불충분 (${analysis.confidence}%) - 진입 스킵`);
+      console.log(`⚠️ 분석 불충분 (${analysis.confidence}%) - 진입 스킵`);
       setState(prev => ({
         ...prev,
         pendingSignal: null,
@@ -1461,7 +1461,7 @@ export function useAutoTrading({
             console.log(`⏳ [syncPositions] 진입 직후 ${(timeSinceEntry / 1000).toFixed(1)}초 - sync 무시`);
           } else {
             console.log(`⚠️ [syncPositions] 외부 청산 감지: ${state.currentPosition.symbol} 포지션이 바이낸스에 없음 (${(timeSinceEntry / 1000).toFixed(0)}초 경과)`);
-            toast.warning(`⚠️ ${state.currentPosition.symbol.replace('USDT', '')} 포지션이 외부에서 청산됨`);
+            console.log(`⚠️ ${state.currentPosition.symbol.replace('USDT', '')} 포지션이 외부에서 청산됨`);
             setState(prev => ({
               ...prev,
               currentPosition: null,
@@ -1487,7 +1487,7 @@ export function useAutoTrading({
             higherHighs: false, lowerLows: false, trendStrength: 'neutral',
           };
           
-          toast.info(`🔄 포지션 전환: ${activePosition.symbol.replace('USDT', '')} ${side === 'long' ? '롱' : '숏'}`);
+          console.log(`🔄 포지션 전환: ${activePosition.symbol.replace('USDT', '')} ${side === 'long' ? '롱' : '숏'}`);
           setState(prev => ({
             ...prev,
             currentPosition: {
@@ -1634,7 +1634,7 @@ export function useAutoTrading({
       statusMessage: '🔍 기술적 분석 기반 스캔 중...',
     }));
 
-    toast.info(`⏭️ ${symbol} 패스됨`);
+    console.log(`⏭️ ${symbol} 패스됨`);
   }, [state.pendingSignal, addLog]);
 
   // 시그널 방향 스왑
@@ -1651,7 +1651,7 @@ export function useAutoTrading({
         : null,
     }));
 
-    toast.info(`🔄 ${symbol} → ${newDirection === 'long' ? '롱' : '숏'}으로 변경`);
+    console.log(`🔄 ${symbol} → ${newDirection === 'long' ? '롱' : '숏'}으로 변경`);
   }, [state.pendingSignal]);
 
   // 본절 청산
@@ -1677,7 +1677,7 @@ export function useAutoTrading({
           currentSymbol: null,
           statusMessage: '🔍 기술적 분석 기반 스캔 중...',
         }));
-        toast.error('실제 포지션이 없습니다');
+        console.error('실제 포지션이 없습니다');
         return;
       }
 
@@ -1700,10 +1700,10 @@ export function useAutoTrading({
         reason: `📍 본절 주문 등록 @ $${entryPrice.toFixed(4)}`,
       });
 
-      toast.success(`📍 ${position.symbol} 본절 주문 등록 @ $${entryPrice.toFixed(4)}`);
+      console.log(`📍 ${position.symbol} 본절 주문 등록 @ $${entryPrice.toFixed(4)}`);
     } catch (error: any) {
       console.error('Break-even order error:', error);
-      toast.error(`본절 주문 실패: ${error.message || '오류'}`);
+      console.error(`본절 주문 실패: ${error.message || '오류'}`);
     } finally {
       processingRef.current = false;
       setState(prev => ({ ...prev, isProcessing: false }));
@@ -1732,10 +1732,10 @@ export function useAutoTrading({
         reason: '🚫 본절 주문 취소됨',
       });
 
-      toast.info(`🚫 ${position.symbol} 본절 주문 취소됨`);
+      console.log(`🚫 ${position.symbol} 본절 주문 취소됨`);
     } catch (error: any) {
       console.error('Cancel break-even order error:', error);
-      toast.error(`본절 취소 실패: ${error.message || '오류'}`);
+      console.error(`본절 취소 실패: ${error.message || '오류'}`);
     } finally {
       processingRef.current = false;
       setState(prev => ({ ...prev, isProcessing: false }));
