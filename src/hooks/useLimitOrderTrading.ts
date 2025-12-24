@@ -21,7 +21,6 @@ import {
   LIMIT_ORDER_CONFIG,
   LimitOrderEntry,
   LimitOrderPosition,
-  shouldTimeStop,
 } from '@/lib/limitOrderConfig';
 
 // 1분봉 조회
@@ -736,12 +735,7 @@ export function useLimitOrderTrading({
       return;
     }
 
-    // 타임스탑 체크
-    if (shouldTimeStop(position.startTime)) {
-      console.log(`⏰ 타임스탑! ${LIMIT_ORDER_CONFIG.STOP_LOSS.TIME_STOP_MINUTES}분 경과`);
-      await closePositionMarket('timeout', currentPrice);
-      return;
-    }
+    // (타임스탑 삭제됨)
 
     // 익절 체크 (USDT 기반) → 전량 시장가 청산
     const targetProfitUsdt = filterSettings?.takeProfitUsdt ?? 7;

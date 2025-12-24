@@ -18,10 +18,7 @@ export const LIMIT_ORDER_CONFIG = {
   MAKER_FEE: 0.02,                 // 지정가 0.02%
   TAKER_FEE: 0.05,                 // 시장가 0.05%
   
-  // ===== 손절 설정 =====
-  STOP_LOSS: {
-    TIME_STOP_MINUTES: 5,          // 5분 타임스탑
-  },
+  // (타임스탑 삭제됨)
   
   // ===== 진입 조건 (시그널 필터) =====
   SIGNAL: {
@@ -56,12 +53,4 @@ export interface LimitOrderPosition {
   markPrice?: number;      // 바이낸스 마크가격
 }
 
-// ===== 유틸리티 함수 =====
-
-/**
- * 타임스탑 조건 충족 여부
- */
-export function shouldTimeStop(startTime: number): boolean {
-  const holdTimeMin = (Date.now() - startTime) / 60000;
-  return holdTimeMin >= LIMIT_ORDER_CONFIG.STOP_LOSS.TIME_STOP_MINUTES;
-}
+// (타임스탑 함수 삭제됨)
