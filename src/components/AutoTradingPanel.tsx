@@ -392,39 +392,6 @@ const AutoTradingPanel = ({
       }} />
       
       
-      {/* 🆕 시그널 발견 & 일시정지 상태 - 패스 버튼 */}
-      {scanStatus?.isPaused && scanStatus.signalsCount > 0 && !currentPosition && (
-        <div className="relative z-10 px-3 py-2 lg:px-4 lg:py-3 shrink-0" style={{
-          background: 'linear-gradient(90deg, rgba(255, 200, 0, 0.15) 0%, rgba(255, 150, 0, 0.1) 100%)',
-          borderBottom: '1px solid rgba(255, 200, 0, 0.3)',
-        }}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Pause className="w-3 h-3 lg:w-4 lg:h-4 text-yellow-400" />
-              <span className="font-semibold text-xs lg:text-sm text-yellow-400">
-                시그널 대기중 ({scanStatus.signalsCount}개)
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                onClick={onPassSignal}
-                className="h-5 lg:h-6 px-2 lg:px-3 text-[9px] lg:text-[10px] font-bold"
-                style={{
-                  background: 'linear-gradient(135deg, rgba(255, 100, 0, 0.8) 0%, rgba(255, 50, 0, 0.8) 100%)',
-                  border: '1px solid rgba(255, 150, 0, 0.5)',
-                  color: '#fff',
-                  boxShadow: '0 0 10px rgba(255, 100, 0, 0.4)',
-                }}
-              >
-                <SkipForward className="w-3 h-3 mr-1" />
-                패스
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-      
       {/* Pending Signal */}
       {pendingSignal && !currentPosition && (
         <div className="relative z-10 px-3 py-2 lg:px-4 lg:py-3 shrink-0" style={{
@@ -624,6 +591,39 @@ const AutoTradingPanel = ({
         onCancelAllOrders={handleCancelAllOrders}
         onMarketClose={onManualClose}
       />
+      
+      {/* 🆕 시그널 발견 & 일시정지 상태 - 패스 버튼 (호가창 아래) */}
+      {scanStatus?.isPaused && scanStatus.signalsCount > 0 && !currentPosition && (
+        <div className="relative z-10 px-3 py-2 lg:px-4 lg:py-3 shrink-0" style={{
+          background: 'linear-gradient(90deg, rgba(255, 200, 0, 0.15) 0%, rgba(255, 150, 0, 0.1) 100%)',
+          borderTop: '1px solid rgba(255, 200, 0, 0.3)',
+        }}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Pause className="w-3 h-3 lg:w-4 lg:h-4 text-yellow-400" />
+              <span className="font-semibold text-xs lg:text-sm text-yellow-400">
+                시그널 대기중 ({scanStatus.signalsCount}개)
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                onClick={onPassSignal}
+                className="h-5 lg:h-6 px-2 lg:px-3 text-[9px] lg:text-[10px] font-bold"
+                style={{
+                  background: 'linear-gradient(135deg, rgba(255, 100, 0, 0.8) 0%, rgba(255, 50, 0, 0.8) 100%)',
+                  border: '1px solid rgba(255, 150, 0, 0.5)',
+                  color: '#fff',
+                  boxShadow: '0 0 10px rgba(255, 100, 0, 0.4)',
+                }}
+              >
+                <SkipForward className="w-3 h-3 mr-1" />
+                패스
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
       
     </div>
   );
