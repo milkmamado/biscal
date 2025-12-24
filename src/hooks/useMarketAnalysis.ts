@@ -4,7 +4,7 @@
  */
 import { useState, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
+
 import { 
   TradingConfig, 
   AIAdjustments, 
@@ -184,13 +184,9 @@ export function useMarketAnalysis({ mode, enabled = true, showToasts = false }: 
     // 경고 표시 (자동매매 중일 때만)
     if (showToasts) {
       if (result.warnings.length > 0 && result.recommendation === 'STOP') {
-        toast.warning('⚠️ AI 분석: 거래 중지 권장', {
-          description: result.warnings[0],
-        });
+        console.log('⚠️ AI 분석: 거래 중지 권장 -', result.warnings[0]);
       } else if (result.recommendation === 'CONSERVATIVE') {
-        toast.info('📉 AI 분석: 보수적 거래 권장', {
-          description: result.reasoning,
-        });
+        console.log('📉 AI 분석: 보수적 거래 권장 -', result.reasoning);
       }
     }
   }, [mode]);

@@ -1,7 +1,7 @@
 // OrderBook v3.1 - Combined Stream with Real Binance Trade Velocity + AI Direction - Updated 2025-12-24
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { formatPrice } from '@/lib/binance';
-import { toast } from 'sonner';
+
 import { RefreshCw, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import {
   AlertDialog,
@@ -271,7 +271,7 @@ export function OrderBook({
   const handleOrderBoxClick = (side: 'long' | 'short', price: number) => {
     console.log(`🎯 [OrderBook] 버튼 클릭: ${side === 'long' ? '롱(L)' : '숏(S)'} @ ${formatPrice(price)}`);
     if (!onPlaceOrder) {
-      toast.info(`${side === 'long' ? '롱' : '숏'} 주문 준비: ${formatPrice(price)}`);
+      console.log(`${side === 'long' ? '롱' : '숏'} 주문 준비: ${formatPrice(price)}`);
       return;
     }
     setPendingOrder({ side, price });
