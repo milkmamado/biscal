@@ -103,6 +103,29 @@ export const useDTFXAutoTrading = ({
   const analyzeAllTimeframes = useCallback(async () => {
     if (!enabled || state.isProcessing) return;
 
+    // 바이낸스에서 실제 포지션 확인 (가장 중요!)
+    try {
+      const positions = await getPositions(symbol);
+      if (positions) {
+        const activePosition = positions.find((p: any) => 
+          p.symbol === symbol && parseFloat(p.positionAmt) !== 0
+        );
+
+        // 실제 포지션이 있으면 절대 새로 진입하지 않음
+        if (activePosition) {
+          return;
+        }
+      }
+    } catch (error) {
+      console.error('포지션 확인 실패:', error);
+      return; // 에러 시에도 진입하지 않음 (안전 우선)
+    }
+
+    // 내부 상태에 포지션이 있어도 진입하지 않음
+    if (state.currentPosition) {
+      return;
+    }
+
     const timeframes: ('1m' | '3m' | '5m')[] = ['1m', '3m', '5m'];
     const results: { timeframe: string; direction: 'long' | 'short' | null; price: number }[] = [];
 
@@ -130,7 +153,7 @@ export const useDTFXAutoTrading = ({
     // 진입 신호 체크 (1분, 3분, 5분 중 하나라도 신호가 있으면)
     const entrySignals = results.filter(r => r.direction !== null);
     
-    if (entrySignals.length > 0 && !state.currentPosition) {
+    if (entrySignals.length > 0) {
       const now = Date.now();
       // 5초 이내 중복 진입 방지
       if (now - lastEntryTimeRef.current < 5000) return;
@@ -153,7 +176,7 @@ export const useDTFXAutoTrading = ({
     }
 
     // 청산은 수동으로 처리 (자동 청산 로직 제거됨)
-  }, [enabled, symbol, state.currentPosition, state.isProcessing, fetchCandles, addLog]);
+  }, [enabled, symbol, state.currentPosition, state.isProcessing, fetchCandles, addLog, getPositions]);
 
   // 시장가 진입 실행
   const executeEntry = useCallback(async (direction: 'long' | 'short', price: number) => {
