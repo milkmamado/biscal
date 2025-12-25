@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { cn } from '@/lib/utils';
-import { ZoomIn, ZoomOut } from 'lucide-react';
+import { ZoomIn, ZoomOut, TrendingUp } from 'lucide-react';
 import cyberpunkGirl from '@/assets/cyberpunk-girl.png';
-import { analyzeDTFX, SwingPoint, DTFXZone, StructureShift } from '@/hooks/useDTFX';
+import { analyzeDTFX, detectSwingPoints, SwingPoint, DTFXZone, StructureShift } from '@/hooks/useDTFX';
 
 interface Candle {
   time: number;
@@ -139,6 +139,9 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
   // 나방 효과 상태
   const [mothVisible, setMothVisible] = useState(false);
   const [mothPhase, setMothPhase] = useState(0);
+  
+  // 추세선 표시 상태
+  const [trendlineEnabled, setTrendlineEnabled] = useState(false);
   
 
   const lastCandleTimeRef = useRef<number>(0);
@@ -738,10 +741,24 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
           ctx.setLineDash([]);
         }
       });
+    }
+    
+    // === 추세선(Trendline) 그리기 (독립적 기능) ===
+    if (trendlineEnabled && displayCandles.length > 10) {
+      // Candle 타입을 useDTFX의 Candle 형식으로 변환
+      const trendlineCandles = displayCandles.map(c => ({
+        time: c.time,
+        open: c.open,
+        high: c.high,
+        low: c.low,
+        close: c.close,
+        volume: c.volume,
+      }));
       
-      // === 추세선(Trendline) 그리기 ===
+      const swingPoints = detectSwingPoints(trendlineCandles, 5);
+      
       // 스윙 고점들을 연결한 저항선 (빨간색 점선)
-      const swingHighs = dtfxData.swingPoints.filter(s => s.type === 'high');
+      const swingHighs = swingPoints.filter(s => s.type === 'high');
       if (swingHighs.length >= 2) {
         // 최근 2개 스윙 고점 연결
         const recentHighs = swingHighs.slice(-2);
@@ -784,7 +801,7 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
       }
       
       // 스윙 저점들을 연결한 지지선 (녹색 점선)
-      const swingLows = dtfxData.swingPoints.filter(s => s.type === 'low');
+      const swingLows = swingPoints.filter(s => s.type === 'low');
       if (swingLows.length >= 2) {
         // 최근 2개 스윙 저점 연결
         const recentLows = swingLows.slice(-2);
@@ -967,7 +984,7 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
       ctx.setLineDash([]);
     }
     
-  }, [candles, containerHeight, isConnected, loading, visibleCount, entryPrice, stopLossPrice, takeProfitPrice, entryPoints, openOrders, dtfxEnabled]);
+  }, [candles, containerHeight, isConnected, loading, visibleCount, entryPrice, stopLossPrice, takeProfitPrice, entryPoints, openOrders, dtfxEnabled, trendlineEnabled]);
   
   // 가격 포맷팅
   const formatPrice = (price: number): string => {
@@ -1229,6 +1246,18 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
             title="축소 (스크롤 다운)"
           >
             <ZoomOut className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={() => setTrendlineEnabled(prev => !prev)}
+            className={cn(
+              "p-1 rounded transition-colors",
+              trendlineEnabled 
+                ? "bg-cyan-500/80 hover:bg-cyan-500 text-white" 
+                : "bg-secondary/80 hover:bg-secondary text-muted-foreground hover:text-foreground"
+            )}
+            title="추세선 ON/OFF"
+          >
+            <TrendingUp className="w-3.5 h-3.5" />
           </button>
         </div>
         <span className="text-[10px] text-muted-foreground font-mono bg-secondary/60 px-1.5 py-0.5 rounded">
