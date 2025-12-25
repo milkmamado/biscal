@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { ZoomIn, ZoomOut } from 'lucide-react';
 import cyberpunkGirl from '@/assets/cyberpunk-girl.png';
+import { analyzeDTFX, SwingPoint, DTFXZone, StructureShift } from '@/hooks/useDTFX';
 
 interface Candle {
   time: number;
@@ -44,6 +45,7 @@ interface TickChartProps {
   positionSide?: 'long' | 'short'; // 포지션 방향
   entryPoints?: EntryPoint[]; // 분할 매수 포인트
   openOrders?: OpenOrder[]; // 미체결 주문 목록
+  dtfxEnabled?: boolean; // DTFX 차트 표시 여부
 }
 
 const MAX_CANDLES = 200;
@@ -123,7 +125,7 @@ const getIntervalString = (seconds: number): string => {
   return '1d';
 };
 
-const TickChart = ({ symbol, orderBook = null, isConnected = false, height, interval = 60, entryPrice, stopLossPrice, takeProfitPrice, positionSide, entryPoints = [], openOrders = [] }: TickChartProps) => {
+const TickChart = ({ symbol, orderBook = null, isConnected = false, height, interval = 60, entryPrice, stopLossPrice, takeProfitPrice, positionSide, entryPoints = [], openOrders = [], dtfxEnabled = false }: TickChartProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [candles, setCandles] = useState<Candle[]>([]);
@@ -601,6 +603,175 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
       ctx.shadowBlur = 0;
     });
     
+    // === DTFX 존 그리기 ===
+    if (dtfxEnabled && displayCandles.length > 10) {
+      // Candle 타입을 useDTFX의 Candle 형식으로 변환
+      const dtfxCandles = displayCandles.map(c => ({
+        time: c.time,
+        open: c.open,
+        high: c.high,
+        low: c.low,
+        close: c.close,
+        volume: c.volume,
+      }));
+      
+      const dtfxData = analyzeDTFX(dtfxCandles, 5);
+      
+      // === Swing 포인트 그리기 ===
+      dtfxData.swingPoints.forEach((swing) => {
+        // displayCandles 내에서의 인덱스 찾기
+        const candleIndex = displayCandles.findIndex(c => c.time === swing.time);
+        if (candleIndex === -1) return;
+        
+        const x = CANVAS_PADDING + (candleIndex * candleSpacing) + (candleSpacing / 2);
+        const y = CANVAS_PADDING / 2 + ((adjustedMax - swing.price) / adjustedRange) * priceChartHeight;
+        
+        const isHigh = swing.type === 'high';
+        
+        // Swing 마커 (작은 삼각형)
+        ctx.beginPath();
+        if (isHigh) {
+          // 상향 삼각형 (Swing High)
+          ctx.moveTo(x, y - 8);
+          ctx.lineTo(x - 4, y - 2);
+          ctx.lineTo(x + 4, y - 2);
+        } else {
+          // 하향 삼각형 (Swing Low)
+          ctx.moveTo(x, y + 8);
+          ctx.lineTo(x - 4, y + 2);
+          ctx.lineTo(x + 4, y + 2);
+        }
+        ctx.closePath();
+        ctx.fillStyle = isHigh ? 'rgba(255, 100, 100, 0.8)' : 'rgba(100, 255, 100, 0.8)';
+        ctx.fill();
+        
+        // 글로우 효과
+        ctx.shadowColor = isHigh ? 'rgba(255, 100, 100, 0.6)' : 'rgba(100, 255, 100, 0.6)';
+        ctx.shadowBlur = 4;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      });
+      
+      // === 피보나치 존 그리기 ===
+      dtfxData.zones.forEach((zone) => {
+        if (!zone.active) return;
+        
+        const isDemand = zone.type === 'demand';
+        const zoneColor = isDemand 
+          ? 'rgba(0, 255, 136, 0.08)' 
+          : 'rgba(255, 80, 100, 0.08)';
+        const borderColor = isDemand
+          ? 'rgba(0, 255, 136, 0.4)'
+          : 'rgba(255, 80, 100, 0.4)';
+        
+        // 존 배경 영역 그리기
+        const topY = CANVAS_PADDING / 2 + ((adjustedMax - zone.topPrice) / adjustedRange) * priceChartHeight;
+        const bottomY = CANVAS_PADDING / 2 + ((adjustedMax - zone.bottomPrice) / adjustedRange) * priceChartHeight;
+        
+        if (topY < chartHeight && bottomY > 0) {
+          // 존 배경
+          ctx.fillStyle = zoneColor;
+          ctx.fillRect(CANVAS_PADDING, Math.max(0, topY), chartWidth, Math.min(chartHeight, bottomY) - Math.max(0, topY));
+          
+          // 존 상하단 테두리
+          ctx.strokeStyle = borderColor;
+          ctx.lineWidth = 1;
+          ctx.setLineDash([]);
+          ctx.beginPath();
+          ctx.moveTo(CANVAS_PADDING, topY);
+          ctx.lineTo(width - 50, topY);
+          ctx.moveTo(CANVAS_PADDING, bottomY);
+          ctx.lineTo(width - 50, bottomY);
+          ctx.stroke();
+          
+          // 존 타입 라벨 (좌측 상단)
+          ctx.fillStyle = isDemand ? 'rgba(0, 255, 136, 0.9)' : 'rgba(255, 80, 100, 0.9)';
+          ctx.font = 'bold 9px monospace';
+          ctx.textAlign = 'left';
+          ctx.fillText(isDemand ? 'DEMAND' : 'SUPPLY', CANVAS_PADDING + 5, topY + 12);
+        }
+        
+        // === 피보나치 레벨 라인 그리기 ===
+        zone.levels.forEach((level) => {
+          const levelY = CANVAS_PADDING / 2 + ((adjustedMax - level.price) / adjustedRange) * priceChartHeight;
+          
+          if (levelY > 0 && levelY < chartHeight) {
+            // 피보나치 레벨 라인 (점선)
+            ctx.strokeStyle = isDemand 
+              ? 'rgba(0, 255, 255, 0.5)' 
+              : 'rgba(255, 165, 0, 0.5)';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([3, 5]);
+            ctx.beginPath();
+            ctx.moveTo(CANVAS_PADDING, levelY);
+            ctx.lineTo(width - 50, levelY);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            
+            // 피보나치 레벨 라벨
+            ctx.fillStyle = isDemand 
+              ? 'rgba(0, 255, 255, 0.8)' 
+              : 'rgba(255, 165, 0, 0.8)';
+            ctx.font = '8px monospace';
+            ctx.textAlign = 'left';
+            ctx.fillText(level.label, CANVAS_PADDING + 5, levelY - 2);
+          }
+        });
+      });
+      
+      // === BOS/CHoCH 라벨 그리기 ===
+      dtfxData.structureShifts.slice(-3).forEach((shift) => {
+        const candleIndex = displayCandles.findIndex(c => c.time === shift.to.time);
+        if (candleIndex === -1) return;
+        
+        const x = CANVAS_PADDING + (candleIndex * candleSpacing) + (candleSpacing / 2);
+        const y = CANVAS_PADDING / 2 + ((adjustedMax - shift.to.price) / adjustedRange) * priceChartHeight;
+        
+        const isBullish = shift.type.includes('bullish');
+        const isBOS = shift.type.includes('bos');
+        const label = isBOS ? 'BOS' : 'CHoCH';
+        
+        // 라벨 배경
+        const labelWidth = 30;
+        const labelHeight = 12;
+        const labelX = x - labelWidth / 2;
+        const labelY = isBullish ? y + 10 : y - 22;
+        
+        ctx.fillStyle = isBullish 
+          ? 'rgba(0, 255, 136, 0.2)' 
+          : 'rgba(255, 80, 100, 0.2)';
+        ctx.fillRect(labelX, labelY, labelWidth, labelHeight);
+        
+        // 라벨 테두리
+        ctx.strokeStyle = isBullish 
+          ? 'rgba(0, 255, 136, 0.8)' 
+          : 'rgba(255, 80, 100, 0.8)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(labelX, labelY, labelWidth, labelHeight);
+        
+        // 라벨 텍스트
+        ctx.fillStyle = isBullish ? '#00ff88' : '#ff5064';
+        ctx.font = 'bold 8px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(label, x, labelY + 9);
+        
+        // 화살표 (작은)
+        ctx.beginPath();
+        if (isBullish) {
+          ctx.moveTo(x, labelY + labelHeight);
+          ctx.lineTo(x - 3, labelY + labelHeight + 4);
+          ctx.lineTo(x + 3, labelY + labelHeight + 4);
+        } else {
+          ctx.moveTo(x, labelY);
+          ctx.lineTo(x - 3, labelY - 4);
+          ctx.lineTo(x + 3, labelY - 4);
+        }
+        ctx.closePath();
+        ctx.fillStyle = isBullish ? '#00ff88' : '#ff5064';
+        ctx.fill();
+      });
+    }
+    
     // (MACD 제거됨)
     
     // 진입가 표시 (녹색 점선)
@@ -742,7 +913,7 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
       ctx.setLineDash([]);
     }
     
-  }, [candles, containerHeight, isConnected, loading, visibleCount, entryPrice, stopLossPrice, takeProfitPrice, entryPoints, openOrders]);
+  }, [candles, containerHeight, isConnected, loading, visibleCount, entryPrice, stopLossPrice, takeProfitPrice, entryPoints, openOrders, dtfxEnabled]);
   
   // 가격 포맷팅
   const formatPrice = (price: number): string => {

@@ -29,6 +29,7 @@ interface DualChartPanelProps {
   screeningLogs?: ScreeningLog[];
   entryPoints?: EntryPoint[];
   openOrders?: OpenOrder[];
+  dtfxEnabled?: boolean;
 }
 
 const INTERVALS = [
@@ -52,6 +53,7 @@ const DualChartPanel = ({
   screeningLogs = [],
   entryPoints = [],
   openOrders = [],
+  dtfxEnabled = false,
 }: DualChartPanelProps) => {
   const [interval, setInterval] = useState(60);
   const prevSymbolRef = useRef<string>(symbol);
@@ -111,6 +113,7 @@ const DualChartPanel = ({
             positionSide={hasPosition ? positionSide : undefined}
             entryPoints={hasPosition ? entryPoints : undefined}
             openOrders={openOrders}
+            dtfxEnabled={dtfxEnabled}
           />
           
           {/* 스크리닝 로그 오버레이 - 차트 영역 중하단 */}

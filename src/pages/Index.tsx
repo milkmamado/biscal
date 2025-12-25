@@ -37,6 +37,7 @@ const Index = () => {
   const [rsiFilterEnabled, setRsiFilterEnabled] = useState(true);
   const [macdFilterEnabled, setMacdFilterEnabled] = useState(true);
   const [bollingerFilterEnabled, setBollingerFilterEnabled] = useState(true);
+  const [dtfxEnabled, setDtfxEnabled] = useState(false); // DTFX 차트 표시 토글
   const [adxThreshold, setAdxThreshold] = useState(LIMIT_ORDER_CONFIG.SIGNAL.MIN_ADX);
   const [stopLossUsdt, setStopLossUsdt] = useState(7); // 기본 7 USDT 손절
   const [takeProfitUsdt, setTakeProfitUsdt] = useState(7); // 기본 7 USDT 익절
@@ -316,6 +317,7 @@ const Index = () => {
               timestamp: e.timestamp,
             })) || []}
             openOrders={openOrders}
+            dtfxEnabled={dtfxEnabled}
           />
         </div>
 
@@ -385,6 +387,8 @@ const Index = () => {
             onToggleMacdFilter={setMacdFilterEnabled}
             bollingerFilterEnabled={bollingerFilterEnabled}
             onToggleBollingerFilter={setBollingerFilterEnabled}
+            dtfxEnabled={dtfxEnabled}
+            onToggleDtfx={setDtfxEnabled}
             adxThreshold={adxThreshold}
             onAdxThresholdChange={setAdxThreshold}
             stopLossUsdt={stopLossUsdt}
