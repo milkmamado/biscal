@@ -277,29 +277,129 @@ export function useLimitOrderTrading({
     currentPositionRef.current = state.currentPosition;
   }, [state.currentPosition]);
 
-  // ===== 실제 포지션 주기적 동기화 (수동 지정가 체결 감지용) =====
+  // ===== 실제 포지션 주기적 동기화 (수동 지정가 체결 감지 + 서버 SL/TP 유지) =====
   // 신규 포지션 감지 시 SL/TP 설정을 위한 ref
   const slTpSettingInProgressRef = useRef<string | null>(null);
+
+  // 서버 SL/TP 주문 재설정(수량/평단 변경 시) 스로틀링
+  const serverSlTpInProgressRef = useRef(false);
+  const serverSlTpLastAttemptRef = useRef<{ key: string | null; at: number }>({ key: null, at: 0 });
+
   // SL/TP 함수를 ref로 저장 (의존성 문제 방지)
   const placeStopMarketOrderRef = useRef(placeStopMarketOrder);
   const placeTakeProfitMarketOrderRef = useRef(placeTakeProfitMarketOrder);
+  const getOpenOrdersRef = useRef(getOpenOrders);
+  const cancelOrderRef = useRef(cancelOrder);
   const filterSettingsRef = useRef(filterSettings);
-  
+
   useEffect(() => {
     placeStopMarketOrderRef.current = placeStopMarketOrder;
     placeTakeProfitMarketOrderRef.current = placeTakeProfitMarketOrder;
+    getOpenOrdersRef.current = getOpenOrders;
+    cancelOrderRef.current = cancelOrder;
     filterSettingsRef.current = filterSettings;
-  }, [placeStopMarketOrder, placeTakeProfitMarketOrder, filterSettings]);
+  }, [placeStopMarketOrder, placeTakeProfitMarketOrder, getOpenOrders, cancelOrder, filterSettings]);
   
   useEffect(() => {
     if (!user) return;
     let isMounted = true;
 
+    const ensureServerSlTpOrders = async (opts: {
+      symbol: string;
+      side: 'long' | 'short';
+      qty: number;
+      avgPrice: number;
+      positionSide?: 'LONG' | 'SHORT';
+    }) => {
+      if (!isMounted) return;
+      if (processingRef.current) return;
+      if (serverSlTpInProgressRef.current) return;
+
+      const targetStopLossUsdt = filterSettingsRef.current?.stopLossUsdt ?? 7;
+      const targetTakeProfitUsdt = filterSettingsRef.current?.takeProfitUsdt ?? 7;
+
+      const positionValueUsd = opts.avgPrice * opts.qty;
+      if (!Number.isFinite(positionValueUsd) || positionValueUsd <= 0) return;
+
+      const slPercent = (targetStopLossUsdt / positionValueUsd) * 100;
+      const tpPercent = (targetTakeProfitUsdt / positionValueUsd) * 100;
+
+      const slPrice =
+        opts.side === 'long'
+          ? opts.avgPrice * (1 - slPercent / 100)
+          : opts.avgPrice * (1 + slPercent / 100);
+
+      const tpPrice =
+        opts.side === 'long'
+          ? opts.avgPrice * (1 + tpPercent / 100)
+          : opts.avgPrice * (1 - tpPercent / 100);
+
+      const key = `${opts.symbol}-${opts.side}-${opts.qty.toFixed(6)}-${opts.avgPrice.toFixed(6)}-${targetStopLossUsdt}-${targetTakeProfitUsdt}`;
+      const now = Date.now();
+
+      // 실패 시 반복 호출 방지 (10초 스로틀)
+      if (
+        serverSlTpLastAttemptRef.current.key === key &&
+        now - serverSlTpLastAttemptRef.current.at < 10_000
+      ) {
+        return;
+      }
+
+      serverSlTpLastAttemptRef.current = { key, at: now };
+      serverSlTpInProgressRef.current = true;
+
+      const closeSide = opts.side === 'long' ? 'SELL' : 'BUY';
+
+      console.log(
+        `🧷 [서버 SL/TP 유지] ${opts.symbol} ${opts.side} qty=${opts.qty.toFixed(6)} avg=${opts.avgPrice} | SL=$${targetStopLossUsdt}→${slPrice.toFixed(4)} | TP=$${targetTakeProfitUsdt}→${tpPrice.toFixed(4)}`
+      );
+
+      try {
+        // 기존 SL/TP 주문만 취소
+        const openOrders = await getOpenOrdersRef.current(opts.symbol);
+        const sltpTypes = new Set(['STOP_MARKET', 'TAKE_PROFIT_MARKET', 'STOP', 'TAKE_PROFIT']);
+        const sltpOrders = (openOrders || []).filter((o: any) => {
+          const t = String(o?.type || o?.origType || '').toUpperCase();
+          return sltpTypes.has(t);
+        });
+
+        for (const o of sltpOrders) {
+          const orderIdNum = Number(o.orderId);
+          if (!Number.isFinite(orderIdNum)) continue;
+          try {
+            await cancelOrderRef.current(opts.symbol, orderIdNum);
+          } catch {
+            // ignore
+          }
+        }
+
+        // 취소 반영 대기
+        await new Promise((r) => setTimeout(r, 150));
+
+        // STOP_MARKET
+        try {
+          await placeStopMarketOrderRef.current(opts.symbol, closeSide, opts.qty, slPrice, opts.positionSide);
+        } catch (e: any) {
+          console.warn('[서버 SL/TP] STOP_MARKET 실패:', e?.message || e);
+        }
+
+        // TAKE_PROFIT_MARKET
+        try {
+          await placeTakeProfitMarketOrderRef.current(opts.symbol, closeSide, opts.qty, tpPrice, opts.positionSide);
+        } catch (e: any) {
+          console.warn('[서버 SL/TP] TAKE_PROFIT_MARKET 실패:', e?.message || e);
+        }
+      } finally {
+        serverSlTpInProgressRef.current = false;
+      }
+    };
+
     const syncPositionFromExchange = async () => {
       // 처리 중/진입 대기/청산 중이면 스킵 (상태 꼬임 방지)
       if (processingRef.current) return;
-      if (state.currentPosition?.entryPhase === 'waiting') return;
-      if (state.currentPosition?.entryPhase === 'closing') return;
+      const localPos = currentPositionRef.current;
+      if (localPos?.entryPhase === 'waiting') return;
+      if (localPos?.entryPhase === 'closing') return;
 
       try {
         const positions = await getPositions();
@@ -331,23 +431,15 @@ export function useLimitOrderTrading({
 
           console.log(`🔄 [포지션 동기화] ${symbol} ${side} @ ${entryPrice} qty=${qty} PnL=$${unrealizedPnl.toFixed(2)}`);
 
-          // 손절가 계산
+          // 손절가 계산 (표시용)
           const positionValueUsd = entryPrice * qty;
           const targetStopLossUsdt = filterSettingsRef.current?.stopLossUsdt ?? 7;
-          const targetTakeProfitUsdt = filterSettingsRef.current?.takeProfitUsdt ?? 7;
           const slPercent = (targetStopLossUsdt / positionValueUsd) * 100;
-          const tpPercent = (targetTakeProfitUsdt / positionValueUsd) * 100;
-          
-          let slPrice: number;
-          let tpPrice: number;
-          
-          if (side === 'long') {
-            slPrice = entryPrice * (1 - slPercent / 100);
-            tpPrice = entryPrice * (1 + tpPercent / 100);
-          } else {
-            slPrice = entryPrice * (1 + slPercent / 100);
-            tpPrice = entryPrice * (1 - tpPercent / 100);
-          }
+
+          const slPrice =
+            side === 'long'
+              ? entryPrice * (1 - slPercent / 100)
+              : entryPrice * (1 + slPercent / 100);
 
           if (isMounted) {
             setState(prev => {
@@ -393,57 +485,37 @@ export function useLimitOrderTrading({
             });
           }
 
-          // ===== 신규 포지션 감지 시 바이낸스에 SL/TP 자동 설정 =====
-          if (isBrandNewPosition && slTpSettingInProgressRef.current !== posKey && isMounted) {
-            slTpSettingInProgressRef.current = posKey;
-            
-            const closeSide = side === 'long' ? 'SELL' : 'BUY';
-            const positionSide =
-              (openPosition.positionSide && openPosition.positionSide !== 'BOTH')
-                ? (openPosition.positionSide as 'LONG' | 'SHORT')
-                : undefined;
-            
-            console.log(`📊 [신규 포지션 SL/TP 설정] ${symbol} | SL=$${targetStopLossUsdt}→${slPrice.toFixed(4)} | TP=$${targetTakeProfitUsdt}→${tpPrice.toFixed(4)}`);
-            
-            // STOP_MARKET 주문
-            try {
-              const slResult = await placeStopMarketOrderRef.current(symbol, closeSide, qty, slPrice, positionSide);
-              if (isMounted && slResult && !slResult.error) {
-                console.log(`✅ [STOP_MARKET] 설정 완료! 손절가=${slPrice.toFixed(4)}`);
-                // toast 제거됨
-              }
-            } catch (slError: any) {
-              const msg = slError?.message || '손절 주문 설정 실패';
-              console.warn(`❌ STOP_MARKET 실패:`, msg);
-              console.warn(`❌ STOP_MARKET 실패:`, msg);
-            }
-            
-            if (!isMounted) return;
-            
-            // TAKE_PROFIT_MARKET 주문
-            try {
-              const tpResult = await placeTakeProfitMarketOrderRef.current(symbol, closeSide, qty, tpPrice, positionSide);
-              if (isMounted && tpResult && !tpResult.error) {
-                console.log(`✅ [TAKE_PROFIT_MARKET] 설정 완료! 익절가=${tpPrice.toFixed(4)}`);
-                // toast 제거됨
-              }
-            } catch (tpError: any) {
-              const msg = tpError?.message || '익절 주문 설정 실패';
-              console.warn(`❌ TAKE_PROFIT_MARKET 실패:`, msg);
-              console.warn(`❌ TAKE_PROFIT_MARKET 실패:`, msg);
-            }
-            
-            if (isMounted) {
-              playEntrySound();
-            }
-          } else if (isBrandNewPosition && isMounted) {
-            playEntrySound();
-          }
+          // ===== 서버 SL/TP 주문: 신규 감지 + (수량/평단 변경 시) 재설정 =====
+          const positionSide =
+            (openPosition.positionSide && openPosition.positionSide !== 'BOTH')
+              ? (openPosition.positionSide as 'LONG' | 'SHORT')
+              : undefined;
+
+          const prevLocal = currentPositionRef.current;
+          const isSameLocal = prevLocal && prevLocal.symbol === symbol && prevLocal.side === side;
+          const qtyChanged = isSameLocal ? Math.abs((prevLocal?.filledQuantity ?? 0) - qty) > 0.0001 : false;
+          const priceChanged = isSameLocal
+            ? Math.abs((prevLocal?.avgPrice ?? 0) - entryPrice) / (entryPrice || 1) > 0.0005
+            : false;
+
+           const hasEverAttempted = serverSlTpLastAttemptRef.current.key !== null;
+           const shouldEnsure = isBrandNewPosition || qtyChanged || priceChanged || !hasEverAttempted;
+
+           if (shouldEnsure) {
+             // 신규 포지션일 때만 진입 사운드 1회
+             if (isBrandNewPosition && slTpSettingInProgressRef.current !== posKey && isMounted) {
+               slTpSettingInProgressRef.current = posKey;
+               if (isMounted) playEntrySound();
+             }
+
+             await ensureServerSlTpOrders({ symbol, side, qty, avgPrice: entryPrice, positionSide });
+           }
         } else {
           // 포지션이 없으면 동기화 키 초기화
           if (lastSyncedPositionRef.current) {
             lastSyncedPositionRef.current = null;
             slTpSettingInProgressRef.current = null;
+            serverSlTpLastAttemptRef.current = { key: null, at: 0 };
           }
         }
       } catch (error) {
@@ -461,7 +533,7 @@ export function useLimitOrderTrading({
       isMounted = false;
       clearInterval(interval);
     };
-  }, [user, state.currentPosition, getPositions]);
+  }, [user, getPositions]);
 
   // ===== 로그 추가 =====
   const addLog = useCallback((log: Omit<LimitOrderTradeLog, 'id' | 'timestamp'>) => {
