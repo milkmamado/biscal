@@ -121,7 +121,7 @@ export function TradingSettingsPanel({
       </div>
 
       {!isCollapsed && (
-        <div className="p-3 space-y-4">
+        <div className="p-3 space-y-4 max-h-[50vh] overflow-y-auto">
           {/* 필터 토글 섹션 */}
           <div className="space-y-2">
             <div className="flex items-center gap-1 mb-2">
