@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { ZoomIn, ZoomOut, TrendingUp } from 'lucide-react';
 import cyberpunkGirl from '@/assets/cyberpunk-girl.png';
-import { analyzeDTFX, detectSwingPoints, SwingPoint, DTFXZone, StructureShift } from '@/hooks/useDTFX';
+import { analyzeDTFX, detectSwingPoints, SwingPoint, DTFXZone, StructureShift, DTFX_STRUCTURE_LENGTH } from '@/hooks/useDTFX';
 
 interface Candle {
   time: number;
@@ -606,7 +606,7 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
       ctx.shadowBlur = 0;
     });
     
-    // === DTFX 간단 신호 표시 (L/S/P) ===
+    // === DTFX 존 및 피보나치 레벨 표시 (LuxAlgo 스타일) ===
     if (dtfxEnabled && displayCandles.length > 10) {
       // Candle 타입을 useDTFX의 Candle 형식으로 변환
       const dtfxCandles = displayCandles.map(c => ({
@@ -618,12 +618,77 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
         volume: c.volume,
       }));
       
-      const dtfxData = analyzeDTFX(dtfxCandles, 5);
+      const dtfxData = analyzeDTFX(dtfxCandles, DTFX_STRUCTURE_LENGTH);
       
       // 현재 가격
       const currentPrice = displayCandles[displayCandles.length - 1]?.close || 0;
       
-      // 각 BOS/CHoCH 시점에 L 또는 S 신호 표시
+      // === 활성 존(Zone) 영역 및 피보나치 레벨 표시 ===
+      dtfxData.zones.forEach((zone) => {
+        if (!zone.active) return;
+        
+        const isDemand = zone.type === 'demand';
+        const zoneColor = isDemand ? 'rgba(0, 255, 136, 0.08)' : 'rgba(255, 80, 100, 0.08)';
+        const borderColor = isDemand ? 'rgba(0, 255, 136, 0.3)' : 'rgba(255, 80, 100, 0.3)';
+        const fibColor = isDemand ? '#00ff88' : '#ff5064';
+        
+        // 존 시작 캔들 인덱스
+        const zoneStartIndex = displayCandles.findIndex(c => c.time === zone.from.time);
+        const startX = zoneStartIndex !== -1 
+          ? CANVAS_PADDING + (zoneStartIndex * candleSpacing) 
+          : CANVAS_PADDING;
+        
+        // 존 상단/하단 Y좌표
+        const topY = CANVAS_PADDING / 2 + ((adjustedMax - zone.topPrice) / adjustedRange) * priceChartHeight;
+        const bottomY = CANVAS_PADDING / 2 + ((adjustedMax - zone.bottomPrice) / adjustedRange) * priceChartHeight;
+        
+        // 존 배경 박스
+        if (topY > 0 && bottomY < chartHeight) {
+          ctx.fillStyle = zoneColor;
+          ctx.fillRect(startX, topY, width - startX - 50, bottomY - topY);
+          
+          // 존 테두리
+          ctx.strokeStyle = borderColor;
+          ctx.lineWidth = 1;
+          ctx.strokeRect(startX, topY, width - startX - 50, bottomY - topY);
+        }
+        
+        // 피보나치 레벨 라인 표시 (0.3, 0.5, 0.7)
+        zone.levels.forEach((level, levelIndex) => {
+          const levelY = CANVAS_PADDING / 2 + ((adjustedMax - level.price) / adjustedRange) * priceChartHeight;
+          
+          if (levelY > 0 && levelY < chartHeight) {
+            // 레벨별 스타일 (LuxAlgo: 0.3/0.7은 점선, 0.5는 실선)
+            const isMiddleLevel = level.value === 0.5;
+            
+            ctx.strokeStyle = fibColor;
+            ctx.lineWidth = isMiddleLevel ? 1.5 : 1;
+            ctx.globalAlpha = isMiddleLevel ? 0.8 : 0.5;
+            
+            if (!isMiddleLevel) {
+              ctx.setLineDash([4, 4]);
+            }
+            
+            ctx.beginPath();
+            ctx.moveTo(startX, levelY);
+            ctx.lineTo(width - 50, levelY);
+            ctx.stroke();
+            
+            ctx.setLineDash([]);
+            ctx.globalAlpha = 1;
+            
+            // 피보나치 레벨 라벨 (우측에 표시)
+            ctx.fillStyle = fibColor;
+            ctx.font = '9px monospace';
+            ctx.textAlign = 'left';
+            ctx.globalAlpha = 0.7;
+            ctx.fillText(level.label, width - 48, levelY + 3);
+            ctx.globalAlpha = 1;
+          }
+        });
+      });
+      
+      // === BOS/CHoCH 시점에 L 또는 S 신호 표시 ===
       dtfxData.structureShifts.slice(-5).forEach((shift) => {
         const candleIndex = displayCandles.findIndex(c => c.time === shift.to.time);
         if (candleIndex === -1) return;
@@ -662,23 +727,19 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
         ctx.shadowBlur = 0;
       });
       
-      // 존 무효화 시 P(포지션 정리) 신호 표시
-      // 최근 무효화된 존 확인을 위해 전체 분석 (활성 + 비활성 포함)
+      // === 존 무효화 시 P(포지션 정리) 신호 표시 ===
       const allZones = dtfxData.structureShifts.slice(-5).map(shift => {
         const isBullish = shift.type.includes('bullish');
-        const range = Math.abs(shift.to.price - shift.from.price);
         const topPrice = Math.max(shift.from.price, shift.to.price);
         const bottomPrice = Math.min(shift.from.price, shift.to.price);
         
         // 존 무효화 체크
         let isInvalidated = false;
         if (isBullish) {
-          // Demand 존: 가격이 존 아래로 내려가면 무효화
           if (currentPrice < bottomPrice * 0.995) {
             isInvalidated = true;
           }
         } else {
-          // Supply 존: 가격이 존 위로 올라가면 무효화
           if (currentPrice > topPrice * 1.005) {
             isInvalidated = true;
           }
@@ -719,27 +780,20 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
         ctx.shadowBlur = 0;
       });
       
-      // 활성 존 영역에 얇은 가로선만 표시 (배경 없이 간단하게)
-      dtfxData.zones.forEach((zone) => {
-        if (!zone.active) return;
+      // === 스윙 포인트 표시 (작은 원) ===
+      dtfxData.swingPoints.slice(-20).forEach((swing) => {
+        const candleIndex = displayCandles.findIndex(c => c.time === swing.time);
+        if (candleIndex === -1) return;
         
-        const isDemand = zone.type === 'demand';
-        const lineColor = isDemand ? 'rgba(0, 255, 136, 0.4)' : 'rgba(255, 80, 100, 0.4)';
+        const x = CANVAS_PADDING + (candleIndex * candleSpacing) + (candleSpacing / 2);
+        const y = CANVAS_PADDING / 2 + ((adjustedMax - swing.price) / adjustedRange) * priceChartHeight;
+        const isHigh = swing.type === 'high';
         
-        // 존의 중심 가격에 얇은 점선
-        const midPrice = (zone.topPrice + zone.bottomPrice) / 2;
-        const midY = CANVAS_PADDING / 2 + ((adjustedMax - midPrice) / adjustedRange) * priceChartHeight;
-        
-        if (midY > 0 && midY < chartHeight) {
-          ctx.strokeStyle = lineColor;
-          ctx.lineWidth = 1;
-          ctx.setLineDash([4, 6]);
-          ctx.beginPath();
-          ctx.moveTo(CANVAS_PADDING, midY);
-          ctx.lineTo(width - 50, midY);
-          ctx.stroke();
-          ctx.setLineDash([]);
-        }
+        // 작은 원으로 스윙 포인트 표시
+        ctx.beginPath();
+        ctx.arc(x, isHigh ? y - 5 : y + 5, 3, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(150, 150, 150, 0.6)';
+        ctx.fill();
       });
     }
     
@@ -755,7 +809,7 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
         volume: c.volume,
       }));
       
-      const swingPoints = detectSwingPoints(trendlineCandles, 5);
+      const swingPoints = detectSwingPoints(trendlineCandles, DTFX_STRUCTURE_LENGTH);
       
       // 스윙 고점들을 연결한 저항선 (빨간색 점선)
       const swingHighs = swingPoints.filter(s => s.type === 'high');
