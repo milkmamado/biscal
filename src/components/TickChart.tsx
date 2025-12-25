@@ -738,9 +738,95 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
           ctx.setLineDash([]);
         }
       });
+      
+      // === 추세선(Trendline) 그리기 ===
+      // 스윙 고점들을 연결한 저항선 (빨간색 점선)
+      const swingHighs = dtfxData.swingPoints.filter(s => s.type === 'high');
+      if (swingHighs.length >= 2) {
+        // 최근 2개 스윙 고점 연결
+        const recentHighs = swingHighs.slice(-2);
+        const high1 = recentHighs[0];
+        const high2 = recentHighs[1];
+        
+        // 캔들 인덱스 찾기
+        const idx1 = displayCandles.findIndex(c => c.time === high1.time);
+        const idx2 = displayCandles.findIndex(c => c.time === high2.time);
+        
+        if (idx1 !== -1 && idx2 !== -1) {
+          const x1 = CANVAS_PADDING + (idx1 * candleSpacing) + (candleSpacing / 2);
+          const y1 = CANVAS_PADDING / 2 + ((adjustedMax - high1.price) / adjustedRange) * priceChartHeight;
+          const x2 = CANVAS_PADDING + (idx2 * candleSpacing) + (candleSpacing / 2);
+          const y2 = CANVAS_PADDING / 2 + ((adjustedMax - high2.price) / adjustedRange) * priceChartHeight;
+          
+          // 기울기 계산해서 차트 끝까지 연장
+          const slope = (y2 - y1) / (x2 - x1);
+          const extendedX = width - 50;
+          const extendedY = y2 + slope * (extendedX - x2);
+          
+          // 저항선 (빨간색 점선)
+          ctx.strokeStyle = 'rgba(255, 80, 100, 0.6)';
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([6, 4]);
+          ctx.beginPath();
+          ctx.moveTo(x1, y1);
+          ctx.lineTo(extendedX, extendedY);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          
+          // 스윙 고점에 작은 원 표시
+          [{ x: x1, y: y1 }, { x: x2, y: y2 }].forEach(point => {
+            ctx.beginPath();
+            ctx.arc(point.x, point.y, 3, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(255, 80, 100, 0.8)';
+            ctx.fill();
+          });
+        }
+      }
+      
+      // 스윙 저점들을 연결한 지지선 (녹색 점선)
+      const swingLows = dtfxData.swingPoints.filter(s => s.type === 'low');
+      if (swingLows.length >= 2) {
+        // 최근 2개 스윙 저점 연결
+        const recentLows = swingLows.slice(-2);
+        const low1 = recentLows[0];
+        const low2 = recentLows[1];
+        
+        // 캔들 인덱스 찾기
+        const idx1 = displayCandles.findIndex(c => c.time === low1.time);
+        const idx2 = displayCandles.findIndex(c => c.time === low2.time);
+        
+        if (idx1 !== -1 && idx2 !== -1) {
+          const x1 = CANVAS_PADDING + (idx1 * candleSpacing) + (candleSpacing / 2);
+          const y1 = CANVAS_PADDING / 2 + ((adjustedMax - low1.price) / adjustedRange) * priceChartHeight;
+          const x2 = CANVAS_PADDING + (idx2 * candleSpacing) + (candleSpacing / 2);
+          const y2 = CANVAS_PADDING / 2 + ((adjustedMax - low2.price) / adjustedRange) * priceChartHeight;
+          
+          // 기울기 계산해서 차트 끝까지 연장
+          const slope = (y2 - y1) / (x2 - x1);
+          const extendedX = width - 50;
+          const extendedY = y2 + slope * (extendedX - x2);
+          
+          // 지지선 (녹색 점선)
+          ctx.strokeStyle = 'rgba(0, 255, 136, 0.6)';
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([6, 4]);
+          ctx.beginPath();
+          ctx.moveTo(x1, y1);
+          ctx.lineTo(extendedX, extendedY);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          
+          // 스윙 저점에 작은 원 표시
+          [{ x: x1, y: y1 }, { x: x2, y: y2 }].forEach(point => {
+            ctx.beginPath();
+            ctx.arc(point.x, point.y, 3, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(0, 255, 136, 0.8)';
+            ctx.fill();
+          });
+        }
+      }
     }
     
-    // (MACD 제거됨)
     
     // 진입가 표시 (녹색 점선)
     if (entryPrice && entryPrice >= adjustedMin && entryPrice <= adjustedMax) {
