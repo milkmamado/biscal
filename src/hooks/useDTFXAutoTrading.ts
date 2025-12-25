@@ -152,26 +152,7 @@ export const useDTFXAutoTrading = ({
       await executeEntry(signal.direction!, signal.price);
     }
 
-    // 청산 신호 체크 (포지션 보유 중일 때)
-    if (state.currentPosition) {
-      const exitSignals = results.filter(r => {
-        if (state.currentPosition?.side === 'long' && r.direction === 'short') return true;
-        if (state.currentPosition?.side === 'short' && r.direction === 'long') return true;
-        return false;
-      });
-
-      if (exitSignals.length > 0) {
-        const now = Date.now();
-        // 5초 이내 중복 청산 방지
-        if (now - lastExitTimeRef.current < 5000) return;
-
-        const exitSignal = exitSignals[0];
-        addLog(`🚨 ${exitSignal.timeframe}봉 청산 신호 감지 (반대 방향: ${exitSignal.direction}) @ ${exitSignal.price.toFixed(4)}`);
-        
-        // 즉시 시장가 청산
-        await executeExit(exitSignal.price);
-      }
-    }
+    // 청산은 수동으로 처리 (자동 청산 로직 제거됨)
   }, [enabled, symbol, state.currentPosition, state.isProcessing, fetchCandles, addLog]);
 
   // 시장가 진입 실행
