@@ -48,19 +48,22 @@ export interface Candle {
   volume: number;
 }
 
-// 피보나치 레벨 설정
+// 피보나치 레벨 설정 (LuxAlgo DTFX와 동일)
 const FIB_LEVELS = [
-  { value: 0.382, label: '38.2%' },
-  { value: 0.500, label: '50.0%' },
-  { value: 0.618, label: '61.8%' },
+  { value: 0.3, label: '30%' },
+  { value: 0.5, label: '50%' },
+  { value: 0.7, label: '70%' },
 ];
+
+// Structure Length (LuxAlgo 기본값: 10)
+export const DTFX_STRUCTURE_LENGTH = 10;
 
 /**
  * Swing High/Low 포인트 감지
  * @param candles 캔들 배열
  * @param lookback 좌우로 확인할 캔들 수 (기본: 5)
  */
-export function detectSwingPoints(candles: Candle[], lookback: number = 5): SwingPoint[] {
+export function detectSwingPoints(candles: Candle[], lookback: number = DTFX_STRUCTURE_LENGTH): SwingPoint[] {
   const swings: SwingPoint[] = [];
   
   if (candles.length < lookback * 2 + 1) return swings;
@@ -274,7 +277,7 @@ export function createFibonacciZone(shift: StructureShift): DTFXZone {
  * @param candles 캔들 배열
  * @param lookback 스윙 포인트 감지 lookback (기본: 5)
  */
-export function analyzeDTFX(candles: Candle[], lookback: number = 5): {
+export function analyzeDTFX(candles: Candle[], lookback: number = DTFX_STRUCTURE_LENGTH): {
   swingPoints: SwingPoint[];
   structureShifts: StructureShift[];
   zones: DTFXZone[];
