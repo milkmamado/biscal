@@ -398,14 +398,39 @@ export function useCoinScreening(
     runScreening();
   }, [runScreening]);
   
-  // 🆕 패스: 현재 시그널 무시하고 스캔 재개
-  const passSignal = useCallback(() => {
-    setActiveSignals([]);
-    setScreenedSymbols([]);
-    setIsPaused(false);
-    addScreeningLog('start', '패스! 스캔 재개...');
-    // 즉시 새 스캔 시작
-    setTimeout(() => runScreening(), 500);
+  // 🆕 패스: 현재 시그널 무시하고 다음 시그널로 이동 (또는 스캔 재개)
+  const passSignal = useCallback((): string | null => {
+    let nextSymbol: string | null = null;
+    
+    setActiveSignals(prev => {
+      if (prev.length > 1) {
+        // 다음 시그널이 있으면 첫 번째 제거하고 두 번째로 이동
+        const remaining = prev.slice(1);
+        nextSymbol = remaining[0]?.symbol || null;
+        addScreeningLog('start', `패스! 다음 시그널: ${nextSymbol?.replace('USDT', '')}`);
+        return remaining;
+      } else {
+        // 시그널이 하나뿐이면 전부 비우고 스캔 재개
+        nextSymbol = null;
+        return [];
+      }
+    });
+    
+    setScreenedSymbols(prev => {
+      if (prev.length > 1) {
+        return prev.slice(1);
+      }
+      return [];
+    });
+    
+    // 시그널이 더 없으면 스캔 재개
+    if (nextSymbol === null) {
+      setIsPaused(false);
+      addScreeningLog('start', '패스! 시그널 없음, 스캔 재개...');
+      setTimeout(() => runScreening(), 500);
+    }
+    
+    return nextSymbol;
   }, [runScreening]);
   
   // 🆕 스캔 일시정지/재개
