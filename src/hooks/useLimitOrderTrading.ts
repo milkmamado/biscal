@@ -519,15 +519,73 @@ export function useLimitOrderTrading({
   // ===== 전량 시장가 청산 =====
   const closePositionMarket = useCallback(async (
     reason: 'tp' | 'sl' | 'timeout' | 'cancel',
-    currentPrice: number
+    currentPrice: number,
+    forceClose: boolean = false
   ) => {
-    if (!state.currentPosition) return;
-    if (processingRef.current) return;
+    // forceClose가 true면 processingRef 체크 스킵 (수동 청산 시)
+    if (!forceClose && processingRef.current) {
+      console.log(`⚠️ [청산] processingRef가 true, 청산 스킵`);
+      return;
+    }
+
+    // 현재 포지션 정보를 ref와 state 둘 다에서 가져오기
+    const position = currentPositionRef.current || state.currentPosition;
+    if (!position) {
+      console.log(`⚠️ [청산] 포지션 없음, 직접 바이낸스 조회 시도`);
+      // 바이낸스에서 직접 포지션 조회 시도
+      try {
+        const allPositions = await getPositions();
+        const openPos = allPositions?.find((p: any) => Math.abs(parseFloat(p.positionAmt)) > 0);
+        if (!openPos) {
+          console.log(`⚠️ [청산] 바이낸스에도 포지션 없음`);
+          return;
+        }
+        // 바이낸스 포지션으로 직접 청산 진행
+        const symbol = openPos.symbol;
+        const posAmt = parseFloat(openPos.positionAmt);
+        const qty = Math.abs(posAmt);
+        const side = posAmt > 0 ? 'long' : 'short';
+        const orderSide = side === 'long' ? 'SELL' : 'BUY';
+        const entryPrice = parseFloat(openPos.entryPrice);
+        
+        console.log(`🔴 [긴급 시장가 청산] ${symbol} ${orderSide} 수량=${qty}`);
+        
+        processingRef.current = true;
+        setState(prev => ({ ...prev, isProcessing: true }));
+        
+        try {
+          await cancelAllOrders(symbol);
+          const closeResult = await placeMarketOrder(symbol, orderSide, qty, true, currentPrice);
+          if (closeResult && !closeResult.error) {
+            console.log(`✅ [긴급 청산] 성공`);
+            playSlSound();
+          }
+        } finally {
+          processingRef.current = false;
+          setState(prev => ({ 
+            ...prev, 
+            isProcessing: false,
+            currentPosition: null,
+            currentSymbol: null,
+            entryOrderIds: [],
+            entryStartTime: null,
+            statusMessage: '✅ 긴급 청산 완료',
+          }));
+          lastSyncedPositionRef.current = null;
+          slTpSettingInProgressRef.current = null;
+          onTradeComplete?.();
+        }
+        return;
+      } catch (e) {
+        console.error('긴급 청산 실패:', e);
+        processingRef.current = false;
+        setState(prev => ({ ...prev, isProcessing: false }));
+        return;
+      }
+    }
 
     processingRef.current = true;
     setState(prev => ({ ...prev, isProcessing: true }));
-
-    const position = state.currentPosition;
 
     try {
       // 미체결 주문 모두 취소
@@ -548,6 +606,8 @@ export function useLimitOrderTrading({
           entryStartTime: null,
           statusMessage: '🔍 다음 시그널 대기...',
         }));
+        lastSyncedPositionRef.current = null;
+        slTpSettingInProgressRef.current = null;
         return;
       }
 
@@ -610,6 +670,10 @@ export function useLimitOrderTrading({
         },
         statusMessage: `${isWin ? '✅' : '❌'} ${reason === 'tp' ? '익절' : reason === 'sl' ? '손절' : '청산'} 완료!`,
       }));
+      
+      // 동기화 ref 초기화
+      lastSyncedPositionRef.current = null;
+      slTpSettingInProgressRef.current = null;
 
       const reasonText: Record<string, string> = {
         tp: '익절',
@@ -665,7 +729,7 @@ export function useLimitOrderTrading({
       processingRef.current = false;
       setState(prev => ({ ...prev, isProcessing: false }));
     }
-  }, [state.currentPosition, placeMarketOrder, getPositions, cancelPendingOrders, krwRate, leverage, addLog, onTradeComplete, logTrade]);
+  }, [state.currentPosition, placeMarketOrder, getPositions, cancelPendingOrders, cancelAllOrders, krwRate, leverage, addLog, onTradeComplete, logTrade]);
 
   // ===== TP/SL 체크 =====
   const checkTpSl = useCallback(async (currentPrice: number) => {
@@ -902,21 +966,43 @@ export function useLimitOrderTrading({
 
   // ===== 수동 청산 =====
   const manualClosePosition = useCallback(async () => {
-    if (!state.currentPosition) return;
+    console.log(`🔴 [수동 청산] 버튼 클릭! processingRef=${processingRef.current}`);
+    
+    // processingRef가 stuck되어 있으면 강제 해제
+    if (processingRef.current) {
+      console.log(`⚠️ [수동 청산] processingRef가 true로 stuck! 강제 해제`);
+      processingRef.current = false;
+      setState(prev => ({ ...prev, isProcessing: false }));
+    }
+    
+    // state와 ref 둘 다 체크
+    const position = currentPositionRef.current || state.currentPosition;
+    
+    if (!position) {
+      console.log(`⚠️ [수동 청산] 로컬 포지션 없음, 바이낸스 직접 조회`);
+      // 포지션이 없어도 바이낸스에서 직접 조회해서 청산 시도
+      await closePositionMarket('cancel', 0, true);
+      return;
+    }
 
     try {
-      const positions = await getPositions(state.currentPosition.symbol);
+      console.log(`🔴 [수동 청산] ${position.symbol} 포지션 조회 중...`);
+      const positions = await getPositions(position.symbol);
       const actualPosition = positions?.find((p: any) =>
-        p.symbol === state.currentPosition!.symbol && Math.abs(parseFloat(p.positionAmt)) > 0
+        p.symbol === position.symbol && Math.abs(parseFloat(p.positionAmt)) > 0
       );
 
       const currentPrice = actualPosition
         ? parseFloat((actualPosition as any).markPrice || (actualPosition as any).entryPrice || '0')
-        : state.currentPosition.avgPrice;
+        : position.avgPrice;
 
-      await closePositionMarket('cancel', currentPrice);
+      console.log(`🔴 [수동 청산] ${position.symbol} 청산 실행, 가격=${currentPrice}`);
+      await closePositionMarket('cancel', currentPrice, true);
     } catch (error) {
       console.error('수동 청산 실패:', error);
+      // 에러 발생해도 processingRef 해제
+      processingRef.current = false;
+      setState(prev => ({ ...prev, isProcessing: false }));
     }
   }, [state.currentPosition, closePositionMarket, getPositions]);
 
