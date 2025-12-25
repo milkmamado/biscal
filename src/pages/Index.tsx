@@ -117,7 +117,15 @@ const Index = () => {
     }));
   
   // 기술적 분석 기반 종목 스크리닝
-  const { activeSignals, isScanning, isPaused, screenedSymbols, lastScanTime, passSignal, togglePause } = useCoinScreening(tickersForScreening, {}, majorCoinMode);
+  const { activeSignals, isScanning, isPaused, screenedSymbols, lastScanTime, passSignal: passSignalRaw, togglePause } = useCoinScreening(tickersForScreening, {}, majorCoinMode);
+  
+  // 패스 시 다음 시그널로 차트 전환
+  const passSignal = () => {
+    const nextSymbol = passSignalRaw();
+    if (nextSymbol) {
+      setSelectedSymbol(nextSymbol);
+    }
+  };
 
   // 이전 시그널 추적
   const prevSignalsRef = useRef<Map<string, number>>(new Map());
