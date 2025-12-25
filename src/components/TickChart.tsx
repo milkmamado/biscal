@@ -903,7 +903,7 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
         style={{
           backgroundImage: `url(${cyberpunkGirl})`,
           backgroundSize: 'cover',
-          backgroundPosition: 'center right',
+          backgroundPosition: 'center right 20%',
           opacity: 0.40,
         }}
       />
