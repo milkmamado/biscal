@@ -3,7 +3,7 @@ import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Settings, SlidersHorizontal, Target, Filter, TrendingUp, BarChart3, Activity, Shield, Layers } from 'lucide-react';
+import { Settings, SlidersHorizontal, Target, Filter, TrendingUp, BarChart3, Activity, Shield, Layers, Zap, Play, Square } from 'lucide-react';
 
 interface TradingSettingsProps {
   // 필터 토글
@@ -18,9 +18,21 @@ interface TradingSettingsProps {
   bollingerFilterEnabled: boolean;
   onToggleBollingerFilter: (enabled: boolean) => void;
   
-  // DTFX 토글
+  // DTFX 차트 표시 토글
   dtfxEnabled: boolean;
   onToggleDtfx: (enabled: boolean) => void;
+  
+  // DTFX 자동매매 토글
+  dtfxAutoEnabled: boolean;
+  onToggleDtfxAuto: () => void;
+  dtfxLogs: string[];
+  dtfxPosition: {
+    symbol: string;
+    side: 'long' | 'short';
+    entryPrice: number;
+    quantity: number;
+    timestamp: number;
+  } | null;
   
   // 퍼센티지 조정
   adxThreshold: number;
@@ -51,6 +63,10 @@ export function TradingSettingsPanel({
   onToggleBollingerFilter,
   dtfxEnabled,
   onToggleDtfx,
+  dtfxAutoEnabled,
+  onToggleDtfxAuto,
+  dtfxLogs,
+  dtfxPosition,
   adxThreshold,
   onAdxThresholdChange,
   stopLossUsdt,
@@ -213,6 +229,80 @@ export function TradingSettingsPanel({
                 />
               </div>
             </div>
+
+            {/* DTFX 자동매매 섹션 */}
+            {dtfxEnabled && (
+              <div className="mt-3 p-2 rounded-lg bg-gradient-to-r from-purple-500/10 to-cyan-500/10 border border-purple-500/30 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Zap className="w-3.5 h-3.5 text-yellow-400" />
+                    <span className="text-[10px] font-bold text-foreground">DTFX 자동매매</span>
+                  </div>
+                  <button
+                    onClick={onToggleDtfxAuto}
+                    disabled={isAutoTradingEnabled}
+                    className={`flex items-center gap-1 px-2 py-1 rounded text-[9px] font-semibold transition-all ${
+                      dtfxAutoEnabled
+                        ? 'bg-red-500/20 text-red-400 border border-red-500/50 hover:bg-red-500/30'
+                        : 'bg-green-500/20 text-green-400 border border-green-500/50 hover:bg-green-500/30'
+                    } ${isAutoTradingEnabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    {dtfxAutoEnabled ? (
+                      <>
+                        <Square className="w-3 h-3" />
+                        중지
+                      </>
+                    ) : (
+                      <>
+                        <Play className="w-3 h-3" />
+                        시작
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {/* DTFX 포지션 표시 */}
+                {dtfxPosition && (
+                  <div className={`p-1.5 rounded text-[9px] ${
+                    dtfxPosition.side === 'long' 
+                      ? 'bg-green-500/10 border border-green-500/30' 
+                      : 'bg-red-500/10 border border-red-500/30'
+                  }`}>
+                    <div className="flex justify-between">
+                      <span className={dtfxPosition.side === 'long' ? 'text-green-400' : 'text-red-400'}>
+                        {dtfxPosition.side === 'long' ? '📈 롱' : '📉 숏'} {dtfxPosition.symbol.replace('USDT', '')}
+                      </span>
+                      <span className="text-muted-foreground">
+                        @ {dtfxPosition.entryPrice.toFixed(4)}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* DTFX 로그 표시 */}
+                {dtfxLogs.length > 0 && (
+                  <div className="max-h-16 overflow-y-auto space-y-0.5">
+                    {dtfxLogs.slice(0, 5).map((log, idx) => (
+                      <div key={idx} className="text-[8px] text-muted-foreground truncate">
+                        {log}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {dtfxAutoEnabled && (
+                  <div className="text-[8px] text-center text-yellow-400/80">
+                    ⚡ 1/3/5분봉 신호 감지 시 95% 시드 시장가 진입
+                  </div>
+                )}
+
+                {isAutoTradingEnabled && (
+                  <div className="text-[8px] text-center text-red-400/80">
+                    ⚠️ 기본 자동매매 중에는 DTFX 자동매매 불가
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* 퍼센티지 조정 섹션 */}

@@ -6,6 +6,7 @@ import { useLimitOrderTrading } from '@/hooks/useLimitOrderTrading';
 import { useCoinScreening } from '@/hooks/useCoinScreening';
 import { useTickerWebSocket } from '@/hooks/useTickerWebSocket';
 import { useWakeLock } from '@/hooks/useWakeLock';
+import { useDTFXAutoTrading } from '@/hooks/useDTFXAutoTrading';
 import { supabase } from '@/integrations/supabase/client';
 import DualChartPanel from '@/components/DualChartPanel';
 import AutoTradingPanel from '@/components/AutoTradingPanel';
@@ -100,8 +101,16 @@ const Index = () => {
     },
   });
   
+  // DTFX 자동매매 훅
+  const dtfxAutoTrading = useDTFXAutoTrading({
+    symbol: selectedSymbol,
+    balanceUSD,
+    leverage,
+    enabled: dtfxEnabled,
+  });
+  
   // 자동매매 중 절전 방지
-  useWakeLock(autoTrading.state.isEnabled);
+  useWakeLock(autoTrading.state.isEnabled || dtfxAutoTrading.state.isEnabled);
 
   // 종목 스크리닝용 티커 데이터 준비
   const tickersForScreening = tickers
@@ -397,6 +406,10 @@ const Index = () => {
             onToggleBollingerFilter={setBollingerFilterEnabled}
             dtfxEnabled={dtfxEnabled}
             onToggleDtfx={setDtfxEnabled}
+            dtfxAutoEnabled={dtfxAutoTrading.state.isEnabled}
+            onToggleDtfxAuto={dtfxAutoTrading.toggleDTFXAutoTrading}
+            dtfxLogs={dtfxAutoTrading.state.logs}
+            dtfxPosition={dtfxAutoTrading.state.currentPosition}
             adxThreshold={adxThreshold}
             onAdxThresholdChange={setAdxThreshold}
             stopLossUsdt={stopLossUsdt}
