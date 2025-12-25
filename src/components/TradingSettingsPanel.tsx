@@ -3,7 +3,7 @@ import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Settings, SlidersHorizontal, Target, Filter, TrendingUp, BarChart3, Activity, Shield } from 'lucide-react';
+import { Settings, SlidersHorizontal, Target, Filter, TrendingUp, BarChart3, Activity, Shield, Layers } from 'lucide-react';
 
 interface TradingSettingsProps {
   // 필터 토글
@@ -17,6 +17,10 @@ interface TradingSettingsProps {
   onToggleMacdFilter: (enabled: boolean) => void;
   bollingerFilterEnabled: boolean;
   onToggleBollingerFilter: (enabled: boolean) => void;
+  
+  // DTFX 토글
+  dtfxEnabled: boolean;
+  onToggleDtfx: (enabled: boolean) => void;
   
   // 퍼센티지 조정
   adxThreshold: number;
@@ -45,6 +49,8 @@ export function TradingSettingsPanel({
   onToggleMacdFilter,
   bollingerFilterEnabled,
   onToggleBollingerFilter,
+  dtfxEnabled,
+  onToggleDtfx,
   adxThreshold,
   onAdxThresholdChange,
   stopLossUsdt,
@@ -181,15 +187,28 @@ export function TradingSettingsPanel({
               </div>
 
               {/* 볼린저 필터 */}
-              <div className="flex items-center justify-between px-2 py-1.5 rounded bg-background/50 border border-border/30 col-span-2">
+              <div className="flex items-center justify-between px-2 py-1.5 rounded bg-background/50 border border-border/30">
                 <div className="flex items-center gap-1">
                   <Target className="w-3 h-3 text-orange-400" />
-                  <span className="text-[10px] text-foreground">볼린저밴드</span>
+                  <span className="text-[10px] text-foreground">볼린저</span>
                 </div>
                 <Switch
                   checked={bollingerFilterEnabled}
                   onCheckedChange={onToggleBollingerFilter}
                   disabled={isAutoTradingEnabled}
+                  className="scale-75"
+                />
+              </div>
+
+              {/* DTFX 차트 표시 */}
+              <div className="flex items-center justify-between px-2 py-1.5 rounded bg-gradient-to-r from-purple-500/10 to-cyan-500/10 border border-purple-500/30">
+                <div className="flex items-center gap-1">
+                  <Layers className="w-3 h-3 text-purple-400" />
+                  <span className="text-[10px] text-foreground font-semibold">DTFX</span>
+                </div>
+                <Switch
+                  checked={dtfxEnabled}
+                  onCheckedChange={onToggleDtfx}
                   className="scale-75"
                 />
               </div>
