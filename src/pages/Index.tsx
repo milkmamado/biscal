@@ -167,19 +167,21 @@ const Index = () => {
     prevSignalsRef.current = new Map();
   }, [autoTrading.state.isEnabled]);
   
-  // 시그널 감지 시 차트 종목만 변경 (자동 진입은 수동으로)
+  // 시그널 감지 시 차트 종목만 변경 (DTFX 자동스캔 OFF일 때만)
   useEffect(() => {
     if (!autoTrading.state.isEnabled) return;
     if (justEnabledRef.current) return;
     if (activeSignals.length === 0) return;
     if (autoTrading.state.currentPosition) return;
+    // DTFX 자동스캔 켜져있으면 시그널 스캐너는 차트 전환 안함
+    if (dtfxEnabled && dtfxAutoTradingEnabled) return;
 
     // 가장 강한 시그널의 종목으로 차트 변경
     const strongSignal = activeSignals.find(s => s.strength !== 'weak');
     if (strongSignal) {
       setSelectedSymbol(strongSignal.symbol);
     }
-  }, [activeSignals, autoTrading.state.isEnabled, autoTrading.state.currentPosition]);
+  }, [activeSignals, autoTrading.state.isEnabled, autoTrading.state.currentPosition, dtfxEnabled, dtfxAutoTradingEnabled]);
   
   // 포지션 보유 중일 때 해당 종목 차트 유지
   useEffect(() => {
