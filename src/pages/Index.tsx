@@ -187,10 +187,21 @@ const Index = () => {
   useEffect(() => {
     if (autoTrading.state.currentPosition) {
       setSelectedSymbol(autoTrading.state.currentPosition.symbol);
-    } else if (autoTrading.state.pendingSignal) {
+      return;
+    }
+
+    // DTFX 자동스캔 ON이면 pendingSignal이 차트를 강제로 바꾸지 않게 함 (차트 제어권: DTFX)
+    if (dtfxEnabled && dtfxAutoTradingEnabled) return;
+
+    if (autoTrading.state.pendingSignal) {
       setSelectedSymbol(autoTrading.state.pendingSignal.symbol);
     }
-  }, [autoTrading.state.currentPosition?.symbol, autoTrading.state.pendingSignal?.symbol]);
+  }, [
+    autoTrading.state.currentPosition?.symbol,
+    autoTrading.state.pendingSignal?.symbol,
+    dtfxEnabled,
+    dtfxAutoTradingEnabled,
+  ]);
   
   // 현재 가격으로 TP/SL 체크 + DTFX OTE 구간 진입 체크
   useEffect(() => {
