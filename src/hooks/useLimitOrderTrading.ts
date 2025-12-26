@@ -292,6 +292,10 @@ export function useLimitOrderTrading({
   const lastEntryTimeRef = useRef(0);
   const currentPositionRef = useRef<LimitOrderPosition | null>(null);
   const lastSyncedPositionRef = useRef<string | null>(null);
+  
+  // 🆕 손절 후 재진입 방지 (60초 쿨다운)
+  const lastStopLossTimeRef = useRef<{ symbol: string; time: number } | null>(null);
+  const STOP_LOSS_COOLDOWN_SEC = 60; // 손절 후 60초간 같은 종목 재진입 금지
 
   // currentPosition을 ref로 동기화
   useEffect(() => {
@@ -767,6 +771,15 @@ export function useLimitOrderTrading({
       // 동기화 ref 초기화
       lastSyncedPositionRef.current = null;
       slTpSettingInProgressRef.current = null;
+      
+      // 🆕 손절 시 쿨다운 타이머 기록 (60초간 같은 종목 재진입 금지)
+      if (!isWin) {
+        lastStopLossTimeRef.current = {
+          symbol: position.symbol,
+          time: Date.now(),
+        };
+        console.log(`⏱️ [손절 쿨다운] ${position.symbol} 60초간 재진입 금지`);
+      }
 
       const reasonText: Record<string, string> = {
         tp: '익절',
@@ -1156,6 +1169,26 @@ export function useLimitOrderTrading({
       console.log('처리 중입니다');
       return;
     }
+    
+    // 🆕 손절 후 60초 쿨다운 체크
+    if (lastStopLossTimeRef.current) {
+      const { symbol: slSymbol, time: slTime } = lastStopLossTimeRef.current;
+      const elapsedSec = (Date.now() - slTime) / 1000;
+      
+      if (slSymbol === symbol && elapsedSec < STOP_LOSS_COOLDOWN_SEC) {
+        const remainingSec = Math.ceil(STOP_LOSS_COOLDOWN_SEC - elapsedSec);
+        console.log(`⏱️ [쿨다운] ${symbol} 손절 후 ${remainingSec}초 남음 - 재진입 차단`);
+        toast.warning(`손절 후 쿨다운`, {
+          description: `${symbol.replace('USDT', '')} ${remainingSec}초 후 재진입 가능`,
+        });
+        return;
+      }
+      
+      // 쿨다운 만료 시 초기화
+      if (elapsedSec >= STOP_LOSS_COOLDOWN_SEC) {
+        lastStopLossTimeRef.current = null;
+      }
+    }
 
     console.log(`🚀 [manualMarketEntry] 주문 시작: ${symbol} ${direction} (${splitCount}분할)`);
     processingRef.current = true;
@@ -1409,6 +1442,26 @@ export function useLimitOrderTrading({
     if (processingRef.current) {
       console.log('처리 중입니다');
       return;
+    }
+    
+    // 🆕 손절 후 60초 쿨다운 체크 (신규 진입 시에만)
+    if (!existing && lastStopLossTimeRef.current) {
+      const { symbol: slSymbol, time: slTime } = lastStopLossTimeRef.current;
+      const elapsedSec = (Date.now() - slTime) / 1000;
+      
+      if (slSymbol === symbol && elapsedSec < STOP_LOSS_COOLDOWN_SEC) {
+        const remainingSec = Math.ceil(STOP_LOSS_COOLDOWN_SEC - elapsedSec);
+        console.log(`⏱️ [쿨다운] ${symbol} 손절 후 ${remainingSec}초 남음 - 재진입 차단`);
+        toast.warning(`손절 후 쿨다운`, {
+          description: `${symbol.replace('USDT', '')} ${remainingSec}초 후 재진입 가능`,
+        });
+        return;
+      }
+      
+      // 쿨다운 만료 시 초기화
+      if (elapsedSec >= STOP_LOSS_COOLDOWN_SEC) {
+        lastStopLossTimeRef.current = null;
+      }
     }
 
     processingRef.current = true;
