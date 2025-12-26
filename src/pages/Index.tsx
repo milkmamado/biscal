@@ -131,6 +131,15 @@ const Index = () => {
     [screenedSymbols]
   );
   
+  // 🆕 DTFX 존 소멸 시 청산 핸들러
+  const handleZoneLostDuringPosition = useCallback(() => {
+    console.log('🚨 [Index] DTFX 존 소멸 → 즉시 청산 트리거');
+    const ticker = tickers.find(t => t.symbol === autoTrading.state.currentPosition?.symbol);
+    if (ticker && autoTrading.state.currentPosition) {
+      autoTrading.closePosition(); // 수동 청산 호출
+    }
+  }, [tickers, autoTrading.state.currentPosition]);
+  
   // DTFX 자동 스캐너
   const dtfxScanner = useDTFXScanner({
     hotCoins: hotCoinSymbols,
@@ -138,6 +147,7 @@ const Index = () => {
     onSymbolChange: setSelectedSymbol,
     currentSymbol: selectedSymbol,
     hasPosition: !!autoTrading.state.currentPosition,
+    onZoneLostDuringPosition: handleZoneLostDuringPosition,
   });
   
   // 패스 시 다음 시그널로 차트 전환

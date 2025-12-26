@@ -47,6 +47,7 @@ interface UseDTFXScannerProps {
   onSymbolChange: (symbol: string) => void;
   currentSymbol: string;
   hasPosition: boolean; // 현재 포지션 보유 여부
+  onZoneLostDuringPosition?: () => void; // 🆕 포지션 중 존 소멸 시 콜백
 }
 
 export function useDTFXScanner({
@@ -55,6 +56,7 @@ export function useDTFXScanner({
   onSymbolChange,
   currentSymbol,
   hasPosition,
+  onZoneLostDuringPosition,
 }: UseDTFXScannerProps) {
   const [isScanning, setIsScanning] = useState(false);
   const [scanResults, setScanResults] = useState<DTFXScanResult[]>([]);
@@ -77,6 +79,12 @@ export function useDTFXScanner({
   const lastZoneConfirmedTimeRef = useRef<number>(0);
   // 현재 종목의 존 상태
   const currentSymbolHasZoneRef = useRef<boolean>(false);
+  // 🆕 포지션 중 존 소멸 콜백 ref
+  const onZoneLostDuringPositionRef = useRef(onZoneLostDuringPosition);
+  
+  useEffect(() => {
+    onZoneLostDuringPositionRef.current = onZoneLostDuringPosition;
+  }, [onZoneLostDuringPosition]);
 
   // Refs 업데이트
   useEffect(() => {
@@ -171,8 +179,6 @@ export function useDTFXScanner({
 
   // 현재 종목의 존 상태 체크 (존 소멸 감지용)
   const checkCurrentSymbolZone = useCallback(async (): Promise<boolean> => {
-    if (!enabledRef.current || hasPositionRef.current) return true;
-    
     const symbol = currentSymbolRef.current;
     if (!symbol) return true;
 
@@ -195,6 +201,33 @@ export function useDTFXScanner({
       return false;
     }
   }, []);
+
+  // 🆕 포지션 보유 중 존 소멸 감지 (3초마다)
+  useEffect(() => {
+    if (!enabled || !hasPosition) return;
+    
+    const checkZoneDuringPosition = async () => {
+      if (!enabledRef.current || !hasPositionRef.current) return;
+      
+      const hasZone = await checkCurrentSymbolZone();
+      
+      if (!hasZone) {
+        const symbol = currentSymbolRef.current;
+        console.log(`🚨 [DTFX] 포지션 중 존 소멸 감지! ${symbol} → 청산 트리거`);
+        addScreeningLog('reject', `포지션 중 존 소멸 → 청산`, symbol);
+        
+        // 청산 콜백 호출
+        if (onZoneLostDuringPositionRef.current) {
+          onZoneLostDuringPositionRef.current();
+        }
+      }
+    };
+    
+    // 3초마다 체크
+    const interval = setInterval(checkZoneDuringPosition, 3000);
+    
+    return () => clearInterval(interval);
+  }, [enabled, hasPosition, checkCurrentSymbolZone]);
 
   // 스캔 실행 (현재 종목 제외 옵션)
   const runScan = useCallback(async (excludeSymbol?: string) => {
