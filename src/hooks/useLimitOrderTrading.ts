@@ -22,6 +22,7 @@ import {
   LimitOrderPosition,
 } from '@/lib/limitOrderConfig';
 import { toast } from 'sonner';
+import { analyzeDTFX, checkDTFXOTEEntry, Candle as DTFXCandle } from './useDTFX';
 
 // 1분봉 조회
 const fetch1mKlines = async (symbol: string, limit: number = 10) => {
@@ -43,6 +44,22 @@ const fetch5mKlines = async (symbol: string, limit: number = 50) => {
     const res = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=5m&limit=${limit}`);
     const data = await res.json();
     return data.map((k: any) => ({
+      open: parseFloat(k[1]),
+      high: parseFloat(k[2]),
+      low: parseFloat(k[3]),
+      close: parseFloat(k[4]),
+      volume: parseFloat(k[5]),
+    }));
+  } catch { return null; }
+};
+
+// 15분봉 조회 (DTFX용)
+const fetch15mKlines = async (symbol: string, limit: number = 100): Promise<DTFXCandle[] | null> => {
+  try {
+    const res = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=15m&limit=${limit}`);
+    const data = await res.json();
+    return data.map((k: any) => ({
+      time: parseInt(k[0]),
       open: parseFloat(k[1]),
       high: parseFloat(k[2]),
       low: parseFloat(k[3]),
@@ -96,6 +113,9 @@ export interface LimitOrderTradingState {
   // 진입 상태
   entryOrderIds: string[];
   entryStartTime: number | null;
+  // DTFX 상태
+  dtfxZones?: any[];
+  dtfxLastCheck?: number;
 }
 
 interface UseLimitOrderTradingProps {
@@ -131,6 +151,7 @@ interface UseLimitOrderTradingProps {
     adxThreshold: number;
     stopLossUsdt: number;  // USDT 기반 손절
     takeProfitUsdt: number; // USDT 기반 익절
+    dtfxEnabled?: boolean; // DTFX OTE 구간 진입 모드
   };
 }
 
@@ -1683,6 +1704,70 @@ export function useLimitOrderTrading({
   // ===== Cleanup =====
   // (레거시 타임아웃 로직 제거됨)
 
+  // ===== DTFX OTE 구간 체크 및 자동 진입 =====
+  const checkDTFXOTEAndEntry = useCallback(async (symbol: string, currentPrice: number) => {
+    // DTFX 모드가 활성화되어 있지 않으면 스킵
+    if (!filterSettings?.dtfxEnabled) return null;
+    if (!state.isEnabled) return null;
+    if (state.currentPosition) return null;
+    if (processingRef.current) return null;
+    if (!user) return null;
+
+    // 쿨다운 체크 (마지막 체크 후 5초)
+    const now = Date.now();
+    if (state.dtfxLastCheck && now - state.dtfxLastCheck < 5000) {
+      return null;
+    }
+
+    try {
+      // 15분봉 데이터 조회
+      const klines = await fetch15mKlines(symbol, 100);
+      if (!klines || klines.length < 30) {
+        return null;
+      }
+
+      // DTFX 분석 실행
+      const dtfxData = analyzeDTFX(klines);
+      
+      // 존이 없으면 스킵
+      if (dtfxData.zones.length === 0) {
+        setState(prev => ({ ...prev, dtfxZones: [], dtfxLastCheck: now }));
+        return null;
+      }
+
+      // OTE 구간 진입 시그널 체크
+      const oteSignal = checkDTFXOTEEntry(currentPrice, dtfxData.zones);
+      
+      setState(prev => ({ 
+        ...prev, 
+        dtfxZones: dtfxData.zones, 
+        dtfxLastCheck: now,
+      }));
+
+      if (oteSignal.direction && oteSignal.zone) {
+        const zoneType = oteSignal.zone.type === 'demand' ? 'Demand' : 'Supply';
+        const entryPercent = oteSignal.entryRatio ? (oteSignal.entryRatio * 100).toFixed(1) : '?';
+        
+        console.log(`🎯 [DTFX OTE] ${symbol} ${oteSignal.direction} @ ${currentPrice} (${entryPercent}% 레벨, ${zoneType} Zone)`);
+        
+        // 자동 시장가 진입 (1분할)
+        toast.info(`DTFX OTE 진입!`, {
+          description: `${symbol.replace('USDT', '')} ${oteSignal.direction === 'long' ? '롱' : '숏'} @ ${entryPercent}% (${zoneType})`,
+        });
+
+        // 1분할 시장가 진입 실행
+        await manualMarketEntry(symbol, oteSignal.direction, 1);
+        
+        return oteSignal;
+      }
+
+      return null;
+    } catch (error) {
+      console.error('[DTFX OTE 체크 오류]', error);
+      return null;
+    }
+  }, [filterSettings?.dtfxEnabled, state.isEnabled, state.currentPosition, state.dtfxLastCheck, user, manualMarketEntry]);
+
   return {
     state,
     toggleAutoTrading,
@@ -1695,5 +1780,6 @@ export function useLimitOrderTrading({
     manualLimitEntry,
     manualAnalyzeMarket,
     addLog,
+    checkDTFXOTEAndEntry, // DTFX OTE 진입 체크 함수 추가
   };
 }

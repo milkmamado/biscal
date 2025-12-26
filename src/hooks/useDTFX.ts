@@ -48,12 +48,19 @@ export interface Candle {
   volume: number;
 }
 
-// 피보나치 레벨 설정 (LuxAlgo DTFX와 동일)
+// 피보나치 레벨 설정 (OTE Zone: 61.8% ~ 70.5%, Sweet Spot: 70.5%)
 const FIB_LEVELS = [
-  { value: 0.3, label: '30%' },
-  { value: 0.5, label: '50%' },
-  { value: 0.7, label: '70%' },
+  { value: 0.618, label: '61.8%' },
+  { value: 0.705, label: '70.5%' },  // Sweet Spot
+  { value: 0.786, label: '78.6%' },
 ];
+
+// OTE 구간 범위 (진입용)
+export const OTE_ZONE = {
+  start: 0.618,
+  end: 0.705,
+  sweetSpot: 0.705,
+};
 
 // Structure Length (LuxAlgo 기본값: 10)
 export const DTFX_STRUCTURE_LENGTH = 10;
@@ -345,4 +352,49 @@ export function checkDTFXEntrySignal(
   }
   
   return { direction: null, zone: null, fibLevel: null };
+}
+
+/**
+ * DTFX OTE 구간 진입 시그널 체크 (61.8% ~ 70.5%)
+ * @param currentPrice 현재 가격
+ * @param zones 활성 DTFX 존 배열
+ */
+export function checkDTFXOTEEntry(
+  currentPrice: number, 
+  zones: DTFXZone[]
+): { direction: 'long' | 'short' | null; zone: DTFXZone | null; entryRatio: number | null } {
+  for (const zone of zones) {
+    if (!zone.active) continue;
+    
+    // OTE 구간 가격 계산
+    const range = Math.abs(zone.to.price - zone.from.price);
+    const isBullish = zone.type === 'demand';
+    
+    // 61.8% ~ 70.5% 레벨 가격 계산
+    const oteStartPrice = isBullish
+      ? zone.to.price - (range * OTE_ZONE.start)
+      : zone.to.price + (range * OTE_ZONE.start);
+    const oteEndPrice = isBullish
+      ? zone.to.price - (range * OTE_ZONE.end)
+      : zone.to.price + (range * OTE_ZONE.end);
+    
+    // OTE 구간 범위 내에 있는지 확인
+    const minOte = Math.min(oteStartPrice, oteEndPrice);
+    const maxOte = Math.max(oteStartPrice, oteEndPrice);
+    
+    if (currentPrice >= minOte && currentPrice <= maxOte) {
+      // 현재 가격이 구간 내 몇 %인지 계산
+      const entryRatio = isBullish
+        ? (zone.to.price - currentPrice) / range
+        : (currentPrice - zone.to.price) / range;
+      
+      return {
+        direction: isBullish ? 'long' : 'short',
+        zone,
+        entryRatio,
+      };
+    }
+  }
+  
+  return { direction: null, zone: null, entryRatio: null };
 }
