@@ -270,15 +270,17 @@ export function useDTFXScanner({
           const currentPrice = klines[klines.length - 1].close;
           const { zones } = analyzeDTFX(klines, DTFX_STRUCTURE_LENGTH);
 
-          if (zones.length === 0) continue;
+          // 🆕 활성 존만 필터링 (active: true)
+          const activeZones = zones.filter(z => z.active);
+          if (activeZones.length === 0) continue;
 
-          const { distance, direction, inOTE, entryRatio } = calculateOTEDistance(currentPrice, zones);
+          const { distance, direction, inOTE, entryRatio } = calculateOTEDistance(currentPrice, activeZones);
 
           // 활성 존이 있고, 거리가 합리적인 경우만 추가 (5% 이내)
           if (direction && distance < 5) {
             results.push({
               symbol,
-              zones,
+              zones: activeZones, // 🆕 활성 존만 저장
               oteDistance: distance,
               oteDirection: direction,
               currentPrice,
