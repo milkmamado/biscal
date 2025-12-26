@@ -328,11 +328,25 @@ export function useDTFXScanner({
         
         // 차트 전환 + 타이머 리셋
         if (currentSymbolRef.current !== best.symbol) {
-          onSymbolChange(best.symbol);
-          symbolSelectedTimeRef.current = Date.now();
-          lastZoneConfirmedTimeRef.current = Date.now();
-          currentSymbolHasZoneRef.current = true;
-          addScreeningLog('signal', `차트 전환: ${best.symbol.replace('USDT', '')} (존 ${best.zones.length}개, OTE ${best.oteDistance.toFixed(2)}%)`);
+          const now = Date.now();
+          const inHoldWindow =
+            symbolSelectedTimeRef.current > 0 &&
+            now - symbolSelectedTimeRef.current < OTE_TIMEOUT_MS;
+
+          // 현재 종목이 아직 유효한 존을 가지고 있고(=존 소멸 아님), 1분 대기창이면 종목을 바꾸지 않음
+          if (inHoldWindow && currentSymbolHasZoneRef.current) {
+            addScreeningLog('pending', `대기 유지: ${currentSymbolRef.current?.replace('USDT', '')} (1분 타이머 진행 중)`);
+          } else {
+            const hasActiveZone = best.zones.some(z => z.active);
+            onSymbolChange(best.symbol);
+            symbolSelectedTimeRef.current = now;
+            lastZoneConfirmedTimeRef.current = now;
+            currentSymbolHasZoneRef.current = hasActiveZone;
+            addScreeningLog(
+              'signal',
+              `차트 전환: ${best.symbol.replace('USDT', '')} (존 ${best.zones.length}개, OTE ${best.oteDistance.toFixed(2)}%)`
+            );
+          }
         }
       } else {
         setStatusMessage(`DTFX 존 없음 (${coins.length}개 스캔)`);
@@ -374,9 +388,10 @@ export function useDTFXScanner({
       }
 
       // 2) 존 소멸 체크
+      const hadZone = currentSymbolHasZoneRef.current;
       const hasZone = await checkCurrentSymbolZone();
-      if (!hasZone && currentSymbolHasZoneRef.current === false) {
-        // 이전에도 존 없었고 지금도 없으면 → 존 소멸 확정
+      if (hadZone && !hasZone) {
+        // 이전에는 존이 있었는데 지금은 없으면 → 존 소멸 확정
         addScreeningLog('reject', `존 소멸 감지 - 다른 종목 탐색`, currentSymbol);
         runScan(currentSymbol); // 현재 종목 제외하고 스캔
         return;
@@ -405,9 +420,16 @@ export function useDTFXScanner({
         runScan();
       }, 1000);
 
-      // 10초 간격 스캔 (더 좋은 종목 있는지 체크)
+      // 10초 간격 스캔 (단, 1분 대기창에서는 차트 스위칭/재스캔 최소화)
       scanIntervalRef.current = setInterval(() => {
-        // 타임아웃/존소멸 체크는 별도 인터벌에서 하므로 여기서는 일반 스캔만
+        const now = Date.now();
+        const inHoldWindow =
+          symbolSelectedTimeRef.current > 0 &&
+          now - symbolSelectedTimeRef.current < OTE_TIMEOUT_MS;
+
+        // 이미 선택된 종목이 존을 유지하고 있으면 1분 동안은 추가 스캔으로 흔들지 않음
+        if (inHoldWindow && currentSymbolHasZoneRef.current) return;
+
         runScan();
       }, 10000);
 
