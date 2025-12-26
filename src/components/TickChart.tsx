@@ -653,19 +653,20 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
           ctx.strokeRect(startX, topY, width - startX - 50, bottomY - topY);
         }
         
-        // 피보나치 레벨 라인 표시 (0.3, 0.5, 0.7)
+        // 피보나치 레벨 라인 표시 (OTE Zone: 61.8%, 70.5% Sweet Spot, 78.6%)
         zone.levels.forEach((level, levelIndex) => {
           const levelY = CANVAS_PADDING / 2 + ((adjustedMax - level.price) / adjustedRange) * priceChartHeight;
           
           if (levelY > 0 && levelY < chartHeight) {
-            // 레벨별 스타일 (LuxAlgo: 0.3/0.7은 점선, 0.5는 실선)
-            const isMiddleLevel = level.value === 0.5;
+            // 레벨별 스타일 (70.5% Sweet Spot = 실선 강조, 나머지는 점선)
+            const isSweetSpot = level.value === 0.705;
+            const isOTE = level.value >= 0.618 && level.value <= 0.705;
             
             ctx.strokeStyle = fibColor;
-            ctx.lineWidth = isMiddleLevel ? 1.5 : 1;
-            ctx.globalAlpha = isMiddleLevel ? 0.8 : 0.5;
+            ctx.lineWidth = isSweetSpot ? 2 : 1;
+            ctx.globalAlpha = isSweetSpot ? 0.9 : isOTE ? 0.7 : 0.5;
             
-            if (!isMiddleLevel) {
+            if (!isSweetSpot) {
               ctx.setLineDash([4, 4]);
             }
             
@@ -678,11 +679,11 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
             ctx.globalAlpha = 1;
             
             // 피보나치 레벨 라벨 (우측에 표시)
-            ctx.fillStyle = fibColor;
-            ctx.font = '9px monospace';
+            ctx.fillStyle = isSweetSpot ? '#ffff00' : fibColor; // Sweet Spot은 노란색
+            ctx.font = isSweetSpot ? 'bold 10px monospace' : '9px monospace';
             ctx.textAlign = 'left';
-            ctx.globalAlpha = 0.7;
-            ctx.fillText(level.label, width - 48, levelY + 3);
+            ctx.globalAlpha = isSweetSpot ? 1 : 0.7;
+            ctx.fillText(level.label + (isSweetSpot ? ' ★' : ''), width - 48, levelY + 3);
             ctx.globalAlpha = 1;
           }
         });

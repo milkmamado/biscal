@@ -100,6 +100,7 @@ const Index = () => {
       adxThreshold,
       stopLossUsdt,
       takeProfitUsdt,
+      dtfxEnabled, // DTFX OTE 구간 진입 모드
     },
   });
   
@@ -172,16 +173,26 @@ const Index = () => {
     }
   }, [autoTrading.state.currentPosition?.symbol, autoTrading.state.pendingSignal?.symbol]);
   
-  // 현재 가격으로 TP/SL 체크
+  // 현재 가격으로 TP/SL 체크 + DTFX OTE 구간 진입 체크
   useEffect(() => {
-    if (!autoTrading.state.currentPosition) return;
-    
-    const position = autoTrading.state.currentPosition;
-    const ticker = tickers.find(t => t.symbol === position.symbol);
+    const ticker = tickers.find(t => t.symbol === selectedSymbol);
     if (!ticker) return;
     
-    autoTrading.checkTpSl(ticker.price);
-  }, [tickers, autoTrading.state.currentPosition]);
+    // 포지션 있으면 TP/SL 체크
+    if (autoTrading.state.currentPosition) {
+      const position = autoTrading.state.currentPosition;
+      const posTicker = tickers.find(t => t.symbol === position.symbol);
+      if (posTicker) {
+        autoTrading.checkTpSl(posTicker.price);
+      }
+      return; // 포지션 있으면 DTFX 체크 스킵
+    }
+    
+    // DTFX 모드 + 자동매매 활성화 시 OTE 구간 진입 체크
+    if (dtfxEnabled && autoTrading.state.isEnabled) {
+      autoTrading.checkDTFXOTEAndEntry(selectedSymbol, ticker.price);
+    }
+  }, [tickers, selectedSymbol, autoTrading.state.currentPosition, autoTrading.state.isEnabled, dtfxEnabled]);
 
   // Fetch USD/KRW rate
   useEffect(() => {
