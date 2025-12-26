@@ -254,11 +254,11 @@ export function TradingSettingsPanel({
                       : 'bg-gradient-to-r from-purple-500 to-cyan-500 hover:from-purple-600 hover:to-cyan-600 text-white'
                   }`}
                 >
-                  {dtfxAutoTradingEnabled ? '⏹ DTFX 자동매매 정지' : '▶ DTFX 자동매매 시작'}
+                  {dtfxAutoTradingEnabled ? '⏹ DTFX 자동스캔 정지' : '▶ DTFX 자동스캔 시작'}
                 </button>
                 {dtfxAutoTradingEnabled && (
                   <div className="mt-1 text-[9px] text-center text-cyan-400 animate-pulse">
-                    🔄 OTE 구간(61.8%~70.5%) 진입 대기 중...
+                    🔄 핫코인 OTE 구간 자동 스캔 중...
                   </div>
                 )}
               </div>
