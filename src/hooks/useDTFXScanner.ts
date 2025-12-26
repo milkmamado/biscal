@@ -335,7 +335,7 @@ export function useDTFXScanner({
 
           // 현재 종목이 아직 유효한 존을 가지고 있고(=존 소멸 아님), 1분 대기창이면 종목을 바꾸지 않음
           if (inHoldWindow && currentSymbolHasZoneRef.current) {
-            addScreeningLog('pending', `대기 유지: ${currentSymbolRef.current?.replace('USDT', '')} (1분 타이머 진행 중)`);
+            addScreeningLog('analyze', `대기 유지: ${currentSymbolRef.current?.replace('USDT', '')} (1분 타이머 진행 중)`);
           } else {
             const hasActiveZone = best.zones.some(z => z.active);
             onSymbolChange(best.symbol);
