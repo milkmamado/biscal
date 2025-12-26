@@ -41,8 +41,8 @@ const Index = () => {
   const [dtfxEnabled, setDtfxEnabled] = useState(false); // DTFX 차트 표시 토글
   const [dtfxAutoTradingEnabled, setDtfxAutoTradingEnabled] = useState(false); // DTFX 자동매매 상태
   const [adxThreshold, setAdxThreshold] = useState(LIMIT_ORDER_CONFIG.SIGNAL.MIN_ADX);
-  const [stopLossUsdt, setStopLossUsdt] = useState(0.5); // 기본 0.5 USDT 손절
-  const [takeProfitUsdt, setTakeProfitUsdt] = useState(0.75); // 기본 0.75 USDT 익절
+  const [stopLossUsdt, setStopLossUsdt] = useState(1.5); // 기본 1.5 USDT 손절 (한틱손절 방지)
+  const [takeProfitUsdt, setTakeProfitUsdt] = useState(2.0); // 기본 2.0 USDT 익절
   const [autoAdjustEnabled, setAutoAdjustEnabled] = useState(true); // 잔고 연동 기본 ON
   const autoAdjustEnabledRef = useRef(autoAdjustEnabled); // Ref로 최신 상태 추적
   
