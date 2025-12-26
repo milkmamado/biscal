@@ -4,6 +4,7 @@ import { Slider } from '@/components/ui/slider';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Settings, SlidersHorizontal, Target, Filter, TrendingUp, BarChart3, Activity, Shield, Layers, Zap } from 'lucide-react';
+import { DTFXGuideModal } from './DTFXGuideModal';
 
 // 잔고 기반 손익 계산 (예수금의 1-2%)
 export function calculateBalanceBasedRisk(balanceUSD: number): { stopLoss: number; takeProfit: number } {
@@ -224,9 +225,10 @@ export function TradingSettingsPanel({
 
               {/* DTFX 차트 표시 - 자동매매 상태와 무관하게 항상 토글 가능 */}
               <div className="flex items-center justify-between px-2 py-1.5 rounded bg-gradient-to-r from-purple-500/10 to-cyan-500/10 border border-purple-500/30">
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1.5">
                   <Layers className="w-3 h-3 text-purple-400" />
                   <span className="text-[10px] text-foreground font-semibold">DTFX</span>
+                  <DTFXGuideModal />
                 </div>
                 <Switch
                   checked={dtfxEnabled}
