@@ -667,8 +667,18 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
       const currentPrice = displayCandles[displayCandles.length - 1]?.close || 0;
       
       // === 활성 존(Zone) 영역 및 피보나치 레벨 표시 ===
-      dtfxData.zones.forEach((zone) => {
-        if (!zone.active) return;
+      // 🆕 타입별로 가장 최근 생성된 존만 표시 (Demand 1개, Supply 1개)
+      const activeZones = dtfxData.zones.filter(z => z.active);
+      const latestDemandZone = activeZones
+        .filter(z => z.type === 'demand')
+        .sort((a, b) => b.from.time - a.from.time)[0];
+      const latestSupplyZone = activeZones
+        .filter(z => z.type === 'supply')
+        .sort((a, b) => b.from.time - a.from.time)[0];
+      const zonesToDisplay = [latestDemandZone, latestSupplyZone].filter(Boolean);
+      
+      zonesToDisplay.forEach((zone) => {
+        if (!zone || !zone.active) return;
         
         const isDemand = zone.type === 'demand';
         const zoneColor = isDemand ? 'rgba(0, 255, 136, 0.08)' : 'rgba(255, 80, 100, 0.08)';
