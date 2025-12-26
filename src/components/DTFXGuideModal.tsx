@@ -29,9 +29,9 @@ export const DTFXGuideModal = () => {
               <div>
                 <span className="text-green-400 font-semibold">최적 진입 구간 (OTE Zone)</span>
                 <ul className="mt-1 ml-4 space-y-0.5 list-disc">
-                  <li><span className="text-green-300">0.618 ~ 0.705</span>: 가장 추천하는 구간</li>
-                  <li><span className="text-green-300 font-bold">0.705</span>: "Sweet Spot" - 최적 진입점</li>
-                  <li><span className="text-yellow-400">0.786</span>: 공격적 진입 (리스크 높음)</li>
+                  <li><span className="text-green-300">61.8% ~ 70.5%</span>: 가장 추천하는 구간</li>
+                  <li><span className="text-green-300 font-bold">70.5%</span>: "Sweet Spot" - 최적 진입점</li>
+                  <li><span className="text-yellow-400">78.6%</span>: 공격적 진입 (리스크 높음)</li>
                 </ul>
               </div>
               
@@ -40,7 +40,7 @@ export const DTFXGuideModal = () => {
                 <ul className="mt-1 ml-4 space-y-0.5 list-disc">
                   <li>CHoCH/BOS로 <span className="text-green-300">상승 구조 전환</span> 확인</li>
                   <li>가격이 <span className="text-green-300">Demand Zone</span>으로 되돌림</li>
-                  <li><span className="text-green-300">0.618~0.705</span> 구간에서 지지 확인 후 진입</li>
+                  <li><span className="text-green-300">61.8%~70.5%</span> 구간에서 지지 확인 후 진입</li>
                 </ul>
               </div>
               
@@ -65,9 +65,9 @@ export const DTFXGuideModal = () => {
               <div>
                 <span className="text-red-400 font-semibold">최적 진입 구간 (OTE Zone)</span>
                 <ul className="mt-1 ml-4 space-y-0.5 list-disc">
-                  <li><span className="text-red-300">0.618 ~ 0.705</span>: 가장 추천하는 구간</li>
-                  <li><span className="text-red-300 font-bold">0.705</span>: "Sweet Spot" - 최적 진입점</li>
-                  <li><span className="text-yellow-400">0.786</span>: 공격적 진입 (리스크 높음)</li>
+                  <li><span className="text-red-300">61.8% ~ 70.5%</span>: 가장 추천하는 구간</li>
+                  <li><span className="text-red-300 font-bold">70.5%</span>: "Sweet Spot" - 최적 진입점</li>
+                  <li><span className="text-yellow-400">78.6%</span>: 공격적 진입 (리스크 높음)</li>
                 </ul>
               </div>
               
@@ -76,7 +76,7 @@ export const DTFXGuideModal = () => {
                 <ul className="mt-1 ml-4 space-y-0.5 list-disc">
                   <li>CHoCH/BOS로 <span className="text-red-300">하락 구조 전환</span> 확인</li>
                   <li>가격이 <span className="text-red-300">Supply Zone</span>으로 되돌림</li>
-                  <li><span className="text-red-300">0.618~0.705</span> 구간에서 저항 확인 후 진입</li>
+                  <li><span className="text-red-300">61.8%~70.5%</span> 구간에서 저항 확인 후 진입</li>
                 </ul>
               </div>
               
@@ -125,7 +125,7 @@ export const DTFXGuideModal = () => {
             </div>
             
             <ul className="space-y-1 text-xs text-muted-foreground list-disc ml-4">
-              <li><span className="text-cyan-300 font-bold">0.705</span> 레벨이 최적의 진입점</li>
+              <li><span className="text-cyan-300 font-bold">70.5%</span> 레벨이 최적의 진입점</li>
               <li>구조 전환(CHoCH/BOS) <span className="text-cyan-300">확인 필수</span></li>
               <li>익손비 <span className="text-cyan-300">최소 1.5:1</span> 유지</li>
               <li>소액 예수금은 <span className="text-cyan-300">15분봉</span> 권장</li>
