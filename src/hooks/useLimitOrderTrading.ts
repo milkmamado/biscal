@@ -53,10 +53,10 @@ const fetch5mKlines = async (symbol: string, limit: number = 50) => {
   } catch { return null; }
 };
 
-// 15분봉 조회 (DTFX용)
-const fetch15mKlines = async (symbol: string, limit: number = 100): Promise<DTFXCandle[] | null> => {
+// 1분봉 조회 (DTFX 스캘핑용) - time 포함 버전
+const fetch1mKlinesForDTFX = async (symbol: string, limit: number = 100): Promise<DTFXCandle[] | null> => {
   try {
-    const res = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=15m&limit=${limit}`);
+    const res = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=1m&limit=${limit}`);
     const data = await res.json();
     return data.map((k: any) => ({
       time: parseInt(k[0]),
@@ -1720,8 +1720,8 @@ export function useLimitOrderTrading({
     }
 
     try {
-      // 15분봉 데이터 조회
-      const klines = await fetch15mKlines(symbol, 100);
+      // 1분봉 데이터 조회 (스캘핑용)
+      const klines = await fetch1mKlinesForDTFX(symbol, 100);
       if (!klines || klines.length < 30) {
         return null;
       }
