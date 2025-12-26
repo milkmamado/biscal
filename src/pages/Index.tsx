@@ -122,10 +122,13 @@ const Index = () => {
       volatilityRange: c.volatilityRange
     }));
   
-  // 핫코인 심볼 리스트 (DTFX 스캐너용)
+  // 기술적 분석 기반 종목 스크리닝
+  const { activeSignals, isScanning, isPaused, screenedSymbols, lastScanTime, passSignal: passSignalRaw, togglePause } = useCoinScreening(tickersForScreening, {}, majorCoinMode);
+  
+  // 핫코인 심볼 리스트 (DTFX 스캐너용) - 시그널 스캐너 필터 통과한 코인들만
   const hotCoinSymbols = useMemo(() => 
-    tickersForScreening.map(t => t.symbol),
-    [tickersForScreening]
+    screenedSymbols.map(s => s.symbol),
+    [screenedSymbols]
   );
   
   // DTFX 자동 스캐너
@@ -136,9 +139,6 @@ const Index = () => {
     currentSymbol: selectedSymbol,
     hasPosition: !!autoTrading.state.currentPosition,
   });
-  
-  // 기술적 분석 기반 종목 스크리닝
-  const { activeSignals, isScanning, isPaused, screenedSymbols, lastScanTime, passSignal: passSignalRaw, togglePause } = useCoinScreening(tickersForScreening, {}, majorCoinMode);
   
   // 패스 시 다음 시그널로 차트 전환
   const passSignal = () => {
