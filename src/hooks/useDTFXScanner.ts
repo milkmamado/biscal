@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { analyzeDTFX, checkDTFXOTEEntry, DTFXZone, Candle, OTE_ZONE } from './useDTFX';
+import { analyzeDTFX, DTFXZone, Candle, OTE_ZONE, DTFX_STRUCTURE_LENGTH } from './useDTFX';
 import { addScreeningLog } from '@/components/ScreeningLogPanel';
 
 // 1분봉 조회 함수
@@ -179,14 +179,15 @@ export function useDTFXScanner({
 
         const symbol = coins[i];
         
-        try {
-          const klines = await fetch1mKlines(symbol, 100);
-          if (!klines || klines.length < 30) continue;
+          try {
+            // 차트/자동매매와 동일한 기준으로 분석하기 위해 200봉 + 기본 구조길이(10) 사용
+            const klines = await fetch1mKlines(symbol, 200);
+            if (!klines || klines.length < 30) continue;
 
-          const currentPrice = klines[klines.length - 1].close;
-          const { zones } = analyzeDTFX(klines, 5); // 1분봉이라 lookback 5로 줄임
+            const currentPrice = klines[klines.length - 1].close;
+            const { zones } = analyzeDTFX(klines, DTFX_STRUCTURE_LENGTH);
 
-          if (zones.length === 0) continue;
+            if (zones.length === 0) continue;
 
           const { distance, direction, inOTE, entryRatio } = calculateOTEDistance(currentPrice, zones);
 

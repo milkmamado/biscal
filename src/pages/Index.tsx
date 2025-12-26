@@ -207,8 +207,8 @@ const Index = () => {
       return; // 포지션 있으면 DTFX 체크 스킵
     }
     
-    // DTFX 모드 + 자동매매 활성화 시 OTE 구간 진입 체크
-    if (dtfxEnabled && autoTrading.state.isEnabled) {
+    // DTFX 모드 + DTFX 자동스캔/진입 활성화 시 OTE 구간 진입 체크
+    if (dtfxEnabled && dtfxAutoTradingEnabled && autoTrading.state.isEnabled) {
       autoTrading.checkDTFXOTEAndEntry(selectedSymbol, ticker.price);
     }
   }, [tickers, selectedSymbol, autoTrading.state.currentPosition, autoTrading.state.isEnabled, dtfxEnabled]);
