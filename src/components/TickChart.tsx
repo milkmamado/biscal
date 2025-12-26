@@ -678,30 +678,6 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
             ctx.setLineDash([]);
             ctx.strokeRect(startX, oteTop, width - startX - 50, oteBottom - oteTop);
             
-            // "진입 대기" 라벨 표시 (좌측 상단)
-            const entryDirection = isDemand ? '롱 진입 대기' : '숏 진입 대기';
-            const entryPriceRange = `${Math.min(ote618Level.price, ote705Level.price).toFixed(4)} ~ ${Math.max(ote618Level.price, ote705Level.price).toFixed(4)}`;
-            
-            // 배경 박스
-            ctx.fillStyle = isDemand ? 'rgba(0, 40, 30, 0.9)' : 'rgba(40, 15, 20, 0.9)';
-            const labelX = startX + 5;
-            const labelY = Math.max(oteTop + 2, 15);
-            ctx.fillRect(labelX, labelY, 100, 28);
-            
-            // 테두리
-            ctx.strokeStyle = isDemand ? '#00ff88' : '#ff5064';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(labelX, labelY, 100, 28);
-            
-            // 텍스트
-            ctx.fillStyle = isDemand ? '#00ff88' : '#ff5064';
-            ctx.font = 'bold 9px monospace';
-            ctx.textAlign = 'left';
-            ctx.fillText(entryDirection, labelX + 4, labelY + 10);
-            
-            ctx.fillStyle = '#ffffff';
-            ctx.font = '8px monospace';
-            ctx.fillText(entryPriceRange, labelX + 4, labelY + 22);
           }
         }
         
