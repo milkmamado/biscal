@@ -653,6 +653,58 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
           ctx.strokeRect(startX, topY, width - startX - 50, bottomY - topY);
         }
         
+        // === OTE 진입 구간 (61.8% ~ 70.5%) 강조 하이라이트 ===
+        const ote618Level = zone.levels.find(l => l.value === 0.618);
+        const ote705Level = zone.levels.find(l => l.value === 0.705);
+        
+        if (ote618Level && ote705Level) {
+          const oteTopY = CANVAS_PADDING / 2 + ((adjustedMax - ote618Level.price) / adjustedRange) * priceChartHeight;
+          const oteBottomY = CANVAS_PADDING / 2 + ((adjustedMax - ote705Level.price) / adjustedRange) * priceChartHeight;
+          
+          // Demand 존: 61.8%가 위, 70.5%가 아래
+          // Supply 존: 70.5%가 위, 61.8%가 아래
+          const oteTop = isDemand ? oteTopY : oteBottomY;
+          const oteBottom = isDemand ? oteBottomY : oteTopY;
+          
+          if (oteTop > 0 && oteBottom < chartHeight) {
+            // OTE 구간 강조 배경 (더 진한 색상)
+            const oteColor = isDemand ? 'rgba(0, 255, 136, 0.25)' : 'rgba(255, 80, 100, 0.25)';
+            ctx.fillStyle = oteColor;
+            ctx.fillRect(startX, oteTop, width - startX - 50, oteBottom - oteTop);
+            
+            // OTE 구간 테두리 (밝은 색)
+            ctx.strokeStyle = isDemand ? 'rgba(0, 255, 136, 0.8)' : 'rgba(255, 80, 100, 0.8)';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([]);
+            ctx.strokeRect(startX, oteTop, width - startX - 50, oteBottom - oteTop);
+            
+            // "진입 대기" 라벨 표시 (좌측 상단)
+            const entryDirection = isDemand ? '롱 진입 대기' : '숏 진입 대기';
+            const entryPriceRange = `${Math.min(ote618Level.price, ote705Level.price).toFixed(4)} ~ ${Math.max(ote618Level.price, ote705Level.price).toFixed(4)}`;
+            
+            // 배경 박스
+            ctx.fillStyle = isDemand ? 'rgba(0, 40, 30, 0.9)' : 'rgba(40, 15, 20, 0.9)';
+            const labelX = startX + 5;
+            const labelY = Math.max(oteTop + 2, 15);
+            ctx.fillRect(labelX, labelY, 100, 28);
+            
+            // 테두리
+            ctx.strokeStyle = isDemand ? '#00ff88' : '#ff5064';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(labelX, labelY, 100, 28);
+            
+            // 텍스트
+            ctx.fillStyle = isDemand ? '#00ff88' : '#ff5064';
+            ctx.font = 'bold 9px monospace';
+            ctx.textAlign = 'left';
+            ctx.fillText(entryDirection, labelX + 4, labelY + 10);
+            
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '8px monospace';
+            ctx.fillText(entryPriceRange, labelX + 4, labelY + 22);
+          }
+        }
+        
         // 피보나치 레벨 라인 표시 (OTE Zone: 61.8%, 70.5% Sweet Spot, 78.6%)
         zone.levels.forEach((level, levelIndex) => {
           const levelY = CANVAS_PADDING / 2 + ((adjustedMax - level.price) / adjustedRange) * priceChartHeight;
