@@ -39,6 +39,7 @@ const Index = () => {
   const [macdFilterEnabled, setMacdFilterEnabled] = useState(true);
   const [bollingerFilterEnabled, setBollingerFilterEnabled] = useState(true);
   const [dtfxEnabled, setDtfxEnabled] = useState(false); // DTFX 차트 표시 토글
+  const [dtfxAutoTradingEnabled, setDtfxAutoTradingEnabled] = useState(false); // DTFX 자동매매 상태
   const [adxThreshold, setAdxThreshold] = useState(LIMIT_ORDER_CONFIG.SIGNAL.MIN_ADX);
   const [stopLossUsdt, setStopLossUsdt] = useState(0.5); // 기본 0.5 USDT 손절
   const [takeProfitUsdt, setTakeProfitUsdt] = useState(0.75); // 기본 0.75 USDT 익절
@@ -100,7 +101,7 @@ const Index = () => {
       adxThreshold,
       stopLossUsdt,
       takeProfitUsdt,
-      dtfxEnabled, // DTFX OTE 구간 진입 모드
+      dtfxEnabled: dtfxEnabled && dtfxAutoTradingEnabled, // DTFX OTE 구간 진입 모드 (둘 다 켜져있어야 활성화)
     },
   });
   
@@ -429,6 +430,8 @@ const Index = () => {
             onToggleBollingerFilter={setBollingerFilterEnabled}
             dtfxEnabled={dtfxEnabled}
             onToggleDtfx={setDtfxEnabled}
+            dtfxAutoTradingEnabled={dtfxAutoTradingEnabled}
+            onToggleDtfxAutoTrading={setDtfxAutoTradingEnabled}
             adxThreshold={adxThreshold}
             onAdxThresholdChange={setAdxThreshold}
             stopLossUsdt={stopLossUsdt}
