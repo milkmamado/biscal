@@ -1,13 +1,19 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { HelpCircle, TrendingUp, TrendingDown, Target, AlertTriangle, CheckCircle } from 'lucide-react';
+import { TrendingUp, TrendingDown, Target, AlertTriangle, CheckCircle } from 'lucide-react';
 
-export const DTFXGuideModal = () => {
+interface DTFXGuideModalProps {
+  children?: React.ReactNode;
+}
+
+export const DTFXGuideModal = ({ children }: DTFXGuideModalProps) => {
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <button className="w-4 h-4 rounded-full bg-purple-500/20 hover:bg-purple-500/40 flex items-center justify-center transition-colors">
-          <HelpCircle className="w-3 h-3 text-purple-400" />
-        </button>
+        {children || (
+          <button className="text-[10px] text-foreground font-semibold hover:text-purple-400 transition-colors cursor-pointer">
+            DTFX
+          </button>
+        )}
       </DialogTrigger>
       <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto bg-background/95 backdrop-blur-sm border-purple-500/30">
         <DialogHeader>

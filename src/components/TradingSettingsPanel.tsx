@@ -233,7 +233,6 @@ export function TradingSettingsPanel({
               <div className="flex items-center justify-between px-2 py-1.5 rounded bg-gradient-to-r from-purple-500/10 to-cyan-500/10 border border-purple-500/30">
                 <div className="flex items-center gap-1.5">
                   <Layers className="w-3 h-3 text-purple-400" />
-                  <span className="text-[10px] text-foreground font-semibold">DTFX</span>
                   <DTFXGuideModal />
                 </div>
                 <Switch
