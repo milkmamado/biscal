@@ -35,6 +35,10 @@ interface TradingSettingsProps {
   dtfxEnabled: boolean;
   onToggleDtfx: (enabled: boolean) => void;
   
+  // DTFX 자동매매 시작/정지
+  dtfxAutoTradingEnabled?: boolean;
+  onToggleDtfxAutoTrading?: (enabled: boolean) => void;
+  
   // 퍼센티지 조정
   adxThreshold: number;
   onAdxThresholdChange: (value: number) => void;
@@ -69,6 +73,8 @@ export function TradingSettingsPanel({
   onToggleBollingerFilter,
   dtfxEnabled,
   onToggleDtfx,
+  dtfxAutoTradingEnabled = false,
+  onToggleDtfxAutoTrading,
   adxThreshold,
   onAdxThresholdChange,
   stopLossUsdt,
@@ -237,6 +243,27 @@ export function TradingSettingsPanel({
                 />
               </div>
             </div>
+
+            {/* DTFX 자동매매 시작/정지 버튼 - DTFX가 켜져있을 때만 표시 */}
+            {dtfxEnabled && onToggleDtfxAutoTrading && (
+              <div className="mt-2">
+                <button
+                  onClick={() => onToggleDtfxAutoTrading(!dtfxAutoTradingEnabled)}
+                  className={`w-full py-2 rounded-lg text-xs font-bold transition-all ${
+                    dtfxAutoTradingEnabled
+                      ? 'bg-red-500/80 hover:bg-red-500 text-white border border-red-400'
+                      : 'bg-gradient-to-r from-purple-500 to-cyan-500 hover:from-purple-600 hover:to-cyan-600 text-white'
+                  }`}
+                >
+                  {dtfxAutoTradingEnabled ? '⏹ DTFX 자동매매 정지' : '▶ DTFX 자동매매 시작'}
+                </button>
+                {dtfxAutoTradingEnabled && (
+                  <div className="mt-1 text-[9px] text-center text-cyan-400 animate-pulse">
+                    🔄 OTE 구간(61.8%~70.5%) 진입 대기 중...
+                  </div>
+                )}
+              </div>
+            )}
 
           </div>
 
