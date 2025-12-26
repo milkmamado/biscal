@@ -416,9 +416,22 @@ export function useDTFXScanner({
     isMountedRef.current = true;
 
     if (enabled && !hasPosition) {
-      // 초기 스캔 (1초 후)
-      const initialDelay = setTimeout(() => {
-        symbolSelectedTimeRef.current = Date.now();
+      // 초기 스캔 (1초 후) - 현재 종목 존 여부도 확인
+      const initialDelay = setTimeout(async () => {
+        // 🆕 현재 종목의 존 상태 먼저 확인
+        const currentHasZone = await checkCurrentSymbolZone();
+        
+        if (currentHasZone) {
+          // 현재 종목에 존이 있으면 유지하고 타이머 시작
+          symbolSelectedTimeRef.current = Date.now();
+          addScreeningLog('analyze', `현재 종목 존 확인됨, 유지`, currentSymbolRef.current);
+        } else {
+          // 🆕 현재 종목에 존이 없으면 바로 다른 종목 스캔
+          addScreeningLog('reject', `현재 종목 존 없음 → 스캔 시작`, currentSymbolRef.current);
+          currentSymbolHasZoneRef.current = false;
+          symbolSelectedTimeRef.current = 0; // 타이머 리셋
+        }
+        
         runScan();
       }, 1000);
 
@@ -455,7 +468,7 @@ export function useDTFXScanner({
         clearInterval(scanIntervalRef.current);
       }
     };
-  }, [enabled, hasPosition, runScan]);
+  }, [enabled, hasPosition, runScan, checkCurrentSymbolZone]);
 
   // 수동 스캔
   const manualScan = useCallback(() => {
