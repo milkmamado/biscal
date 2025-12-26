@@ -11,7 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import DualChartPanel from '@/components/DualChartPanel';
 import AutoTradingPanel from '@/components/AutoTradingPanel';
 import ApiKeySetup from '@/components/ApiKeySetup';
-import TradingSettingsPanel from '@/components/TradingSettingsPanel';
+import TradingSettingsPanel, { calculateBalanceBasedRisk } from '@/components/TradingSettingsPanel';
 import SignalScannerPanel from '@/components/SignalScannerPanel';
 import ScalpingRatingPanel from '@/components/ScalpingRatingPanel';
 import BiscalLogo from '@/components/BiscalLogo';
@@ -40,8 +40,9 @@ const Index = () => {
   const [bollingerFilterEnabled, setBollingerFilterEnabled] = useState(true);
   const [dtfxEnabled, setDtfxEnabled] = useState(false); // DTFX 차트 표시 토글
   const [adxThreshold, setAdxThreshold] = useState(LIMIT_ORDER_CONFIG.SIGNAL.MIN_ADX);
-  const [stopLossUsdt, setStopLossUsdt] = useState(7); // 기본 7 USDT 손절
-  const [takeProfitUsdt, setTakeProfitUsdt] = useState(7); // 기본 7 USDT 익절
+  const [stopLossUsdt, setStopLossUsdt] = useState(0.5); // 기본 0.5 USDT 손절
+  const [takeProfitUsdt, setTakeProfitUsdt] = useState(0.75); // 기본 0.75 USDT 익절
+  const [autoAdjustEnabled, setAutoAdjustEnabled] = useState(true); // 잔고 연동 기본 ON
   
   // 미체결 주문 상태 (차트에 표시용)
   const [openOrders, setOpenOrders] = useState<{ orderId: number; price: number; side: 'BUY' | 'SELL'; origQty: number; executedQty: number; }[]>([]);
@@ -233,7 +234,24 @@ const Index = () => {
   
   const handleBalanceChange = useCallback((balance: number) => {
     setBalanceUSD(balance);
-  }, []);
+    
+    // 잔고 연동 활성화 시 자동으로 손익 조정
+    if (autoAdjustEnabled && balance > 0) {
+      const { stopLoss, takeProfit } = calculateBalanceBasedRisk(balance);
+      setStopLossUsdt(stopLoss);
+      setTakeProfitUsdt(takeProfit);
+    }
+  }, [autoAdjustEnabled]);
+  
+  // 자동 조정 토글 시 즉시 반영
+  const handleToggleAutoAdjust = useCallback((enabled: boolean) => {
+    setAutoAdjustEnabled(enabled);
+    if (enabled && balanceUSD > 0) {
+      const { stopLoss, takeProfit } = calculateBalanceBasedRisk(balanceUSD);
+      setStopLossUsdt(stopLoss);
+      setTakeProfitUsdt(takeProfit);
+    }
+  }, [balanceUSD]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -405,6 +423,9 @@ const Index = () => {
             takeProfitUsdt={takeProfitUsdt}
             onTakeProfitChange={setTakeProfitUsdt}
             isAutoTradingEnabled={autoTrading.state.isEnabled}
+            balanceUSD={balanceUSD}
+            autoAdjustEnabled={autoAdjustEnabled}
+            onToggleAutoAdjust={handleToggleAutoAdjust}
           />
           <ScalpingRatingPanel />
           <BiscalLogo />
