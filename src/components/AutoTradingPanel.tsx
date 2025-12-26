@@ -12,6 +12,7 @@ import { supabase } from '@/integrations/supabase/client';
 import TradingRecordModal from './TradingRecordModal';
 import OrderBook from './OrderBook';
 import { LIMIT_ORDER_CONFIG } from '@/lib/limitOrderConfig';
+import { useRealtimePnL } from '@/hooks/useRealtimePnL';
 
 // 스캘핑 시간대 적합도 데이터
 const getScalpingRating = () => {
@@ -303,33 +304,43 @@ const AutoTradingPanel = ({
     }
   }, [refreshTrigger]);
   
-  // 현재 포지션 PnL - 바이낸스 unrealizedPnl 기반 + 예상 청산 수수료 차감
-  const [lastValidPnL, setLastValidPnL] = useState(0);
+  // 🚀 실시간 PnL - WebSocket markPrice 기반 (바이낸스 앱 수준 반응 속도)
+  const realtimePnLData = useRealtimePnL(
+    currentPosition && currentPosition.filledQuantity > 0 ? {
+      symbol: currentPosition.symbol,
+      side: currentPosition.side,
+      avgPrice: currentPosition.avgPrice,
+      quantity: currentPosition.filledQuantity,
+    } : null
+  );
   
+  // 실시간 PnL 우선 사용, 폴백으로 REST API 값
   const currentPnL = useMemo(() => {
     // 포지션이 없거나, 체결 수량이 없으면 0
     if (!currentPosition || currentPosition.filledQuantity === 0) {
       return 0;
     }
     
-    // 바이낸스 unrealizedPnl 사용 (수수료 미포함 그로스 PnL)
-    // 여기에 예상 청산 수수료를 빼서 순손익 표시
+    // 🚀 WebSocket 실시간 PnL 우선 사용 (가장 빠름)
+    if (realtimePnLData && realtimePnLData.unrealizedPnl !== undefined) {
+      return realtimePnLData.unrealizedPnl;
+    }
+    
+    // 폴백: 바이낸스 REST API 값 또는 로컬 계산
     let grossPnl = 0;
     
     if (currentPosition.unrealizedPnl !== undefined && currentPosition.unrealizedPnl !== 0) {
-      // 바이낸스 API 값 사용
       grossPnl = currentPosition.unrealizedPnl;
     } else {
-      // 폴백: 로컬 계산
       if (!currentPosition.avgPrice || currentPosition.avgPrice === 0 || !currentPrice || currentPrice === 0) {
-        return lastValidPnL;
+        return 0;
       }
       const direction = currentPosition.side === 'long' ? 1 : -1;
       const priceDiff = (currentPrice - currentPosition.avgPrice) * direction;
       grossPnl = priceDiff * currentPosition.filledQuantity;
     }
     
-    // 예상 수수료 차감 (진입: 0.02% maker, 청산: 0.05% taker)
+    // 예상 수수료 차감
     const entryFeeRate = 0.0002;
     const exitFeeRate = 0.0005;
     const markPrice = currentPosition.markPrice || currentPrice || currentPosition.avgPrice;
@@ -338,27 +349,7 @@ const AutoTradingPanel = ({
     const totalFee = (entryNotional * entryFeeRate) + (exitNotional * exitFeeRate);
     
     return grossPnl - totalFee;
-  }, [currentPosition, currentPrice, lastValidPnL]);
-  
-  // 유효한 PnL 값 업데이트 (폴백용)
-  useEffect(() => {
-    if (currentPosition && currentPosition.filledQuantity > 0 && currentPosition.avgPrice > 0 && currentPrice && currentPrice > 0) {
-      const direction = currentPosition.side === 'long' ? 1 : -1;
-      const priceDiff = (currentPrice - currentPosition.avgPrice) * direction;
-      const grossPnl = priceDiff * currentPosition.filledQuantity;
-      
-      // 수수료 포함
-      const entryFeeRate = 0.0002;
-      const exitFeeRate = 0.0005;
-      const entryNotional = currentPosition.avgPrice * currentPosition.filledQuantity;
-      const exitNotional = currentPrice * currentPosition.filledQuantity;
-      const totalFee = (entryNotional * entryFeeRate) + (exitNotional * exitFeeRate);
-      
-      setLastValidPnL(grossPnl - totalFee);
-    } else if (!currentPosition) {
-      setLastValidPnL(0);
-    }
-  }, [currentPosition, currentPrice]);
+  }, [currentPosition, currentPrice, realtimePnLData]);
   
   const winRate = todayStats.trades > 0 
     ? ((todayStats.wins / todayStats.trades) * 100).toFixed(1) 
