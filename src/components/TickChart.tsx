@@ -135,6 +135,10 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
   const [currentPriceDisplay, setCurrentPriceDisplay] = useState(0); // 현재가 표시용
   const [klineConnected, setKlineConnected] = useState(false);
   const [containerHeight, setContainerHeight] = useState(height || 400);
+
+  // 🆕 DTFX는 자동스캔(1분봉) 기준으로 표시되도록 1m 캔들 별도 보관
+  const [dtfxCandles1m, setDtfxCandles1m] = useState<Candle[]>([]);
+  const dtfxFetchIdRef = useRef<number>(0);
   
   // 나방 효과 상태
   const [mothVisible, setMothVisible] = useState(false);
@@ -293,6 +297,42 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
       // no periodic REST refresh: realtime updates come from kline websocket
     };
   }, [symbol, interval]);
+
+  // 🆕 DTFX 오버레이는 항상 1분봉으로 계산 (차트 분봉과 무관)
+  useEffect(() => {
+    if (!dtfxEnabled) {
+      setDtfxCandles1m([]);
+      return;
+    }
+
+    const currentId = ++dtfxFetchIdRef.current;
+
+    const fetch1mForDTFX = async () => {
+      try {
+        const res = await fetch(
+          `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=1m&limit=200`
+        );
+        const data = await res.json();
+        if (dtfxFetchIdRef.current !== currentId) return;
+
+        if (Array.isArray(data)) {
+          const candles1m: Candle[] = data.map((k: any[]) => ({
+            time: k[0],
+            open: parseFloat(k[1]),
+            high: parseFloat(k[2]),
+            low: parseFloat(k[3]),
+            close: parseFloat(k[4]),
+            volume: parseFloat(k[5]),
+          }));
+          setDtfxCandles1m(candles1m);
+        }
+      } catch {
+        // 1m 오버레이 fetch 실패는 조용히 무시
+      }
+    };
+
+    fetch1mForDTFX();
+  }, [symbol, dtfxEnabled]);
 
   // Kline WebSocket으로 실시간 봉 업데이트 (바이낸스 차트와 동일한 소스)
   useEffect(() => {
@@ -607,9 +647,12 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
     });
     
     // === DTFX 존 및 피보나치 레벨 표시 (LuxAlgo 스타일) ===
-    if (dtfxEnabled && displayCandles.length > 10) {
+    // NOTE: 자동스캔은 1분봉 기준이므로, 오버레이도 1분봉(가능하면 dtfxCandles1m)으로 계산한다.
+    const dtfxSourceCandles = dtfxCandles1m.length > 10 ? dtfxCandles1m : displayCandles;
+
+    if (dtfxEnabled && dtfxSourceCandles.length > 10) {
       // Candle 타입을 useDTFX의 Candle 형식으로 변환
-      const dtfxCandles = displayCandles.map(c => ({
+      const dtfxCandles = dtfxSourceCandles.map(c => ({
         time: c.time,
         open: c.open,
         high: c.high,
@@ -617,10 +660,10 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
         close: c.close,
         volume: c.volume,
       }));
-      
+
       const dtfxData = analyzeDTFX(dtfxCandles, DTFX_STRUCTURE_LENGTH);
-      
-      // 현재 가격
+
+      // 현재 가격 (차트 기준)
       const currentPrice = displayCandles[displayCandles.length - 1]?.close || 0;
       
       // === 활성 존(Zone) 영역 및 피보나치 레벨 표시 ===
