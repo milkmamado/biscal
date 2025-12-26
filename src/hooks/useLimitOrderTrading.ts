@@ -1723,6 +1723,7 @@ export function useLimitOrderTrading({
       // 1분봉 데이터 조회 (스캘핑용)
       const klines = await fetch1mKlinesForDTFX(symbol, 100);
       if (!klines || klines.length < 30) {
+        console.log(`📊 [DTFX] ${symbol} - 캔들 데이터 부족 (${klines?.length || 0}개)`);
         return null;
       }
 
@@ -1731,12 +1732,19 @@ export function useLimitOrderTrading({
       
       // 존이 없으면 스킵
       if (dtfxData.zones.length === 0) {
+        console.log(`📊 [DTFX] ${symbol} @ ${currentPrice} - 존 형성 안됨 (스윙: ${dtfxData.swingPoints.length}개, 구조: ${dtfxData.structureShifts.length}개)`);
         setState(prev => ({ ...prev, dtfxZones: [], dtfxLastCheck: now }));
         return null;
       }
 
       // OTE 구간 진입 시그널 체크
       const oteSignal = checkDTFXOTEEntry(currentPrice, dtfxData.zones);
+      
+      // 존 정보 로깅
+      const activeZones = dtfxData.zones.map(z => 
+        `${z.type}(${z.levels.find(f => f.value === 0.618)?.price.toFixed(2)}~${z.levels.find(f => f.value === 0.705)?.price.toFixed(2)})`
+      ).join(', ');
+      console.log(`📊 [DTFX] ${symbol} @ ${currentPrice} - 존 ${dtfxData.zones.length}개: ${activeZones}`);
       
       setState(prev => ({ 
         ...prev, 
@@ -1759,6 +1767,8 @@ export function useLimitOrderTrading({
         await manualMarketEntry(symbol, oteSignal.direction, 1);
         
         return oteSignal;
+      } else {
+        console.log(`📊 [DTFX] ${symbol} @ ${currentPrice} - OTE 구간 밖 (진입 대기중)`);
       }
 
       return null;
