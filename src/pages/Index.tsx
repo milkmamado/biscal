@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useTradingLogs } from '@/hooks/useTradingLogs';
@@ -6,6 +6,7 @@ import { useLimitOrderTrading } from '@/hooks/useLimitOrderTrading';
 import { useCoinScreening } from '@/hooks/useCoinScreening';
 import { useTickerWebSocket } from '@/hooks/useTickerWebSocket';
 import { useWakeLock } from '@/hooks/useWakeLock';
+import { useDTFXScanner } from '@/hooks/useDTFXScanner';
 
 import { supabase } from '@/integrations/supabase/client';
 import DualChartPanel from '@/components/DualChartPanel';
@@ -120,6 +121,21 @@ const Index = () => {
       volume: c.volume,
       volatilityRange: c.volatilityRange
     }));
+  
+  // 핫코인 심볼 리스트 (DTFX 스캐너용)
+  const hotCoinSymbols = useMemo(() => 
+    tickersForScreening.map(t => t.symbol),
+    [tickersForScreening]
+  );
+  
+  // DTFX 자동 스캐너
+  const dtfxScanner = useDTFXScanner({
+    hotCoins: hotCoinSymbols,
+    enabled: dtfxEnabled && dtfxAutoTradingEnabled,
+    onSymbolChange: setSelectedSymbol,
+    currentSymbol: selectedSymbol,
+    hasPosition: !!autoTrading.state.currentPosition,
+  });
   
   // 기술적 분석 기반 종목 스크리닝
   const { activeSignals, isScanning, isPaused, screenedSymbols, lastScanTime, passSignal: passSignalRaw, togglePause } = useCoinScreening(tickersForScreening, {}, majorCoinMode);
