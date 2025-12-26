@@ -3,11 +3,16 @@
  * - 핫코인 리스트에서 1분봉 DTFX 존 스캔
  * - OTE 구간(61.8%~70.5%)에 가장 가까운 코인 자동 선택
  * - 존 사라지면 다른 코인 자동 탐색
+ * - 1분 타임아웃: OTE 반응 없으면 다음 종목
+ * - 존 소멸 감지 시 즉시 다음 스캔
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { analyzeDTFX, DTFXZone, Candle, OTE_ZONE, DTFX_STRUCTURE_LENGTH } from './useDTFX';
 import { addScreeningLog } from '@/components/ScreeningLogPanel';
+
+// 타임아웃 설정 (ms)
+const OTE_TIMEOUT_MS = 60000; // 1분
 
 // 1분봉 조회 함수
 const fetch1mKlines = async (symbol: string, limit: number = 100): Promise<Candle[] | null> => {
@@ -59,10 +64,19 @@ export function useDTFXScanner({
 
   const isMountedRef = useRef(true);
   const scanIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const zoneCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const isScanningRef = useRef(false);
   const enabledRef = useRef(enabled);
   const hasPositionRef = useRef(hasPosition);
   const currentSymbolRef = useRef(currentSymbol);
+  const hotCoinsRef = useRef(hotCoins);
+
+  // 현재 종목 선택 시점 (타임아웃 체크용)
+  const symbolSelectedTimeRef = useRef<number>(0);
+  // 마지막으로 존이 확인된 시점
+  const lastZoneConfirmedTimeRef = useRef<number>(0);
+  // 현재 종목의 존 상태
+  const currentSymbolHasZoneRef = useRef<boolean>(false);
 
   // Refs 업데이트
   useEffect(() => {
@@ -76,6 +90,10 @@ export function useDTFXScanner({
   useEffect(() => {
     currentSymbolRef.current = currentSymbol;
   }, [currentSymbol]);
+
+  useEffect(() => {
+    hotCoinsRef.current = hotCoins;
+  }, [hotCoins]);
 
   // OTE 구간까지의 거리 계산 (%)
   const calculateOTEDistance = useCallback((
@@ -151,8 +169,35 @@ export function useDTFXScanner({
     return { distance: minDistance, direction: bestDirection, inOTE: isInOTE, entryRatio: bestEntryRatio };
   }, []);
 
-  // 스캔 실행
-  const runScan = useCallback(async () => {
+  // 현재 종목의 존 상태 체크 (존 소멸 감지용)
+  const checkCurrentSymbolZone = useCallback(async (): Promise<boolean> => {
+    if (!enabledRef.current || hasPositionRef.current) return true;
+    
+    const symbol = currentSymbolRef.current;
+    if (!symbol) return true;
+
+    try {
+      const klines = await fetch1mKlines(symbol, 200);
+      if (!klines || klines.length < 30) return false;
+
+      const { zones } = analyzeDTFX(klines, DTFX_STRUCTURE_LENGTH);
+      const activeZones = zones.filter(z => z.active);
+      
+      if (activeZones.length > 0) {
+        lastZoneConfirmedTimeRef.current = Date.now();
+        currentSymbolHasZoneRef.current = true;
+        return true;
+      } else {
+        currentSymbolHasZoneRef.current = false;
+        return false;
+      }
+    } catch {
+      return false;
+    }
+  }, []);
+
+  // 스캔 실행 (현재 종목 제외 옵션)
+  const runScan = useCallback(async (excludeSymbol?: string) => {
     if (!isMountedRef.current) return;
     if (isScanningRef.current) return;
     if (!enabledRef.current) return;
@@ -161,7 +206,13 @@ export function useDTFXScanner({
       return;
     }
 
-    const coins = hotCoins.slice(0, 30); // 최대 30개 스캔
+    // 제외할 종목 필터링
+    let coins = hotCoinsRef.current.slice(0, 30);
+    if (excludeSymbol) {
+      coins = coins.filter(c => c !== excludeSymbol);
+      addScreeningLog('start', `${excludeSymbol.replace('USDT', '')} 제외, 다른 종목 스캔...`);
+    }
+    
     if (coins.length === 0) {
       setStatusMessage('스캔할 코인 없음');
       return;
@@ -179,15 +230,14 @@ export function useDTFXScanner({
 
         const symbol = coins[i];
         
-          try {
-            // 차트/자동매매와 동일한 기준으로 분석하기 위해 200봉 + 기본 구조길이(10) 사용
-            const klines = await fetch1mKlines(symbol, 200);
-            if (!klines || klines.length < 30) continue;
+        try {
+          const klines = await fetch1mKlines(symbol, 200);
+          if (!klines || klines.length < 30) continue;
 
-            const currentPrice = klines[klines.length - 1].close;
-            const { zones } = analyzeDTFX(klines, DTFX_STRUCTURE_LENGTH);
+          const currentPrice = klines[klines.length - 1].close;
+          const { zones } = analyzeDTFX(klines, DTFX_STRUCTURE_LENGTH);
 
-            if (zones.length === 0) continue;
+          if (zones.length === 0) continue;
 
           const { distance, direction, inOTE, entryRatio } = calculateOTEDistance(currentPrice, zones);
 
@@ -239,21 +289,21 @@ export function useDTFXScanner({
         if (best.inOTE) {
           setStatusMessage(`🎯 ${best.symbol.replace('USDT', '')} OTE 구간 내! ${best.oteDirection?.toUpperCase()}`);
           addScreeningLog('approve', `OTE 진입 대기: ${best.oteDirection?.toUpperCase()} (${(best.entryRatio! * 100).toFixed(1)}%)`, best.symbol);
-          
-          // 자동으로 해당 코인으로 차트 전환
-          if (currentSymbolRef.current !== best.symbol) {
-            onSymbolChange(best.symbol);
-          }
         } else {
           setStatusMessage(`⏳ ${best.symbol.replace('USDT', '')} OTE ${best.oteDistance.toFixed(2)}% 거리`);
-          
-          // OTE에 가장 가까운 코인으로 차트 전환
-          if (currentSymbolRef.current !== best.symbol) {
-            onSymbolChange(best.symbol);
-          }
+        }
+        
+        // 차트 전환 + 타이머 리셋
+        if (currentSymbolRef.current !== best.symbol) {
+          onSymbolChange(best.symbol);
+          symbolSelectedTimeRef.current = Date.now();
+          lastZoneConfirmedTimeRef.current = Date.now();
+          currentSymbolHasZoneRef.current = true;
+          addScreeningLog('signal', `차트 전환: ${best.symbol.replace('USDT', '')} (존 ${best.zones.length}개, OTE ${best.oteDistance.toFixed(2)}%)`);
         }
       } else {
         setStatusMessage(`DTFX 존 없음 (${coins.length}개 스캔)`);
+        // 존 있는 코인 없으면 현재 종목 유지 (다음 스캔 대기)
       }
 
     } catch (error) {
@@ -263,20 +313,70 @@ export function useDTFXScanner({
       isScanningRef.current = false;
       setIsScanning(false);
     }
-  }, [hotCoins, calculateOTEDistance, onSymbolChange]);
+  }, [calculateOTEDistance, onSymbolChange]);
 
-  // 자동 스캔 인터벌
+  // 존 상태 + 타임아웃 체크 (5초마다)
+  useEffect(() => {
+    if (!enabled || hasPosition) {
+      if (zoneCheckIntervalRef.current) {
+        clearInterval(zoneCheckIntervalRef.current);
+        zoneCheckIntervalRef.current = null;
+      }
+      return;
+    }
+
+    const checkZoneAndTimeout = async () => {
+      if (!enabledRef.current || hasPositionRef.current || isScanningRef.current) return;
+
+      const now = Date.now();
+      const timeSinceSelected = now - symbolSelectedTimeRef.current;
+      const currentSymbol = currentSymbolRef.current;
+
+      // 1) 타임아웃 체크: 1분 이상 OTE 반응 없으면 다른 종목 스캔
+      if (symbolSelectedTimeRef.current > 0 && timeSinceSelected >= OTE_TIMEOUT_MS) {
+        addScreeningLog('reject', `1분 타임아웃 - 다른 종목 탐색`, currentSymbol);
+        symbolSelectedTimeRef.current = 0; // 리셋
+        runScan(currentSymbol); // 현재 종목 제외하고 스캔
+        return;
+      }
+
+      // 2) 존 소멸 체크
+      const hasZone = await checkCurrentSymbolZone();
+      if (!hasZone && currentSymbolHasZoneRef.current === false) {
+        // 이전에도 존 없었고 지금도 없으면 → 존 소멸 확정
+        addScreeningLog('reject', `존 소멸 감지 - 다른 종목 탐색`, currentSymbol);
+        runScan(currentSymbol); // 현재 종목 제외하고 스캔
+        return;
+      }
+    };
+
+    // 5초마다 체크
+    zoneCheckIntervalRef.current = setInterval(checkZoneAndTimeout, 5000);
+
+    return () => {
+      if (zoneCheckIntervalRef.current) {
+        clearInterval(zoneCheckIntervalRef.current);
+        zoneCheckIntervalRef.current = null;
+      }
+    };
+  }, [enabled, hasPosition, runScan, checkCurrentSymbolZone]);
+
+  // 자동 스캔 인터벌 (10초) - 존 있는 종목 발굴용
   useEffect(() => {
     isMountedRef.current = true;
 
     if (enabled && !hasPosition) {
       // 초기 스캔 (1초 후)
       const initialDelay = setTimeout(() => {
+        symbolSelectedTimeRef.current = Date.now();
         runScan();
       }, 1000);
 
-      // 10초 간격 스캔
-      scanIntervalRef.current = setInterval(runScan, 10000);
+      // 10초 간격 스캔 (더 좋은 종목 있는지 체크)
+      scanIntervalRef.current = setInterval(() => {
+        // 타임아웃/존소멸 체크는 별도 인터벌에서 하므로 여기서는 일반 스캔만
+        runScan();
+      }, 10000);
 
       return () => {
         clearTimeout(initialDelay);
@@ -302,6 +402,7 @@ export function useDTFXScanner({
 
   // 수동 스캔
   const manualScan = useCallback(() => {
+    symbolSelectedTimeRef.current = Date.now();
     runScan();
   }, [runScan]);
 
