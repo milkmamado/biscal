@@ -1,9 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { Switch } from '@/components/ui/switch';
-import { Slider } from '@/components/ui/slider';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Settings, SlidersHorizontal, Target, Filter, TrendingUp, BarChart3, Activity, Shield, Layers, Zap } from 'lucide-react';
+import { Settings, SlidersHorizontal, Target, Shield, Layers, Zap } from 'lucide-react';
 import { DTFXGuideModal } from './DTFXGuideModal';
 
 // 잔고 기반 손익 계산 (예수금의 1-2%)
@@ -19,18 +18,6 @@ export function calculateBalanceBasedRisk(balanceUSD: number): { stopLoss: numbe
 }
 
 interface TradingSettingsProps {
-  // 필터 토글
-  adxFilterEnabled: boolean;
-  onToggleAdxFilter: (enabled: boolean) => void;
-  volumeFilterEnabled: boolean;
-  onToggleVolumeFilter: (enabled: boolean) => void;
-  rsiFilterEnabled: boolean;
-  onToggleRsiFilter: (enabled: boolean) => void;
-  macdFilterEnabled: boolean;
-  onToggleMacdFilter: (enabled: boolean) => void;
-  bollingerFilterEnabled: boolean;
-  onToggleBollingerFilter: (enabled: boolean) => void;
-  
   // DTFX 차트 표시 토글
   dtfxEnabled: boolean;
   onToggleDtfx: (enabled: boolean) => void;
@@ -38,10 +25,6 @@ interface TradingSettingsProps {
   // DTFX 자동매매 시작/정지
   dtfxAutoTradingEnabled?: boolean;
   onToggleDtfxAutoTrading?: (enabled: boolean) => void;
-  
-  // 퍼센티지 조정
-  adxThreshold: number;
-  onAdxThresholdChange: (value: number) => void;
   
   // 손절 설정 (USDT)
   stopLossUsdt: number;
@@ -61,22 +44,10 @@ interface TradingSettingsProps {
 }
 
 export function TradingSettingsPanel({
-  adxFilterEnabled,
-  onToggleAdxFilter,
-  volumeFilterEnabled,
-  onToggleVolumeFilter,
-  rsiFilterEnabled,
-  onToggleRsiFilter,
-  macdFilterEnabled,
-  onToggleMacdFilter,
-  bollingerFilterEnabled,
-  onToggleBollingerFilter,
   dtfxEnabled,
   onToggleDtfx,
   dtfxAutoTradingEnabled = false,
   onToggleDtfxAutoTrading,
-  adxThreshold,
-  onAdxThresholdChange,
   stopLossUsdt,
   onStopLossChange,
   takeProfitUsdt,
@@ -151,96 +122,24 @@ export function TradingSettingsPanel({
 
       {!isCollapsed && (
         <div className="p-3 space-y-4 max-h-[50vh] overflow-y-auto">
-          {/* 필터 토글 섹션 */}
+          {/* DTFX 설정 섹션 */}
           <div className="space-y-2">
             <div className="flex items-center gap-1 mb-2">
-              <Filter className="w-3 h-3 text-purple-400" />
-              <span className="text-[10px] font-semibold text-purple-400">시그널 필터</span>
+              <Layers className="w-3 h-3 text-purple-400" />
+              <span className="text-[10px] font-semibold text-purple-400">DTFX 설정</span>
             </div>
             
-            <div className="grid grid-cols-2 gap-2">
-              {/* ADX 필터 */}
-              <div className="flex items-center justify-between px-2 py-1.5 rounded bg-background/50 border border-border/30">
-                <div className="flex items-center gap-1">
-                  <Activity className="w-3 h-3 text-amber-400" />
-                  <span className="text-[10px] text-foreground">ADX</span>
-                </div>
-                <Switch
-                  checked={adxFilterEnabled}
-                  onCheckedChange={onToggleAdxFilter}
-                  disabled={isAutoTradingEnabled}
-                  className="scale-75"
-                />
+            {/* DTFX 차트 표시 토글 */}
+            <div className="flex items-center justify-between px-2 py-1.5 rounded bg-gradient-to-r from-purple-500/10 to-cyan-500/10 border border-purple-500/30">
+              <div className="flex items-center gap-1.5">
+                <Layers className="w-3 h-3 text-purple-400" />
+                <DTFXGuideModal />
               </div>
-
-              {/* 거래량 필터 */}
-              <div className="flex items-center justify-between px-2 py-1.5 rounded bg-background/50 border border-border/30">
-                <div className="flex items-center gap-1">
-                  <BarChart3 className="w-3 h-3 text-green-400" />
-                  <span className="text-[10px] text-foreground">거래량</span>
-                </div>
-                <Switch
-                  checked={volumeFilterEnabled}
-                  onCheckedChange={onToggleVolumeFilter}
-                  disabled={isAutoTradingEnabled}
-                  className="scale-75"
-                />
-              </div>
-
-              {/* RSI 필터 */}
-              <div className="flex items-center justify-between px-2 py-1.5 rounded bg-background/50 border border-border/30">
-                <div className="flex items-center gap-1">
-                  <TrendingUp className="w-3 h-3 text-cyan-400" />
-                  <span className="text-[10px] text-foreground">RSI</span>
-                </div>
-                <Switch
-                  checked={rsiFilterEnabled}
-                  onCheckedChange={onToggleRsiFilter}
-                  disabled={isAutoTradingEnabled}
-                  className="scale-75"
-                />
-              </div>
-
-              {/* MACD 필터 */}
-              <div className="flex items-center justify-between px-2 py-1.5 rounded bg-background/50 border border-border/30">
-                <div className="flex items-center gap-1">
-                  <SlidersHorizontal className="w-3 h-3 text-pink-400" />
-                  <span className="text-[10px] text-foreground">MACD</span>
-                </div>
-                <Switch
-                  checked={macdFilterEnabled}
-                  onCheckedChange={onToggleMacdFilter}
-                  disabled={isAutoTradingEnabled}
-                  className="scale-75"
-                />
-              </div>
-
-              {/* 볼린저 필터 */}
-              <div className="flex items-center justify-between px-2 py-1.5 rounded bg-background/50 border border-border/30">
-                <div className="flex items-center gap-1">
-                  <Target className="w-3 h-3 text-orange-400" />
-                  <span className="text-[10px] text-foreground">볼린저</span>
-                </div>
-                <Switch
-                  checked={bollingerFilterEnabled}
-                  onCheckedChange={onToggleBollingerFilter}
-                  disabled={isAutoTradingEnabled}
-                  className="scale-75"
-                />
-              </div>
-
-              {/* DTFX 차트 표시 - 자동매매 상태와 무관하게 항상 토글 가능 */}
-              <div className="flex items-center justify-between px-2 py-1.5 rounded bg-gradient-to-r from-purple-500/10 to-cyan-500/10 border border-purple-500/30">
-                <div className="flex items-center gap-1.5">
-                  <Layers className="w-3 h-3 text-purple-400" />
-                  <DTFXGuideModal />
-                </div>
-                <Switch
-                  checked={dtfxEnabled}
-                  onCheckedChange={onToggleDtfx}
-                  className="scale-75"
-                />
-              </div>
+              <Switch
+                checked={dtfxEnabled}
+                onCheckedChange={onToggleDtfx}
+                className="scale-75"
+              />
             </div>
 
             {/* DTFX 자동매매 시작/정지 버튼 - DTFX가 켜져있을 때만 표시 */}
@@ -263,35 +162,13 @@ export function TradingSettingsPanel({
                 )}
               </div>
             )}
-
           </div>
 
-          {/* 퍼센티지 조정 섹션 */}
+          {/* 손익 설정 섹션 */}
           <div className="space-y-3 pt-2 border-t border-border/30">
             <div className="flex items-center gap-1">
               <SlidersHorizontal className="w-3 h-3 text-blue-400" />
-              <span className="text-[10px] font-semibold text-blue-400">세부 조정</span>
-            </div>
-
-            {/* ADX 임계값 */}
-            <div className="space-y-1">
-              <div className="flex items-center justify-between">
-                <Label className="text-[10px] text-muted-foreground">ADX 임계값</Label>
-                <span className="text-[10px] font-mono text-amber-400">{adxThreshold}</span>
-              </div>
-              <Slider
-                value={[adxThreshold]}
-                onValueChange={([v]) => onAdxThresholdChange(v)}
-                min={10}
-                max={40}
-                step={1}
-                disabled={isAutoTradingEnabled}
-                className="h-4"
-              />
-              <div className="flex justify-between text-[8px] text-muted-foreground">
-                <span>10 (약)</span>
-                <span>40 (강)</span>
-              </div>
+              <span className="text-[10px] font-semibold text-blue-400">손익 설정</span>
             </div>
 
             {/* 잔고 기반 자동 조정 토글 */}
