@@ -81,6 +81,9 @@ interface AutoTradingPanelProps {
   onAnalyzeAI?: () => void;
   viewingSymbol?: string;
   onOpenOrdersChange?: (orders: { orderId: number; price: number; side: 'BUY' | 'SELL'; origQty: number; executedQty: number; }[]) => void;
+  // DTFX 진입 확인/스킵 핸들러
+  onConfirmDTFXEntry?: () => void;
+  onSkipDTFXSignal?: () => void;
 }
 
 const AutoTradingPanel = ({ 
@@ -112,8 +115,10 @@ const AutoTradingPanel = ({
   onPassSignal,
   onTogglePause,
   onOpenOrdersChange,
+  onConfirmDTFXEntry,
+  onSkipDTFXSignal,
 }: AutoTradingPanelProps) => {
-  const { isEnabled, isProcessing, currentPosition, pendingSignal, todayStats, tradeLogs, aiAnalysis, isAiAnalyzing, aiEnabled } = state;
+  const { isEnabled, isProcessing, currentPosition, pendingSignal, todayStats, tradeLogs, aiAnalysis, isAiAnalyzing, aiEnabled, pendingDTFXSignal } = state;
   const { user, signOut } = useAuth();
   const { getBalances, getIncomeHistory, getOpenOrders, cancelOrder, cancelAllOrders } = useBinanceApi();
   
@@ -421,6 +426,74 @@ const AutoTradingPanel = ({
         </div>
       )}
       
+      {/* 🆕 DTFX OTE 진입 확인 팝업 */}
+      {pendingDTFXSignal && !currentPosition && (
+        <div className="relative z-10 px-3 py-3 lg:px-4 lg:py-4 shrink-0" style={{
+          background: pendingDTFXSignal.direction === 'long'
+            ? 'linear-gradient(90deg, rgba(0, 255, 136, 0.15) 0%, rgba(0, 200, 100, 0.08) 100%)'
+            : 'linear-gradient(90deg, rgba(255, 0, 136, 0.15) 0%, rgba(200, 0, 100, 0.08) 100%)',
+          borderBottom: `2px solid ${pendingDTFXSignal.direction === 'long' ? 'rgba(0, 255, 136, 0.5)' : 'rgba(255, 0, 136, 0.5)'}`,
+        }}>
+          <div className="flex items-center justify-between">
+            <div 
+              className="flex items-center gap-2 cursor-pointer hover:opacity-80"
+              onClick={() => onSelectSymbol?.(pendingDTFXSignal.symbol)}
+            >
+              <Zap 
+                className="w-4 h-4 lg:w-5 lg:h-5 animate-pulse" 
+                style={{ 
+                  color: pendingDTFXSignal.direction === 'long' ? '#00ff88' : '#ff0088',
+                  filter: `drop-shadow(0 0 6px ${pendingDTFXSignal.direction === 'long' ? '#00ff88' : '#ff0088'})`,
+                }} 
+              />
+              <div className="flex flex-col">
+                <span 
+                  className="font-bold text-xs lg:text-sm tracking-wide"
+                  style={{ 
+                    color: pendingDTFXSignal.direction === 'long' ? '#00ff88' : '#ff0088',
+                    textShadow: `0 0 8px ${pendingDTFXSignal.direction === 'long' ? 'rgba(0, 255, 136, 0.5)' : 'rgba(255, 0, 136, 0.5)'}`,
+                  }}
+                >
+                  DTFX {pendingDTFXSignal.symbol.replace('USDT', '')} {pendingDTFXSignal.direction === 'long' ? '롱' : '숏'}
+                </span>
+                <span className="text-[9px] lg:text-[10px] text-gray-400">
+                  OTE {(pendingDTFXSignal.entryRatio * 100).toFixed(1)}% | {pendingDTFXSignal.zoneType === 'demand' ? 'Demand' : 'Supply'} Zone
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                onClick={onConfirmDTFXEntry}
+                className="h-7 lg:h-8 px-3 lg:px-4 text-[10px] lg:text-xs font-bold"
+                style={{
+                  background: pendingDTFXSignal.direction === 'long' 
+                    ? 'linear-gradient(135deg, #00ff88, #00cc66)'
+                    : 'linear-gradient(135deg, #ff0088, #cc0066)',
+                  border: 'none',
+                  color: '#000',
+                  boxShadow: `0 0 12px ${pendingDTFXSignal.direction === 'long' ? 'rgba(0, 255, 136, 0.5)' : 'rgba(255, 0, 136, 0.5)'}`,
+                }}
+              >
+                진입
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={onSkipDTFXSignal}
+                className="h-7 lg:h-8 px-2 lg:px-3 text-[10px] lg:text-xs"
+                style={{
+                  background: 'rgba(100, 100, 100, 0.2)',
+                  border: '1px solid rgba(150, 150, 150, 0.3)',
+                  color: '#999',
+                }}
+              >
+                스킵
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Current Position Status - 사이버펑크 스타일 */}
       <div 
