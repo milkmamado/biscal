@@ -26,9 +26,19 @@ export const useRealtimePnL = (position: PositionData | null) => {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastSymbolRef = useRef<string | null>(null);
+  
+  // 🔧 최신 position을 참조하기 위한 ref (클로저 문제 해결)
+  const positionRef = useRef<PositionData | null>(position);
+  
+  // position 변경 시 ref 업데이트
+  useEffect(() => {
+    positionRef.current = position;
+    console.log(`[실시간PnL] position 업데이트: ${position?.side} ${position?.symbol}`);
+  }, [position]);
 
   // PnL 계산 (수수료 포함)
   const calculatePnL = useCallback((markPrice: number, pos: PositionData) => {
+    // 🔧 숏 포지션: 가격 하락 시 수익, 롱 포지션: 가격 상승 시 수익
     const direction = pos.side === 'long' ? 1 : -1;
     const priceDiff = (markPrice - pos.avgPrice) * direction;
     const grossPnl = priceDiff * pos.quantity;
@@ -40,6 +50,8 @@ export const useRealtimePnL = (position: PositionData | null) => {
     
     const netPnl = grossPnl - totalFee;
     const pnlPercent = (netPnl / entryNotional) * 100;
+    
+    console.log(`[PnL계산] side=${pos.side}, entry=${pos.avgPrice}, mark=${markPrice}, diff=${priceDiff.toFixed(4)}, gross=${grossPnl.toFixed(4)}, net=${netPnl.toFixed(4)}`);
     
     return { unrealizedPnl: netPnl, pnlPercent };
   }, []);
@@ -73,8 +85,11 @@ export const useRealtimePnL = (position: PositionData | null) => {
         const data = JSON.parse(event.data);
         const markPrice = parseFloat(data.p); // markPrice
         
-        if (position && position.symbol === symbol && !isNaN(markPrice)) {
-          const { unrealizedPnl, pnlPercent } = calculatePnL(markPrice, position);
+        // 🔧 ref로 최신 position 참조 (클로저 문제 해결)
+        const currentPos = positionRef.current;
+        
+        if (currentPos && currentPos.symbol === symbol && !isNaN(markPrice)) {
+          const { unrealizedPnl, pnlPercent } = calculatePnL(markPrice, currentPos);
           
           setResult({
             markPrice,
@@ -97,14 +112,15 @@ export const useRealtimePnL = (position: PositionData | null) => {
       wsRef.current = null;
       
       // 재연결 (포지션이 여전히 있으면)
-      if (position && position.symbol === symbol) {
+      const currentPos = positionRef.current;
+      if (currentPos && currentPos.symbol === symbol) {
         reconnectTimeoutRef.current = setTimeout(() => {
           console.log('[실시간PnL] 재연결 시도...');
           connectWebSocket(symbol);
         }, 3000);
       }
     };
-  }, [position, calculatePnL]);
+  }, [calculatePnL]);
 
   // 포지션 변경 시 WebSocket 관리
   useEffect(() => {
