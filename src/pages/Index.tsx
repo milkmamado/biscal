@@ -435,6 +435,8 @@ const Index = () => {
             onAnalyzeAI={autoTrading.manualAnalyzeMarket}
             viewingSymbol={selectedSymbol}
             onOpenOrdersChange={setOpenOrders}
+            onConfirmDTFXEntry={autoTrading.confirmDTFXEntry}
+            onSkipDTFXSignal={autoTrading.skipDTFXSignal}
           />
         </div>
 

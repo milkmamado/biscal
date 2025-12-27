@@ -92,6 +92,16 @@ export interface PendingSignal {
   indicators: TechnicalIndicators;
 }
 
+// DTFX OTE 진입 대기 시그널
+export interface PendingDTFXSignal {
+  symbol: string;
+  direction: 'long' | 'short';
+  entryRatio: number;
+  zoneType: 'demand' | 'supply';
+  currentPrice: number;
+  timestamp: number;
+}
+
 export interface LimitOrderTradingState {
   isEnabled: boolean;
   isProcessing: boolean;
@@ -116,6 +126,8 @@ export interface LimitOrderTradingState {
   // DTFX 상태
   dtfxZones?: any[];
   dtfxLastCheck?: number;
+  // DTFX OTE 대기 시그널 (사용자 확인 필요)
+  pendingDTFXSignal?: PendingDTFXSignal | null;
 }
 
 interface UseLimitOrderTradingProps {
@@ -185,6 +197,7 @@ export function useLimitOrderTrading({
     aiEnabled: true,
     entryOrderIds: [],
     entryStartTime: null,
+    pendingDTFXSignal: null,
   });
 
   const { user } = useAuth();
@@ -1757,12 +1770,13 @@ export function useLimitOrderTrading({
   // ===== Cleanup =====
   // (레거시 타임아웃 로직 제거됨)
 
-  // ===== DTFX OTE 구간 체크 및 자동 진입 =====
+  // ===== DTFX OTE 구간 체크 및 확인 대기 (자동 진입 → 사용자 확인 방식으로 변경) =====
   const checkDTFXOTEAndEntry = useCallback(async (symbol: string, currentPrice: number) => {
     // DTFX 모드가 활성화되어 있지 않으면 스킵
     if (!filterSettings?.dtfxEnabled) return null;
     if (!state.isEnabled) return null;
     if (state.currentPosition) return null;
+    if (state.pendingDTFXSignal) return null; // 이미 대기 중인 시그널이 있으면 스킵
     if (processingRef.current) return null;
     if (!user) return null;
 
@@ -1806,18 +1820,28 @@ export function useLimitOrderTrading({
       }));
 
       if (oteSignal.direction && oteSignal.zone) {
-        const zoneType = oteSignal.zone.type === 'demand' ? 'Demand' : 'Supply';
-        const entryPercent = oteSignal.entryRatio ? (oteSignal.entryRatio * 100).toFixed(1) : '?';
+        const zoneType = oteSignal.zone.type;
+        const entryRatio = oteSignal.entryRatio || 0;
         
-        console.log(`🎯 [DTFX OTE] ${symbol} ${oteSignal.direction} @ ${currentPrice} (${entryPercent}% 레벨, ${zoneType} Zone)`);
+        console.log(`🎯 [DTFX OTE] ${symbol} ${oteSignal.direction} @ ${currentPrice} (${(entryRatio * 100).toFixed(1)}% 레벨, ${zoneType} Zone)`);
         
-        // 자동 시장가 진입 (1분할)
-        toast.info(`DTFX OTE 진입!`, {
-          description: `${symbol.replace('USDT', '')} ${oteSignal.direction === 'long' ? '롱' : '숏'} @ ${entryPercent}% (${zoneType})`,
+        // 🆕 자동 진입 대신 대기 시그널로 저장 (사용자 확인 필요)
+        setState(prev => ({
+          ...prev,
+          pendingDTFXSignal: {
+            symbol,
+            direction: oteSignal.direction!,
+            entryRatio,
+            zoneType,
+            currentPrice,
+            timestamp: now,
+          },
+        }));
+        
+        // 토스트로 알림
+        toast.info(`DTFX 진입 시그널 감지!`, {
+          description: `${symbol.replace('USDT', '')} ${oteSignal.direction === 'long' ? '롱' : '숏'} - 확인 버튼을 눌러 진입하세요`,
         });
-
-        // 1분할 시장가 진입 실행
-        await manualMarketEntry(symbol, oteSignal.direction, 1);
         
         return oteSignal;
       } else {
@@ -1829,7 +1853,26 @@ export function useLimitOrderTrading({
       console.error('[DTFX OTE 체크 오류]', error);
       return null;
     }
-  }, [filterSettings?.dtfxEnabled, state.isEnabled, state.currentPosition, state.dtfxLastCheck, user, manualMarketEntry]);
+  }, [filterSettings?.dtfxEnabled, state.isEnabled, state.currentPosition, state.pendingDTFXSignal, state.dtfxLastCheck, user]);
+
+  // DTFX 시그널 확인 후 진입
+  const confirmDTFXEntry = useCallback(async () => {
+    if (!state.pendingDTFXSignal) return;
+    
+    const { symbol, direction } = state.pendingDTFXSignal;
+    
+    // 시그널 클리어
+    setState(prev => ({ ...prev, pendingDTFXSignal: null }));
+    
+    // 1분할 시장가 진입 실행
+    await manualMarketEntry(symbol, direction, 1);
+  }, [state.pendingDTFXSignal, manualMarketEntry]);
+
+  // DTFX 시그널 스킵
+  const skipDTFXSignal = useCallback(() => {
+    setState(prev => ({ ...prev, pendingDTFXSignal: null }));
+    toast.info('DTFX 시그널 스킵', { description: '다음 시그널을 기다립니다' });
+  }, []);
 
   return {
     state,
@@ -1843,6 +1886,8 @@ export function useLimitOrderTrading({
     manualLimitEntry,
     manualAnalyzeMarket,
     addLog,
-    checkDTFXOTEAndEntry, // DTFX OTE 진입 체크 함수 추가
+    checkDTFXOTEAndEntry,
+    confirmDTFXEntry,
+    skipDTFXSignal,
   };
 }
