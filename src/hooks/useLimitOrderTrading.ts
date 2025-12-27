@@ -543,11 +543,31 @@ export function useLimitOrderTrading({
              await ensureServerSlTpOrders({ symbol, side, qty, avgPrice: entryPrice, positionSide });
            }
         } else {
-          // 포지션이 없으면 동기화 키 초기화
-          if (lastSyncedPositionRef.current) {
+          // 포지션이 없으면 동기화 키 초기화 + 로컬 상태 정리
+          const hadPosition = lastSyncedPositionRef.current !== null || currentPositionRef.current !== null;
+          
+          if (hadPosition) {
+            console.log(`🔄 [포지션 동기화] 외부 청산 감지! 로컬 상태 초기화`);
             lastSyncedPositionRef.current = null;
             slTpSettingInProgressRef.current = null;
             serverSlTpLastAttemptRef.current = { key: null, at: 0 };
+            
+            // 로컬 포지션 상태도 초기화 (외부 청산 시 즉시 반영)
+            if (isMounted) {
+              setState(prev => {
+                if (prev.currentPosition) {
+                  return {
+                    ...prev,
+                    currentPosition: null,
+                    currentSymbol: null,
+                    entryOrderIds: [],
+                    entryStartTime: null,
+                    statusMessage: '🔍 다음 시그널 대기...',
+                  };
+                }
+                return prev;
+              });
+            }
           }
         }
       } catch (error) {
@@ -556,8 +576,8 @@ export function useLimitOrderTrading({
       }
     };
 
-    // 3초마다 실제 포지션 확인
-    const interval = setInterval(syncPositionFromExchange, 3000);
+    // 1.5초마다 실제 포지션 확인 (외부 청산 빠른 감지)
+    const interval = setInterval(syncPositionFromExchange, 1500);
     // 초기 1회 실행
     syncPositionFromExchange();
 
