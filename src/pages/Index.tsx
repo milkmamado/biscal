@@ -123,54 +123,24 @@ const Index = () => {
     }
   };
 
-  // 이전 시그널 추적
-  const prevSignalsRef = useRef<Map<string, number>>(new Map());
-  const justEnabledRef = useRef(false);
-  
-  // 자동매매 켜질 때 초기화
+  // 시그널 감지 시 차트 종목만 변경 (자동 진입 없음)
   useEffect(() => {
-    if (autoTrading.state.isEnabled) {
-      justEnabledRef.current = true;
-      prevSignalsRef.current = new Map();
-
-      const timer = setTimeout(() => {
-        justEnabledRef.current = false;
-      }, 2000);
-      return () => clearTimeout(timer);
-    }
-
-    prevSignalsRef.current = new Map();
-  }, [autoTrading.state.isEnabled]);
-  
-  // 시그널 감지 시 차트 종목만 변경
-  useEffect(() => {
-    if (!autoTrading.state.isEnabled) return;
-    if (justEnabledRef.current) return;
     if (activeSignals.length === 0) return;
     if (autoTrading.state.currentPosition) return;
 
-    // 가장 강한 시그널의 종목으로 차트 변경
+    // 가장 강한 시그널의 종목으로 차트 변경만
     const strongSignal = activeSignals.find(s => s.strength !== 'weak');
     if (strongSignal) {
       setSelectedSymbol(strongSignal.symbol);
     }
-  }, [activeSignals, autoTrading.state.isEnabled, autoTrading.state.currentPosition]);
+  }, [activeSignals, autoTrading.state.currentPosition]);
   
   // 포지션 보유 중일 때 해당 종목 차트 유지
   useEffect(() => {
     if (autoTrading.state.currentPosition) {
       setSelectedSymbol(autoTrading.state.currentPosition.symbol);
-      return;
     }
-
-    if (autoTrading.state.pendingSignal) {
-      setSelectedSymbol(autoTrading.state.pendingSignal.symbol);
-    }
-  }, [
-    autoTrading.state.currentPosition?.symbol,
-    autoTrading.state.pendingSignal?.symbol,
-  ]);
-  
+  }, [autoTrading.state.currentPosition?.symbol]);
   // 현재 가격으로 TP/SL 체크
   useEffect(() => {
     const ticker = tickers.find(t => t.symbol === selectedSymbol);
