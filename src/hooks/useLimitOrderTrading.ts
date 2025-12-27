@@ -1205,7 +1205,13 @@ export function useLimitOrderTrading({
 
     console.log(`🚀 [manualMarketEntry] 주문 시작: ${symbol} ${direction} (${splitCount}분할)`);
     processingRef.current = true;
-    setState(prev => ({ ...prev, isProcessing: true, statusMessage: `⏳ ${symbol} ${direction === 'long' ? '롱' : '숏'} 시장가 진입 중...` }));
+    // 🆕 수동 진입 시 대기 중인 DTFX 시그널 클리어
+    setState(prev => ({ 
+      ...prev, 
+      isProcessing: true, 
+      pendingDTFXSignal: null,
+      statusMessage: `⏳ ${symbol} ${direction === 'long' ? '롱' : '숏'} 시장가 진입 중...` 
+    }));
 
     try {
       initAudio();
