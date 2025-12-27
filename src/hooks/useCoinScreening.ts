@@ -1,25 +1,11 @@
 /**
  * 종목 자동 스크리닝 훅
- * 프로 스캘퍼 시스템: 다중 시간대 + 프라이스 액션 + 모멘텀 합의 기반
- * 🆕 메이저 코인 모드 지원
+ * 스캘퍼 시스템: 변동폭 기반 단순 스캐닝
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { 
-  calculateAllIndicators, 
-  checkLongSignal, 
-  checkShortSignal,
-  fetch5mKlines,
-  TradingSignal,
-  TechnicalIndicators
-} from './useTechnicalIndicators';
-import { 
-  getProDirection, 
-  checkForbiddenConditions,
-  ProDirectionResult 
-} from './useProDirection';
+import { TradingSignal } from './useTechnicalIndicators';
 import { addScreeningLog, clearScreeningLogs } from '@/components/ScreeningLogPanel';
 import { 
-  MAJOR_COINS_WHITELIST, 
   MAJOR_COIN_CRITERIA,
   isMajorCoin,
   getCoinTier,
@@ -86,39 +72,6 @@ function calculateVolatilityScore(volatility: number, volume: number): number {
   return Math.max(0, Math.min(100, volScore + volumeScore));
 }
 
-// ATR 기반 변동성 체크
-async function checkATRVolatility(symbol: string): Promise<{ atr: number; atrPercent: number; isOptimal: boolean }> {
-  try {
-    const klines = await fetch5mKlines(symbol, 30);
-    if (!klines || klines.length < 20) {
-      return { atr: 0, atrPercent: 0, isOptimal: false };
-    }
-    
-    // ATR 계산
-    const tr: number[] = [];
-    for (let i = 1; i < klines.length; i++) {
-      const curr = klines[i];
-      const prev = klines[i - 1];
-      const trVal = Math.max(
-        curr.high - curr.low,
-        Math.abs(curr.high - prev.close),
-        Math.abs(curr.low - prev.close)
-      );
-      tr.push(trVal);
-    }
-    
-    const atr = tr.slice(-14).reduce((a, b) => a + b, 0) / 14;
-    const currentPrice = klines[klines.length - 1].close;
-    const atrPercent = (atr / currentPrice) * 100;
-    
-    // 5분봉 ATR 범위 완화
-    const isOptimal = atrPercent >= 0.1 && atrPercent <= 5;
-    
-    return { atr, atrPercent, isOptimal };
-  } catch {
-    return { atr: 0, atrPercent: 0, isOptimal: false };
-  }
-}
 
 // 스크리닝된 종목
 export interface ScreenedSymbol {
@@ -127,11 +80,8 @@ export interface ScreenedSymbol {
   volume: number;
   volatilityRange: number;
   volatilityScore: number;
-  atrPercent: number;
   signal: TradingSignal | null;
-  indicators: TechnicalIndicators | null;
   rank: number;
-  proDirection?: ProDirectionResult; // 🆕 프로 방향 분석 결과
 }
 
 export function useCoinScreening(
@@ -243,104 +193,46 @@ export function useCoinScreening(
       const displaySymbols = scored.slice(0, 8).map(s => s.symbol.replace('USDT', '')).join(', ');
       addScreeningLog('filter', `분석 대상: ${displaySymbols}${scored.length > 8 ? '...' : ''}`)
 
-      // 2차 분석: 기술적 지표 + ATR
+      // 변동폭 기준 시그널 생성 (가장 변동폭 높은 종목 = 첫 번째)
       const analyzed: ScreenedSymbol[] = [];
       const signals: TradingSignal[] = [];
 
-      for (let i = 0; i < scored.length; i++) {
-        if (!isMountedRef.current) break;
-
+      // 상위 변동폭 종목들 시그널 생성
+      for (let i = 0; i < Math.min(scored.length, 5); i++) {
         const t = scored[i];
+        
+        // 변동폭 기준 방향 추정 (가격 변화율로 판단)
+        const ticker = currentTickers.find(tk => tk.symbol === t.symbol);
+        const priceChange = ticker?.priceChangePercent || 0;
+        const direction = priceChange >= 0 ? 'long' : 'short';
+        const strength = t.volatilityScore >= 80 ? 'strong' : t.volatilityScore >= 60 ? 'medium' : 'weak';
+        
+        const signal: TradingSignal = {
+          symbol: t.symbol,
+          direction,
+          strength,
+          price: t.price,
+          reasons: [
+            `📊 변동폭 ${t.volatilityRange.toFixed(2)}%`,
+            `거래량 $${(t.volume / 1_000_000).toFixed(1)}M`,
+            `변동성 점수 ${t.volatilityScore.toFixed(0)}`,
+          ],
+          indicators: null as any,
+          timestamp: Date.now(),
+        };
+        
+        signals.push(signal);
+        addScreeningLog('approve', `${direction.toUpperCase()} 변동폭 ${t.volatilityRange.toFixed(2)}%`, t.symbol);
 
-        try {
-          // ATR 체크
-          const atrData = await checkATRVolatility(t.symbol);
-          if (!atrData.isOptimal) {
-            addScreeningLog('reject', `ATR 부적합 (${atrData.atrPercent.toFixed(2)}%)`, t.symbol);
-            continue;
-          }
-
-          // 5분봉 기술적 분석
-          const klines = await fetch5mKlines(t.symbol, 50);
-          if (!klines || klines.length < 30) {
-            addScreeningLog('reject', '캔들 데이터 부족', t.symbol);
-            continue;
-          }
-
-          const indicators = calculateAllIndicators(klines);
-          if (!indicators) {
-            addScreeningLog('reject', '지표 계산 실패', t.symbol);
-            continue;
-          }
-
-          // ADX 시장 환경 필터 - 횡보장 차단
-          if (indicators.adx < 15) {
-            addScreeningLog('reject', `횡보장 (ADX ${indicators.adx.toFixed(1)})`, t.symbol);
-            continue;
-          }
-          
-          // 🆕 진입 금지 조건 체크
-          const forbidden = await checkForbiddenConditions(t.symbol, indicators, t.price);
-          if (!forbidden.allowed) {
-            addScreeningLog('reject', forbidden.reason, t.symbol);
-            continue;
-          }
-
-          // 🆕 MTF 중심 단순화: 볼린저/RSI 체크 제거, MTF 합의만으로 진입
-          let signal: TradingSignal | null = null;
-          let proDirection: ProDirectionResult | undefined;
-
-          // MTF 분석 먼저 실행
-          addScreeningLog('signal', `MTF 추세 분석중...`, t.symbol);
-          proDirection = await getProDirection(t.symbol);
-          
-          // MTF 합의가 있으면 바로 진입 (볼린저/RSI 체크 생략)
-          if (proDirection.position === 'NO_TRADE') {
-            addScreeningLog('reject', `MTF 불일치: ${proDirection.reason}`, t.symbol);
-            continue;
-          }
-          
-          // MTF 합의 → 해당 방향으로 시그널 생성
-          const direction = proDirection.position === 'LONG' ? 'long' : 'short';
-          const strength = proDirection.confidence >= 70 ? 'strong' : proDirection.confidence >= 50 ? 'medium' : 'weak';
-          
-          signal = {
-            symbol: t.symbol,
-            direction,
-            strength,
-            price: t.price,
-            reasons: [
-              `🎯 MTF 합의 (${proDirection.confidence.toFixed(0)}%)`,
-              `${proDirection.details.mtf.reason}`,
-              `모멘텀: ${proDirection.details.momentum.reason}`,
-            ],
-            indicators,
-            timestamp: Date.now(),
-          };
-          signals.push(signal);
-          addScreeningLog('approve', `${direction.toUpperCase()} 시그널 감지 MTF(${proDirection.confidence.toFixed(0)}%)`, t.symbol);
-
-          analyzed.push({
-            symbol: t.symbol,
-            price: t.price,
-            volume: t.volume,
-            volatilityRange: t.volatilityRange,
-            volatilityScore: t.volatilityScore,
-            atrPercent: atrData.atrPercent,
-            signal,
-            indicators,
-            rank: analyzed.length + 1,
-            proDirection, // 🆕 프로 방향 분석 결과
-          });
-
-        } catch (err) {
-          console.error(`Screening error for ${t.symbol}:`, err);
-        }
-
-        // API 부하 방지
-        if (i < scored.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 100));
-        }
+        analyzed.push({
+          symbol: t.symbol,
+          price: t.price,
+          volume: t.volume,
+          volatilityRange: t.volatilityRange,
+          volatilityScore: t.volatilityScore,
+          signal,
+          rank: i + 1,
+        });
       }
 
       if (!isMountedRef.current) return;
@@ -447,48 +339,27 @@ export function useCoinScreening(
     });
   }, [runScreening]);
   
-  // 특정 심볼 기술적 분석
+  // 특정 심볼 분석 (간소화)
   const analyzeSymbol = useCallback(async (symbol: string): Promise<TradingSignal | null> => {
-    try {
-      const klines = await fetch5mKlines(symbol, 50);
-      if (!klines || klines.length < 30) return null;
-      
-      const indicators = calculateAllIndicators(klines);
-      if (!indicators) return null;
-      
-      const currentPrice = klines[klines.length - 1].close;
-      
-      const longCheck = checkLongSignal(indicators, currentPrice);
-      const shortCheck = checkShortSignal(indicators, currentPrice);
-      
-      if (longCheck.valid) {
-        return {
-          symbol,
-          direction: 'long',
-          strength: longCheck.strength,
-          price: currentPrice,
-          reasons: longCheck.reasons,
-          indicators,
-          timestamp: Date.now(),
-        };
-      }
-      
-      if (shortCheck.valid) {
-        return {
-          symbol,
-          direction: 'short',
-          strength: shortCheck.strength,
-          price: currentPrice,
-          reasons: shortCheck.reasons,
-          indicators,
-          timestamp: Date.now(),
-        };
-      }
-      
-      return null;
-    } catch {
-      return null;
-    }
+    const ticker = tickersRef.current.find(t => t.symbol === symbol);
+    if (!ticker) return null;
+    
+    const direction = ticker.priceChangePercent >= 0 ? 'long' : 'short';
+    const volatilityScore = calculateVolatilityScore(ticker.volatilityRange, ticker.volume);
+    const strength = volatilityScore >= 80 ? 'strong' : volatilityScore >= 60 ? 'medium' : 'weak';
+    
+    return {
+      symbol,
+      direction,
+      strength,
+      price: ticker.price,
+      reasons: [
+        `📊 변동폭 ${ticker.volatilityRange.toFixed(2)}%`,
+        `거래량 $${(ticker.volume / 1_000_000).toFixed(1)}M`,
+      ],
+      indicators: null as any,
+      timestamp: Date.now(),
+    };
   }, []);
   
   return {
