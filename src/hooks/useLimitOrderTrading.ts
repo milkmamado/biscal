@@ -155,12 +155,6 @@ interface UseLimitOrderTradingProps {
   majorCoinMode?: boolean;
   // 필터 설정
   filterSettings?: {
-    adxEnabled: boolean;
-    volumeEnabled: boolean;
-    rsiEnabled: boolean;
-    macdEnabled: boolean;
-    bollingerEnabled: boolean;
-    adxThreshold: number;
     stopLossUsdt: number;  // USDT 기반 손절
     takeProfitUsdt: number; // USDT 기반 익절
     dtfxEnabled?: boolean; // DTFX OTE 구간 진입 모드
@@ -994,75 +988,10 @@ export function useLimitOrderTrading({
       console.warn('5봉 필터 확인 실패:', err);
     }
 
-    // ADX 필터 (설정에서 끌 수 있음)
-    const adxEnabled = filterSettings?.adxEnabled ?? true;
-    const adxThreshold = filterSettings?.adxThreshold ?? LIMIT_ORDER_CONFIG.SIGNAL.MIN_ADX;
-    if (adxEnabled && indicators.adx < adxThreshold) {
-      console.log(`[handleSignal] ${symbol} 횡보장 필터 (ADX: ${indicators.adx.toFixed(1)} < ${adxThreshold})`);
-      return;
-    }
+    // 🆕 필터 간소화: ADX, 거래량, RSI, MACD, 볼린저 필터 제거
+    // 변동폭 + DTFX 조합만 사용
 
-    // 거래량 필터 (설정에서 끌 수 있음)
-    const volumeEnabled = filterSettings?.volumeEnabled ?? true;
-    const volumePercent = (indicators.volumeRatio || 0) * 100;
-    if (volumeEnabled && volumePercent < LIMIT_ORDER_CONFIG.SIGNAL.MIN_VOLUME_RATIO) {
-      console.log(`[handleSignal] ${symbol} 거래량 부족 (${volumePercent.toFixed(0)}% < ${LIMIT_ORDER_CONFIG.SIGNAL.MIN_VOLUME_RATIO}%)`);
-      return;
-    }
-
-    // RSI 필터 (설정에서 끌 수 있음)
-    const rsiEnabled = filterSettings?.rsiEnabled ?? true;
-    if (rsiEnabled) {
-      // 롱: RSI 30-70 사이 / 숏: RSI 30-70 사이 (극단값 제외)
-      if (direction === 'long' && indicators.rsi > 70) {
-        console.log(`[handleSignal] ${symbol} RSI 과매수 (${indicators.rsi.toFixed(1)} > 70)`);
-        return;
-      }
-      if (direction === 'short' && indicators.rsi < 30) {
-        console.log(`[handleSignal] ${symbol} RSI 과매도 (${indicators.rsi.toFixed(1)} < 30)`);
-        return;
-      }
-    }
-
-    // MACD 필터 (설정에서 끌 수 있음)
-    const macdEnabled = filterSettings?.macdEnabled ?? true;
-    if (macdEnabled) {
-      // 롱: MACD > Signal / 숏: MACD < Signal
-      if (direction === 'long' && indicators.macd < indicators.macdSignal) {
-        console.log(`[handleSignal] ${symbol} MACD 하락 (${indicators.macd.toFixed(4)} < ${indicators.macdSignal.toFixed(4)})`);
-        return;
-      }
-      if (direction === 'short' && indicators.macd > indicators.macdSignal) {
-        console.log(`[handleSignal] ${symbol} MACD 상승 (${indicators.macd.toFixed(4)} > ${indicators.macdSignal.toFixed(4)})`);
-        return;
-      }
-    }
-
-    // 볼린저밴드 필터 (설정에서 끌 수 있음)
-    const bollingerEnabled = filterSettings?.bollingerEnabled ?? true;
-    if (bollingerEnabled) {
-      // 롱: 가격이 상단밴드 이상이면 과매수
-      if (direction === 'long' && price > indicators.upperBand) {
-        console.log(`[handleSignal] ${symbol} 볼린저 상단돌파 (${price.toFixed(2)} > ${indicators.upperBand.toFixed(2)})`);
-        return;
-      }
-      // 숏: 가격이 하단밴드 이하면 과매도
-      if (direction === 'short' && price < indicators.lowerBand) {
-        console.log(`[handleSignal] ${symbol} 볼린저 하단돌파 (${price.toFixed(2)} < ${indicators.lowerBand.toFixed(2)})`);
-        return;
-      }
-    }
-
-    // 필터 상태 로그
-    const disabledFilters: string[] = [];
-    if (!adxEnabled) disabledFilters.push('ADX');
-    if (!volumeEnabled) disabledFilters.push('거래량');
-    if (!rsiEnabled) disabledFilters.push('RSI');
-    if (!macdEnabled) disabledFilters.push('MACD');
-    if (!bollingerEnabled) disabledFilters.push('볼린저');
-    const filterStatus = disabledFilters.length > 0 ? ` [OFF: ${disabledFilters.join(',')}]` : '';
-
-    console.log(`🎯 [시그널] ${symbol} ${direction} (${strength})${filterStatus}`);
+    console.log(`🎯 [시그널] ${symbol} ${direction} (${strength})`);
     
     // AI 분석은 useEffect에서 pendingSignal 변경 시 자동 실행됨
     

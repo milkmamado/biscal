@@ -33,15 +33,8 @@ const Index = () => {
   const [majorCoinMode, setMajorCoinMode] = useState(true);
   const [screeningLogs, setScreeningLogs] = useState<ScreeningLog[]>([]);
   
-  // 트레이딩 설정 상태 (테스트넷과 동일)
-  const [adxFilterEnabled, setAdxFilterEnabled] = useState(true);
-  const [volumeFilterEnabled, setVolumeFilterEnabled] = useState(true);
-  const [rsiFilterEnabled, setRsiFilterEnabled] = useState(true);
-  const [macdFilterEnabled, setMacdFilterEnabled] = useState(true);
-  const [bollingerFilterEnabled, setBollingerFilterEnabled] = useState(true);
   const [dtfxEnabled, setDtfxEnabled] = useState(false); // DTFX 차트 표시 토글
   const [dtfxAutoTradingEnabled, setDtfxAutoTradingEnabled] = useState(false); // DTFX 자동매매 상태
-  const [adxThreshold, setAdxThreshold] = useState(LIMIT_ORDER_CONFIG.SIGNAL.MIN_ADX);
   const [stopLossUsdt, setStopLossUsdt] = useState(1.5); // 기본 1.5 USDT 손절 (한틱손절 방지)
   const [takeProfitUsdt, setTakeProfitUsdt] = useState(2.0); // 기본 2.0 USDT 익절
   const [autoAdjustEnabled, setAutoAdjustEnabled] = useState(true); // 잔고 연동 기본 ON
@@ -94,12 +87,6 @@ const Index = () => {
     logTrade,
     majorCoinMode,
     filterSettings: {
-      adxEnabled: adxFilterEnabled,
-      volumeEnabled: volumeFilterEnabled,
-      rsiEnabled: rsiFilterEnabled,
-      macdEnabled: macdFilterEnabled,
-      bollingerEnabled: bollingerFilterEnabled,
-      adxThreshold,
       stopLossUsdt,
       takeProfitUsdt,
       dtfxEnabled: dtfxEnabled && dtfxAutoTradingEnabled, // DTFX OTE 구간 진입 모드 (둘 다 켜져있어야 활성화)
@@ -459,22 +446,10 @@ const Index = () => {
             refreshTrigger={refreshTrigger}
           />
           <TradingSettingsPanel
-            adxFilterEnabled={adxFilterEnabled}
-            onToggleAdxFilter={setAdxFilterEnabled}
-            volumeFilterEnabled={volumeFilterEnabled}
-            onToggleVolumeFilter={setVolumeFilterEnabled}
-            rsiFilterEnabled={rsiFilterEnabled}
-            onToggleRsiFilter={setRsiFilterEnabled}
-            macdFilterEnabled={macdFilterEnabled}
-            onToggleMacdFilter={setMacdFilterEnabled}
-            bollingerFilterEnabled={bollingerFilterEnabled}
-            onToggleBollingerFilter={setBollingerFilterEnabled}
             dtfxEnabled={dtfxEnabled}
             onToggleDtfx={setDtfxEnabled}
             dtfxAutoTradingEnabled={dtfxAutoTradingEnabled}
             onToggleDtfxAutoTrading={setDtfxAutoTradingEnabled}
-            adxThreshold={adxThreshold}
-            onAdxThresholdChange={setAdxThreshold}
             stopLossUsdt={stopLossUsdt}
             onStopLossChange={setStopLossUsdt}
             takeProfitUsdt={takeProfitUsdt}
