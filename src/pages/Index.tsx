@@ -6,7 +6,6 @@ import { useLimitOrderTrading } from '@/hooks/useLimitOrderTrading';
 import { useCoinScreening } from '@/hooks/useCoinScreening';
 import { useTickerWebSocket } from '@/hooks/useTickerWebSocket';
 import { useWakeLock } from '@/hooks/useWakeLock';
-import { useDTFXScanner } from '@/hooks/useDTFXScanner';
 
 import { supabase } from '@/integrations/supabase/client';
 import DualChartPanel from '@/components/DualChartPanel';
@@ -34,7 +33,6 @@ const Index = () => {
   const [screeningLogs, setScreeningLogs] = useState<ScreeningLog[]>([]);
   
   const [dtfxEnabled, setDtfxEnabled] = useState(false); // DTFX 차트 표시 토글
-  const [dtfxAutoTradingEnabled, setDtfxAutoTradingEnabled] = useState(false); // DTFX 자동매매 상태
   const [stopLossUsdt, setStopLossUsdt] = useState(1.5); // 기본 1.5 USDT 손절 (한틱손절 방지)
   const [takeProfitUsdt, setTakeProfitUsdt] = useState(2.0); // 기본 2.0 USDT 익절
   const [autoAdjustEnabled, setAutoAdjustEnabled] = useState(true); // 잔고 연동 기본 ON
@@ -89,7 +87,6 @@ const Index = () => {
     filterSettings: {
       stopLossUsdt,
       takeProfitUsdt,
-      dtfxEnabled: dtfxEnabled && dtfxAutoTradingEnabled, // DTFX OTE 구간 진입 모드 (둘 다 켜져있어야 활성화)
     },
   });
   
@@ -118,25 +115,6 @@ const Index = () => {
     [screenedSymbols]
   );
   
-  // 🆕 DTFX 존 소멸 시 청산 핸들러
-  const handleZoneLostDuringPosition = useCallback(() => {
-    console.log('🚨 [Index] DTFX 존 소멸 → 즉시 청산 트리거');
-    const ticker = tickers.find(t => t.symbol === autoTrading.state.currentPosition?.symbol);
-    if (ticker && autoTrading.state.currentPosition) {
-      autoTrading.closePosition(); // 수동 청산 호출
-    }
-  }, [tickers, autoTrading.state.currentPosition]);
-  
-  // DTFX 자동 스캐너
-  const dtfxScanner = useDTFXScanner({
-    hotCoins: hotCoinSymbols,
-    enabled: dtfxEnabled && dtfxAutoTradingEnabled,
-    onSymbolChange: setSelectedSymbol,
-    currentSymbol: selectedSymbol,
-    hasPosition: !!autoTrading.state.currentPosition,
-    onZoneLostDuringPosition: handleZoneLostDuringPosition,
-  });
-  
   // 패스 시 다음 시그널로 차트 전환
   const passSignal = () => {
     const nextSymbol = passSignalRaw();
@@ -164,21 +142,19 @@ const Index = () => {
     prevSignalsRef.current = new Map();
   }, [autoTrading.state.isEnabled]);
   
-  // 시그널 감지 시 차트 종목만 변경 (DTFX 자동스캔 OFF일 때만)
+  // 시그널 감지 시 차트 종목만 변경
   useEffect(() => {
     if (!autoTrading.state.isEnabled) return;
     if (justEnabledRef.current) return;
     if (activeSignals.length === 0) return;
     if (autoTrading.state.currentPosition) return;
-    // DTFX 자동스캔 켜져있으면 시그널 스캐너는 차트 전환 안함
-    if (dtfxEnabled && dtfxAutoTradingEnabled) return;
 
     // 가장 강한 시그널의 종목으로 차트 변경
     const strongSignal = activeSignals.find(s => s.strength !== 'weak');
     if (strongSignal) {
       setSelectedSymbol(strongSignal.symbol);
     }
-  }, [activeSignals, autoTrading.state.isEnabled, autoTrading.state.currentPosition, dtfxEnabled, dtfxAutoTradingEnabled]);
+  }, [activeSignals, autoTrading.state.isEnabled, autoTrading.state.currentPosition]);
   
   // 포지션 보유 중일 때 해당 종목 차트 유지
   useEffect(() => {
@@ -187,20 +163,15 @@ const Index = () => {
       return;
     }
 
-    // DTFX 자동스캔 ON이면 pendingSignal이 차트를 강제로 바꾸지 않게 함 (차트 제어권: DTFX)
-    if (dtfxEnabled && dtfxAutoTradingEnabled) return;
-
     if (autoTrading.state.pendingSignal) {
       setSelectedSymbol(autoTrading.state.pendingSignal.symbol);
     }
   }, [
     autoTrading.state.currentPosition?.symbol,
     autoTrading.state.pendingSignal?.symbol,
-    dtfxEnabled,
-    dtfxAutoTradingEnabled,
   ]);
   
-  // 현재 가격으로 TP/SL 체크 + DTFX OTE 구간 진입 체크
+  // 현재 가격으로 TP/SL 체크
   useEffect(() => {
     const ticker = tickers.find(t => t.symbol === selectedSymbol);
     if (!ticker) return;
@@ -212,14 +183,8 @@ const Index = () => {
       if (posTicker) {
         autoTrading.checkTpSl(posTicker.price);
       }
-      return; // 포지션 있으면 DTFX 체크 스킵
     }
-    
-    // DTFX 모드 + DTFX 자동스캔/진입 활성화 시 OTE 구간 진입 체크
-    if (dtfxEnabled && dtfxAutoTradingEnabled && autoTrading.state.isEnabled) {
-      autoTrading.checkDTFXOTEAndEntry(selectedSymbol, ticker.price);
-    }
-  }, [tickers, selectedSymbol, autoTrading.state.currentPosition, autoTrading.state.isEnabled, dtfxEnabled]);
+  }, [tickers, selectedSymbol, autoTrading.state.currentPosition, autoTrading.state.isEnabled]);
 
   // Fetch USD/KRW rate
   useEffect(() => {
@@ -448,8 +413,6 @@ const Index = () => {
           <TradingSettingsPanel
             dtfxEnabled={dtfxEnabled}
             onToggleDtfx={setDtfxEnabled}
-            dtfxAutoTradingEnabled={dtfxAutoTradingEnabled}
-            onToggleDtfxAutoTrading={setDtfxAutoTradingEnabled}
             stopLossUsdt={stopLossUsdt}
             onStopLossChange={setStopLossUsdt}
             takeProfitUsdt={takeProfitUsdt}

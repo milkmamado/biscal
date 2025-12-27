@@ -22,10 +22,6 @@ interface TradingSettingsProps {
   dtfxEnabled: boolean;
   onToggleDtfx: (enabled: boolean) => void;
   
-  // DTFX 자동매매 시작/정지
-  dtfxAutoTradingEnabled?: boolean;
-  onToggleDtfxAutoTrading?: (enabled: boolean) => void;
-  
   // 손절 설정 (USDT)
   stopLossUsdt: number;
   onStopLossChange: (value: number) => void;
@@ -46,8 +42,6 @@ interface TradingSettingsProps {
 export function TradingSettingsPanel({
   dtfxEnabled,
   onToggleDtfx,
-  dtfxAutoTradingEnabled = false,
-  onToggleDtfxAutoTrading,
   stopLossUsdt,
   onStopLossChange,
   takeProfitUsdt,
@@ -142,26 +136,6 @@ export function TradingSettingsPanel({
               />
             </div>
 
-            {/* DTFX 자동매매 시작/정지 버튼 - DTFX가 켜져있을 때만 표시 */}
-            {dtfxEnabled && onToggleDtfxAutoTrading && (
-              <div className="mt-2">
-                <button
-                  onClick={() => onToggleDtfxAutoTrading(!dtfxAutoTradingEnabled)}
-                  className={`w-full py-2 rounded-lg text-xs font-bold transition-all ${
-                    dtfxAutoTradingEnabled
-                      ? 'bg-red-500/80 hover:bg-red-500 text-white border border-red-400'
-                      : 'bg-gradient-to-r from-purple-500 to-cyan-500 hover:from-purple-600 hover:to-cyan-600 text-white'
-                  }`}
-                >
-                  {dtfxAutoTradingEnabled ? '⏹ DTFX 자동스캔 정지' : '▶ DTFX 자동스캔 시작'}
-                </button>
-                {dtfxAutoTradingEnabled && (
-                  <div className="mt-1 text-[9px] text-center text-cyan-400 animate-pulse">
-                    🔄 핫코인 OTE 구간 자동 스캔 중...
-                  </div>
-                )}
-              </div>
-            )}
           </div>
 
           {/* 손익 설정 섹션 */}
