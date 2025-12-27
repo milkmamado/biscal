@@ -294,20 +294,33 @@ const AutoTradingPanel = ({
     }
   };
   
-  // 잔고 주기적 갱신
+  // 잔고 주기적 갱신 (5초 간격으로 더 빠르게)
   useEffect(() => {
     if (!user) return;
     fetchRealBalance();
-    const intervalId = setInterval(fetchRealBalance, 10000);
+    const intervalId = setInterval(fetchRealBalance, 5000);
     return () => clearInterval(intervalId);
   }, [user]);
   
-  // 청산 후 즉시 갱신
+  // 청산 후 즉시 갱신 (연속 호출 방지)
   useEffect(() => {
     if (refreshTrigger > 0 && user) {
+      // 청산 직후 즉시 갱신 + 1초 후 한번 더 (체결 반영 대기)
       fetchRealBalance();
+      const timer = setTimeout(fetchRealBalance, 1000);
+      return () => clearTimeout(timer);
     }
   }, [refreshTrigger]);
+  
+  // 포지션 상태 변경 시 잔고 즉시 갱신
+  useEffect(() => {
+    if (!user) return;
+    // 포지션이 사라졌을 때 (외부 청산 포함)
+    if (!currentPosition && balanceUSD > 0) {
+      const timer = setTimeout(fetchRealBalance, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [currentPosition, user]);
   
   // 🚀 실시간 PnL - WebSocket markPrice 기반 (바이낸스 앱 수준 반응 속도)
   const realtimePnLData = useRealtimePnL(
