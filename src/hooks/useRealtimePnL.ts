@@ -176,11 +176,16 @@ export const useRealtimePnL = (
       return;
     }
 
-    // 포지션이 생겼을 때: WebSocket이 없거나 심볼이 바뀌었으면 연결
-    const needsConnection = !wsRef.current || lastSymbolRef.current !== position.symbol;
+    // WebSocket 상태 확인: 없거나, 닫혔거나, 심볼이 다르면 새로 연결
+    const wsExists = wsRef.current !== null;
+    const wsIsOpen = wsRef.current?.readyState === WebSocket.OPEN;
+    const wsIsConnecting = wsRef.current?.readyState === WebSocket.CONNECTING;
+    const symbolChanged = lastSymbolRef.current !== position.symbol;
+    
+    const needsConnection = !wsExists || (!wsIsOpen && !wsIsConnecting) || symbolChanged;
     
     if (needsConnection) {
-      console.log(`[실시간PnL] 포지션 감지 → WebSocket 연결 시작: ${position.symbol}`);
+      console.log(`[실시간PnL] 포지션 감지 → WebSocket 연결 시작: ${position.symbol} (wsExists=${wsExists}, wsIsOpen=${wsIsOpen}, symbolChanged=${symbolChanged})`);
       lastSymbolRef.current = position.symbol;
       connectWebSocket(position.symbol);
     }
@@ -199,6 +204,23 @@ export const useRealtimePnL = (
       }
     };
   }, []);
+
+  // 주기적 연결 상태 체크 (5초마다) - 연결이 끊겼으면 재연결
+  useEffect(() => {
+    if (!position || !position.symbol || position.quantity <= 0) return;
+    
+    const checkInterval = setInterval(() => {
+      const ws = wsRef.current;
+      const isConnected = ws && ws.readyState === WebSocket.OPEN;
+      
+      if (!isConnected && position.symbol) {
+        console.log(`[실시간PnL] 연결 상태 체크: 끊김 감지 → 재연결 시도 (${position.symbol})`);
+        connectWebSocket(position.symbol);
+      }
+    }, 5000);
+    
+    return () => clearInterval(checkInterval);
+  }, [position?.symbol, position?.quantity, connectWebSocket]);
 
   // 포지션 정보 변경 시 즉시 재계산
   useEffect(() => {
