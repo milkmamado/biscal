@@ -47,6 +47,8 @@ export const useRealtimePnL = (
     const entryNotional = pos.avgPrice * pos.quantity;
     const pnlPercent = entryNotional > 0 ? (unrealizedPnl / entryNotional) * 100 : 0;
     
+    console.log(`📊 [PnL계산] symbol=${pos.symbol} side=${pos.side} avgPrice=${pos.avgPrice} qty=${pos.quantity} markPrice=${markPrice} priceDiff=${priceDiff} unrealizedPnl=${unrealizedPnl.toFixed(4)}`);
+    
     return { unrealizedPnl, pnlPercent };
   }, []);
 
