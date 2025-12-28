@@ -126,6 +126,93 @@ export function playSignalSound() {
   console.log('[Sound] Signal sound played');
 }
 
+// 🆕 시그널 검출 알림 - MP4 파일 페이드 인/아웃 5초 재생
+let signalAlertAudio: HTMLAudioElement | null = null;
+let signalAlertFadeInterval: NodeJS.Timeout | null = null;
+
+export function playSignalAlertSound() {
+  // 기존 재생 중이면 중단
+  if (signalAlertAudio) {
+    stopSignalAlertSound();
+  }
+  
+  try {
+    signalAlertAudio = new Audio('/sounds/signal-alert.mp4');
+    signalAlertAudio.volume = 0;
+    
+    const FADE_DURATION = 1000; // 1초 페이드
+    const PLAY_DURATION = 5000; // 총 5초 재생
+    const FADE_STEPS = 20;
+    const STEP_TIME = FADE_DURATION / FADE_STEPS;
+    const MAX_VOLUME = 0.7;
+    
+    // 페이드 인 시작
+    let currentStep = 0;
+    
+    signalAlertAudio.play().then(() => {
+      console.log('[Sound] Signal alert started with fade-in');
+      
+      // 페이드 인
+      signalAlertFadeInterval = setInterval(() => {
+        if (!signalAlertAudio) {
+          if (signalAlertFadeInterval) clearInterval(signalAlertFadeInterval);
+          return;
+        }
+        
+        currentStep++;
+        const progress = currentStep / FADE_STEPS;
+        
+        if (currentStep <= FADE_STEPS) {
+          // 페이드 인 (0 → 1초)
+          signalAlertAudio.volume = Math.min(MAX_VOLUME * progress, MAX_VOLUME);
+        }
+      }, STEP_TIME);
+      
+      // 페이드 인 완료 후 페이드 아웃 시작 타이머
+      setTimeout(() => {
+        if (signalAlertFadeInterval) clearInterval(signalAlertFadeInterval);
+        
+        // 페이드 아웃 시작
+        let fadeOutStep = 0;
+        signalAlertFadeInterval = setInterval(() => {
+          if (!signalAlertAudio) {
+            if (signalAlertFadeInterval) clearInterval(signalAlertFadeInterval);
+            return;
+          }
+          
+          fadeOutStep++;
+          const progress = fadeOutStep / FADE_STEPS;
+          signalAlertAudio.volume = Math.max(MAX_VOLUME * (1 - progress), 0);
+          
+          if (fadeOutStep >= FADE_STEPS) {
+            stopSignalAlertSound();
+          }
+        }, STEP_TIME);
+      }, PLAY_DURATION - FADE_DURATION); // 4초 후 페이드 아웃 시작
+      
+    }).catch(err => {
+      console.error('[Sound] Signal alert play failed:', err);
+    });
+    
+  } catch (err) {
+    console.error('[Sound] Signal alert error:', err);
+  }
+}
+
+export function stopSignalAlertSound() {
+  if (signalAlertFadeInterval) {
+    clearInterval(signalAlertFadeInterval);
+    signalAlertFadeInterval = null;
+  }
+  
+  if (signalAlertAudio) {
+    signalAlertAudio.pause();
+    signalAlertAudio.currentTime = 0;
+    signalAlertAudio = null;
+    console.log('[Sound] Signal alert stopped');
+  }
+}
+
 // 테스트용 비프음
 export function playTestBeep() {
   initAudio();
