@@ -24,7 +24,7 @@ interface OpenOrder {
   status: string;
 }
 
-type SplitOption = 1 | 5 | 10;
+type SplitOption = 1 | 2 | 3 | 5 | 10;
 
 // AI 분석 결과 인터페이스
 interface AIAnalysis {
@@ -35,7 +35,7 @@ interface AIAnalysis {
 
 interface OrderBookProps {
   symbol: string;
-  splitCount?: 1 | 5 | 10;
+  splitCount?: 1 | 2 | 3 | 5 | 10;
   leverage?: number;
   onPlaceOrder?: (side: 'long' | 'short', price: number) => void;
   onMarketEntry?: (side: 'long' | 'short') => void;

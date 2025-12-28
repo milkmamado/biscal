@@ -1,10 +1,16 @@
 import { cn } from '@/lib/utils';
-import { Zap, Crown, Brain, LogOut } from 'lucide-react';
+import { Zap, Crown, Brain, LogOut, ChevronDown } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { useAuth } from '@/hooks/useAuth';
 import TradingRecordModal from './TradingRecordModal';
-
-const LEVERAGE_OPTIONS = [1, 5, 10];
+import { useSymbolMaxLeverage, generateLeverageOptions, SPLIT_OPTIONS, SplitCount } from '@/hooks/useSymbolMaxLeverage';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 interface SignalScannerPanelProps {
   isEnabled: boolean;
@@ -12,8 +18,8 @@ interface SignalScannerPanelProps {
   onToggle: () => void;
   leverage: number;
   onLeverageChange: (leverage: number) => void;
-  splitCount: 1 | 5 | 10;
-  onSplitCountChange: (count: 1 | 5 | 10) => void;
+  splitCount: SplitCount;
+  onSplitCountChange: (count: SplitCount) => void;
   majorCoinMode: boolean;
   onToggleMajorCoinMode?: () => void;
   aiEnabled: boolean;
@@ -21,6 +27,7 @@ interface SignalScannerPanelProps {
   onToggleAiAnalysis?: () => void;
   krwRate: number;
   refreshTrigger: number;
+  currentSymbol?: string;
 }
 
 export function SignalScannerPanel({
@@ -38,13 +45,19 @@ export function SignalScannerPanel({
   onToggleAiAnalysis,
   krwRate,
   refreshTrigger,
+  currentSymbol = 'BTCUSDT',
 }: SignalScannerPanelProps) {
   const { signOut } = useAuth();
+  const { maxLeverage } = useSymbolMaxLeverage(currentSymbol);
+  const leverageOptions = generateLeverageOptions(maxLeverage);
 
   const handleSignOut = async () => {
     await signOut();
     window.location.href = '/auth';
   };
+
+  // 현재 레버리지가 최대 레버리지보다 크면 조정
+  const effectiveLeverage = leverage > maxLeverage ? maxLeverage : leverage;
 
   return (
     <div
@@ -142,60 +155,92 @@ export function SignalScannerPanel({
         </div>
       </div>
 
-      {/* 레버리지 & 분할매수 선택 */}
+      {/* 레버리지 & 분할매수 선택 - Select 스타일 */}
       <div
         className="px-2 py-1.5"
         style={{
           background: 'linear-gradient(180deg, rgba(0, 255, 255, 0.03) 0%, transparent 100%)',
         }}
       >
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2">
+          {/* 레버리지 Select */}
           <div className="flex items-center gap-1.5">
-            <span className="text-[9px] text-gray-500">레버리지</span>
-            <div className="flex items-center gap-0.5">
-              {LEVERAGE_OPTIONS.map((lev) => (
-                <button
-                  key={lev}
-                  onClick={() => onLeverageChange(lev)}
-                  disabled={isEnabled}
-                  className={cn(
-                    "px-1.5 py-0.5 rounded text-[9px] font-bold transition-all",
-                    leverage === lev ? "text-cyan-300" : "text-gray-500 hover:text-gray-300",
-                    isEnabled && "opacity-50 cursor-not-allowed"
-                  )}
-                  style={{
-                    background: leverage === lev ? 'rgba(0, 255, 255, 0.2)' : 'rgba(50, 50, 70, 0.5)',
-                    border: leverage === lev ? '1px solid rgba(0, 255, 255, 0.4)' : '1px solid rgba(100, 100, 120, 0.3)',
-                    boxShadow: leverage === lev ? '0 0 8px rgba(0, 255, 255, 0.3)' : 'none',
-                  }}
-                >
-                  {lev}x
-                </button>
-              ))}
-            </div>
+            <span className="text-[9px] text-gray-500 whitespace-nowrap">레버리지</span>
+            <Select
+              value={effectiveLeverage.toString()}
+              onValueChange={(val) => onLeverageChange(parseInt(val))}
+              disabled={isEnabled}
+            >
+              <SelectTrigger 
+                className={cn(
+                  "h-6 w-[70px] text-[10px] font-bold border-0 px-2",
+                  isEnabled && "opacity-50 cursor-not-allowed"
+                )}
+                style={{
+                  background: 'rgba(0, 255, 255, 0.15)',
+                  color: '#00ffff',
+                  boxShadow: '0 0 8px rgba(0, 255, 255, 0.2)',
+                }}
+              >
+                <SelectValue placeholder="선택" />
+              </SelectTrigger>
+              <SelectContent 
+                className="max-h-[200px] overflow-y-auto"
+                style={{
+                  background: 'hsl(var(--background))',
+                  border: '1px solid rgba(0, 255, 255, 0.3)',
+                }}
+              >
+                {leverageOptions.map((lev) => (
+                  <SelectItem 
+                    key={lev} 
+                    value={lev.toString()}
+                    className="text-[10px] font-bold cursor-pointer hover:bg-cyan-500/20"
+                  >
+                    {lev}x
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <span className="text-[8px] text-gray-600">(최대 {maxLeverage}x)</span>
           </div>
+
+          {/* 분할 Select */}
           <div className="flex items-center gap-1.5">
-            <span className="text-[9px] text-gray-500">분할</span>
-            <div className="flex items-center gap-0.5">
-              {([1, 5, 10] as const).map((opt) => (
-                <button
-                  key={opt}
-                  onClick={() => onSplitCountChange(opt)}
-                  className={cn(
-                    "px-1.5 py-0.5 rounded text-[9px] font-bold transition-all",
-                    splitCount === opt ? "text-cyan-300" : "text-gray-500 hover:text-gray-300"
-                  )}
-                  style={{
-                    background: splitCount === opt ? 'rgba(0, 255, 255, 0.2)' : 'rgba(50, 50, 70, 0.5)',
-                    border: splitCount === opt ? '1px solid rgba(0, 255, 255, 0.4)' : '1px solid rgba(100, 100, 120, 0.3)',
-                    boxShadow: splitCount === opt ? '0 0 8px rgba(0, 255, 255, 0.3)' : 'none',
-                  }}
-                >
-                  {opt}
-                </button>
-              ))}
-            </div>
+            <span className="text-[9px] text-gray-500 whitespace-nowrap">분할</span>
+            <Select
+              value={splitCount.toString()}
+              onValueChange={(val) => onSplitCountChange(parseInt(val) as SplitCount)}
+            >
+              <SelectTrigger 
+                className="h-6 w-[55px] text-[10px] font-bold border-0 px-2"
+                style={{
+                  background: 'rgba(0, 255, 255, 0.15)',
+                  color: '#00ffff',
+                  boxShadow: '0 0 8px rgba(0, 255, 255, 0.2)',
+                }}
+              >
+                <SelectValue placeholder="선택" />
+              </SelectTrigger>
+              <SelectContent 
+                style={{
+                  background: 'hsl(var(--background))',
+                  border: '1px solid rgba(0, 255, 255, 0.3)',
+                }}
+              >
+                {SPLIT_OPTIONS.map((opt) => (
+                  <SelectItem 
+                    key={opt} 
+                    value={opt.toString()}
+                    className="text-[10px] font-bold cursor-pointer hover:bg-cyan-500/20"
+                  >
+                    {opt}회
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
+
           <TradingRecordModal krwRate={krwRate} refreshTrigger={refreshTrigger} />
         </div>
       </div>

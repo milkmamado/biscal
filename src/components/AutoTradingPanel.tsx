@@ -62,8 +62,8 @@ interface AutoTradingPanelProps {
   krwRate: number;
   leverage: number;
   onLeverageChange: (leverage: number) => void;
-  splitCount: 1 | 5 | 10;
-  onSplitCountChange: (count: 1 | 5 | 10) => void;
+  splitCount: 1 | 2 | 3 | 5 | 10;
+  onSplitCountChange: (count: 1 | 2 | 3 | 5 | 10) => void;
   onSelectSymbol?: (symbol: string) => void;
   onBalanceChange?: (balance: number) => void;
   refreshTrigger?: number;

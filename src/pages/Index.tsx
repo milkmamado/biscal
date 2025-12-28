@@ -42,7 +42,7 @@ const Index = () => {
   const [openOrders, setOpenOrders] = useState<{ orderId: number; price: number; side: 'BUY' | 'SELL'; origQty: number; executedQty: number; }[]>([]);
   
   // 분할 매수 상태
-  const [splitCount, setSplitCount] = useState<1 | 5 | 10>(5);
+  const [splitCount, setSplitCount] = useState<1 | 2 | 3 | 5 | 10>(5);
 
   // 스크리닝 로그 실시간 업데이트
   useEffect(() => {
@@ -406,6 +406,7 @@ const Index = () => {
             onToggleAiAnalysis={autoTrading.toggleAiAnalysis}
             krwRate={krwRate}
             refreshTrigger={refreshTrigger}
+            currentSymbol={selectedSymbol}
           />
           <TradingSettingsPanel
             dtfxEnabled={dtfxEnabled}
