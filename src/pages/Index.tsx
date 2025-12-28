@@ -14,6 +14,7 @@ import ApiKeySetup from '@/components/ApiKeySetup';
 import TradingSettingsPanel, { calculateBalanceBasedRisk } from '@/components/TradingSettingsPanel';
 import SignalScannerPanel from '@/components/SignalScannerPanel';
 import ScalpingRatingPanel from '@/components/ScalpingRatingPanel';
+import WatchlistPanel from '@/components/WatchlistPanel';
 import BiscalLogo from '@/components/BiscalLogo';
 import { Button } from '@/components/ui/button';
 
@@ -393,6 +394,10 @@ const Index = () => {
             onToggleAutoAdjust={handleToggleAutoAdjust}
           />
           <ScalpingRatingPanel />
+          <WatchlistPanel 
+            currentSymbol={selectedSymbol}
+            onSelectSymbol={setSelectedSymbol}
+          />
           <BiscalLogo />
         </div>
       </div>
