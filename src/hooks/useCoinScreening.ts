@@ -6,6 +6,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { TradingSignal } from './useTechnicalIndicators';
 import { addScreeningLog, clearScreeningLogs } from '@/components/ScreeningLogPanel';
+import { playSignalAlertSound } from '@/lib/sounds';
 import { 
   MAJOR_COIN_CRITERIA,
   isMajorCoin,
@@ -333,9 +334,10 @@ export function useCoinScreening(
       setActiveSignals(signals);
       setLastScanTime(Date.now());
       
-      // 🆕 시그널 발견 시 자동 일시정지
+      // 🆕 시그널 발견 시 자동 일시정지 + 알림 사운드
       if (signals.length > 0) {
         setIsPaused(true);
+        playSignalAlertSound(); // 페이드 인/아웃 5초 알림음
         addScreeningLog('complete', `⏸️ 시그널 발견! 자동 스캔 일시정지 (패스하면 재개)`);
         addScreeningLog('approve', `${signals.map(s => `${s.symbol.replace('USDT', '')} ${s.direction.toUpperCase()}`).join(', ')}`);
       } else {
