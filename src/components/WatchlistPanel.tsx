@@ -7,7 +7,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ChevronDown, ChevronUp, X, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface WatchlistItem {
   symbol: string;
@@ -110,7 +109,13 @@ export default function WatchlistPanel({ currentSymbol, onSelectSymbol }: Watchl
             </div>
           ) : (
             <>
-              <ScrollArea className="max-h-[120px]">
+              <div 
+                className="max-h-[200px] overflow-y-auto overscroll-contain"
+                style={{ 
+                  WebkitOverflowScrolling: 'touch',
+                  touchAction: 'pan-y',
+                }}
+              >
                 <div className="p-1 space-y-0.5">
                   {watchlist.map((item) => (
                     <div
@@ -137,7 +142,7 @@ export default function WatchlistPanel({ currentSymbol, onSelectSymbol }: Watchl
                     </div>
                   ))}
                 </div>
-              </ScrollArea>
+              </div>
               
               {/* 전체 삭제 버튼 */}
               {watchlist.length > 3 && (
