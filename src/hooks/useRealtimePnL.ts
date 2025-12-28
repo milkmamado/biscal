@@ -62,25 +62,33 @@ export const useRealtimePnL = (
     return { unrealizedPnl: netPnl, pnlPercent };
   }, []);
 
-  // User Data Stream 데이터가 있으면 즉시 반영
+  // User Data Stream 데이터가 있으면 즉시 반영 (수수료 차감 적용)
   useEffect(() => {
     if (userDataPosition && position) {
+      // 바이낸스 원본 PnL에서 수수료 차감
       const entryNotional = position.avgPrice * position.quantity;
+      const currentMarkPrice = result?.markPrice || position.avgPrice;
+      const exitNotional = currentMarkPrice * position.quantity;
+      
+      // 수수료 계산 (진입 0.02% maker + 청산 0.05% taker)
+      const totalFee = (entryNotional * 0.0002) + (exitNotional * 0.0005);
+      const netPnl = userDataPosition.unrealizedPnl - totalFee;
+      
       const pnlPercent = entryNotional > 0 
-        ? (userDataPosition.unrealizedPnl / entryNotional) * 100 
+        ? (netPnl / entryNotional) * 100 
         : 0;
       
       setResult(prev => ({
         markPrice: prev?.markPrice || 0,
-        unrealizedPnl: userDataPosition.unrealizedPnl,
+        unrealizedPnl: netPnl,
         pnlPercent,
         lastUpdate: userDataPosition.lastUpdate,
         source: 'userDataStream',
       }));
       
-      console.log(`⚡ [실시간PnL] User Data Stream: PnL=${userDataPosition.unrealizedPnl.toFixed(4)}`);
+      console.log(`⚡ [실시간PnL] User Data Stream: 원본=${userDataPosition.unrealizedPnl.toFixed(4)}, 수수료=${totalFee.toFixed(4)}, 순PnL=${netPnl.toFixed(4)}`);
     }
-  }, [userDataPosition?.unrealizedPnl, userDataPosition?.lastUpdate, position]);
+  }, [userDataPosition?.unrealizedPnl, userDataPosition?.lastUpdate, position, result?.markPrice]);
 
   // WebSocket 연결 (markPrice 스트림)
   const connectWebSocket = useCallback((symbol: string) => {
