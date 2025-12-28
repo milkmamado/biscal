@@ -164,81 +164,75 @@ export function SignalScannerPanel({
       >
         <div className="flex items-center justify-between gap-2">
           {/* 레버리지 Select */}
-          <div className="flex items-center gap-1.5">
-            <span className="text-[9px] text-gray-500 whitespace-nowrap">레버리지</span>
-            <Select
-              value={effectiveLeverage.toString()}
-              onValueChange={(val) => onLeverageChange(parseInt(val))}
-              disabled={isEnabled}
+          <Select
+            value={effectiveLeverage.toString()}
+            onValueChange={(val) => onLeverageChange(parseInt(val))}
+            disabled={isEnabled}
+          >
+            <SelectTrigger 
+              className={cn(
+                "h-6 w-[70px] text-[10px] font-bold border-0 px-2",
+                isEnabled && "opacity-50 cursor-not-allowed"
+              )}
+              style={{
+                background: 'rgba(0, 255, 255, 0.15)',
+                color: '#00ffff',
+                boxShadow: '0 0 8px rgba(0, 255, 255, 0.2)',
+              }}
             >
-              <SelectTrigger 
-                className={cn(
-                  "h-6 w-[70px] text-[10px] font-bold border-0 px-2",
-                  isEnabled && "opacity-50 cursor-not-allowed"
-                )}
-                style={{
-                  background: 'rgba(0, 255, 255, 0.15)',
-                  color: '#00ffff',
-                  boxShadow: '0 0 8px rgba(0, 255, 255, 0.2)',
-                }}
-              >
-                <SelectValue placeholder="선택" />
-              </SelectTrigger>
-              <SelectContent 
-                className="max-h-[200px] overflow-y-auto"
-                style={{
-                  background: 'hsl(var(--background))',
-                  border: '1px solid rgba(0, 255, 255, 0.3)',
-                }}
-              >
-                {leverageOptions.map((lev) => (
-                  <SelectItem 
-                    key={lev} 
-                    value={lev.toString()}
-                    className="text-[10px] font-bold cursor-pointer hover:bg-cyan-500/20"
-                  >
-                    {lev}x
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+              <SelectValue placeholder="선택" />
+            </SelectTrigger>
+            <SelectContent 
+              className="max-h-[200px] overflow-y-auto"
+              style={{
+                background: 'hsl(var(--background))',
+                border: '1px solid rgba(0, 255, 255, 0.3)',
+              }}
+            >
+              {leverageOptions.map((lev) => (
+                <SelectItem 
+                  key={lev} 
+                  value={lev.toString()}
+                  className="text-[10px] font-bold cursor-pointer hover:bg-cyan-500/20"
+                >
+                  {lev}x
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
           {/* 분할 Select */}
-          <div className="flex items-center gap-1.5">
-            <span className="text-[9px] text-gray-500 whitespace-nowrap">분할</span>
-            <Select
-              value={splitCount.toString()}
-              onValueChange={(val) => onSplitCountChange(parseInt(val) as SplitCount)}
+          <Select
+            value={splitCount.toString()}
+            onValueChange={(val) => onSplitCountChange(parseInt(val) as SplitCount)}
+          >
+            <SelectTrigger 
+              className="h-6 w-[55px] text-[10px] font-bold border-0 px-2"
+              style={{
+                background: 'rgba(0, 255, 255, 0.15)',
+                color: '#00ffff',
+                boxShadow: '0 0 8px rgba(0, 255, 255, 0.2)',
+              }}
             >
-              <SelectTrigger 
-                className="h-6 w-[55px] text-[10px] font-bold border-0 px-2"
-                style={{
-                  background: 'rgba(0, 255, 255, 0.15)',
-                  color: '#00ffff',
-                  boxShadow: '0 0 8px rgba(0, 255, 255, 0.2)',
-                }}
-              >
-                <SelectValue placeholder="선택" />
-              </SelectTrigger>
-              <SelectContent 
-                style={{
-                  background: 'hsl(var(--background))',
-                  border: '1px solid rgba(0, 255, 255, 0.3)',
-                }}
-              >
-                {SPLIT_OPTIONS.map((opt) => (
-                  <SelectItem 
-                    key={opt} 
-                    value={opt.toString()}
-                    className="text-[10px] font-bold cursor-pointer hover:bg-cyan-500/20"
-                  >
-                    {opt}회
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+              <SelectValue placeholder="선택" />
+            </SelectTrigger>
+            <SelectContent 
+              style={{
+                background: 'hsl(var(--background))',
+                border: '1px solid rgba(0, 255, 255, 0.3)',
+              }}
+            >
+              {SPLIT_OPTIONS.map((opt) => (
+                <SelectItem 
+                  key={opt} 
+                  value={opt.toString()}
+                  className="text-[10px] font-bold cursor-pointer hover:bg-cyan-500/20"
+                >
+                  {opt}회
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
           <TradingRecordModal krwRate={krwRate} refreshTrigger={refreshTrigger} />
         </div>
