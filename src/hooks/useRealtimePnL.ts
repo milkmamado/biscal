@@ -1,8 +1,9 @@
 /**
- * 🚀 실시간 PnL 훅 - 바이낸스 markPrice WebSocket 기반
+ * 🚀 실시간 PnL 훅 - 바이낸스 markPrice WebSocket + User Data Stream 조합
  * 
- * REST API 폴링 대신 WebSocket으로 markPrice를 실시간 수신하여
- * 로컬에서 즉시 PnL 계산 → 바이낸스 앱 수준의 반응 속도
+ * User Data Stream에서 포지션 PnL을 직접 받으면 그것을 우선 사용하고,
+ * 없거나 오래된 경우 markPrice WebSocket으로 로컬 계산합니다.
+ * → 바이낸스 앱 수준의 ~100ms 반응 속도!
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -19,26 +20,33 @@ interface RealtimePnLResult {
   unrealizedPnl: number;
   pnlPercent: number;
   lastUpdate: number;
+  source: 'userDataStream' | 'markPriceWs' | 'calculated'; // 데이터 출처
 }
 
-export const useRealtimePnL = (position: PositionData | null) => {
+// User Data Stream에서 받은 포지션 데이터 (외부에서 주입)
+interface UserDataPosition {
+  unrealizedPnl: number;
+  lastUpdate: number;
+}
+
+export const useRealtimePnL = (
+  position: PositionData | null,
+  userDataPosition?: UserDataPosition | null // User Data Stream에서 받은 데이터
+) => {
   const [result, setResult] = useState<RealtimePnLResult | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastSymbolRef = useRef<string | null>(null);
   
-  // 🔧 최신 position을 참조하기 위한 ref (클로저 문제 해결)
+  // 최신 position을 참조하기 위한 ref
   const positionRef = useRef<PositionData | null>(position);
   
-  // position 변경 시 ref 업데이트
   useEffect(() => {
     positionRef.current = position;
-    console.log(`[실시간PnL] position 업데이트: ${position?.side} ${position?.symbol}`);
   }, [position]);
 
   // PnL 계산 (수수료 포함)
   const calculatePnL = useCallback((markPrice: number, pos: PositionData) => {
-    // 🔧 숏 포지션: 가격 하락 시 수익, 롱 포지션: 가격 상승 시 수익
     const direction = pos.side === 'long' ? 1 : -1;
     const priceDiff = (markPrice - pos.avgPrice) * direction;
     const grossPnl = priceDiff * pos.quantity;
@@ -49,16 +57,33 @@ export const useRealtimePnL = (position: PositionData | null) => {
     const totalFee = (entryNotional * 0.0002) + (exitNotional * 0.0005);
     
     const netPnl = grossPnl - totalFee;
-    const pnlPercent = (netPnl / entryNotional) * 100;
-    
-    console.log(`[PnL계산] side=${pos.side}, entry=${pos.avgPrice}, mark=${markPrice}, diff=${priceDiff.toFixed(4)}, gross=${grossPnl.toFixed(4)}, net=${netPnl.toFixed(4)}`);
+    const pnlPercent = entryNotional > 0 ? (netPnl / entryNotional) * 100 : 0;
     
     return { unrealizedPnl: netPnl, pnlPercent };
   }, []);
 
-  // WebSocket 연결
+  // User Data Stream 데이터가 있으면 즉시 반영
+  useEffect(() => {
+    if (userDataPosition && position) {
+      const entryNotional = position.avgPrice * position.quantity;
+      const pnlPercent = entryNotional > 0 
+        ? (userDataPosition.unrealizedPnl / entryNotional) * 100 
+        : 0;
+      
+      setResult(prev => ({
+        markPrice: prev?.markPrice || 0,
+        unrealizedPnl: userDataPosition.unrealizedPnl,
+        pnlPercent,
+        lastUpdate: userDataPosition.lastUpdate,
+        source: 'userDataStream',
+      }));
+      
+      console.log(`⚡ [실시간PnL] User Data Stream: PnL=${userDataPosition.unrealizedPnl.toFixed(4)}`);
+    }
+  }, [userDataPosition?.unrealizedPnl, userDataPosition?.lastUpdate, position]);
+
+  // WebSocket 연결 (markPrice 스트림)
   const connectWebSocket = useCallback((symbol: string) => {
-    // 기존 연결 정리
     if (wsRef.current) {
       wsRef.current.close();
       wsRef.current = null;
@@ -69,33 +94,46 @@ export const useRealtimePnL = (position: PositionData | null) => {
     }
 
     const streamSymbol = symbol.toLowerCase();
-    const wsUrl = `wss://fstream.binance.com/ws/${streamSymbol}@markPrice@1s`;
+    // 100ms 간격으로 받기 (더 빠른 업데이트)
+    const wsUrl = `wss://fstream.binance.com/ws/${streamSymbol}@markPrice@100ms`;
     
-    console.log(`📡 [실시간PnL] WebSocket 연결: ${symbol}`);
+    console.log(`📡 [실시간PnL] markPrice WebSocket 연결: ${symbol} (@100ms)`);
     
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 
     ws.onopen = () => {
-      console.log(`✅ [실시간PnL] WebSocket 연결됨: ${symbol}`);
+      console.log(`✅ [실시간PnL] markPrice WebSocket 연결됨: ${symbol}`);
     };
 
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        const markPrice = parseFloat(data.p); // markPrice
+        const markPrice = parseFloat(data.p);
         
-        // 🔧 ref로 최신 position 참조 (클로저 문제 해결)
         const currentPos = positionRef.current;
         
         if (currentPos && currentPos.symbol === symbol && !isNaN(markPrice)) {
-          const { unrealizedPnl, pnlPercent } = calculatePnL(markPrice, currentPos);
-          
-          setResult({
-            markPrice,
-            unrealizedPnl,
-            pnlPercent,
-            lastUpdate: Date.now(),
+          setResult(prev => {
+            // User Data Stream 데이터가 최근 2초 이내면 그것을 유지
+            if (prev?.source === 'userDataStream' && Date.now() - prev.lastUpdate < 2000) {
+              // markPrice만 업데이트
+              return {
+                ...prev,
+                markPrice,
+              };
+            }
+            
+            // 그 외에는 로컬에서 계산
+            const { unrealizedPnl, pnlPercent } = calculatePnL(markPrice, currentPos);
+            
+            return {
+              markPrice,
+              unrealizedPnl,
+              pnlPercent,
+              lastUpdate: Date.now(),
+              source: 'markPriceWs' as const,
+            };
           });
         }
       } catch (err) {
@@ -111,7 +149,6 @@ export const useRealtimePnL = (position: PositionData | null) => {
       console.log(`🔌 [실시간PnL] WebSocket 닫힘: ${symbol}`);
       wsRef.current = null;
       
-      // 재연결 (포지션이 여전히 있으면)
       const currentPos = positionRef.current;
       if (currentPos && currentPos.symbol === symbol) {
         reconnectTimeoutRef.current = setTimeout(() => {
@@ -125,7 +162,6 @@ export const useRealtimePnL = (position: PositionData | null) => {
   // 포지션 변경 시 WebSocket 관리
   useEffect(() => {
     if (!position || !position.symbol || position.quantity <= 0) {
-      // 포지션 없음 → 연결 해제
       if (wsRef.current) {
         console.log('[실시간PnL] 포지션 없음 → 연결 해제');
         wsRef.current.close();
@@ -140,15 +176,10 @@ export const useRealtimePnL = (position: PositionData | null) => {
       return;
     }
 
-    // 심볼 변경 시에만 재연결
     if (lastSymbolRef.current !== position.symbol) {
       lastSymbolRef.current = position.symbol;
       connectWebSocket(position.symbol);
     }
-
-    return () => {
-      // cleanup은 symbol 변경 시에만 수행
-    };
   }, [position?.symbol, position?.quantity, connectWebSocket]);
 
   // 컴포넌트 언마운트 시 정리
@@ -165,18 +196,19 @@ export const useRealtimePnL = (position: PositionData | null) => {
     };
   }, []);
 
-  // 포지션 정보 변경 시 즉시 재계산 (avgPrice, quantity 변경)
+  // 포지션 정보 변경 시 즉시 재계산
   useEffect(() => {
-    if (result && position && result.markPrice > 0) {
+    if (result && position && result.markPrice > 0 && result.source !== 'userDataStream') {
       const { unrealizedPnl, pnlPercent } = calculatePnL(result.markPrice, position);
       setResult(prev => prev ? {
         ...prev,
         unrealizedPnl,
         pnlPercent,
         lastUpdate: Date.now(),
+        source: 'calculated' as const,
       } : null);
     }
-  }, [position?.avgPrice, position?.quantity, position?.side]);
+  }, [position?.avgPrice, position?.quantity, position?.side, calculatePnL]);
 
   return result;
 };
