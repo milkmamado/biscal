@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { Bot, TrendingUp, TrendingDown, Activity, Clock, AlertTriangle, Star, RefreshCw, Wallet, LogOut, Shield, ShieldOff, Crown, Brain, Zap, SkipForward, Pause, Play } from 'lucide-react';
 
@@ -13,7 +13,8 @@ import TradingRecordModal from './TradingRecordModal';
 import OrderBook from './OrderBook';
 import { LIMIT_ORDER_CONFIG } from '@/lib/limitOrderConfig';
 import { useRealtimePnL } from '@/hooks/useRealtimePnL';
-import { RealtimePosition, RealtimeBalance } from '@/hooks/useUserDataStream';
+import { RealtimePosition, RealtimeBalance, OrderEvent } from '@/hooks/useUserDataStream';
+import { toast } from 'sonner';
 
 // 스캘핑 시간대 적합도 데이터
 const getScalpingRating = () => {
@@ -85,12 +86,13 @@ interface AutoTradingPanelProps {
   // DTFX 진입 확인/스킵 핸들러
   onConfirmDTFXEntry?: () => void;
   onSkipDTFXSignal?: () => void;
-  // User Data Stream (실시간 포지션/잔고)
+  // User Data Stream (실시간 포지션/잔고/주문)
   userDataStream?: {
     positions: Map<string, RealtimePosition>;
     balances: Map<string, RealtimeBalance>;
     isConnected: boolean;
     lastEventTime: number;
+    lastOrderEvent: OrderEvent | null;
     getPosition: (symbol: string) => RealtimePosition | undefined;
     getUsdtBalance: () => RealtimeBalance | undefined;
   };
@@ -203,12 +205,24 @@ const AutoTradingPanel = ({
     }
   };
   
-  // 심볼 변경/초기 진입 시 미체결 주문 조회 (2초 간격으로 더 자주 갱신)
+  // 심볼 변경/초기 진입 시 미체결 주문 조회 (폴링 10초 - 실시간 이벤트로 보완)
   useEffect(() => {
     fetchOpenOrders(activeSymbol);
-    const interval = setInterval(() => fetchOpenOrders(activeSymbol), 2000);
+    const interval = setInterval(() => fetchOpenOrders(activeSymbol), 10000);
     return () => clearInterval(interval);
   }, [activeSymbol]);
+  
+  // 🚀 주문 이벤트 발생 시 미체결 주문 즉시 갱신
+  useEffect(() => {
+    if (!userDataStream?.lastOrderEvent) return;
+    
+    // 주문 상태가 변경되면 즉시 미체결 주문 목록 갱신
+    const event = userDataStream.lastOrderEvent;
+    if (event.symbol === activeSymbol || !activeSymbol) {
+      console.log(`🔄 [미체결 주문] ${event.type} 이벤트 → 주문 목록 갱신`);
+      fetchOpenOrders(activeSymbol);
+    }
+  }, [userDataStream?.lastOrderEvent, activeSymbol]);
   
   // 미체결 주문 변경 시 부모 컴포넌트에 알림
   useEffect(() => {
@@ -305,11 +319,28 @@ const AutoTradingPanel = ({
     }
   };
   
-  // 잔고 주기적 갱신 (5초 간격으로 더 빠르게)
+  // 🚀 User Data Stream 실시간 잔고 반영 (폴링 대폭 축소)
+  const realtimeUsdtBalance = useMemo(() => {
+    return userDataStream?.getUsdtBalance();
+  }, [userDataStream?.lastEventTime]);
+  
+  // User Data Stream 잔고가 있으면 즉시 반영
+  useEffect(() => {
+    if (realtimeUsdtBalance && realtimeUsdtBalance.walletBalance > 0) {
+      const newBalance = realtimeUsdtBalance.walletBalance;
+      if (Math.abs(newBalance - balanceUSD) > 0.01) {
+        console.log(`💰 [실시간 잔고] ${balanceUSD.toFixed(2)} → ${newBalance.toFixed(2)} (변동: ${realtimeUsdtBalance.balanceChange.toFixed(2)})`);
+        setBalanceUSD(newBalance);
+        onBalanceChange?.(newBalance);
+      }
+    }
+  }, [realtimeUsdtBalance]);
+  
+  // 잔고 주기적 갱신 (30초로 축소 - User Data Stream이 있으므로)
   useEffect(() => {
     if (!user) return;
     fetchRealBalance();
-    const intervalId = setInterval(fetchRealBalance, 5000);
+    const intervalId = setInterval(fetchRealBalance, 30000);
     return () => clearInterval(intervalId);
   }, [user]);
   
@@ -322,6 +353,44 @@ const AutoTradingPanel = ({
       return () => clearTimeout(timer);
     }
   }, [refreshTrigger]);
+  
+  // 🔔 주문 체결/취소 실시간 알림
+  const lastProcessedOrderRef = useRef<string | null>(null);
+  
+  useEffect(() => {
+    if (!userDataStream?.lastOrderEvent) return;
+    
+    const event = userDataStream.lastOrderEvent;
+    const eventKey = `${event.symbol}-${event.type}-${event.timestamp}`;
+    
+    // 중복 처리 방지
+    if (lastProcessedOrderRef.current === eventKey) return;
+    lastProcessedOrderRef.current = eventKey;
+    
+    const sideText = event.side === 'BUY' ? '롱' : '숏';
+    const priceText = event.avgPrice > 0 ? event.avgPrice.toFixed(4) : event.price.toFixed(4);
+    
+    if (event.type === 'FILLED') {
+      const rpText = event.realizedProfit !== 0 
+        ? ` | 실현손익: $${event.realizedProfit.toFixed(2)}`
+        : '';
+      toast.success(`✅ 체결완료: ${event.symbol} ${sideText} @ ${priceText}${rpText}`, {
+        duration: 4000,
+      });
+    } else if (event.type === 'PARTIALLY_FILLED') {
+      toast.info(`📊 부분체결: ${event.symbol} ${sideText} ${event.filledQty} @ ${priceText}`, {
+        duration: 3000,
+      });
+    } else if (event.type === 'CANCELED') {
+      toast.warning(`❌ 주문취소: ${event.symbol} ${sideText}`, {
+        duration: 3000,
+      });
+    } else if (event.type === 'EXPIRED') {
+      toast.warning(`⏰ 주문만료: ${event.symbol} ${sideText}`, {
+        duration: 3000,
+      });
+    }
+  }, [userDataStream?.lastOrderEvent]);
   
   // 포지션 상태 변경 시 잔고 즉시 갱신
   useEffect(() => {
