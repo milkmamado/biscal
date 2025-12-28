@@ -133,7 +133,7 @@ const AutoTradingPanel = ({
 }: AutoTradingPanelProps) => {
   const { isEnabled, isProcessing, currentPosition, pendingSignal, todayStats, tradeLogs, aiAnalysis, isAiAnalyzing, aiEnabled, pendingDTFXSignal } = state;
   const { user, signOut } = useAuth();
-  const { getBalances, getIncomeHistory, getOpenOrders, cancelOrder, cancelAllOrders } = useBinanceApi();
+  const { getBalances, getOpenOrders, cancelOrder, cancelAllOrders } = useBinanceApi();
   
   const handleSignOut = async () => {
     await signOut();
@@ -253,43 +253,52 @@ const AutoTradingPanel = ({
     return `${koreaTime.getFullYear()}-${String(koreaTime.getMonth() + 1).padStart(2, '0')}-${String(koreaTime.getDate()).padStart(2, '0')}`;
   };
   
-  const fetchTodayRealizedPnL = async (currentBalance: number) => {
+  // 🚀 잔고 기반 자체 계산 (API 호출 없이 즉시 반영)
+  // 계산식: 오늘 실현손익 = 현재 잔고 - 전일 종가 잔고
+  const calculateRealizedPnL = async (currentBalance: number) => {
     try {
-      const todayMidnight = getTodayMidnightKST();
-      const now = Date.now();
-      const incomeHistory = await getIncomeHistory(todayMidnight, now);
-      if (!incomeHistory || !Array.isArray(incomeHistory)) return;
-      
-      const transferItems = incomeHistory.filter((item: any) => item.incomeType === 'TRANSFER');
-      const deposits = transferItems.filter((item: any) => parseFloat(item.income || 0) > 0)
-        .reduce((sum: number, item: any) => sum + parseFloat(item.income || 0), 0);
-      const withdrawals = transferItems.filter((item: any) => parseFloat(item.income || 0) < 0)
-        .reduce((sum: number, item: any) => sum + Math.abs(parseFloat(item.income || 0)), 0);
-      
-      const tradingIncomeTypes = ['REALIZED_PNL', 'COMMISSION', 'FUNDING_FEE'];
-      const realizedFromBinance = incomeHistory
-        .filter((item: any) => tradingIncomeTypes.includes(item.incomeType))
-        .reduce((sum: number, item: any) => sum + parseFloat(item.income || 0), 0);
-      
-      setTodayDeposits(deposits);
-      setTodayRealizedPnL(realizedFromBinance);
-      const startBalance = currentBalance - realizedFromBinance - deposits + withdrawals;
-      setPreviousDayBalance(startBalance);
-      
       const { data: { user: authUser } } = await supabase.auth.getUser();
-      if (authUser) {
-        await supabase.from('daily_balance_snapshots').upsert({
-          user_id: authUser.id,
-          snapshot_date: getTodayDate(),
-          closing_balance_usd: currentBalance,
-          daily_income_usd: realizedFromBinance,
-          deposit_usd: deposits,
-          withdrawal_usd: withdrawals,
-          is_testnet: false,
-        }, { onConflict: 'user_id,snapshot_date,is_testnet' });
+      if (!authUser) return;
+      
+      const today = getTodayDate();
+      
+      // 어제 날짜 계산
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
+      
+      // 전일 잔고 조회 (DB에서)
+      const { data: yesterdaySnapshot } = await supabase
+        .from('daily_balance_snapshots')
+        .select('closing_balance_usd')
+        .eq('user_id', authUser.id)
+        .eq('snapshot_date', yesterdayStr)
+        .eq('is_testnet', false)
+        .maybeSingle();
+      
+      if (yesterdaySnapshot) {
+        const prevBalance = yesterdaySnapshot.closing_balance_usd;
+        setPreviousDayBalance(prevBalance);
+        
+        // 자체 계산: 현재 잔고 - 전일 잔고 = 오늘 손익 (입출금 제외는 별도 처리 필요 시 추가)
+        const calculatedPnL = currentBalance - prevBalance;
+        setTodayRealizedPnL(calculatedPnL);
+      } else {
+        // 전일 데이터 없으면 현재 잔고를 기준으로
+        setPreviousDayBalance(currentBalance);
+        setTodayRealizedPnL(0);
       }
+      
+      // 현재 잔고 스냅샷 저장 (매번 업데이트)
+      await supabase.from('daily_balance_snapshots').upsert({
+        user_id: authUser.id,
+        snapshot_date: today,
+        closing_balance_usd: currentBalance,
+        is_testnet: false,
+      }, { onConflict: 'user_id,snapshot_date,is_testnet' });
+      
     } catch (error) {
-      console.error('Failed to fetch realized PnL:', error);
+      console.error('Failed to calculate realized PnL:', error);
     }
   };
   
@@ -309,8 +318,8 @@ const AutoTradingPanel = ({
         setBalanceUSD(totalBalance);
         onBalanceChange?.(totalBalance);  // 총 잔고 기준으로 95% 계산
 
-        // 바이낸스 income history 조회
-        fetchTodayRealizedPnL(totalBalance);
+        // 잔고 기반 자체 계산 (API 호출 없이 즉시)
+        calculateRealizedPnL(totalBalance);
       }
     } catch (error) {
       console.error('Failed to fetch balance:', error);
