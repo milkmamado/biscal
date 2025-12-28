@@ -109,13 +109,7 @@ export default function WatchlistPanel({ currentSymbol, onSelectSymbol }: Watchl
             </div>
           ) : (
             <>
-              <div 
-                className="max-h-[200px] overflow-y-scroll overscroll-contain scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent"
-                style={{ 
-                  WebkitOverflowScrolling: 'touch',
-                }}
-              >
-                <div className="p-1 space-y-0.5">
+              <div className="p-1 space-y-0.5">
                   {watchlist.map((item) => (
                     <div
                       key={item.symbol}
@@ -141,7 +135,6 @@ export default function WatchlistPanel({ currentSymbol, onSelectSymbol }: Watchl
                     </div>
                   ))}
                 </div>
-              </div>
               
               {/* 전체 삭제 버튼 */}
               {watchlist.length > 3 && (
