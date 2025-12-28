@@ -110,10 +110,9 @@ export default function WatchlistPanel({ currentSymbol, onSelectSymbol }: Watchl
           ) : (
             <>
               <div 
-                className="max-h-[200px] overflow-y-auto overscroll-contain"
+                className="max-h-[200px] overflow-y-scroll overscroll-contain scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent"
                 style={{ 
                   WebkitOverflowScrolling: 'touch',
-                  touchAction: 'pan-y',
                 }}
               >
                 <div className="p-1 space-y-0.5">
