@@ -13,7 +13,7 @@ import { supabase } from '@/integrations/supabase/client';
 import DualChartPanel from '@/components/DualChartPanel';
 import AutoTradingPanel from '@/components/AutoTradingPanel';
 import ApiKeySetup from '@/components/ApiKeySetup';
-import TradingSettingsPanel, { calculateBalanceBasedRisk } from '@/components/TradingSettingsPanel';
+import TradingSettingsPanel from '@/components/TradingSettingsPanel';
 import SignalScannerPanel from '@/components/SignalScannerPanel';
 import ScalpingRatingPanel from '@/components/ScalpingRatingPanel';
 import WatchlistPanel from '@/components/WatchlistPanel';
@@ -37,8 +37,6 @@ const Index = () => {
   const [dtfxEnabled, setDtfxEnabled] = useState(false); // DTFX 차트 표시 토글
   const [stopLossUsdt, setStopLossUsdt] = useState(1.5); // 기본 1.5 USDT 손절 (한틱손절 방지)
   const [takeProfitUsdt, setTakeProfitUsdt] = useState(2.0); // 기본 2.0 USDT 익절
-  const [autoAdjustEnabled, setAutoAdjustEnabled] = useState(true); // 잔고 연동 기본 ON
-  const autoAdjustEnabledRef = useRef(autoAdjustEnabled); // Ref로 최신 상태 추적
   
   // 미체결 주문 상태 (차트에 표시용)
   const [openOrders, setOpenOrders] = useState<{ orderId: number; price: number; side: 'BUY' | 'SELL'; origQty: number; executedQty: number; }[]>([]);
@@ -253,25 +251,8 @@ const Index = () => {
   
   const handleBalanceChange = useCallback((balance: number) => {
     setBalanceUSD(balance);
-    
-    // Ref를 사용하여 최신 autoAdjustEnabled 상태 확인
-    if (autoAdjustEnabledRef.current && balance > 0) {
-      const { stopLoss, takeProfit } = calculateBalanceBasedRisk(balance);
-      setStopLossUsdt(stopLoss);
-      setTakeProfitUsdt(takeProfit);
-    }
-  }, []); // dependency 제거 - ref 사용으로 항상 최신 값 참조
+  }, []);
   
-  // 자동 조정 토글 시 즉시 반영
-  const handleToggleAutoAdjust = useCallback((enabled: boolean) => {
-    setAutoAdjustEnabled(enabled);
-    autoAdjustEnabledRef.current = enabled; // Ref도 업데이트
-    if (enabled && balanceUSD > 0) {
-      const { stopLoss, takeProfit } = calculateBalanceBasedRisk(balanceUSD);
-      setStopLossUsdt(stopLoss);
-      setTakeProfitUsdt(takeProfit);
-    }
-  }, [balanceUSD]);
 
   const handleSignOut = async () => {
     await signOut();
