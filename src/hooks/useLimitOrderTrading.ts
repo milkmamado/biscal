@@ -14,7 +14,7 @@ import { useBinanceApi } from './useBinanceApi';
 import { useAuth } from './useAuth';
 import { useMarketAnalysis } from './useMarketAnalysis';
 import { TechnicalIndicators, checkLongSignal, checkShortSignal, calculateAllIndicators } from './useTechnicalIndicators';
-import { initAudio, playEntrySound, playTpSound, playSlSound } from '@/lib/sounds';
+import { initAudio, playTpSound, playSlSound } from '@/lib/sounds';
 import { fetchSymbolPrecision, roundQuantity, roundPrice } from '@/lib/binance';
 import {
   LIMIT_ORDER_CONFIG,
@@ -534,10 +534,9 @@ export function useLimitOrderTrading({
            const shouldEnsure = isBrandNewPosition || qtyChanged || priceChanged || !hasEverAttempted;
 
            if (shouldEnsure) {
-             // 신규 포지션일 때만 진입 사운드 1회
+             // 신규 포지션 감지 시 동기화 키 업데이트
              if (isBrandNewPosition && slTpSettingInProgressRef.current !== posKey && isMounted) {
                slTpSettingInProgressRef.current = posKey;
-               if (isMounted) playEntrySound();
              }
 
              await ensureServerSlTpOrders({ symbol, side, qty, avgPrice: entryPrice, positionSide });
@@ -1281,7 +1280,7 @@ export function useLimitOrderTrading({
         console.log(`📊 [바이낸스 포지션 확인] 수량=${finalQty} 평단=${finalAvgPrice} PnL=$${unrealizedPnl.toFixed(2)}`);
       }
       
-      playEntrySound();
+      // 진입 사운드 삭제됨
       
       // ===== 바이낸스에 STOP_MARKET / TAKE_PROFIT_MARKET 주문 설정 =====
       const closeSide = direction === 'long' ? 'SELL' : 'BUY';
@@ -1541,7 +1540,7 @@ export function useLimitOrderTrading({
         }
       }
 
-      playEntrySound();
+      // 진입 사운드 삭제됨
       toast.success(`${symbol.replace('USDT', '')} 지정가 주문 완료`, {
         description: `${direction === 'long' ? '롱' : '숏'} ${splitCount}분할 @ ${roundedPrice}`,
       });
