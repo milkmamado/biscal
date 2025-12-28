@@ -744,6 +744,9 @@ const AutoTradingPanel = ({
             <span className="text-[10px] lg:text-xs font-mono font-semibold text-cyan-300">
               {balanceLoading ? '...' : `₩${formatKRW(balanceUSD)}`}
             </span>
+            <button onClick={fetchRealBalance} className="p-0.5 hover:bg-cyan-500/20 rounded">
+              <RefreshCw className={cn("w-2 h-2 text-cyan-400/60", balanceLoading && "animate-spin")} />
+            </button>
           </div>
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1">
