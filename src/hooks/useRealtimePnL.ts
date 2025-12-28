@@ -176,7 +176,11 @@ export const useRealtimePnL = (
       return;
     }
 
-    if (lastSymbolRef.current !== position.symbol) {
+    // 포지션이 생겼을 때: WebSocket이 없거나 심볼이 바뀌었으면 연결
+    const needsConnection = !wsRef.current || lastSymbolRef.current !== position.symbol;
+    
+    if (needsConnection) {
+      console.log(`[실시간PnL] 포지션 감지 → WebSocket 연결 시작: ${position.symbol}`);
       lastSymbolRef.current = position.symbol;
       connectWebSocket(position.symbol);
     }
