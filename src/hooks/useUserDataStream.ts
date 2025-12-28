@@ -45,13 +45,36 @@ interface OrderTradeUpdateEvent {
   T: number;
   o: {
     s: string; // Symbol
-    S: string; // Side
+    S: string; // Side (BUY/SELL)
     o: string; // Order type
     q: string; // Original qty
     p: string; // Original price
-    X: string; // Order status
+    ap: string; // Average price
+    X: string; // Order status (NEW, FILLED, CANCELED, etc.)
+    x: string; // Execution type (NEW, TRADE, CANCELED, etc.)
     rp: string; // Realized profit
+    l: string; // Last filled qty
+    L: string; // Last filled price
+    n: string; // Commission
+    N: string; // Commission asset
+    ps: string; // Position side (BOTH, LONG, SHORT)
   };
+}
+
+// 주문 이벤트 (외부에 emit)
+export interface OrderEvent {
+  type: 'NEW' | 'FILLED' | 'PARTIALLY_FILLED' | 'CANCELED' | 'EXPIRED';
+  symbol: string;
+  side: 'BUY' | 'SELL';
+  orderType: string;
+  quantity: number;
+  price: number;
+  avgPrice: number;
+  filledQty: number;
+  realizedProfit: number;
+  commission: number;
+  positionSide: string;
+  timestamp: number;
 }
 
 export interface RealtimePosition {
@@ -78,6 +101,8 @@ interface UserDataStreamResult {
   balances: Map<string, RealtimeBalance>;
   isConnected: boolean;
   lastEventTime: number;
+  // 최신 주문 이벤트 (체결/취소 등)
+  lastOrderEvent: OrderEvent | null;
 }
 
 export const useUserDataStream = () => {
@@ -87,6 +112,7 @@ export const useUserDataStream = () => {
     balances: new Map(),
     isConnected: false,
     lastEventTime: 0,
+    lastOrderEvent: null,
   });
   
   const wsRef = useRef<WebSocket | null>(null);
@@ -197,10 +223,47 @@ export const useUserDataStream = () => {
         });
       }
       
-      // ORDER_TRADE_UPDATE: 주문 체결
+      // ORDER_TRADE_UPDATE: 주문 체결/취소/신규 등
       else if (data.e === 'ORDER_TRADE_UPDATE') {
         const update = data as OrderTradeUpdateEvent;
-        console.log(`📦 [UserDataStream] ORDER_TRADE_UPDATE: ${update.o.s} ${update.o.S} ${update.o.X}`);
+        const orderInfo = update.o;
+        
+        // 주문 상태를 OrderEvent type으로 매핑
+        let eventType: OrderEvent['type'] = 'NEW';
+        if (orderInfo.X === 'FILLED') {
+          eventType = 'FILLED';
+        } else if (orderInfo.X === 'PARTIALLY_FILLED') {
+          eventType = 'PARTIALLY_FILLED';
+        } else if (orderInfo.X === 'CANCELED') {
+          eventType = 'CANCELED';
+        } else if (orderInfo.X === 'EXPIRED') {
+          eventType = 'EXPIRED';
+        } else if (orderInfo.X === 'NEW') {
+          eventType = 'NEW';
+        }
+        
+        const orderEvent: OrderEvent = {
+          type: eventType,
+          symbol: orderInfo.s,
+          side: orderInfo.S as 'BUY' | 'SELL',
+          orderType: orderInfo.o,
+          quantity: parseFloat(orderInfo.q),
+          price: parseFloat(orderInfo.p),
+          avgPrice: parseFloat(orderInfo.ap),
+          filledQty: parseFloat(orderInfo.l),
+          realizedProfit: parseFloat(orderInfo.rp),
+          commission: parseFloat(orderInfo.n),
+          positionSide: orderInfo.ps,
+          timestamp: update.E,
+        };
+        
+        console.log(`📦 [UserDataStream] ORDER_TRADE_UPDATE: ${orderInfo.s} ${orderInfo.S} ${orderInfo.X} qty=${orderInfo.q} price=${orderInfo.ap || orderInfo.p} rp=${orderInfo.rp}`);
+        
+        setResult(prev => ({
+          ...prev,
+          lastOrderEvent: orderEvent,
+          lastEventTime: update.E,
+        }));
       }
       
       // listenKey 만료 경고
@@ -319,6 +382,7 @@ export const useUserDataStream = () => {
       balances: new Map(),
       isConnected: false,
       lastEventTime: 0,
+      lastOrderEvent: null,
     });
   }, []);
 

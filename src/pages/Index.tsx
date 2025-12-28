@@ -7,6 +7,7 @@ import { useCoinScreening } from '@/hooks/useCoinScreening';
 import { useTickerWebSocket } from '@/hooks/useTickerWebSocket';
 import { useWakeLock } from '@/hooks/useWakeLock';
 import { useUserDataStream } from '@/hooks/useUserDataStream';
+import { toast } from 'sonner';
 
 import { supabase } from '@/integrations/supabase/client';
 import DualChartPanel from '@/components/DualChartPanel';
@@ -94,6 +95,46 @@ const Index = () => {
       takeProfitUsdt,
     },
   });
+  
+  // 🔔 외부 청산 감지 (바이낸스 앱 등에서 직접 청산 시)
+  const prevPositionSymbolRef = useRef<string | null>(null);
+  
+  useEffect(() => {
+    if (!userDataStream.isConnected) return;
+    
+    const currentLocalPosition = autoTrading.state.currentPosition;
+    const posSymbol = currentLocalPosition?.symbol;
+    
+    // 로컬에서 포지션 추적 중인 경우
+    if (posSymbol) {
+      prevPositionSymbolRef.current = posSymbol;
+      
+      // User Data Stream에서 해당 심볼 포지션 확인
+      const streamPosition = userDataStream.getPosition(posSymbol);
+      
+      // 로컬엔 있는데 스트림에서 사라졌으면 → 외부 청산!
+      if (!streamPosition && currentLocalPosition?.entryPhase === 'active') {
+        console.log(`🚨 [외부 청산 감지] ${posSymbol} 포지션이 외부에서 청산됨!`);
+        toast.warning(`📢 ${posSymbol} 외부 청산 감지`, {
+          description: '바이낸스 앱 또는 다른 곳에서 포지션이 청산되었습니다.',
+          duration: 5000,
+        });
+        
+        // 내부 상태 초기화 (closePosition 호출 시 실제 청산 시도하므로 상태만 정리)
+        handleTradeComplete();
+      }
+    }
+    
+    // 이전 포지션 심볼이 있고, 지금 로컬 포지션이 없는데 스트림에도 없으면 청산 완료
+    if (prevPositionSymbolRef.current && !currentLocalPosition) {
+      const prevSymbol = prevPositionSymbolRef.current;
+      const streamPosition = userDataStream.getPosition(prevSymbol);
+      
+      if (!streamPosition) {
+        prevPositionSymbolRef.current = null;
+      }
+    }
+  }, [userDataStream.lastEventTime, userDataStream.isConnected, autoTrading.state.currentPosition, handleTradeComplete]);
   
   // 자동매매 중 절전 방지
   useWakeLock(autoTrading.state.isEnabled);
