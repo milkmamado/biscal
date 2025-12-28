@@ -17,7 +17,6 @@ import TradingSettingsPanel, { calculateBalanceBasedRisk } from '@/components/Tr
 import SignalScannerPanel from '@/components/SignalScannerPanel';
 import ScalpingRatingPanel from '@/components/ScalpingRatingPanel';
 import WatchlistPanel from '@/components/WatchlistPanel';
-import BiscalLogo from '@/components/BiscalLogo';
 import { Button } from '@/components/ui/button';
 
 
@@ -444,7 +443,6 @@ const Index = () => {
             currentSymbol={selectedSymbol}
             onSelectSymbol={setSelectedSymbol}
           />
-          <BiscalLogo />
         </div>
       </div>
     </div>
