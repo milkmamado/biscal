@@ -32,13 +32,7 @@ interface TradingSettingsProps {
   
   // 상태
   isAutoTradingEnabled: boolean;
-  
-  // 잔고 기반 자동 조정
-  balanceUSD?: number;
-  autoAdjustEnabled?: boolean;
-  onToggleAutoAdjust?: (enabled: boolean) => void;
 }
-
 export function TradingSettingsPanel({
   dtfxEnabled,
   onToggleDtfx,
@@ -47,9 +41,6 @@ export function TradingSettingsPanel({
   takeProfitUsdt,
   onTakeProfitChange,
   isAutoTradingEnabled,
-  balanceUSD = 0,
-  autoAdjustEnabled = false,
-  onToggleAutoAdjust,
 }: TradingSettingsProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   
@@ -66,8 +57,6 @@ export function TradingSettingsPanel({
     setLocalTakeProfit(String(takeProfitUsdt));
   }, [takeProfitUsdt]);
   
-  // 잔고 기반 자동 조정 시 권장 손익 계산
-  const recommendedRisk = calculateBalanceBasedRisk(balanceUSD);
   
   const applyStopLoss = () => {
     const value = Number(localStopLoss);
@@ -145,37 +134,11 @@ export function TradingSettingsPanel({
               <span className="text-[10px] font-semibold text-blue-400">손익 설정</span>
             </div>
 
-            {/* 잔고 기반 자동 조정 토글 */}
-            {onToggleAutoAdjust && balanceUSD > 0 && (
-              <div className="flex items-center justify-between px-2 py-1.5 rounded bg-gradient-to-r from-cyan-500/10 to-blue-500/10 border border-cyan-500/30 mb-2">
-                <div className="flex items-center gap-1">
-                  <Zap className="w-3 h-3 text-cyan-400" />
-                  <span className="text-[10px] text-foreground font-semibold">잔고 연동</span>
-                  <span className="text-[8px] text-muted-foreground">(${balanceUSD.toFixed(0)})</span>
-                </div>
-                <Switch
-                  checked={autoAdjustEnabled}
-                  onCheckedChange={onToggleAutoAdjust}
-                  className="scale-75"
-                />
-              </div>
-            )}
-
-            {/* 자동 조정 시 권장값 표시 */}
-            {autoAdjustEnabled && balanceUSD > 0 && (
-              <div className="text-[9px] text-cyan-400/80 bg-cyan-500/10 rounded px-2 py-1 mb-2">
-                💡 권장: 손절 ${recommendedRisk.stopLoss.toFixed(2)} / 익절 ${recommendedRisk.takeProfit.toFixed(2)} (예수금의 1.5%)
-              </div>
-            )}
-
             {/* 손절 설정 (USDT) */}
             <div className="space-y-2">
               <div className="flex items-center gap-1">
                 <Shield className="w-3 h-3 text-red-400" />
                 <span className="text-[10px] font-semibold text-red-400">손절 설정</span>
-                {autoAdjustEnabled && (
-                  <span className="text-[8px] text-cyan-400 ml-auto">자동</span>
-                )}
               </div>
 
               <div className="flex items-center gap-2">
@@ -193,31 +156,28 @@ export function TradingSettingsPanel({
                         (e.target as HTMLInputElement).blur();
                       }
                     }}
-                    disabled={autoAdjustEnabled}
-                    className="h-7 text-[10px] text-right font-mono bg-background/50 disabled:opacity-60"
+                    className="h-7 text-[10px] text-right font-mono bg-background/50"
                   />
                   <span className="text-[10px] text-muted-foreground">USDT</span>
                 </div>
               </div>
 
               {/* 손절 빠른 선택 버튼 */}
-              {!autoAdjustEnabled && (
-                <div className="flex gap-1">
-                  {[5, 10, 15, 20, 30].map((val) => (
-                    <button
-                      key={val}
-                      onClick={() => onStopLossChange(val)}
-                      className={`flex-1 py-1 text-[9px] rounded border transition-colors ${
-                        stopLossUsdt === val
-                          ? 'bg-red-500/20 border-red-500/50 text-red-400'
-                          : 'bg-background/30 border-border/30 text-muted-foreground hover:border-red-500/30'
-                      }`}
-                    >
-                      ${val}
-                    </button>
-                  ))}
-                </div>
-              )}
+              <div className="flex gap-1">
+                {[5, 10, 15, 20, 30].map((val) => (
+                  <button
+                    key={val}
+                    onClick={() => onStopLossChange(val)}
+                    className={`flex-1 py-1 text-[9px] rounded border transition-colors ${
+                      stopLossUsdt === val
+                        ? 'bg-red-500/20 border-red-500/50 text-red-400'
+                        : 'bg-background/30 border-border/30 text-muted-foreground hover:border-red-500/30'
+                    }`}
+                  >
+                    ${val}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -226,9 +186,6 @@ export function TradingSettingsPanel({
             <div className="flex items-center gap-1">
               <Target className="w-3 h-3 text-green-400" />
               <span className="text-[10px] font-semibold text-green-400">익절 설정</span>
-              {autoAdjustEnabled && (
-                <span className="text-[8px] text-cyan-400 ml-auto">자동</span>
-              )}
             </div>
 
             <div className="flex items-center gap-2">
@@ -246,31 +203,28 @@ export function TradingSettingsPanel({
                       (e.target as HTMLInputElement).blur();
                     }
                   }}
-                  disabled={autoAdjustEnabled}
-                  className="h-7 text-[10px] text-right font-mono bg-background/50 disabled:opacity-60"
+                  className="h-7 text-[10px] text-right font-mono bg-background/50"
                 />
                 <span className="text-[10px] text-muted-foreground">USDT</span>
               </div>
             </div>
 
             {/* 익절 빠른 선택 버튼 */}
-            {!autoAdjustEnabled && (
-              <div className="flex gap-1">
-                {[5, 10, 15, 20, 30].map((val) => (
-                  <button
-                    key={val}
-                    onClick={() => onTakeProfitChange(val)}
-                    className={`flex-1 py-1 text-[9px] rounded border transition-colors ${
-                      takeProfitUsdt === val
-                        ? 'bg-green-500/20 border-green-500/50 text-green-400'
-                        : 'bg-background/30 border-border/30 text-muted-foreground hover:border-green-500/30'
-                    }`}
-                  >
-                    ${val}
-                  </button>
-                ))}
-              </div>
-            )}
+            <div className="flex gap-1">
+              {[5, 10, 15, 20, 30].map((val) => (
+                <button
+                  key={val}
+                  onClick={() => onTakeProfitChange(val)}
+                  className={`flex-1 py-1 text-[9px] rounded border transition-colors ${
+                    takeProfitUsdt === val
+                      ? 'bg-green-500/20 border-green-500/50 text-green-400'
+                      : 'bg-background/30 border-border/30 text-muted-foreground hover:border-green-500/30'
+                  }`}
+                >
+                  ${val}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* 자동매매 중 안내 */}

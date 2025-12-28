@@ -434,9 +434,6 @@ const Index = () => {
             takeProfitUsdt={takeProfitUsdt}
             onTakeProfitChange={setTakeProfitUsdt}
             isAutoTradingEnabled={autoTrading.state.isEnabled}
-            balanceUSD={balanceUSD}
-            autoAdjustEnabled={autoAdjustEnabled}
-            onToggleAutoAdjust={handleToggleAutoAdjust}
           />
           <ScalpingRatingPanel />
           <WatchlistPanel 
