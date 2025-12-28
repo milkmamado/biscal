@@ -6,6 +6,7 @@ import { useLimitOrderTrading } from '@/hooks/useLimitOrderTrading';
 import { useCoinScreening } from '@/hooks/useCoinScreening';
 import { useTickerWebSocket } from '@/hooks/useTickerWebSocket';
 import { useWakeLock } from '@/hooks/useWakeLock';
+import { useUserDataStream } from '@/hooks/useUserDataStream';
 
 import { supabase } from '@/integrations/supabase/client';
 import DualChartPanel from '@/components/DualChartPanel';
@@ -60,6 +61,9 @@ const Index = () => {
   // Only connect WebSocket when user is authenticated and API keys are ready
   const shouldConnectWebSocket = !!user && hasApiKeys === true;
   const { tickers } = useTickerWebSocket(shouldConnectWebSocket);
+  
+  // 🚀 User Data Stream - 실시간 포지션/잔고 업데이트 (바이낸스 앱 수준 속도)
+  const userDataStream = useUserDataStream();
   
   // 청산 후 즉시 잔고 갱신
   const handleTradeComplete = useCallback(() => {
@@ -360,6 +364,7 @@ const Index = () => {
             onOpenOrdersChange={setOpenOrders}
             onConfirmDTFXEntry={autoTrading.confirmDTFXEntry}
             onSkipDTFXSignal={autoTrading.skipDTFXSignal}
+            userDataStream={userDataStream}
           />
         </div>
 

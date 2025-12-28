@@ -13,6 +13,7 @@ import TradingRecordModal from './TradingRecordModal';
 import OrderBook from './OrderBook';
 import { LIMIT_ORDER_CONFIG } from '@/lib/limitOrderConfig';
 import { useRealtimePnL } from '@/hooks/useRealtimePnL';
+import { RealtimePosition, RealtimeBalance } from '@/hooks/useUserDataStream';
 
 // 스캘핑 시간대 적합도 데이터
 const getScalpingRating = () => {
@@ -84,6 +85,15 @@ interface AutoTradingPanelProps {
   // DTFX 진입 확인/스킵 핸들러
   onConfirmDTFXEntry?: () => void;
   onSkipDTFXSignal?: () => void;
+  // User Data Stream (실시간 포지션/잔고)
+  userDataStream?: {
+    positions: Map<string, RealtimePosition>;
+    balances: Map<string, RealtimeBalance>;
+    isConnected: boolean;
+    lastEventTime: number;
+    getPosition: (symbol: string) => RealtimePosition | undefined;
+    getUsdtBalance: () => RealtimeBalance | undefined;
+  };
 }
 
 const AutoTradingPanel = ({ 
@@ -117,6 +127,7 @@ const AutoTradingPanel = ({
   onOpenOrdersChange,
   onConfirmDTFXEntry,
   onSkipDTFXSignal,
+  userDataStream,
 }: AutoTradingPanelProps) => {
   const { isEnabled, isProcessing, currentPosition, pendingSignal, todayStats, tradeLogs, aiAnalysis, isAiAnalyzing, aiEnabled, pendingDTFXSignal } = state;
   const { user, signOut } = useAuth();
@@ -322,14 +333,26 @@ const AutoTradingPanel = ({
     }
   }, [currentPosition, user]);
   
-  // 🚀 실시간 PnL - WebSocket markPrice 기반 (바이낸스 앱 수준 반응 속도)
+  // 🚀 User Data Stream에서 해당 심볼의 포지션 데이터 가져오기
+  const userDataPosition = useMemo(() => {
+    if (!userDataStream || !currentPosition) return null;
+    const pos = userDataStream.getPosition(currentPosition.symbol);
+    if (!pos) return null;
+    return {
+      unrealizedPnl: pos.unrealizedPnl,
+      lastUpdate: pos.lastUpdate,
+    };
+  }, [userDataStream, currentPosition?.symbol, userDataStream?.lastEventTime]);
+  
+  // 🚀 실시간 PnL - User Data Stream + markPrice WebSocket 조합 (바이낸스 앱 수준 반응 속도)
   const realtimePnLData = useRealtimePnL(
     currentPosition && currentPosition.filledQuantity > 0 ? {
       symbol: currentPosition.symbol,
       side: currentPosition.side,
       avgPrice: currentPosition.avgPrice,
       quantity: currentPosition.filledQuantity,
-    } : null
+    } : null,
+    userDataPosition // User Data Stream PnL 전달
   );
   
   // 실시간 PnL 우선 사용, 폴백으로 REST API 값
