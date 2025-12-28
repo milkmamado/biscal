@@ -116,10 +116,9 @@ export function TradingSettingsPanel({
 
       {!isCollapsed && (
         <div 
-          className="p-3 space-y-4 max-h-[60vh] overflow-y-auto overscroll-contain"
+          className="p-3 space-y-4 max-h-[60vh] overflow-y-scroll overscroll-contain scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent"
           style={{ 
             WebkitOverflowScrolling: 'touch',
-            touchAction: 'pan-y',
           }}
         >
           {/* DTFX 설정 섹션 */}
