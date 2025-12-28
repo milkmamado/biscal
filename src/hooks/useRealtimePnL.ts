@@ -37,21 +37,17 @@ export const useRealtimePnL = (
     positionRef.current = position;
   }, [position]);
 
-  // PnL 자체 계산 (수수료 포함)
+  // PnL 자체 계산 (바이낸스 미실현 손익과 동일 - 수수료 미포함)
   const calculatePnL = useCallback((markPrice: number, pos: PositionData) => {
     const direction = pos.side === 'long' ? 1 : -1;
     const priceDiff = (markPrice - pos.avgPrice) * direction;
-    const grossPnl = priceDiff * pos.quantity;
+    const unrealizedPnl = priceDiff * pos.quantity;
     
-    // 수수료 차감 (진입 0.02% maker + 청산 0.05% taker)
+    // 진입 명목가치 기준 수익률 (레버리지 미반영)
     const entryNotional = pos.avgPrice * pos.quantity;
-    const exitNotional = markPrice * pos.quantity;
-    const totalFee = (entryNotional * 0.0002) + (exitNotional * 0.0005);
+    const pnlPercent = entryNotional > 0 ? (unrealizedPnl / entryNotional) * 100 : 0;
     
-    const netPnl = grossPnl - totalFee;
-    const pnlPercent = entryNotional > 0 ? (netPnl / entryNotional) * 100 : 0;
-    
-    return { unrealizedPnl: netPnl, pnlPercent };
+    return { unrealizedPnl, pnlPercent };
   }, []);
 
   // WebSocket 연결 (markPrice 스트림 - 100ms 간격)
