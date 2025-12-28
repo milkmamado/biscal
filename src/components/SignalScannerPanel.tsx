@@ -202,7 +202,6 @@ export function SignalScannerPanel({
                 ))}
               </SelectContent>
             </Select>
-            <span className="text-[8px] text-gray-600">(최대 {maxLeverage}x)</span>
           </div>
 
           {/* 분할 Select */}
