@@ -456,7 +456,8 @@ export const useUserDataStream = () => {
         lastOrderEvent: null,
       });
     };
-  }, [user?.id, createListenKey, keepaliveListenKey, cleanupConnection]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   // 특정 심볼의 포지션 조회
   const getPosition = useCallback((symbol: string): RealtimePosition | undefined => {
