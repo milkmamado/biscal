@@ -1,6 +1,7 @@
 /**
  * 종목 자동 스크리닝 훅
- * 스캘퍼 시스템: 변동폭 기반 단순 스캐닝
+ * 스캘퍼 시스템: 1분봉 변동폭 기반 단순 스캐닝
+ * - 현재 완성 중인 캔들 + 직전 2봉까지만 검출 (총 3봉)
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { TradingSignal } from './useTechnicalIndicators';
@@ -19,6 +20,16 @@ interface TickerData {
   volatilityRange: number;
 }
 
+// 1분봉 캔들 타입
+interface Candle1m {
+  time: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
 // 스크리닝 기준
 interface ScreeningCriteria {
   minVolume: number;         // 최소 거래량 (USD)
@@ -28,6 +39,9 @@ interface ScreeningCriteria {
   maxPrice: number;          // 최대 가격
   spreadThreshold: number;   // 스프레드 임계값 (%)
 }
+
+// 1분봉 변동폭 기준 (캔들 고저폭 %)
+const MIN_CANDLE_RANGE_PERCENT = 0.5; // 1분봉 캔들 변동폭 0.5% 이상
 
 // 잡코인 모드 기본값
 const ALTCOIN_CRITERIA: ScreeningCriteria = {
@@ -50,6 +64,66 @@ const MAJOR_CRITERIA: ScreeningCriteria = {
 };
 
 const DEFAULT_CRITERIA = ALTCOIN_CRITERIA;
+
+// 1분봉 데이터 조회 함수
+const fetch1mKlines = async (symbol: string, limit: number = 5): Promise<Candle1m[] | null> => {
+  try {
+    const res = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=1m&limit=${limit}`);
+    const data = await res.json();
+    return data.map((k: any) => ({
+      time: parseInt(k[0]),
+      open: parseFloat(k[1]),
+      high: parseFloat(k[2]),
+      low: parseFloat(k[3]),
+      close: parseFloat(k[4]),
+      volume: parseFloat(k[5]),
+    }));
+  } catch { return null; }
+};
+
+// 1분봉 캔들 변동폭 계산 (고가-저가 / 저가 * 100)
+function calculateCandleRangePercent(candle: Candle1m): number {
+  if (candle.low <= 0) return 0;
+  return ((candle.high - candle.low) / candle.low) * 100;
+}
+
+// 최근 3봉 중 변동폭 큰 캔들 찾기 (현재 + 직전 2봉)
+async function findRecentVolatileCandle(symbol: string): Promise<{
+  hasVolatileCandle: boolean;
+  maxRangePercent: number;
+  candleIndex: number; // 0 = 현재, 1 = 직전1봉, 2 = 직전2봉
+  direction: 'long' | 'short';
+} | null> {
+  const klines = await fetch1mKlines(symbol, 5); // 최근 5봉 가져오기 (안전하게)
+  if (!klines || klines.length < 3) return null;
+  
+  // 최근 3봉만 체크 (인덱스: length-1=현재, length-2=직전1봉, length-3=직전2봉)
+  let maxRange = 0;
+  let maxIndex = -1;
+  let direction: 'long' | 'short' = 'long';
+  
+  for (let i = 0; i < 3; i++) {
+    const idx = klines.length - 1 - i; // 현재, 직전1, 직전2
+    if (idx < 0) break;
+    
+    const candle = klines[idx];
+    const range = calculateCandleRangePercent(candle);
+    
+    if (range > maxRange) {
+      maxRange = range;
+      maxIndex = i;
+      // 캔들 방향: 종가 > 시가면 양봉(롱), 아니면 음봉(숏)
+      direction = candle.close >= candle.open ? 'long' : 'short';
+    }
+  }
+  
+  return {
+    hasVolatileCandle: maxRange >= MIN_CANDLE_RANGE_PERCENT,
+    maxRangePercent: maxRange,
+    candleIndex: maxIndex,
+    direction,
+  };
+}
 
 // 변동성 스코어 계산
 function calculateVolatilityScore(volatility: number, volume: number): number {
@@ -193,19 +267,26 @@ export function useCoinScreening(
       const displaySymbols = scored.slice(0, 8).map(s => s.symbol.replace('USDT', '')).join(', ');
       addScreeningLog('filter', `분석 대상: ${displaySymbols}${scored.length > 8 ? '...' : ''}`)
 
-      // 변동폭 기준 시그널 생성 (가장 변동폭 높은 종목 = 첫 번째)
+      // 🆕 1분봉 변동폭 기준 시그널 생성 (최근 3봉만 체크)
       const analyzed: ScreenedSymbol[] = [];
       const signals: TradingSignal[] = [];
 
-      // 상위 변동폭 종목들 시그널 생성
-      for (let i = 0; i < Math.min(scored.length, 5); i++) {
+      addScreeningLog('analyze', `1분봉 변동폭 분석 중... (최근 3봉)`);
+
+      // 상위 거래량/변동성 종목들에서 1분봉 변동폭 체크
+      for (let i = 0; i < Math.min(scored.length, 15); i++) {
         const t = scored[i];
         
-        // 변동폭 기준 방향 추정 (가격 변화율로 판단)
-        const ticker = currentTickers.find(tk => tk.symbol === t.symbol);
-        const priceChange = ticker?.priceChangePercent || 0;
-        const direction = priceChange >= 0 ? 'long' : 'short';
-        const strength = t.volatilityScore >= 80 ? 'strong' : t.volatilityScore >= 60 ? 'medium' : 'weak';
+        // 1분봉 변동폭 체크 (현재 + 직전 2봉)
+        const volatileResult = await findRecentVolatileCandle(t.symbol);
+        
+        if (!volatileResult || !volatileResult.hasVolatileCandle) {
+          continue; // 최근 3봉에 변동폭 캔들 없으면 스킵
+        }
+        
+        const { maxRangePercent, candleIndex, direction } = volatileResult;
+        const candleLabel = candleIndex === 0 ? '현재봉' : `직전${candleIndex}봉`;
+        const strength = maxRangePercent >= 1.0 ? 'strong' : maxRangePercent >= 0.7 ? 'medium' : 'weak';
         
         const signal: TradingSignal = {
           symbol: t.symbol,
@@ -213,26 +294,31 @@ export function useCoinScreening(
           strength,
           price: t.price,
           reasons: [
-            `📊 변동폭 ${t.volatilityRange.toFixed(2)}%`,
+            `🕐 ${candleLabel} 변동폭 ${maxRangePercent.toFixed(2)}%`,
             `거래량 $${(t.volume / 1_000_000).toFixed(1)}M`,
-            `변동성 점수 ${t.volatilityScore.toFixed(0)}`,
           ],
           indicators: null as any,
           timestamp: Date.now(),
         };
         
         signals.push(signal);
-        addScreeningLog('approve', `${direction.toUpperCase()} 변동폭 ${t.volatilityRange.toFixed(2)}%`, t.symbol);
+        addScreeningLog('approve', `${direction.toUpperCase()} ${candleLabel} ${maxRangePercent.toFixed(2)}%`, t.symbol);
 
         analyzed.push({
           symbol: t.symbol,
           price: t.price,
           volume: t.volume,
-          volatilityRange: t.volatilityRange,
-          volatilityScore: t.volatilityScore,
+          volatilityRange: maxRangePercent, // 1분봉 변동폭으로 대체
+          volatilityScore: maxRangePercent * 100, // 변동폭 기반 스코어
           signal,
-          rank: i + 1,
+          rank: analyzed.length + 1,
         });
+        
+        // 최대 5개까지만 수집
+        if (analyzed.length >= 5) break;
+        
+        // API 부하 방지
+        await new Promise(resolve => setTimeout(resolve, 30));
       }
 
       if (!isMountedRef.current) return;
@@ -253,7 +339,7 @@ export function useCoinScreening(
         addScreeningLog('complete', `⏸️ 시그널 발견! 자동 스캔 일시정지 (패스하면 재개)`);
         addScreeningLog('approve', `${signals.map(s => `${s.symbol.replace('USDT', '')} ${s.direction.toUpperCase()}`).join(', ')}`);
       } else {
-        addScreeningLog('complete', `완료 - 시그널 없음 (${analyzed.length}개 분석)`);
+        addScreeningLog('complete', `완료 - 최근 3봉 변동폭 시그널 없음 (${scored.length}개 분석)`);
       }
 
     } catch (error) {
