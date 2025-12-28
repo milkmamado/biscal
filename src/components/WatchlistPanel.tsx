@@ -109,7 +109,7 @@ export default function WatchlistPanel({ currentSymbol, onSelectSymbol }: Watchl
             </div>
           ) : (
             <>
-              <div className="p-1 space-y-0.5">
+              <div className="p-1 space-y-0.5 max-h-32 overflow-y-auto">
                   {watchlist.map((item) => (
                     <div
                       key={item.symbol}

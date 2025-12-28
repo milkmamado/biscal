@@ -390,7 +390,7 @@ const Index = () => {
         </div>
 
         {/* Right - Settings Panel */}
-        <div className="col-span-2 flex flex-col min-h-0 overflow-auto gap-1">
+        <div className="col-span-2 flex flex-col min-h-0 overflow-y-auto gap-1 max-h-[calc(100vh-2rem)]">
           <SignalScannerPanel
             isEnabled={autoTrading.state.isEnabled}
             isProcessing={autoTrading.state.isProcessing}
