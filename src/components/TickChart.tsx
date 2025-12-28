@@ -140,6 +140,11 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
   const [dtfxCandles1m, setDtfxCandles1m] = useState<Candle[]>([]);
   const dtfxFetchIdRef = useRef<number>(0);
   
+  // DTFX 1분봉 WebSocket 관련 refs
+  const dtfx1mWsRef = useRef<WebSocket | null>(null);
+  const dtfx1mReconnectTimeoutRef = useRef<number | null>(null);
+  const dtfx1mConnIdRef = useRef(0);
+  
   // 나방 효과 상태
   const [mothVisible, setMothVisible] = useState(false);
   const [mothPhase, setMothPhase] = useState(0);
@@ -298,22 +303,33 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
     };
   }, [symbol, interval]);
 
-  // 🆕 DTFX 오버레이는 항상 1분봉으로 계산 (차트 분봉과 무관)
+  // 🆕 DTFX 오버레이는 항상 1분봉으로 계산 (차트 분봉과 무관) - WebSocket으로 실시간 업데이트
   useEffect(() => {
     if (!dtfxEnabled) {
       setDtfxCandles1m([]);
+      // WebSocket 정리
+      if (dtfx1mWsRef.current) {
+        try { dtfx1mWsRef.current.close(); } catch {}
+        dtfx1mWsRef.current = null;
+      }
+      if (dtfx1mReconnectTimeoutRef.current) {
+        window.clearTimeout(dtfx1mReconnectTimeoutRef.current);
+        dtfx1mReconnectTimeoutRef.current = null;
+      }
       return;
     }
 
-    const currentId = ++dtfxFetchIdRef.current;
+    const connId = ++dtfx1mConnIdRef.current;
+    const currentFetchId = ++dtfxFetchIdRef.current;
 
+    // 초기 1분봉 데이터 fetch
     const fetch1mForDTFX = async () => {
       try {
         const res = await fetch(
           `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=1m&limit=200`
         );
         const data = await res.json();
-        if (dtfxFetchIdRef.current !== currentId) return;
+        if (dtfxFetchIdRef.current !== currentFetchId || dtfx1mConnIdRef.current !== connId) return;
 
         if (Array.isArray(data)) {
           const candles1m: Candle[] = data.map((k: any[]) => ({
@@ -327,11 +343,92 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
           setDtfxCandles1m(candles1m);
         }
       } catch {
-        // 1m 오버레이 fetch 실패는 조용히 무시
+        // ignore
       }
     };
 
     fetch1mForDTFX();
+
+    // 1분봉 WebSocket 연결 (DTFX 존 실시간 업데이트)
+    const connect1mWs = () => {
+      if (dtfx1mConnIdRef.current !== connId) return;
+
+      const ws = new WebSocket(
+        `wss://fstream.binance.com/ws/${symbol.toLowerCase()}@kline_1m`
+      );
+      dtfx1mWsRef.current = ws;
+
+      const scheduleReconnect = () => {
+        if (dtfx1mConnIdRef.current !== connId) return;
+        if (dtfx1mReconnectTimeoutRef.current) return;
+        dtfx1mReconnectTimeoutRef.current = window.setTimeout(() => {
+          dtfx1mReconnectTimeoutRef.current = null;
+          connect1mWs();
+        }, 1000);
+      };
+
+      ws.onmessage = (event) => {
+        if (dtfx1mConnIdRef.current !== connId) return;
+        try {
+          const msg = JSON.parse(event.data);
+          const k = msg?.k;
+          if (!k || typeof k.t !== 'number') return;
+
+          const candle: Candle = {
+            time: k.t,
+            open: parseFloat(k.o),
+            high: parseFloat(k.h),
+            low: parseFloat(k.l),
+            close: parseFloat(k.c),
+            volume: parseFloat(k.v),
+          };
+
+          setDtfxCandles1m((prev) => {
+            if (prev.length === 0) return [candle];
+            const last = prev[prev.length - 1];
+
+            // 같은 봉 업데이트
+            if (last.time === candle.time) {
+              const next = prev.slice();
+              next[next.length - 1] = candle;
+              return next;
+            }
+
+            // 새 봉 시작 (DTFX 존이 새로 생길 수 있음!)
+            if (last.time < candle.time) {
+              return [...prev, candle].slice(-MAX_CANDLES);
+            }
+
+            return prev;
+          });
+        } catch {
+          // ignore
+        }
+      };
+
+      ws.onerror = () => {
+        if (dtfx1mConnIdRef.current !== connId) return;
+        scheduleReconnect();
+      };
+
+      ws.onclose = () => {
+        if (dtfx1mConnIdRef.current !== connId) return;
+        scheduleReconnect();
+      };
+    };
+
+    connect1mWs();
+
+    return () => {
+      if (dtfx1mReconnectTimeoutRef.current) {
+        window.clearTimeout(dtfx1mReconnectTimeoutRef.current);
+        dtfx1mReconnectTimeoutRef.current = null;
+      }
+      if (dtfx1mWsRef.current) {
+        try { dtfx1mWsRef.current.close(); } catch {}
+        dtfx1mWsRef.current = null;
+      }
+    };
   }, [symbol, dtfxEnabled]);
 
   // Kline WebSocket으로 실시간 봉 업데이트 (바이낸스 차트와 동일한 소스)
