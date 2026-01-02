@@ -1119,10 +1119,13 @@ export function useLimitOrderTrading({
     }
     
     // 잔고 부족 체크
-    if (balanceUSD <= 0) {
+    console.log(`💰 [잔고 체크] balanceUSD: ${balanceUSD}`);
+    if (!balanceUSD || balanceUSD <= 0) {
+      console.log('❌ [잔고 부족] 토스트 표시');
       toast.error('💸 잔고가 부족합니다', {
         description: '매수할 자금이 없습니다. 입금 후 다시 시도해주세요.',
-        duration: 4000,
+        duration: 5000,
+        position: 'bottom-right',
       });
       return;
     }
@@ -1382,10 +1385,13 @@ export function useLimitOrderTrading({
     }
     
     // 잔고 부족 체크
-    if (balanceUSD <= 0) {
+    console.log(`💰 [잔고 체크] balanceUSD: ${balanceUSD}`);
+    if (!balanceUSD || balanceUSD <= 0) {
+      console.log('❌ [잔고 부족] 토스트 표시');
       toast.error('💸 잔고가 부족합니다', {
         description: '매수할 자금이 없습니다. 입금 후 다시 시도해주세요.',
-        duration: 4000,
+        duration: 5000,
+        position: 'bottom-right',
       });
       return;
     }
