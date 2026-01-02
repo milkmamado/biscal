@@ -274,7 +274,6 @@ export function useAutoTrading({
   onTradeComplete,
   initialStats,
   logTrade,
-  majorCoinMode = false, // 🆕 메이저 코인 모드
 }: UseAutoTradingProps) {
   const { user } = useAuth();
   const {
@@ -285,13 +284,8 @@ export function useAutoTrading({
     setLeverage,
   } = useBinanceApi();
 
-  // 🆕 메이저 코인 모드에 따른 동적 설정
-  const tradingConfig = getTradingConfig(majorCoinMode);
-  const majorCoinModeRef = useRef(majorCoinMode);
-  
-  useEffect(() => {
-    majorCoinModeRef.current = majorCoinMode;
-  }, [majorCoinMode]);
+  // 메이저 코인 설정 (잡코인 모드 제거됨)
+  const tradingConfig = getTradingConfig();
 
   const [state, setState] = useState<AutoTradingState>({
     isEnabled: false,
@@ -305,7 +299,7 @@ export function useAutoTrading({
     cooldownUntil: null,
     lossProtectionEnabled: false, // 기본값 OFF
     tpPercent: 0.3,
-    statusMessage: majorCoinMode ? '메이저 코인 자동매매 비활성화' : '자동매매 비활성화',
+    statusMessage: '메이저 코인 자동매매 비활성화',
     scanningProgress: '',
     // 🤖 AI 분석 기본값
     aiAnalysis: null,
@@ -314,7 +308,6 @@ export function useAutoTrading({
   });
 
   // 🤖 AI 시장 분석 훅
-  const tradingMode = majorCoinMode ? 'MAJOR' : 'ALTCOIN';
   const { 
     analysis: aiAnalysisResult, 
     isAnalyzing: isAiAnalyzing, 
@@ -323,9 +316,8 @@ export function useAutoTrading({
     shouldAnalyze,
     resetAnalysis,
   } = useMarketAnalysis({ 
-    mode: tradingMode as 'MAJOR' | 'ALTCOIN', 
     enabled: state.isEnabled && state.aiEnabled,
-    showToasts: state.isEnabled, // 자동매매 켜져있을 때만 토스트 표시
+    showToasts: state.isEnabled,
   });
 
   // AI 분석 결과 동기화
@@ -378,10 +370,9 @@ export function useAutoTrading({
   const toggleAutoTrading = useCallback(() => {
     setState(prev => {
       const newEnabled = !prev.isEnabled;
-      const modeLabel = majorCoinModeRef.current ? '메이저 코인' : '잡코인';
       if (newEnabled) {
         initAudio();
-        console.log(`🤖 ${modeLabel} 스캘핑 시스템 시작`);
+        console.log(`🤖 메이저 코인 스캘핑 시스템 시작`);
       } else {
         console.log('자동매매 중지');
       }
@@ -389,7 +380,7 @@ export function useAutoTrading({
         ...prev,
         isEnabled: newEnabled,
         pendingSignal: null,
-        statusMessage: newEnabled ? `${modeLabel} 스캔 중...` : (majorCoinModeRef.current ? '메이저 코인 자동매매 비활성화' : '자동매매 비활성화'),
+        statusMessage: newEnabled ? `메이저 코인 스캔 중...` : '메이저 코인 자동매매 비활성화',
         scanningProgress: '',
       };
     });
@@ -455,7 +446,7 @@ export function useAutoTrading({
         }
       }
 
-      const currentConfig = getTradingConfig(isMajorCoin(position.symbol) && majorCoinModeRef.current);
+      const currentConfig = getTradingConfig();
       const feeRate = (currentConfig.FEE_RATE ?? CONFIG.FEE_RATE) / 100; // 0.05(%) -> 0.0005
 
       const direction = position.side === 'long' ? 1 : -1;
@@ -594,8 +585,8 @@ export function useAutoTrading({
     const priceDiff = (currentPrice - position.entryPrice) * direction;
     const pnlPercentRaw = (priceDiff / position.entryPrice) * 100;
     
-    // 🆕 현재 심볼이 메이저 코인인지 확인하여 동적 설정 사용
-    const currentConfig = getTradingConfig(isMajorCoin(position.symbol) && majorCoinModeRef.current);
+    // 메이저 코인 설정 사용
+    const currentConfig = getTradingConfig();
     
     // 🆕 수수료 반영 손익 (진입 0.05% + 청산 0.05% = 0.10%)
     const totalFeePercent = currentConfig.FEE_RATE * 2; // 왕복 수수료

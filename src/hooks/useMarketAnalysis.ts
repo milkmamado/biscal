@@ -27,7 +27,6 @@ export interface MarketAnalysisResult {
 }
 
 interface UseMarketAnalysisProps {
-  mode: TradingMode;
   enabled?: boolean;
   showToasts?: boolean; // 토스트 알림 표시 여부 (자동매매 켜진 경우에만 true)
 }
@@ -47,10 +46,10 @@ interface MarketDataForAI {
   recentTrades?: { pnl: number; symbol: string; side: string }[];
 }
 
-export function useMarketAnalysis({ mode, enabled = true, showToasts = false }: UseMarketAnalysisProps) {
+export function useMarketAnalysis({ enabled = true, showToasts = false }: UseMarketAnalysisProps) {
   const [analysis, setAnalysis] = useState<MarketAnalysisResult | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [dynamicConfig, setDynamicConfig] = useState<TradingConfig>(getBaseConfig(mode));
+  const [dynamicConfig, setDynamicConfig] = useState<TradingConfig>(getBaseConfig());
   
   const lastAnalysisRef = useRef<number>(0);
   const analysisIntervalRef = useRef<number>(60000); // 기본 1분
@@ -167,13 +166,13 @@ export function useMarketAnalysis({ mode, enabled = true, showToasts = false }: 
     } finally {
       setIsAnalyzing(false);
     }
-  }, [enabled, mode, analysis]);
+  }, [enabled, analysis]);
 
   /**
    * 분석 결과로 동적 설정 업데이트
    */
   const updateDynamicConfig = useCallback((result: MarketAnalysisResult) => {
-    const baseConfig = getBaseConfig(mode);
+    const baseConfig = getBaseConfig();
     const newConfig = applyAIAdjustments(
       baseConfig,
       result.adjustments,
@@ -189,18 +188,18 @@ export function useMarketAnalysis({ mode, enabled = true, showToasts = false }: 
         console.log('📉 AI 분석: 보수적 거래 권장 -', result.reasoning);
       }
     }
-  }, [mode]);
+  }, []);
 
   /**
    * 분석 결과 초기화
    */
   const resetAnalysis = useCallback(() => {
     setAnalysis(null);
-    setDynamicConfig(getBaseConfig(mode));
+    setDynamicConfig(getBaseConfig());
     lastAnalysisRef.current = 0;
     failCountRef.current = 0;
     analysisIntervalRef.current = 60000;
-  }, [mode]);
+  }, []);
 
   /**
    * 분석이 필요한지 확인

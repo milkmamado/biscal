@@ -77,8 +77,6 @@ interface AutoTradingPanelProps {
   };
   onPassSignal?: () => void;
   onTogglePause?: () => void;
-  majorCoinMode?: boolean;
-  onToggleMajorCoinMode?: () => void;
   onToggleAiAnalysis?: () => void;
   onAnalyzeAI?: () => void;
   viewingSymbol?: string;
@@ -119,8 +117,6 @@ const AutoTradingPanel = ({
   onBalanceChange,
   refreshTrigger = 0,
   scanStatus,
-  majorCoinMode = false,
-  onToggleMajorCoinMode,
   onToggleAiAnalysis,
   onAnalyzeAI,
   viewingSymbol,
