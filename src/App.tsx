@@ -13,7 +13,25 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
       <TooltipProvider>
-        <Toaster position="bottom-right" richColors />
+        <Toaster 
+          position="bottom-right" 
+          richColors 
+          toastOptions={{
+            style: {
+              background: 'linear-gradient(135deg, rgba(10, 10, 20, 0.95) 0%, rgba(20, 20, 40, 0.95) 100%)',
+              border: '1px solid rgba(255, 0, 136, 0.5)',
+              boxShadow: '0 0 20px rgba(255, 0, 136, 0.3), inset 0 0 10px rgba(0, 0, 0, 0.5)',
+              color: '#ff0088',
+              fontFamily: 'monospace',
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+            },
+            classNames: {
+              error: 'cyber-toast-error',
+              success: 'cyber-toast-success',
+            },
+          }}
+        />
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Index />} />
