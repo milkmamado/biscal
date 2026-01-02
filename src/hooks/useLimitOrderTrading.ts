@@ -1122,8 +1122,8 @@ export function useLimitOrderTrading({
     console.log(`💰 [잔고 체크] balanceUSD: ${balanceUSD}`);
     if (!balanceUSD || balanceUSD <= 0) {
       console.log('❌ [잔고 부족] 토스트 표시');
-      toast.error('💸 잔고가 부족합니다', {
-        description: '매수할 자금이 없습니다. 입금 후 다시 시도해주세요.',
+      toast.error('⚡ INSUFFICIENT_FUNDS', {
+        description: 'Credits depleted. Deposit required to continue trading.',
         duration: 5000,
         position: 'bottom-right',
       });
@@ -1188,17 +1188,19 @@ export function useLimitOrderTrading({
       // 최소 주문 검증
       const notional = quantity * currentPrice;
       if (notional < precision.minNotional) {
-        toast.error('💸 잔고가 부족합니다', {
-          description: `최소 주문 금액 ${precision.minNotional} USDT 이상이어야 합니다. 현재: ${notional.toFixed(2)} USDT`,
+        toast.error('⚡ MIN_NOTIONAL_ERROR', {
+          description: `Order value ${notional.toFixed(2)} USDT below minimum ${precision.minNotional} USDT`,
           duration: 4000,
+          position: 'bottom-right',
         });
         throw new Error(`최소 주문 금액 부족: ${notional.toFixed(2)} USDT`);
       }
       
       if (quantity <= 0) {
-        toast.error('💸 잔고가 부족합니다', {
-          description: '매수할 수량이 0입니다. 잔고를 확인해주세요.',
+        toast.error('⚡ ZERO_QUANTITY_ERROR', {
+          description: 'Calculated quantity is zero. Check balance.',
           duration: 4000,
+          position: 'bottom-right',
         });
         return;
       }
@@ -1388,8 +1390,8 @@ export function useLimitOrderTrading({
     console.log(`💰 [잔고 체크] balanceUSD: ${balanceUSD}`);
     if (!balanceUSD || balanceUSD <= 0) {
       console.log('❌ [잔고 부족] 토스트 표시');
-      toast.error('💸 잔고가 부족합니다', {
-        description: '매수할 자금이 없습니다. 입금 후 다시 시도해주세요.',
+      toast.error('⚡ INSUFFICIENT_FUNDS', {
+        description: 'Credits depleted. Deposit required to continue trading.',
         duration: 5000,
         position: 'bottom-right',
       });
@@ -1448,17 +1450,19 @@ export function useLimitOrderTrading({
 
       const notional = quantity * roundedPrice;
       if (notional < precision.minNotional) {
-        toast.error('💸 잔고가 부족합니다', {
-          description: `최소 주문 금액 ${precision.minNotional} USDT 이상이어야 합니다. 현재: ${notional.toFixed(2)} USDT`,
+        toast.error('⚡ MIN_NOTIONAL_ERROR', {
+          description: `Order value ${notional.toFixed(2)} USDT below minimum ${precision.minNotional} USDT`,
           duration: 4000,
+          position: 'bottom-right',
         });
         throw new Error(`최소 주문 금액 부족: ${notional.toFixed(2)} USDT`);
       }
 
       if (quantity <= 0) {
-        toast.error('💸 잔고가 부족합니다', {
-          description: '매수할 수량이 0입니다. 잔고를 확인해주세요.',
+        toast.error('⚡ ZERO_QUANTITY_ERROR', {
+          description: 'Calculated quantity is zero. Check balance.',
           duration: 4000,
+          position: 'bottom-right',
         });
         return;
       }
