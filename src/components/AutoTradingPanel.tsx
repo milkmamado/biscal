@@ -56,14 +56,14 @@ interface AutoTradingPanelProps {
   onSwapSignal?: () => void;
   onToggleLossProtection?: () => void;
   onClearCooldown?: () => void;
-  onMarketEntry?: (symbol: string, side: 'long' | 'short', splitCount?: number) => void;
-  onLimitEntry?: (symbol: string, side: 'long' | 'short', price: number, splitCount?: number) => void;
+  onMarketEntry?: (symbol: string, side: 'long' | 'short', balancePercent?: number) => void;
+  onLimitEntry?: (symbol: string, side: 'long' | 'short', price: number, balancePercent?: number) => void;
   currentPrice?: number;
   krwRate: number;
   leverage: number;
   onLeverageChange: (leverage: number) => void;
-  splitCount: 1 | 2 | 3 | 5 | 10;
-  onSplitCountChange: (count: 1 | 2 | 3 | 5 | 10) => void;
+  balancePercent: 10 | 20 | 25 | 50 | 60 | 98;
+  onBalancePercentChange: (percent: 10 | 20 | 25 | 50 | 60 | 98) => void;
   onSelectSymbol?: (symbol: string) => void;
   onBalanceChange?: (balance: number) => void;
   refreshTrigger?: number;
@@ -113,8 +113,8 @@ const AutoTradingPanel = ({
   krwRate,
   leverage,
   onLeverageChange,
-  splitCount,
-  onSplitCountChange,
+  balancePercent,
+  onBalancePercentChange,
   onSelectSymbol,
   onBalanceChange,
   refreshTrigger = 0,
@@ -776,19 +776,19 @@ const AutoTradingPanel = ({
         symbol={activeSymbol} 
         hasPosition={!!currentPosition}
         openOrders={openOrders}
-        splitCount={splitCount}
+        splitCount={1}
         leverage={leverage}
         aiAnalysis={aiAnalysis}
         aiEnabled={aiEnabled}
         isAiAnalyzing={isAiAnalyzing}
         onAnalyzeAI={onAnalyzeAI}
         onMarketEntry={(side) => {
-          console.log('📌 [AutoTradingPanel] onMarketEntry 호출:', side, splitCount);
-          onMarketEntry?.(activeSymbol, side, splitCount);
+          console.log('📌 [AutoTradingPanel] onMarketEntry 호출:', side, balancePercent);
+          onMarketEntry?.(activeSymbol, side, balancePercent);
         }}
         onPlaceOrder={(side, price) => {
-          console.log('📌 [AutoTradingPanel] onPlaceOrder 호출:', side, price, splitCount);
-          onLimitEntry?.(activeSymbol, side, price, splitCount);
+          console.log('📌 [AutoTradingPanel] onPlaceOrder 호출:', side, price, balancePercent);
+          onLimitEntry?.(activeSymbol, side, price, balancePercent);
           // 주문 직후 즉시 미체결 갱신
           setTimeout(() => fetchOpenOrders(activeSymbol), 500);
         }}

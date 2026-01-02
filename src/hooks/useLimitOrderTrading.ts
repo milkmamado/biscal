@@ -1099,9 +1099,9 @@ export function useLimitOrderTrading({
     }
   }, [cancelPendingOrders, addLog]);
 
-  // ===== 수동 시장가 진입 (분할 매수 지원) =====
-  const manualMarketEntry = useCallback(async (symbol: string, direction: 'long' | 'short', splitCount: number = 5) => {
-    console.log(`📌 [manualMarketEntry] 호출됨: ${symbol} ${direction} (${splitCount}분할)`);
+  // ===== 수동 시장가 진입 (잔고 퍼센트 기반) =====
+  const manualMarketEntry = useCallback(async (symbol: string, direction: 'long' | 'short', balancePercent: number = 98) => {
+    console.log(`📌 [manualMarketEntry] 호출됨: ${symbol} ${direction} (${balancePercent}%)`);
     console.log(`📌 [manualMarketEntry] isEnabled: ${state.isEnabled}, currentPosition: ${!!state.currentPosition}, user: ${!!user}`);
     
     // 스캔 활성화 체크 제거 - 수동 진입은 언제든 가능해야 함
@@ -1118,7 +1118,16 @@ export function useLimitOrderTrading({
       return;
     }
     
-    console.log(`🚀 [manualMarketEntry] 주문 시작: ${symbol} ${direction} (${splitCount}분할)`);
+    // 잔고 부족 체크
+    if (balanceUSD <= 0) {
+      toast.error('💸 잔고가 부족합니다', {
+        description: '매수할 자금이 없습니다. 입금 후 다시 시도해주세요.',
+        duration: 4000,
+      });
+      return;
+    }
+    
+    console.log(`🚀 [manualMarketEntry] 주문 시작: ${symbol} ${direction} (${balancePercent}%)`);
     processingRef.current = true;
     // 🆕 수동 진입 시 대기 중인 DTFX 시그널 클리어
     setState(prev => ({ 
@@ -1152,8 +1161,8 @@ export function useLimitOrderTrading({
         }
       }
       
-      // 전체 자금의 비율로 수량 계산
-      const positionSizeRatio = LIMIT_ORDER_CONFIG.POSITION_SIZE_PERCENT / 100;
+      // 잔고 퍼센트 기반 수량 계산 (분할 없음 - 1회 진입)
+      const positionSizeRatio = balancePercent / 100;
       const positionValueUSD = balanceUSD * positionSizeRatio * appliedLeverage;
       
       // 현재가 조회
@@ -1165,62 +1174,56 @@ export function useLimitOrderTrading({
         throw new Error('현재가 조회 실패');
       }
       
-      // 전체 수량 계산 (반올림은 마지막에만)
+      // 전체 수량 계산
       const rawTotalQuantity = positionValueUSD / currentPrice;
+      const quantity = roundQuantity(rawTotalQuantity, precision);
+      const actualTotalValue = quantity * currentPrice;
       
-      // 분할 수량 계산: 1분할이면 전체, 아니면 분할
-      const rawSplitQuantity = splitCount === 1 ? rawTotalQuantity : rawTotalQuantity / splitCount;
-      const splitQuantity = roundQuantity(rawSplitQuantity, precision);
-      
-      // 실제 총 수량 계산
-      const actualTotalQty = splitQuantity * splitCount;
-      const actualTotalValue = actualTotalQty * currentPrice;
-      
-      console.log(`💰 [시장가 계산] balanceUSD=${balanceUSD.toFixed(2)} × ${(positionSizeRatio * 100).toFixed(0)}% × ${appliedLeverage}x = ${positionValueUSD.toFixed(2)} USDT`);
-      console.log(`📊 [시장가 수량] rawTotal=${rawTotalQuantity.toFixed(4)} → split(${splitCount}) → ${splitQuantity} × ${splitCount} = ${actualTotalQty.toFixed(4)} (${actualTotalValue.toFixed(2)} USDT)`);
+      console.log(`💰 [시장가 계산] balanceUSD=${balanceUSD.toFixed(2)} × ${balancePercent}% × ${appliedLeverage}x = ${positionValueUSD.toFixed(2)} USDT`);
+      console.log(`📊 [시장가 수량] rawQty=${rawTotalQuantity.toFixed(4)} → ${quantity} (${actualTotalValue.toFixed(2)} USDT)`);
       
       // 최소 주문 검증
-      const splitNotional = splitQuantity * currentPrice;
-      if (splitNotional < precision.minNotional) {
-        throw new Error(`분할당 주문 금액이 최소 ${precision.minNotional} USDT 이상이어야 합니다. 현재: ${splitNotional.toFixed(2)} USDT`);
+      const notional = quantity * currentPrice;
+      if (notional < precision.minNotional) {
+        toast.error('💸 잔고가 부족합니다', {
+          description: `최소 주문 금액 ${precision.minNotional} USDT 이상이어야 합니다. 현재: ${notional.toFixed(2)} USDT`,
+          duration: 4000,
+        });
+        throw new Error(`최소 주문 금액 부족: ${notional.toFixed(2)} USDT`);
       }
       
-      if (splitQuantity <= 0) {
-        console.log('잔고가 부족합니다');
+      if (quantity <= 0) {
+        toast.error('💸 잔고가 부족합니다', {
+          description: '매수할 수량이 0입니다. 잔고를 확인해주세요.',
+          duration: 4000,
+        });
         return;
       }
       
       const orderSide = direction === 'long' ? 'BUY' : 'SELL';
       
-      console.log(`🚀 [수동 시장가] ${symbol} ${direction} ${splitQuantity} x ${splitCount}분할 (총 ${actualTotalQty})`);
+      console.log(`🚀 [수동 시장가] ${symbol} ${direction} ${quantity} (${balancePercent}%)`);
       
-      // 분할 주문 실행
+      // 1회 주문 실행 (분할 없음)
       let totalFilledQty = 0;
       let totalFilledValue = 0;
       let successCount = 0;
       
-      for (let i = 0; i < splitCount; i++) {
-        try {
-          const result = await placeMarketOrder(symbol, orderSide, splitQuantity, false, currentPrice);
-          
-          if (result && !result.error) {
-            const filledQty = parseFloat(result.executedQty || splitQuantity);
-            const filledPrice = parseFloat(result.avgPrice || currentPrice);
-            totalFilledQty += filledQty;
-            totalFilledValue += filledQty * filledPrice;
-            successCount++;
-            console.log(`  ✅ ${i + 1}/${splitCount} 체결: ${filledQty} @ ${filledPrice}`);
-          } else {
-            console.warn(`  ❌ ${i + 1}/${splitCount} 실패:`, result?.error);
-          }
-          
-          // 주문 간 약간의 딜레이 (연속 주문 방지)
-          if (i < splitCount - 1) {
-            await new Promise(resolve => setTimeout(resolve, 100));
-          }
-        } catch (orderError: any) {
-          console.error(`  ❌ ${i + 1}/${splitCount} 오류:`, orderError.message);
+      try {
+        const result = await placeMarketOrder(symbol, orderSide, quantity, false, currentPrice);
+        
+        if (result && !result.error) {
+          const filledQty = parseFloat(result.executedQty || String(quantity));
+          const filledPrice = parseFloat(result.avgPrice || String(currentPrice));
+          totalFilledQty += filledQty;
+          totalFilledValue += filledQty * filledPrice;
+          successCount++;
+          console.log(`  ✅ 체결: ${filledQty} @ ${filledPrice}`);
+        } else {
+          console.warn(`  ❌ 체결 실패:`, result?.error);
         }
+      } catch (orderError: any) {
+        console.error(`  ❌ 주문 오류:`, orderError.message);
       }
       
       if (successCount === 0 || totalFilledQty === 0) {
@@ -1336,11 +1339,11 @@ export function useLimitOrderTrading({
         side: direction,
         price: finalAvgPrice,
         quantity: finalQty,
-        reason: `수동 시장가 진입 (${successCount}/${splitCount}분할) + SL/TP`,
+        reason: `수동 시장가 진입 (${balancePercent}%) + SL/TP`,
       });
       
       toast.success(`${symbol.replace('USDT', '')} ${direction === 'long' ? '롱' : '숏'} 체결`, {
-        description: `${splitCount}분할 시장가 진입 완료 (SL/TP 설정됨)`,
+        description: `${balancePercent}% 시장가 진입 완료 (SL/TP 설정됨)`,
       });
       console.log(`🚀 ${symbol.replace('USDT', '')} ${direction === 'long' ? '롱' : '숏'} 체결! SL/TP 자동 설정됨`);
       
@@ -1360,9 +1363,9 @@ export function useLimitOrderTrading({
     }
   }, [state.currentPosition, user, balanceUSD, leverage, placeMarketOrder, setLeverage, filterSettings, addLog, getPositions, placeStopMarketOrder, placeTakeProfitMarketOrder]);
 
-  // ===== 수동 지정가 진입 (분할 매수 지원) =====
-  const manualLimitEntry = useCallback(async (symbol: string, direction: 'long' | 'short', price: number, splitCount: number = 5) => {
-    console.log(`📌 [manualLimitEntry] 호출됨: ${symbol} ${direction} @ ${price} (${splitCount}분할)`);
+  // ===== 수동 지정가 진입 (잔고 퍼센트 기반) =====
+  const manualLimitEntry = useCallback(async (symbol: string, direction: 'long' | 'short', price: number, balancePercent: number = 98) => {
+    console.log(`📌 [manualLimitEntry] 호출됨: ${symbol} ${direction} @ ${price} (${balancePercent}%)`);
     
     if (!user) {
       console.log('로그인이 필요합니다');
@@ -1375,6 +1378,15 @@ export function useLimitOrderTrading({
     }
     if (processingRef.current) {
       console.log('처리 중입니다');
+      return;
+    }
+    
+    // 잔고 부족 체크
+    if (balanceUSD <= 0) {
+      toast.error('💸 잔고가 부족합니다', {
+        description: '매수할 자금이 없습니다. 입금 후 다시 시도해주세요.',
+        duration: 4000,
+      });
       return;
     }
     
@@ -1416,87 +1428,71 @@ export function useLimitOrderTrading({
         console.warn(`⚠️ 레버리지 ${leverage}x → ${appliedLeverage}x로 적용됨`);
       }
       
-      // 포지션 사이즈 계산 (잔고의 POSITION_SIZE_PERCENT% × 적용된 레버리지)
-      const positionSizeRatio = LIMIT_ORDER_CONFIG.POSITION_SIZE_PERCENT / 100;
+      // 잔고 퍼센트 기반 포지션 사이즈 계산 (분할 없음)
+      const positionSizeRatio = balancePercent / 100;
       const positionValueUSD = balanceUSD * positionSizeRatio * appliedLeverage;
-      const totalQuantity = positionValueUSD / price;
-      
-      // 1분할인 경우 전체 수량, 아니면 분할
-      const rawSplitQuantity = splitCount === 1 ? totalQuantity : totalQuantity / splitCount;
+      const rawTotalQuantity = positionValueUSD / price;
 
       const roundedPrice = roundPrice(price, precision);
-      const roundedSplitQty = roundQuantity(rawSplitQuantity, precision);
-      
-      // 실제 총 주문 수량 계산
-      const actualTotalQty = roundedSplitQty * splitCount;
-      const actualTotalValue = actualTotalQty * roundedPrice;
+      const quantity = roundQuantity(rawTotalQuantity, precision);
+      const actualTotalValue = quantity * roundedPrice;
 
-      console.log(`💰 [지정가 계산] balanceUSD=${balanceUSD.toFixed(2)} × ${(positionSizeRatio * 100).toFixed(0)}% × ${appliedLeverage}x = ${positionValueUSD.toFixed(2)} USDT`);
-      console.log(`📊 [지정가 수량] totalQty=${totalQuantity.toFixed(4)} → split(${splitCount}) → ${roundedSplitQty} × ${splitCount} = ${actualTotalQty.toFixed(4)} (${actualTotalValue.toFixed(2)} USDT)`);
+      console.log(`💰 [지정가 계산] balanceUSD=${balanceUSD.toFixed(2)} × ${balancePercent}% × ${appliedLeverage}x = ${positionValueUSD.toFixed(2)} USDT`);
+      console.log(`📊 [지정가 수량] rawQty=${rawTotalQuantity.toFixed(4)} → ${quantity} (${actualTotalValue.toFixed(2)} USDT)`);
 
-      const splitNotional = roundedSplitQty * roundedPrice;
-      if (splitNotional < precision.minNotional) {
-        throw new Error(
-          `분할당 주문 금액이 최소 ${precision.minNotional} USDT 이상이어야 합니다. 현재(분할당): ${splitNotional.toFixed(2)} USDT`
-        );
+      const notional = quantity * roundedPrice;
+      if (notional < precision.minNotional) {
+        toast.error('💸 잔고가 부족합니다', {
+          description: `최소 주문 금액 ${precision.minNotional} USDT 이상이어야 합니다. 현재: ${notional.toFixed(2)} USDT`,
+          duration: 4000,
+        });
+        throw new Error(`최소 주문 금액 부족: ${notional.toFixed(2)} USDT`);
+      }
+
+      if (quantity <= 0) {
+        toast.error('💸 잔고가 부족합니다', {
+          description: '매수할 수량이 0입니다. 잔고를 확인해주세요.',
+          duration: 4000,
+        });
+        return;
       }
 
       console.log(
-        `📊 지정가 ${splitCount}분할 주문: ${symbol} ${direction} @ ${roundedPrice}, qty: ${roundedSplitQty} x ${splitCount} (레버리지: ${appliedLeverage}x)`
+        `📊 지정가 주문: ${symbol} ${direction} @ ${roundedPrice}, qty: ${quantity} (레버리지: ${appliedLeverage}x)`
       );
 
-      // splitCount 만큼 개별 주문 생성 - 가격 분산!
-      // 롱: 클릭가격에서 아래로 분산 (더 낮은 가격에서 매수하려고)
-      // 숏: 클릭가격에서 아래로 분산 (클릭가격부터 아래로, 체결되면 더 유리)
-      // → 둘 다 클릭가격부터 아래로 분산하여 클릭한 가격 이상에서 체결되지 않도록 함
-      const priceStep = precision.tickSize * 10; // 틱사이즈 x 10 간격으로 분산
-      
-      for (let i = 0; i < splitCount; i++) {
-        // 롱/숏 모두 클릭 가격에서 아래로 분산
-        // i=0: 클릭 가격 그대로, i=1,2,3...: 아래로 분산
-        const priceOffset = -priceStep * i;
-        
-        const orderPrice = roundPrice(roundedPrice + priceOffset, precision);
-        
-        console.log(`  📌 ${i + 1}/${splitCount} 주문: ${orderPrice} (offset: ${priceOffset > 0 ? '+' : ''}${priceOffset})`);
-        
-        const result = await placeLimitOrder(
-          symbol,
-          direction === 'long' ? 'BUY' : 'SELL',
-          roundedSplitQty,
-          orderPrice,
-          false
-        );
+      // 1회 지정가 주문 실행 (분할 없음)
+      const result = await placeLimitOrder(
+        symbol,
+        direction === 'long' ? 'BUY' : 'SELL',
+        quantity,
+        roundedPrice,
+        false
+      );
 
-        if (!result) {
-          throw new Error('주문 응답이 없습니다');
-        }
-
-        addLog({
-          symbol,
-          action: 'order',
-          side: direction,
-          price: orderPrice,
-          quantity: roundedSplitQty,
-          reason: `수동 지정가 주문 (${i + 1}/${splitCount}분할) @ ${orderPrice}`,
-        });
-        
-        // 연속 주문 방지 딜레이
-        if (i < splitCount - 1) {
-          await new Promise(resolve => setTimeout(resolve, 50));
-        }
+      if (!result) {
+        throw new Error('주문 응답이 없습니다');
       }
+
+      addLog({
+        symbol,
+        action: 'order',
+        side: direction,
+        price: roundedPrice,
+        quantity: quantity,
+        reason: `수동 지정가 주문 (${balancePercent}%) @ ${roundedPrice}`,
+      });
 
       // 진입 사운드 삭제됨
       toast.success(`${symbol.replace('USDT', '')} 지정가 주문 완료`, {
-        description: `${direction === 'long' ? '롱' : '숏'} ${splitCount}분할 @ ${roundedPrice}`,
+        description: `${direction === 'long' ? '롱' : '숏'} ${balancePercent}% @ ${roundedPrice}`,
       });
-      console.log(`📝 ${symbol.replace('USDT', '')} ${direction === 'long' ? '롱' : '숏'} 지정가 ${splitCount}분할 주문 완료! @ ${roundedPrice}`);
+      console.log(`📝 ${symbol.replace('USDT', '')} ${direction === 'long' ? '롱' : '숏'} 지정가 주문 완료! @ ${roundedPrice}`);
 
       setState(prev => ({
         ...prev,
         isProcessing: false,
-        statusMessage: `📝 ${symbol} 지정가 대기 중... (${splitCount}개)`,
+        statusMessage: `📝 ${symbol} 지정가 대기 중...`,
       }));
     } catch (error: any) {
       console.error('지정가 주문 실패:', error);

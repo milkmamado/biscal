@@ -3,7 +3,7 @@ import { Zap, Crown, Brain, LogOut, ChevronDown } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { useAuth } from '@/hooks/useAuth';
 import TradingRecordModal from './TradingRecordModal';
-import { useSymbolMaxLeverage, generateLeverageOptions, SPLIT_OPTIONS, SplitCount } from '@/hooks/useSymbolMaxLeverage';
+import { useSymbolMaxLeverage, generateLeverageOptions, BALANCE_PERCENT_OPTIONS, BalancePercent } from '@/hooks/useSymbolMaxLeverage';
 import {
   Select,
   SelectContent,
@@ -18,8 +18,8 @@ interface SignalScannerPanelProps {
   onToggle: () => void;
   leverage: number;
   onLeverageChange: (leverage: number) => void;
-  splitCount: SplitCount;
-  onSplitCountChange: (count: SplitCount) => void;
+  balancePercent: BalancePercent;
+  onBalancePercentChange: (percent: BalancePercent) => void;
   majorCoinMode: boolean;
   onToggleMajorCoinMode?: () => void;
   aiEnabled: boolean;
@@ -36,8 +36,8 @@ export function SignalScannerPanel({
   onToggle,
   leverage,
   onLeverageChange,
-  splitCount,
-  onSplitCountChange,
+  balancePercent,
+  onBalancePercentChange,
   majorCoinMode,
   onToggleMajorCoinMode,
   aiEnabled,
@@ -201,10 +201,10 @@ export function SignalScannerPanel({
             </SelectContent>
           </Select>
 
-          {/* 분할 Select */}
+          {/* 잔고 퍼센트 Select */}
           <Select
-            value={splitCount.toString()}
-            onValueChange={(val) => onSplitCountChange(parseInt(val) as SplitCount)}
+            value={balancePercent.toString()}
+            onValueChange={(val) => onBalancePercentChange(parseInt(val) as BalancePercent)}
           >
             <SelectTrigger 
               className="h-6 w-[55px] text-[10px] font-bold border-0 px-2"
@@ -222,13 +222,13 @@ export function SignalScannerPanel({
                 border: '1px solid rgba(0, 255, 255, 0.3)',
               }}
             >
-              {SPLIT_OPTIONS.map((opt) => (
+              {BALANCE_PERCENT_OPTIONS.map((opt) => (
                 <SelectItem 
                   key={opt} 
                   value={opt.toString()}
                   className="text-[10px] font-bold cursor-pointer hover:bg-cyan-500/20"
                 >
-                  {opt}회
+                  {opt}%
                 </SelectItem>
               ))}
             </SelectContent>

@@ -41,8 +41,8 @@ const Index = () => {
   // 미체결 주문 상태 (차트에 표시용)
   const [openOrders, setOpenOrders] = useState<{ orderId: number; price: number; side: 'BUY' | 'SELL'; origQty: number; executedQty: number; }[]>([]);
   
-  // 분할 매수 상태
-  const [splitCount, setSplitCount] = useState<1 | 2 | 3 | 5 | 10>(5);
+  // 잔고 퍼센트 매수 상태
+  const [balancePercent, setBalancePercent] = useState<10 | 20 | 25 | 50 | 60 | 98>(98);
 
   // 스크리닝 로그 실시간 업데이트
   useEffect(() => {
@@ -362,8 +362,8 @@ const Index = () => {
             krwRate={krwRate}
             leverage={leverage}
             onLeverageChange={setLeverage}
-            splitCount={splitCount}
-            onSplitCountChange={setSplitCount}
+            balancePercent={balancePercent}
+            onBalancePercentChange={setBalancePercent}
             onSelectSymbol={setSelectedSymbol}
             onBalanceChange={handleBalanceChange}
             refreshTrigger={refreshTrigger}
@@ -397,8 +397,8 @@ const Index = () => {
             onToggle={autoTrading.toggleAutoTrading}
             leverage={leverage}
             onLeverageChange={setLeverage}
-            splitCount={splitCount}
-            onSplitCountChange={setSplitCount}
+            balancePercent={balancePercent}
+            onBalancePercentChange={setBalancePercent}
             majorCoinMode={majorCoinMode}
             onToggleMajorCoinMode={() => setMajorCoinMode(prev => !prev)}
             aiEnabled={autoTrading.state.aiEnabled}
