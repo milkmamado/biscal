@@ -208,13 +208,9 @@ export function useLimitOrderTrading({
   } = useBinanceApi();
   
   const { analysis: aiAnalysisResult, isAnalyzing: isAiAnalyzing, analyzeMarket, resetAnalysis } = useMarketAnalysis({ 
-    mode: majorCoinMode ? 'MAJOR' : 'ALTCOIN',
     enabled: state.aiEnabled,
-    showToasts: state.isEnabled, // 자동매매 켜져있을 때만 토스트 표시
+    showToasts: state.isEnabled,
   });
-
-  const majorCoinModeRef = useRef(majorCoinMode);
-  useEffect(() => { majorCoinModeRef.current = majorCoinMode; }, [majorCoinMode]);
 
   // AI 분석 결과 동기화
   useEffect(() => {

@@ -31,7 +31,6 @@ const Index = () => {
   const [krwRate, setKrwRate] = useState(1380);
   const [leverage, setLeverage] = useState(LIMIT_ORDER_CONFIG.LEVERAGE);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
-  const [majorCoinMode, setMajorCoinMode] = useState(true);
   const [screeningLogs, setScreeningLogs] = useState<ScreeningLog[]>([]);
   
   const [dtfxEnabled, setDtfxEnabled] = useState(false); // DTFX 차트 표시 토글
@@ -86,7 +85,6 @@ const Index = () => {
     onTradeComplete: handleTradeComplete,
     initialStats,
     logTrade,
-    majorCoinMode,
     filterSettings: {
       stopLossUsdt,
       takeProfitUsdt,
@@ -150,7 +148,7 @@ const Index = () => {
     }));
   
   // 기술적 분석 기반 종목 스크리닝
-  const { activeSignals, isScanning, isPaused, screenedSymbols, lastScanTime, passSignal: passSignalRaw, togglePause } = useCoinScreening(tickersForScreening, {}, majorCoinMode);
+  const { activeSignals, isScanning, isPaused, screenedSymbols, lastScanTime, passSignal: passSignalRaw, togglePause } = useCoinScreening(tickersForScreening, {});
   
   // 핫코인 심볼 리스트 (DTFX 스캐너용) - 시그널 스캐너 필터 통과한 코인들만
   const hotCoinSymbols = useMemo(() => 
@@ -377,8 +375,6 @@ const Index = () => {
             }}
             onPassSignal={passSignal}
             onTogglePause={togglePause}
-            majorCoinMode={majorCoinMode}
-            onToggleMajorCoinMode={() => setMajorCoinMode(prev => !prev)}
             onToggleAiAnalysis={autoTrading.toggleAiAnalysis}
             onAnalyzeAI={autoTrading.manualAnalyzeMarket}
             viewingSymbol={selectedSymbol}
@@ -399,8 +395,6 @@ const Index = () => {
             onLeverageChange={setLeverage}
             balancePercent={balancePercent}
             onBalancePercentChange={setBalancePercent}
-            majorCoinMode={majorCoinMode}
-            onToggleMajorCoinMode={() => setMajorCoinMode(prev => !prev)}
             aiEnabled={autoTrading.state.aiEnabled}
             isAiAnalyzing={autoTrading.state.isAiAnalyzing}
             onToggleAiAnalysis={autoTrading.toggleAiAnalysis}

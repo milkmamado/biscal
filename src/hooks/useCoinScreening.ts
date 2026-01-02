@@ -44,17 +44,7 @@ interface ScreeningCriteria {
 // 1분봉 변동폭 기준 (캔들 고저폭 %)
 const MIN_CANDLE_RANGE_PERCENT = 0.5; // 1분봉 캔들 변동폭 0.5% 이상
 
-// 잡코인 모드 기본값
-const ALTCOIN_CRITERIA: ScreeningCriteria = {
-  minVolume: 10_000_000,    // $10M 이상 (완화)
-  minVolatility: 1,          // 1% 이상 (완화)
-  maxVolatility: 20,         // 20% 이하 (완화)
-  minPrice: 0.01,            // $0.01 이상 (저가 코인 타겟)
-  maxPrice: 1,               // $1 이하 (저가 코인만)
-  spreadThreshold: 0.1,      // 0.1% 이하 스프레드
-};
-
-// 메이저 코인 모드 기본값
+// 메이저 코인 모드 기본값 (잡코인 모드 제거됨)
 const MAJOR_CRITERIA: ScreeningCriteria = {
   minVolume: MAJOR_COIN_CRITERIA.minVolume,
   minVolatility: MAJOR_COIN_CRITERIA.minVolatility,
@@ -64,7 +54,7 @@ const MAJOR_CRITERIA: ScreeningCriteria = {
   spreadThreshold: 0.05,     // 0.05% 이하 (메이저는 스프레드 적음)
 };
 
-const DEFAULT_CRITERIA = ALTCOIN_CRITERIA;
+const DEFAULT_CRITERIA = MAJOR_CRITERIA;
 
 // 1분봉 데이터 조회 함수
 const fetch1mKlines = async (symbol: string, limit: number = 5): Promise<Candle1m[] | null> => {
@@ -161,8 +151,7 @@ export interface ScreenedSymbol {
 
 export function useCoinScreening(
   tickers: TickerData[], 
-  criteria: Partial<ScreeningCriteria> = {},
-  majorCoinMode: boolean = false  // 🆕 메이저 코인 모드
+  criteria: Partial<ScreeningCriteria> = {}
 ) {
   const [screenedSymbols, setScreenedSymbols] = useState<ScreenedSymbol[]>([]);
   const [activeSignals, setActiveSignals] = useState<TradingSignal[]>([]);
@@ -174,21 +163,17 @@ export function useCoinScreening(
   const isMountedRef = useRef(true);
   const scanIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // 🆕 refs (interval/async에서 최신 상태 보장)
+  // refs (interval/async에서 최신 상태 보장)
   const isScanningRef = useRef(false);
-  const majorCoinModeRef = useRef(majorCoinMode);
   const isPausedRef = useRef(false);
   
-  // 🆕 메이저 코인 모드에 따라 기준 선택
-  const baseCriteria = majorCoinMode ? MAJOR_CRITERIA : ALTCOIN_CRITERIA;
-  const criteriaRef = useRef<ScreeningCriteria>({ ...baseCriteria, ...criteria });
+  // 메이저 코인 설정 사용
+  const criteriaRef = useRef<ScreeningCriteria>({ ...MAJOR_CRITERIA, ...criteria });
 
-  // criteria 업데이트 (메이저 코인 모드에 따라 기본값 변경)
+  // criteria 업데이트
   useEffect(() => {
-    const newBaseCriteria = majorCoinMode ? MAJOR_CRITERIA : ALTCOIN_CRITERIA;
-    criteriaRef.current = { ...newBaseCriteria, ...criteria };
-    majorCoinModeRef.current = majorCoinMode;
-  }, [criteria, majorCoinMode]);
+    criteriaRef.current = { ...MAJOR_CRITERIA, ...criteria };
+  }, [criteria]);
   
   // isPaused ref 동기화
   useEffect(() => {
@@ -213,57 +198,41 @@ export function useCoinScreening(
     setIsScanning(true);
 
     const fullCriteria = criteriaRef.current;
-    const isMajorMode = majorCoinModeRef.current;
     
     // UI 로그 초기화 및 시작
     clearScreeningLogs();
-    addScreeningLog('start', isMajorMode ? '메이저 코인 스크리닝 시작' : '스크리닝 시작');
+    addScreeningLog('start', '메이저 코인 스크리닝 시작');
 
     try {
-      // 🆕 메이저 코인 모드: 화이트리스트 필터링
-      let eligible: TickerData[];
+      // 메이저 코인 화이트리스트만 필터링
+      const eligible = currentTickers.filter(t => 
+        isMajorCoin(t.symbol) &&
+        t.volume >= fullCriteria.minVolume &&
+        t.volatilityRange >= fullCriteria.minVolatility &&
+        t.volatilityRange <= fullCriteria.maxVolatility
+      );
       
-      if (isMajorMode) {
-        // 메이저 코인 화이트리스트만 필터링
-        eligible = currentTickers.filter(t => 
-          isMajorCoin(t.symbol) &&
-          t.volume >= fullCriteria.minVolume &&
-          t.volatilityRange >= fullCriteria.minVolatility &&
-          t.volatilityRange <= fullCriteria.maxVolatility
-        );
-        
-        const tierInfo = eligible.map(t => {
-          const tier = getCoinTier(t.symbol);
-          return `${t.symbol.replace('USDT', '')}(T${tier})`;
-        }).join(', ');
-        addScreeningLog('filter', `메이저 코인: ${eligible.length}개 [${tierInfo}]`);
-      } else {
-        // 잡코인 모드: 기존 필터링
-        eligible = currentTickers.filter(t => 
-          t.price >= fullCriteria.minPrice &&
-          t.price <= fullCriteria.maxPrice &&
-          t.volume >= fullCriteria.minVolume &&
-          t.volatilityRange >= fullCriteria.minVolatility &&
-          t.volatilityRange <= fullCriteria.maxVolatility
-        );
-        addScreeningLog('filter', `1차 필터 통과: ${eligible.length}/${currentTickers.length}개`);
-      }
+      const tierInfo = eligible.map(t => {
+        const tier = getCoinTier(t.symbol);
+        return `${t.symbol.replace('USDT', '')}(T${tier})`;
+      }).join(', ');
+      addScreeningLog('filter', `메이저 코인: ${eligible.length}개 [${tierInfo}]`);
 
       // 변동성 스코어 기준 정렬
       const scored = eligible
         .map(t => ({
           ...t,
           volatilityScore: calculateVolatilityScore(t.volatilityRange, t.volume),
-          tier: isMajorMode ? getCoinTier(t.symbol) : null,
+          tier: getCoinTier(t.symbol),
         }))
-        // 메이저 모드: 티어 우선 정렬, 그 다음 변동성 스코어
+        // 티어 우선 정렬, 그 다음 변동성 스코어
         .sort((a, b) => {
-          if (isMajorMode && a.tier && b.tier) {
+          if (a.tier && b.tier) {
             if (a.tier !== b.tier) return a.tier - b.tier; // 티어 낮을수록 우선
           }
           return b.volatilityScore - a.volatilityScore;
         })
-        .slice(0, isMajorMode ? 10 : 20); // 메이저는 최대 10개
+        .slice(0, 10); // 최대 10개
       
       const displaySymbols = scored.slice(0, 8).map(s => s.symbol.replace('USDT', '')).join(', ');
       addScreeningLog('filter', `분석 대상: ${displaySymbols}${scored.length > 8 ? '...' : ''}`)

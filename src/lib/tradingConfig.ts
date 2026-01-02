@@ -7,7 +7,7 @@
 
 // ===== 타입 정의 =====
 
-export type TradingMode = 'MAJOR' | 'ALTCOIN';
+export type TradingMode = 'MAJOR';
 export type MarketCondition = 'TRENDING_UP' | 'TRENDING_DOWN' | 'RANGING' | 'VOLATILE' | 'QUIET';
 export type TrendStrength = 'WEAK' | 'MEDIUM' | 'STRONG';
 export type AIRecommendation = 'AGGRESSIVE' | 'NORMAL' | 'CONSERVATIVE' | 'STOP';
@@ -66,27 +66,6 @@ export const MAJOR_SWING_CONFIG: SwingTradingConfig = {
   ENTRY_COOLDOWN_MS: 30000,    // 30초 쿨다운
 };
 
-/**
- * 잡코인 스윙 설정
- * - 변동성 높음, 슬리피지 있음
- * - 더 넓은 손익비
- */
-export const ALTCOIN_SWING_CONFIG: SwingTradingConfig = {
-  FEE_RATE: 0.05,
-  
-  ENTRY_PERCENT: 0.20,
-  MAX_CANDLES: 5,
-  
-  TP_PERCENT: 0.60,            // +0.6% 조기 익절 (변동성 높음)
-  SL_PERCENT: 0.40,            // -0.4% 손절 (손익비 1:1.5)
-  
-  MIN_ENTRIES_FOR_TP: 2,
-  
-  MIN_ADX_FOR_TREND: 22,       // ADX 22 이상 (횡보장 필터 강화)
-  MIN_CONFIDENCE: 60,          // 신뢰도 60% 이상
-  
-  ENTRY_COOLDOWN_MS: 30000,
-};
 
 // ===== 레거시 호환 설정 (기존 코드 호환용) =====
 
@@ -142,30 +121,15 @@ export const MAJOR_CONFIG: TradingConfig = {
   COIN_MAX_CONSECUTIVE_LOSSES: 2, COIN_COOLDOWN_MINUTES: 30, MAX_LOSS_PER_TRADE_USD: 0.5, BASE_RISK_PERCENT: 1.0,
 };
 
-export const ALTCOIN_CONFIG: TradingConfig = {
-  FEE_RATE: 0.05,
-  TP_PERCENT: ALTCOIN_SWING_CONFIG.TP_PERCENT,
-  SL_PERCENT: ALTCOIN_SWING_CONFIG.SL_PERCENT,
-  DYNAMIC_TP: {
-    WEAK: { TP_PERCENT: 0.50, USE_TRAILING: false, TRAILING_ACTIVATION: 0.35, TRAILING_DISTANCE: 0.12 },
-    MEDIUM: { TP_PERCENT: 0.60, USE_TRAILING: true, TRAILING_ACTIVATION: 0.45, TRAILING_DISTANCE: 0.14 },
-    STRONG: { TP_PERCENT: 0.90, USE_TRAILING: true, TRAILING_ACTIVATION: 0.55, TRAILING_DISTANCE: 0.12 },
-  },
-  EARLY_SL: { GRACE_PERIOD_SEC: 10, STAGE1_SEC: 45, STAGE1_PERCENT: 0.15, STAGE1_REDUCE: 0.5, STAGE2_SEC: 90, STAGE2_PERCENT: 0.22, STAGE2_REDUCE: 0.75 },
-  BREAKEVEN_TRIGGER: 0.10, BREAKEVEN_SL: 0.06, BREAKEVEN_TRAILING_GAP: 0.04, BREAKEVEN_TIMEOUT_SEC: 150,
-  MIN_ADX_FOR_TREND: 22, MIN_CONFIDENCE: 60, MIN_VOLUME_RATIO: 1.3,
-  TIME_STOP_MINUTES: 15, MAX_CONSECUTIVE_LOSSES: 5, LOSS_COOLDOWN_MINUTES: 60,
-  COIN_MAX_CONSECUTIVE_LOSSES: 2, COIN_COOLDOWN_MINUTES: 30, MAX_LOSS_PER_TRADE_USD: 0.5, BASE_RISK_PERCENT: 1.0,
-};
 
 // ===== 설정 함수 =====
 
-export function getSwingConfig(mode: TradingMode): SwingTradingConfig {
-  return mode === 'MAJOR' ? { ...MAJOR_SWING_CONFIG } : { ...ALTCOIN_SWING_CONFIG };
+export function getSwingConfig(): SwingTradingConfig {
+  return { ...MAJOR_SWING_CONFIG };
 }
 
-export function getBaseConfig(mode: TradingMode): TradingConfig {
-  return mode === 'MAJOR' ? { ...MAJOR_CONFIG } : { ...ALTCOIN_CONFIG };
+export function getBaseConfig(): TradingConfig {
+  return { ...MAJOR_CONFIG };
 }
 
 export function applyAIAdjustments(
@@ -232,22 +196,12 @@ export function getCoinTier(symbol: string): 1 | 2 | 3 | null {
 // ===== 스크리닝 기준 =====
 
 export const SCREENING_CRITERIA = {
-  MAJOR: {
-    minVolume: 100_000_000,
-    minVolatility: 0.5,
-    maxVolatility: 10,
-    minPrice: 0,
-    maxPrice: Infinity,
-    spreadThreshold: 0.05,
-  },
-  ALTCOIN: {
-    minVolume: 10_000_000,
-    minVolatility: 1,
-    maxVolatility: 20,
-    minPrice: 0.01,
-    maxPrice: 1,
-    spreadThreshold: 0.1,
-  },
+  minVolume: 100_000_000,
+  minVolatility: 0.5,
+  maxVolatility: 10,
+  minPrice: 0,
+  maxPrice: Infinity,
+  spreadThreshold: 0.05,
 };
 
 // ===== 문서화용 상수 =====
@@ -327,8 +281,7 @@ export const TRADING_RULES = {
   SCREENING: {
     title: '📊 종목 선정 기준',
     rules: [
-      '메이저 모드: BTC, ETH, BNB, SOL, XRP, DOGE 등 10종',
-      '잡코인 모드: $0.01~$1, 거래량 $10M+',
+      '메이저 코인: BTC, ETH, BNB, SOL, XRP, DOGE 등 10종',
       'ATR 0.1~2.0% 범위 (적정 변동성)',
       '횡보장 필터: ADX < 20 시 종목 제외',
     ],

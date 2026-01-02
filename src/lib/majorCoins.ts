@@ -108,54 +108,9 @@ export const MAJOR_COIN_TRADING_CONFIG = {
   TIME_STOP_MINUTES: 12,     // 12분 (더 짧게)
 };
 
-// 잡코인용 거래 설정 (기존 설정 유지)
-export const ALTCOIN_TRADING_CONFIG = {
-  FEE_RATE: 0.05,
-  TP_PERCENT: 0.25,
-  SL_PERCENT: 0.12,
-  
-  DYNAMIC_TP: {
-    WEAK: {
-      TP_PERCENT: 0.30,
-      USE_TRAILING: false,
-      TRAILING_ACTIVATION: 0.20,
-      TRAILING_DISTANCE: 0.10,
-    },
-    MEDIUM: {
-      TP_PERCENT: 0.45,
-      USE_TRAILING: true,
-      TRAILING_ACTIVATION: 0.35,
-      TRAILING_DISTANCE: 0.12,
-    },
-    STRONG: {
-      TP_PERCENT: 0.70,
-      USE_TRAILING: true,
-      TRAILING_ACTIVATION: 0.30,
-      TRAILING_DISTANCE: 0.10,
-    },
-  },
-  
-  EARLY_SL: {
-    GRACE_PERIOD_SEC: 5,
-    STAGE1_SEC: 20,
-    STAGE1_PERCENT: 0.10,
-    STAGE1_REDUCE: 0.5,
-    STAGE2_SEC: 40,
-    STAGE2_PERCENT: 0.15,
-    STAGE2_REDUCE: 0.75,
-  },
-  
-  BREAKEVEN_TRIGGER: 0.06,
-  BREAKEVEN_SL: 0.05,
-  BREAKEVEN_TRAILING_GAP: 0.03,
-  
-  MIN_ADX_FOR_TREND: 20,
-  TIME_STOP_MINUTES: 15,
-};
-
-// 현재 모드에 따른 설정 반환
-export function getTradingConfig(majorCoinMode: boolean) {
-  return majorCoinMode ? MAJOR_COIN_TRADING_CONFIG : ALTCOIN_TRADING_CONFIG;
+// 메이저 코인 설정 반환 (잡코인 모드 제거됨)
+export function getTradingConfig() {
+  return MAJOR_COIN_TRADING_CONFIG;
 }
 
 // 티어별 특성 설명
