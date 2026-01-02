@@ -27,7 +27,7 @@ const CyberPigeon = () => {
 
   return (
     <div className="absolute inset-0 overflow-hidden pointer-events-none flex items-center justify-center">
-      {/* 메인 히브리어 명언 - 중앙 */}
+      {/* 메인 슬로건 - 중앙 */}
       <div 
         className="relative flex items-center gap-6"
         style={{
@@ -35,10 +35,11 @@ const CyberPigeon = () => {
           opacity: flicker ? 0.4 : 1,
         }}
       >
-        {/* 왼쪽 히브리어 - 삶 */}
+        {/* 왼쪽 - RISK */}
         <span 
-          className="text-xl font-bold tracking-wider"
+          className="text-xl font-bold tracking-[0.3em] uppercase"
           style={{
+            fontFamily: 'monospace',
             color: '#00f5ff',
             textShadow: `
               0 0 5px #00f5ff,
@@ -49,31 +50,31 @@ const CyberPigeon = () => {
             animation: 'pulse 2s ease-in-out infinite',
           }}
         >
-          חַיִּים
+          RISK
         </span>
 
-        {/* 구분자 - 다윗의 별 */}
+        {/* 구분자 - 다이아몬드 */}
         <span 
           className="text-cyan-400/70 text-xl"
           style={{
             textShadow: '0 0 10px #00ffff, 0 0 20px #00ffff',
-            animation: 'spin 8s linear infinite',
           }}
         >
-          ✡
+          ◆
         </span>
 
-        {/* 메인 히브리어 명언 */}
+        {/* 메인 슬로건 */}
         <div className="relative">
           {/* 외부 글로우 */}
-          <div className="absolute inset-0 blur-lg text-cyan-400 text-lg font-bold tracking-wider opacity-70">
-            בחר בחיים
+          <div className="absolute inset-0 blur-lg text-cyan-400 text-lg font-bold tracking-wider opacity-70 uppercase">
+            EXECUTE_PROFIT
           </div>
           
-          {/* 메인 텍스트 - "Choose Life" (신명기 30:19) */}
+          {/* 메인 텍스트 */}
           <h1 
-            className="relative text-xl font-bold tracking-wider"
+            className="relative text-xl font-bold tracking-[0.2em] uppercase"
             style={{
+              fontFamily: 'monospace',
               color: '#00f5ff',
               textShadow: `
                 0 0 5px #00f5ff,
@@ -85,25 +86,25 @@ const CyberPigeon = () => {
               `,
             }}
           >
-            בחר בחיים
+            EXECUTE_PROFIT
           </h1>
         </div>
 
-        {/* 구분자 - 다윗의 별 */}
+        {/* 구분자 - 다이아몬드 */}
         <span 
           className="text-pink-400/70 text-xl"
           style={{
             textShadow: '0 0 10px #ff00ff, 0 0 20px #ff00ff',
-            animation: 'spin 8s linear infinite reverse',
           }}
         >
-          ✡
+          ◆
         </span>
 
-        {/* 오른쪽 히브리어 - 죽음 */}
+        {/* 오른쪽 - REWARD */}
         <span 
-          className="text-xl font-bold tracking-wider"
+          className="text-xl font-bold tracking-[0.3em] uppercase"
           style={{
+            fontFamily: 'monospace',
             color: '#ff6b9d',
             textShadow: `
               0 0 5px #ff6b9d,
@@ -114,51 +115,55 @@ const CyberPigeon = () => {
             animation: 'pulse 2s ease-in-out infinite 0.5s',
           }}
         >
-          מָוֶת
+          REWARD
         </span>
       </div>
 
-      {/* 좌측 히브리어 */}
+      {/* 좌측 */}
       <div className="absolute left-4 top-1/2 -translate-y-1/2 flex gap-4">
         <span 
-          className="text-base"
+          className="text-sm uppercase tracking-widest"
           style={{
+            fontFamily: 'monospace',
             color: '#00ff88',
             textShadow: '0 0 10px #00ff88, 0 0 20px #00ff88, 0 0 30px #00ff88',
           }}
         >
-          תקווה
+          ALPHA
         </span>
         <span 
-          className="text-base"
+          className="text-sm uppercase tracking-widest"
           style={{
+            fontFamily: 'monospace',
             color: '#ffff00',
             textShadow: '0 0 10px #ffff00, 0 0 20px #ffff00, 0 0 30px #ffff00',
           }}
         >
-          אמונה
+          EDGE
         </span>
       </div>
 
-      {/* 우측 히브리어 */}
+      {/* 우측 */}
       <div className="absolute right-4 top-1/2 -translate-y-1/2 flex gap-4">
         <span 
-          className="text-base"
+          className="text-sm uppercase tracking-widest"
           style={{
+            fontFamily: 'monospace',
             color: '#ff6600',
             textShadow: '0 0 10px #ff6600, 0 0 20px #ff6600, 0 0 30px #ff6600',
           }}
         >
-          גורל
+          FLOW
         </span>
         <span 
-          className="text-base"
+          className="text-sm uppercase tracking-widest"
           style={{
+            fontFamily: 'monospace',
             color: '#00ffff',
             textShadow: '0 0 10px #00ffff, 0 0 20px #00ffff, 0 0 30px #00ffff',
           }}
         >
-          נצח
+          APEX
         </span>
       </div>
 
