@@ -127,6 +127,10 @@ export function generateLeverageOptions(maxLeverage: number): number[] {
   return options;
 }
 
-// 분할 옵션
+// 분할 옵션 (기존 호환용 - 사용 중인 곳 있을 수 있음)
 export const SPLIT_OPTIONS = [1, 2, 3, 5, 10] as const;
 export type SplitCount = typeof SPLIT_OPTIONS[number];
+
+// 잔고 퍼센트 옵션 (신규)
+export const BALANCE_PERCENT_OPTIONS = [10, 20, 25, 50, 60, 98] as const;
+export type BalancePercent = typeof BALANCE_PERCENT_OPTIONS[number];
