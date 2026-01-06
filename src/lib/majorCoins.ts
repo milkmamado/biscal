@@ -36,18 +36,18 @@ export function getCoinTier(symbol: string): 1 | 2 | 3 | null {
   return null;
 }
 
-// 메이저 코인 스크리닝 기준 (잡코인과 다름)
+// 메이저 코인 스크리닝 기준
 export const MAJOR_COIN_CRITERIA = {
   // 가격 제한 없음 (BTC $100k+ 가능)
   minPrice: 0,
   maxPrice: Infinity,
   
-  // 거래량 높은 기준 ($100M 이상)
-  minVolume: 100_000_000,
+  // 거래량 기준 ($30M 이상 - 메이저 코인은 항상 통과)
+  minVolume: 30_000_000,
   
-  // 변동성 범위 (메이저는 보통 1~8%)
-  minVolatility: 0.5,
-  maxVolatility: 10,
+  // 변동성 범위 (메이저는 보통 0.5~15%)
+  minVolatility: 0.3,
+  maxVolatility: 15,
   
   // ATR 범위 (더 정밀하게)
   minATRPercent: 0.05,

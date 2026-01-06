@@ -134,11 +134,11 @@ const Index = () => {
   // 자동매매 중 절전 방지
   useWakeLock(autoTrading.state.isEnabled);
 
-  // 종목 스크리닝용 티커 데이터 준비
+  // 종목 스크리닝용 티커 데이터 준비 (메이저 코인만 전달)
   const tickersForScreening = tickers
-    .filter(c => c.price >= 0.01 && c.volume >= 50_000_000)
+    .filter(c => c.price >= 0.01 && c.volume >= 20_000_000)
     .sort((a, b) => b.volume - a.volume)
-    .slice(0, 50)
+    .slice(0, 80)
     .map(c => ({
       symbol: c.symbol,
       price: c.price,
