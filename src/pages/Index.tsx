@@ -42,6 +42,7 @@ const Index = () => {
   
   // 잔고 퍼센트 매수 상태
   const [balancePercent, setBalancePercent] = useState<10 | 20 | 25 | 50 | 60 | 98>(98);
+  const [majorCoinMode, setMajorCoinMode] = useState(true); // 메이저/잡코인 모드 토글
 
   // 스크리닝 로그 실시간 업데이트
   useEffect(() => {
@@ -148,7 +149,7 @@ const Index = () => {
     }));
   
   // 기술적 분석 기반 종목 스크리닝
-  const { activeSignals, isScanning, isPaused, screenedSymbols, lastScanTime, passSignal: passSignalRaw, togglePause } = useCoinScreening(tickersForScreening, {});
+  const { activeSignals, isScanning, isPaused, screenedSymbols, lastScanTime, passSignal: passSignalRaw, togglePause } = useCoinScreening(tickersForScreening, {}, majorCoinMode);
   
   // 핫코인 심볼 리스트 (DTFX 스캐너용) - 시그널 스캐너 필터 통과한 코인들만
   const hotCoinSymbols = useMemo(() => 
@@ -401,6 +402,8 @@ const Index = () => {
             krwRate={krwRate}
             refreshTrigger={refreshTrigger}
             currentSymbol={selectedSymbol}
+            majorCoinMode={majorCoinMode}
+            onToggleMajorCoinMode={() => setMajorCoinMode(prev => !prev)}
           />
           <TradingSettingsPanel
             dtfxEnabled={dtfxEnabled}

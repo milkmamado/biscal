@@ -26,6 +26,8 @@ interface SignalScannerPanelProps {
   krwRate: number;
   refreshTrigger: number;
   currentSymbol?: string;
+  majorCoinMode: boolean;
+  onToggleMajorCoinMode: () => void;
 }
 
 export function SignalScannerPanel({
@@ -42,6 +44,8 @@ export function SignalScannerPanel({
   krwRate,
   refreshTrigger,
   currentSymbol = 'BTCUSDT',
+  majorCoinMode,
+  onToggleMajorCoinMode,
 }: SignalScannerPanelProps) {
   const { signOut } = useAuth();
   const { maxLeverage } = useSymbolMaxLeverage(currentSymbol);
@@ -100,17 +104,21 @@ export function SignalScannerPanel({
           )}
         </div>
         <div className="flex items-center gap-1.5">
-          {/* 메이저 코인 모드 표시 (상시 ON) */}
-          <div
-            className="p-1 rounded text-yellow-400"
+          {/* 메이저/잡코인 모드 토글 */}
+          <button
+            onClick={onToggleMajorCoinMode}
+            className={cn(
+              "p-1 rounded transition-all",
+              majorCoinMode ? "text-yellow-400" : "text-purple-400"
+            )}
             style={{
-              background: 'rgba(255, 215, 0, 0.2)',
-              boxShadow: '0 0 10px rgba(255, 215, 0, 0.4)',
+              background: majorCoinMode ? 'rgba(255, 215, 0, 0.2)' : 'rgba(168, 85, 247, 0.2)',
+              boxShadow: majorCoinMode ? '0 0 10px rgba(255, 215, 0, 0.4)' : '0 0 10px rgba(168, 85, 247, 0.4)',
             }}
-            title="메이저 코인 전용"
+            title={majorCoinMode ? "메이저 코인 모드" : "잡코인 모드"}
           >
             <Crown className="w-3.5 h-3.5" />
-          </div>
+          </button>
           {/* AI 분석 토글 */}
           <button
             onClick={onToggleAiAnalysis}
