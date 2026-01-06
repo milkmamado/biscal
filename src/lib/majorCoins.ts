@@ -108,9 +108,86 @@ export const MAJOR_COIN_TRADING_CONFIG = {
   TIME_STOP_MINUTES: 12,     // 12분 (더 짧게)
 };
 
-// 메이저 코인 설정 반환 (잡코인 모드 제거됨)
-export function getTradingConfig() {
-  return MAJOR_COIN_TRADING_CONFIG;
+// 잡코인 스크리닝 기준
+export const ALTCOIN_CRITERIA = {
+  // 저가 코인 필터 ($0.01 ~ $1.00)
+  minPrice: 0.01,
+  maxPrice: 1.00,
+  
+  // 거래량 기준 ($20M 이상)
+  minVolume: 20_000_000,
+  
+  // 변동성 범위 (잡코인은 변동성 높음 1~20%)
+  minVolatility: 1.0,
+  maxVolatility: 20,
+  
+  // ATR 범위
+  minATRPercent: 0.1,
+  maxATRPercent: 3.0,
+};
+
+// 잡코인용 거래 설정
+export const ALTCOIN_TRADING_CONFIG = {
+  // 수수료
+  FEE_RATE: 0.05,
+  
+  // 익절/손절 (잡코인은 더 넓게)
+  TP_PERCENT: 0.30,          // 기본 TP +0.30%
+  SL_PERCENT: 0.15,          // 기본 SL -0.15%
+  
+  // 동적 익절 (잡코인용)
+  DYNAMIC_TP: {
+    WEAK: {
+      TP_PERCENT: 0.25,
+      USE_TRAILING: false,
+      TRAILING_ACTIVATION: 0.20,
+      TRAILING_DISTANCE: 0.10,
+    },
+    MEDIUM: {
+      TP_PERCENT: 0.45,
+      USE_TRAILING: true,
+      TRAILING_ACTIVATION: 0.30,
+      TRAILING_DISTANCE: 0.12,
+    },
+    STRONG: {
+      TP_PERCENT: 0.60,
+      USE_TRAILING: true,
+      TRAILING_ACTIVATION: 0.35,
+      TRAILING_DISTANCE: 0.10,
+    },
+  },
+  
+  // 조기 손절 (잡코인은 더 완화)
+  EARLY_SL: {
+    GRACE_PERIOD_SEC: 10,
+    STAGE1_SEC: 30,
+    STAGE1_PERCENT: 0.12,
+    STAGE1_REDUCE: 0.5,
+    STAGE2_SEC: 60,
+    STAGE2_PERCENT: 0.18,
+    STAGE2_REDUCE: 0.75,
+  },
+  
+  // 브레이크이븐
+  BREAKEVEN_TRIGGER: 0.08,
+  BREAKEVEN_SL: 0.04,
+  BREAKEVEN_TRAILING_GAP: 0.03,
+  
+  // 시장 환경 필터
+  MIN_ADX_FOR_TREND: 20,
+  
+  // 타임 스탑
+  TIME_STOP_MINUTES: 15,
+};
+
+// 모드별 설정 반환
+export function getTradingConfig(majorCoinMode: boolean = true) {
+  return majorCoinMode ? MAJOR_COIN_TRADING_CONFIG : ALTCOIN_TRADING_CONFIG;
+}
+
+// 모드별 스크리닝 기준 반환
+export function getScreeningCriteria(majorCoinMode: boolean = true) {
+  return majorCoinMode ? MAJOR_COIN_CRITERIA : ALTCOIN_CRITERIA;
 }
 
 // 티어별 특성 설명
