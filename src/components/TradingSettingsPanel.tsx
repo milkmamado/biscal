@@ -22,9 +22,16 @@ interface TradingSettingsProps {
   dtfxEnabled: boolean;
   onToggleDtfx: (enabled: boolean) => void;
   
-  // 손절 설정 (USDT)
+  // DTFX 기반 자동 손절 토글
+  autoDTFXStopLoss: boolean;
+  onToggleAutoDTFXStopLoss: (enabled: boolean) => void;
+  
+  // 손절 설정 (USDT) - autoDTFXStopLoss가 false일 때만 사용
   stopLossUsdt: number;
   onStopLossChange: (value: number) => void;
+  
+  // DTFX 기반 손절 가격 (자동 계산됨)
+  dtfxStopLossPrice?: number;
   
   // 익절 설정 (USDT)
   takeProfitUsdt: number;
@@ -36,8 +43,11 @@ interface TradingSettingsProps {
 export function TradingSettingsPanel({
   dtfxEnabled,
   onToggleDtfx,
+  autoDTFXStopLoss,
+  onToggleAutoDTFXStopLoss,
   stopLossUsdt,
   onStopLossChange,
+  dtfxStopLossPrice,
   takeProfitUsdt,
   onTakeProfitChange,
   isAutoTradingEnabled,
@@ -134,50 +144,79 @@ export function TradingSettingsPanel({
               <span className="text-[10px] font-semibold text-blue-400">손익 설정</span>
             </div>
 
-            {/* 손절 설정 (USDT) */}
+            {/* 손절 설정 */}
             <div className="space-y-2">
-              <div className="flex items-center gap-1">
-                <Shield className="w-3 h-3 text-red-400" />
-                <span className="text-[10px] font-semibold text-red-400">손절 설정</span>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Label className="text-[10px] text-muted-foreground whitespace-nowrap">손절 금액</Label>
-                <div className="flex-1 flex items-center gap-1">
-                  <Input
-                    type="text"
-                    inputMode="decimal"
-                    value={localStopLoss}
-                    onChange={(e) => setLocalStopLoss(e.target.value)}
-                    onBlur={applyStopLoss}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        applyStopLoss();
-                        (e.target as HTMLInputElement).blur();
-                      }
-                    }}
-                    className="h-7 text-[10px] text-right font-mono bg-background/50"
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1">
+                  <Shield className="w-3 h-3 text-red-400" />
+                  <span className="text-[10px] font-semibold text-red-400">손절 설정</span>
+                </div>
+                {/* DTFX 자동 손절 토글 */}
+                <div className="flex items-center gap-1">
+                  <span className="text-[9px] text-muted-foreground">DTFX 자동</span>
+                  <Switch
+                    checked={autoDTFXStopLoss}
+                    onCheckedChange={onToggleAutoDTFXStopLoss}
+                    className="scale-[0.6]"
                   />
-                  <span className="text-[10px] text-muted-foreground">USDT</span>
                 </div>
               </div>
 
-              {/* 손절 빠른 선택 버튼 */}
-              <div className="flex gap-1">
-                {[5, 10, 15, 20, 30].map((val) => (
-                  <button
-                    key={val}
-                    onClick={() => onStopLossChange(val)}
-                    className={`flex-1 py-1 text-[9px] rounded border transition-colors ${
-                      stopLossUsdt === val
-                        ? 'bg-red-500/20 border-red-500/50 text-red-400'
-                        : 'bg-background/30 border-border/30 text-muted-foreground hover:border-red-500/30'
-                    }`}
-                  >
-                    ${val}
-                  </button>
-                ))}
-              </div>
+              {autoDTFXStopLoss ? (
+                // DTFX 자동 손절 모드: 스윙 고/저점 표시
+                <div className="px-2 py-2 rounded bg-gradient-to-r from-purple-500/10 to-red-500/10 border border-purple-500/30">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-muted-foreground">자동 손절선</span>
+                    <span className="text-[11px] font-mono text-red-400">
+                      {dtfxStopLossPrice ? `$${dtfxStopLossPrice.toFixed(4)}` : '대기중...'}
+                    </span>
+                  </div>
+                  <p className="text-[8px] text-muted-foreground/70 mt-1">
+                    DTFX 존 스윙 고/저점 기준
+                  </p>
+                </div>
+              ) : (
+                // 수동 손절 모드: 기존 USDT 입력
+                <>
+                  <div className="flex items-center gap-2">
+                    <Label className="text-[10px] text-muted-foreground whitespace-nowrap">손절 금액</Label>
+                    <div className="flex-1 flex items-center gap-1">
+                      <Input
+                        type="text"
+                        inputMode="decimal"
+                        value={localStopLoss}
+                        onChange={(e) => setLocalStopLoss(e.target.value)}
+                        onBlur={applyStopLoss}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            applyStopLoss();
+                            (e.target as HTMLInputElement).blur();
+                          }
+                        }}
+                        className="h-7 text-[10px] text-right font-mono bg-background/50"
+                      />
+                      <span className="text-[10px] text-muted-foreground">USDT</span>
+                    </div>
+                  </div>
+
+                  {/* 손절 빠른 선택 버튼 */}
+                  <div className="flex gap-1">
+                    {[5, 10, 15, 20, 30].map((val) => (
+                      <button
+                        key={val}
+                        onClick={() => onStopLossChange(val)}
+                        className={`flex-1 py-1 text-[9px] rounded border transition-colors ${
+                          stopLossUsdt === val
+                            ? 'bg-red-500/20 border-red-500/50 text-red-400'
+                            : 'bg-background/30 border-border/30 text-muted-foreground hover:border-red-500/30'
+                        }`}
+                      >
+                        ${val}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
           </div>
 

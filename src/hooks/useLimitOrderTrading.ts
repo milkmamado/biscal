@@ -128,6 +128,8 @@ export interface LimitOrderTradingState {
   dtfxLastCheck?: number;
   // DTFX OTE 대기 시그널 (사용자 확인 필요)
   pendingDTFXSignal?: PendingDTFXSignal | null;
+  // DTFX 기반 자동 손절 가격
+  dtfxStopLossPrice?: number;
 }
 
 interface UseLimitOrderTradingProps {
@@ -158,6 +160,7 @@ interface UseLimitOrderTradingProps {
     stopLossUsdt: number;  // USDT 기반 손절
     takeProfitUsdt: number; // USDT 기반 익절
     dtfxEnabled?: boolean; // DTFX OTE 구간 진입 모드
+    autoDTFXStopLoss?: boolean; // DTFX 기반 자동 손절
   };
 }
 
@@ -192,6 +195,7 @@ export function useLimitOrderTrading({
     entryOrderIds: [],
     entryStartTime: null,
     pendingDTFXSignal: null,
+    dtfxStopLossPrice: undefined,
   });
 
   const { user } = useAuth();
@@ -1672,6 +1676,94 @@ export function useLimitOrderTrading({
 
   // ===== Cleanup =====
   // (레거시 타임아웃 로직 제거됨)
+
+  // ===== DTFX 기반 자동 손절 가격 계산 =====
+  // viewingSymbol에서 DTFX 분석하여 스윙 고/저점 기반 손절가 설정
+  useEffect(() => {
+    if (!filterSettings?.autoDTFXStopLoss) {
+      // 자동 손절 비활성화 → 가격 초기화
+      setState(prev => prev.dtfxStopLossPrice ? { ...prev, dtfxStopLossPrice: undefined } : prev);
+      return;
+    }
+    
+    if (!viewingSymbol) return;
+    
+    let isMounted = true;
+    
+    const calculateDTFXStopLoss = async () => {
+      try {
+        // 1분봉 데이터 조회
+        const klines = await fetch1mKlinesForDTFX(viewingSymbol, 100);
+        if (!klines || klines.length < 30) return;
+        
+        // DTFX 분석 실행
+        const dtfxData = analyzeDTFX(klines);
+        if (!isMounted) return;
+        
+        // 현재 포지션 정보
+        const position = currentPositionRef.current;
+        
+        // 스윙 포인트에서 손절 레벨 계산
+        // LONG: 직전 스윙 로우 (지지선) → 그 아래를 손절
+        // SHORT: 직전 스윙 하이 (저항선) → 그 위를 손절
+        const swingHighs = dtfxData.swingPoints.filter(s => s.type === 'high').slice(-3);
+        const swingLows = dtfxData.swingPoints.filter(s => s.type === 'low').slice(-3);
+        
+        let stopLossPrice: number | undefined;
+        
+        if (position) {
+          // 포지션 있을 때: 포지션 방향에 따라 손절선 결정
+          if (position.side === 'long') {
+            // 롱 포지션: 최근 스윙 로우 중 진입가 아래의 가장 가까운 것
+            const validSwingLows = swingLows.filter(s => s.price < position.avgPrice);
+            if (validSwingLows.length > 0) {
+              // 가장 가까운(높은) 스윙 로우 선택
+              stopLossPrice = Math.max(...validSwingLows.map(s => s.price));
+            } else if (swingLows.length > 0) {
+              // 진입가 아래 스윙 로우가 없으면 가장 최근 스윙 로우
+              stopLossPrice = swingLows[swingLows.length - 1].price;
+            }
+          } else {
+            // 숏 포지션: 최근 스윙 하이 중 진입가 위의 가장 가까운 것
+            const validSwingHighs = swingHighs.filter(s => s.price > position.avgPrice);
+            if (validSwingHighs.length > 0) {
+              // 가장 가까운(낮은) 스윙 하이 선택
+              stopLossPrice = Math.min(...validSwingHighs.map(s => s.price));
+            } else if (swingHighs.length > 0) {
+              // 진입가 위 스윙 하이가 없으면 가장 최근 스윙 하이
+              stopLossPrice = swingHighs[swingHighs.length - 1].price;
+            }
+          }
+        } else {
+          // 포지션 없을 때: 차트에 표시할 참고용 레벨 (가장 최근 스윙 포인트)
+          const lastSwing = dtfxData.swingPoints[dtfxData.swingPoints.length - 1];
+          if (lastSwing) {
+            stopLossPrice = lastSwing.price;
+          }
+        }
+        
+        if (isMounted && stopLossPrice) {
+          setState(prev => ({
+            ...prev,
+            dtfxStopLossPrice: stopLossPrice,
+          }));
+        }
+      } catch (error) {
+        console.warn('[DTFX 자동 손절] 계산 오류:', error);
+      }
+    };
+    
+    // 초기 계산
+    calculateDTFXStopLoss();
+    
+    // 10초마다 갱신
+    const interval = setInterval(calculateDTFXStopLoss, 10000);
+    
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [viewingSymbol, filterSettings?.autoDTFXStopLoss]);
 
   // ===== DTFX OTE 구간 체크 및 확인 대기 (자동 진입 → 사용자 확인 방식으로 변경) =====
   const checkDTFXOTEAndEntry = useCallback(async (symbol: string, currentPrice: number) => {
