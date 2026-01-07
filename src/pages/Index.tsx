@@ -34,6 +34,7 @@ const Index = () => {
   const [screeningLogs, setScreeningLogs] = useState<ScreeningLog[]>([]);
   
   const [dtfxEnabled, setDtfxEnabled] = useState(false); // DTFX 차트 표시 토글
+  const [autoDTFXStopLoss, setAutoDTFXStopLoss] = useState(true); // DTFX 기반 자동 손절 (기본 ON)
   const [stopLossUsdt, setStopLossUsdt] = useState(1.5); // 기본 1.5 USDT 손절 (한틱손절 방지)
   const [takeProfitUsdt, setTakeProfitUsdt] = useState(2.0); // 기본 2.0 USDT 익절
   
@@ -89,6 +90,7 @@ const Index = () => {
     filterSettings: {
       stopLossUsdt,
       takeProfitUsdt,
+      autoDTFXStopLoss,
     },
   });
   
@@ -291,7 +293,7 @@ const Index = () => {
     ? tickers.find(t => t.symbol === autoTrading.state.currentPosition?.symbol)?.price || 0
     : 0;
     
-  // 손절/익절 가격 계산 (USDT 손익 기준)
+  // 손절/익절 가격 계산 (USDT 손익 기준 또는 DTFX 자동)
   const position = autoTrading.state.currentPosition;
   const calculateSlTpPrices = () => {
     if (!position) return { stopLossPrice: undefined, takeProfitPrice: undefined };
@@ -300,20 +302,27 @@ const Index = () => {
     const qty = position.totalQuantity;
     const positionValueUsd = entryPrice * qty;
     
-    // USDT 손익 → 가격 변동률 계산
-    // 레버리지는 이미 qty에 반영됨 (balanceUSD * leverage / price = qty)
-    // 따라서 가격 변동 = 손익USDT / 포지션명목가치
-    const slPercent = (stopLossUsdt / positionValueUsd) * 100;
-    const tpPercent = (takeProfitUsdt / positionValueUsd) * 100;
-    
-    let slPrice: number;
+    let slPrice: number | undefined;
     let tpPrice: number;
     
+    // DTFX 자동 손절 모드
+    if (autoDTFXStopLoss && autoTrading.state.dtfxStopLossPrice) {
+      slPrice = autoTrading.state.dtfxStopLossPrice;
+    } else {
+      // 수동 USDT 기반 손절
+      const slPercent = (stopLossUsdt / positionValueUsd) * 100;
+      if (position.side === 'long') {
+        slPrice = entryPrice * (1 - slPercent / 100);
+      } else {
+        slPrice = entryPrice * (1 + slPercent / 100);
+      }
+    }
+    
+    // 익절은 항상 USDT 기반
+    const tpPercent = (takeProfitUsdt / positionValueUsd) * 100;
     if (position.side === 'long') {
-      slPrice = entryPrice * (1 - slPercent / 100);
       tpPrice = entryPrice * (1 + tpPercent / 100);
     } else {
-      slPrice = entryPrice * (1 + slPercent / 100);
       tpPrice = entryPrice * (1 - tpPercent / 100);
     }
     
@@ -408,8 +417,11 @@ const Index = () => {
           <TradingSettingsPanel
             dtfxEnabled={dtfxEnabled}
             onToggleDtfx={setDtfxEnabled}
+            autoDTFXStopLoss={autoDTFXStopLoss}
+            onToggleAutoDTFXStopLoss={setAutoDTFXStopLoss}
             stopLossUsdt={stopLossUsdt}
             onStopLossChange={setStopLossUsdt}
+            dtfxStopLossPrice={autoTrading.state.dtfxStopLossPrice}
             takeProfitUsdt={takeProfitUsdt}
             onTakeProfitChange={setTakeProfitUsdt}
             isAutoTradingEnabled={autoTrading.state.isEnabled}
