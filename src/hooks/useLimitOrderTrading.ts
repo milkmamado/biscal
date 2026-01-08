@@ -128,8 +128,6 @@ export interface LimitOrderTradingState {
   dtfxLastCheck?: number;
   // DTFX OTE 대기 시그널 (사용자 확인 필요)
   pendingDTFXSignal?: PendingDTFXSignal | null;
-  // DTFX 기반 자동 손절 가격
-  dtfxStopLossPrice?: number;
 }
 
 interface UseLimitOrderTradingProps {
@@ -157,10 +155,8 @@ interface UseLimitOrderTradingProps {
   majorCoinMode?: boolean;
   // 필터 설정
   filterSettings?: {
-    stopLossUsdt: number;  // USDT 기반 손절
     takeProfitUsdt: number; // USDT 기반 익절
     dtfxEnabled?: boolean; // DTFX OTE 구간 진입 모드
-    autoDTFXStopLoss?: boolean; // DTFX 기반 자동 손절
   };
 }
 
@@ -195,7 +191,6 @@ export function useLimitOrderTrading({
     entryOrderIds: [],
     entryStartTime: null,
     pendingDTFXSignal: null,
-    dtfxStopLossPrice: undefined,
   });
 
   const { user } = useAuth();
@@ -313,31 +308,24 @@ export function useLimitOrderTrading({
   const serverSlTpInProgressRef = useRef(false);
   const serverSlTpLastAttemptRef = useRef<{ key: string | null; at: number }>({ key: null, at: 0 });
 
-  // SL/TP 함수를 ref로 저장 (의존성 문제 방지)
-  const placeStopMarketOrderRef = useRef(placeStopMarketOrder);
+  // TP 함수를 ref로 저장 (의존성 문제 방지)
   const placeTakeProfitMarketOrderRef = useRef(placeTakeProfitMarketOrder);
   const getOpenOrdersRef = useRef(getOpenOrders);
   const cancelOrderRef = useRef(cancelOrder);
   const filterSettingsRef = useRef(filterSettings);
-  const dtfxStopLossPriceRef = useRef<number | undefined>(state.dtfxStopLossPrice);
 
   useEffect(() => {
-    placeStopMarketOrderRef.current = placeStopMarketOrder;
     placeTakeProfitMarketOrderRef.current = placeTakeProfitMarketOrder;
     getOpenOrdersRef.current = getOpenOrders;
     cancelOrderRef.current = cancelOrder;
     filterSettingsRef.current = filterSettings;
-  }, [placeStopMarketOrder, placeTakeProfitMarketOrder, getOpenOrders, cancelOrder, filterSettings]);
-
-  useEffect(() => {
-    dtfxStopLossPriceRef.current = state.dtfxStopLossPrice;
-  }, [state.dtfxStopLossPrice]);
+  }, [placeTakeProfitMarketOrder, getOpenOrders, cancelOrder, filterSettings]);
   
   useEffect(() => {
     if (!user) return;
     let isMounted = true;
 
-    const ensureServerSlTpOrders = async (opts: {
+    const ensureServerTpOrders = async (opts: {
       symbol: string;
       side: 'long' | 'short';
       qty: number;
@@ -348,8 +336,6 @@ export function useLimitOrderTrading({
       if (processingRef.current) return;
       if (serverSlTpInProgressRef.current) return;
 
-      // 🆕 DTFX 자동 손절이 OFF면 손절 완전 비활성화
-      const dtfxAutoEnabled = !!filterSettingsRef.current?.autoDTFXStopLoss;
       const targetTakeProfitUsdt = filterSettingsRef.current?.takeProfitUsdt ?? 7;
 
       const positionValueUsd = opts.avgPrice * opts.qty;
@@ -361,17 +347,7 @@ export function useLimitOrderTrading({
           ? opts.avgPrice * (1 + tpPercent / 100)
           : opts.avgPrice * (1 - tpPercent / 100);
 
-      // 손절가 계산 (DTFX 자동 ON일 때만)
-      let slPrice: number | null = null;
-      if (dtfxAutoEnabled) {
-        const dtfxSl = dtfxStopLossPriceRef.current;
-        if (typeof dtfxSl === 'number' && Number.isFinite(dtfxSl)) {
-          const valid = opts.side === 'long' ? dtfxSl < opts.avgPrice : dtfxSl > opts.avgPrice;
-          if (valid) slPrice = dtfxSl;
-        }
-      }
-
-      const key = `${opts.symbol}-${opts.side}-${opts.qty.toFixed(6)}-${opts.avgPrice.toFixed(6)}-${targetTakeProfitUsdt}-${dtfxAutoEnabled ? 'dtfx' : 'nosl'}-${slPrice?.toFixed(6) ?? 'none'}`;
+      const key = `${opts.symbol}-${opts.side}-${opts.qty.toFixed(6)}-${opts.avgPrice.toFixed(6)}-${targetTakeProfitUsdt}`;
       const now = Date.now();
 
       // 실패 시 반복 호출 방지 (10초 스로틀)
@@ -388,19 +364,19 @@ export function useLimitOrderTrading({
       const closeSide = opts.side === 'long' ? 'SELL' : 'BUY';
 
       console.log(
-        `🧷 [서버 SL/TP 유지] ${opts.symbol} ${opts.side} qty=${opts.qty.toFixed(6)} avg=${opts.avgPrice} | SL=${dtfxAutoEnabled ? (slPrice?.toFixed(4) ?? 'DTFX없음') : '🚫비활성화'} | TP=$${targetTakeProfitUsdt}→${tpPrice.toFixed(4)}`
+        `🧷 [서버 TP 유지] ${opts.symbol} ${opts.side} qty=${opts.qty.toFixed(6)} avg=${opts.avgPrice} | TP=$${targetTakeProfitUsdt}→${tpPrice.toFixed(4)}`
       );
 
       try {
-        // 기존 SL/TP 주문만 취소
+        // 기존 TP 주문만 취소
         const openOrders = await getOpenOrdersRef.current(opts.symbol);
-        const sltpTypes = new Set(['STOP_MARKET', 'TAKE_PROFIT_MARKET', 'STOP', 'TAKE_PROFIT']);
-        const sltpOrders = (openOrders || []).filter((o: any) => {
+        const tpTypes = new Set(['TAKE_PROFIT_MARKET', 'TAKE_PROFIT']);
+        const tpOrders = (openOrders || []).filter((o: any) => {
           const t = String(o?.type || o?.origType || '').toUpperCase();
-          return sltpTypes.has(t);
+          return tpTypes.has(t);
         });
 
-        for (const o of sltpOrders) {
+        for (const o of tpOrders) {
           const orderIdNum = Number(o.orderId);
           if (!Number.isFinite(orderIdNum)) continue;
           try {
@@ -413,20 +389,11 @@ export function useLimitOrderTrading({
         // 취소 반영 대기
         await new Promise((r) => setTimeout(r, 150));
 
-        // STOP_MARKET - DTFX 자동 ON이고 유효한 손절가가 있을 때만
-        if (dtfxAutoEnabled && slPrice !== null) {
-          try {
-            await placeStopMarketOrderRef.current(opts.symbol, closeSide, opts.qty, slPrice, opts.positionSide);
-          } catch (e: any) {
-            console.warn('[서버 SL/TP] STOP_MARKET 실패:', e?.message || e);
-          }
-        }
-
-        // TAKE_PROFIT_MARKET (익절은 항상 설정)
+        // TAKE_PROFIT_MARKET (익절 설정)
         try {
           await placeTakeProfitMarketOrderRef.current(opts.symbol, closeSide, opts.qty, tpPrice, opts.positionSide);
         } catch (e: any) {
-          console.warn('[서버 SL/TP] TAKE_PROFIT_MARKET 실패:', e?.message || e);
+          console.warn('[서버 TP] TAKE_PROFIT_MARKET 실패:', e?.message || e);
         }
       } finally {
         serverSlTpInProgressRef.current = false;
@@ -470,18 +437,6 @@ export function useLimitOrderTrading({
 
           console.log(`🔄 [포지션 동기화] ${symbol} ${side} @ ${entryPrice} qty=${qty} PnL=$${unrealizedPnl.toFixed(2)}`);
 
-          // 손절가 계산 (표시용) - DTFX 자동 ON일 때만
-          const dtfxAutoEnabled = !!filterSettingsRef.current?.autoDTFXStopLoss;
-          let slPrice: number | undefined = undefined;
-          
-          if (dtfxAutoEnabled) {
-            const dtfxSl = dtfxStopLossPriceRef.current;
-            if (typeof dtfxSl === 'number' && Number.isFinite(dtfxSl)) {
-              const valid = side === 'long' ? dtfxSl < entryPrice : dtfxSl > entryPrice;
-              if (valid) slPrice = dtfxSl;
-            }
-          }
-
           if (isMounted) {
             setState(prev => {
               const prevPos = prev.currentPosition;
@@ -496,7 +451,6 @@ export function useLimitOrderTrading({
                     avgPrice: entryPrice,
                     totalQuantity: qty,
                     filledQuantity: qty,
-                    stopLossPrice: slPrice,
                     unrealizedPnl,
                     markPrice,
                   },
@@ -517,7 +471,6 @@ export function useLimitOrderTrading({
                   startTime: Date.now(),
                   entryPhase: 'active',
                   takeProfitOrders: [],
-                  stopLossPrice: slPrice,
                   unrealizedPnl,
                   markPrice,
                 },
@@ -526,7 +479,7 @@ export function useLimitOrderTrading({
             });
           }
 
-          // ===== 서버 SL/TP 주문: 신규 감지 + (수량/평단 변경 시) 재설정 =====
+          // ===== 서버 TP 주문: 신규 감지 + (수량/평단 변경 시) 재설정 =====
           const positionSide =
             (openPosition.positionSide && openPosition.positionSide !== 'BOTH')
               ? (openPosition.positionSide as 'LONG' | 'SHORT')
@@ -548,7 +501,7 @@ export function useLimitOrderTrading({
                slTpSettingInProgressRef.current = posKey;
              }
 
-             await ensureServerSlTpOrders({ symbol, side, qty, avgPrice: entryPrice, positionSide });
+             await ensureServerTpOrders({ symbol, side, qty, avgPrice: entryPrice, positionSide });
            }
         } else {
           // 포지션이 없으면 동기화 키 초기화 + 로컬 상태 정리
@@ -917,27 +870,12 @@ export function useLimitOrderTrading({
         await closePositionMarket('tp', currentPrice);
         return;
       }
-      // 손절 체크 (USDT 기반)
-      const targetStopLossUsdt = filterSettings?.stopLossUsdt ?? 7;
-      if (pnlUSD <= -targetStopLossUsdt) {
-        console.log(`🛑 저체결 손절! $${pnlUSD.toFixed(2)} <= -$${targetStopLossUsdt}`);
-        await closePositionMarket('sl', currentPrice);
-        return;
-      }
       // 저체결 모드에서는 익절/타임스탑 무시, 손익분기만 대기
       return;
     }
 
     // ===== 일반 모드 =====
-    // 손절 체크 (USDT 기반)
-    const targetStopLossUsdt = filterSettings?.stopLossUsdt ?? 7;
-    if (pnlUSD <= -targetStopLossUsdt) {
-      console.log(`🛑 손절! $${pnlUSD.toFixed(2)} <= -$${targetStopLossUsdt}`);
-      await closePositionMarket('sl', currentPrice);
-      return;
-    }
-
-    // (타임스탑 삭제됨)
+    // (손절 기능 완전 제거됨)
 
     // 익절 체크 (USDT 기반) → 전량 시장가 청산
     const targetProfitUsdt = filterSettings?.takeProfitUsdt ?? 7;
@@ -1285,7 +1223,7 @@ export function useLimitOrderTrading({
       
       // 진입 사운드 삭제됨
       
-      // ===== 바이낸스에 STOP_MARKET / TAKE_PROFIT_MARKET 주문 설정 =====
+      // ===== 바이낸스에 TAKE_PROFIT_MARKET 주문 설정 (손절 제거됨) =====
       const closeSide = direction === 'long' ? 'SELL' : 'BUY';
       const positionSide =
         (actualPosition?.positionSide && actualPosition.positionSide !== 'BOTH')
@@ -1293,34 +1231,17 @@ export function useLimitOrderTrading({
           : undefined;
       const positionValueUsd = finalAvgPrice * finalQty;
       
-      const targetStopLossUsdt = filterSettings?.stopLossUsdt ?? 7;
       const targetTakeProfitUsdt = filterSettings?.takeProfitUsdt ?? 7;
-      
-      const slPercent = (targetStopLossUsdt / positionValueUsd) * 100;
       const tpPercent = (targetTakeProfitUsdt / positionValueUsd) * 100;
       
-      let slPrice: number;
       let tpPrice: number;
-      
       if (direction === 'long') {
-        slPrice = finalAvgPrice * (1 - slPercent / 100);
         tpPrice = finalAvgPrice * (1 + tpPercent / 100);
       } else {
-        slPrice = finalAvgPrice * (1 + slPercent / 100);
         tpPrice = finalAvgPrice * (1 - tpPercent / 100);
       }
       
-      console.log(`📊 [SL/TP 설정] 포지션가치=$${positionValueUsd.toFixed(2)} | SL=$${targetStopLossUsdt}→${slPrice.toFixed(4)} | TP=$${targetTakeProfitUsdt}→${tpPrice.toFixed(4)}`);
-      
-      // STOP_MARKET 주문
-      try {
-        const slResult = await placeStopMarketOrder(symbol, closeSide, finalQty, slPrice, positionSide);
-        if (slResult && !slResult.error) {
-          console.log(`✅ [STOP_MARKET] 설정 완료! 손절가=${slPrice.toFixed(4)}`);
-        }
-      } catch (slError: any) {
-        console.warn(`❌ STOP_MARKET 실패:`, slError?.message);
-      }
+      console.log(`📊 [TP 설정] 포지션가치=$${positionValueUsd.toFixed(2)} | TP=$${targetTakeProfitUsdt}→${tpPrice.toFixed(4)}`);
       
       // TAKE_PROFIT_MARKET 주문
       try {
@@ -1347,7 +1268,6 @@ export function useLimitOrderTrading({
         filledQuantity: finalQty,
         totalQuantity: finalQty,
         avgPrice: finalAvgPrice,
-        stopLossPrice: slPrice,
         startTime: Date.now(),
         entryPhase: 'active',
         takeProfitOrders: [],
@@ -1362,7 +1282,7 @@ export function useLimitOrderTrading({
         ...prev,
         currentPosition: newPosition,
         currentSymbol: symbol,
-        statusMessage: `✅ ${symbol} ${direction === 'long' ? '롱' : '숏'} 진입 완료 (SL/TP 설정됨)`,
+        statusMessage: `✅ ${symbol} ${direction === 'long' ? '롱' : '숏'} 진입 완료 (TP 설정됨)`,
         isProcessing: false,
       }));
       
@@ -1548,53 +1468,51 @@ export function useLimitOrderTrading({
     }
   }, [state.currentPosition, user, balanceUSD, leverage, placeLimitOrder, addLog]);
 
-  // ===== 손절/익절 설정 변경 시 바이낸스 SL/TP 주문 업데이트 =====
-  const prevSlTpRef = useRef<{ sl: number; tp: number } | null>(null);
+  // ===== 익절 설정 변경 시 바이낸스 TP 주문 업데이트 (손절 제거됨) =====
+  const prevTpRef = useRef<number | null>(null);
   
   useEffect(() => {
     let isMounted = true;
     
-    const currentSl = filterSettings?.stopLossUsdt ?? 7;
     const currentTp = filterSettings?.takeProfitUsdt ?? 7;
     
     // 초기 로드 시 값 저장만 하고 리턴
-    if (!prevSlTpRef.current) {
-      prevSlTpRef.current = { sl: currentSl, tp: currentTp };
+    if (prevTpRef.current === null) {
+      prevTpRef.current = currentTp;
       return;
     }
     
     // 설정 변경 감지
-    const slChanged = prevSlTpRef.current.sl !== currentSl;
-    const tpChanged = prevSlTpRef.current.tp !== currentTp;
+    const tpChanged = prevTpRef.current !== currentTp;
     
-    if (!slChanged && !tpChanged) return;
+    if (!tpChanged) return;
     
     // 활성 포지션이 있을 때만 업데이트
     const position = currentPositionRef.current;
     if (!position || position.entryPhase !== 'active') {
-      prevSlTpRef.current = { sl: currentSl, tp: currentTp };
+      prevTpRef.current = currentTp;
       return;
     }
     
     // 처리 중이면 스킵
     if (processingRef.current) return;
     
-    // 비동기로 SL/TP 업데이트 실행
-    const updateSlTpOrders = async () => {
-      console.log(`🔄 [SL/TP 변경 감지] SL: $${prevSlTpRef.current?.sl} → $${currentSl} | TP: $${prevSlTpRef.current?.tp} → $${currentTp}`);
-      prevSlTpRef.current = { sl: currentSl, tp: currentTp };
+    // 비동기로 TP 업데이트 실행
+    const updateTpOrders = async () => {
+      console.log(`🔄 [TP 변경 감지] TP: $${prevTpRef.current} → $${currentTp}`);
+      prevTpRef.current = currentTp;
       
       try {
-        // 기존 SL/TP 주문만 취소 (다른 미체결 주문은 유지)
-        console.log(`🚫 [SL/TP 업데이트] ${position.symbol} 기존 SL/TP 주문 취소 중...`);
+        // 기존 TP 주문만 취소
+        console.log(`🚫 [TP 업데이트] ${position.symbol} 기존 TP 주문 취소 중...`);
         const openOrders = await getOpenOrders(position.symbol);
-        const sltpTypes = new Set(['STOP_MARKET', 'TAKE_PROFIT_MARKET', 'STOP', 'TAKE_PROFIT']);
-        const sltpOrders = (openOrders || []).filter((o: any) => {
+        const tpTypes = new Set(['TAKE_PROFIT_MARKET', 'TAKE_PROFIT']);
+        const tpOrders = (openOrders || []).filter((o: any) => {
           const t = String(o?.type || o?.origType || '').toUpperCase();
-          return sltpTypes.has(t);
+          return tpTypes.has(t);
         });
 
-        for (const o of sltpOrders) {
+        for (const o of tpOrders) {
           const orderIdNum = Number(o.orderId);
           if (!Number.isFinite(orderIdNum)) continue;
           try {
@@ -1621,7 +1539,7 @@ export function useLimitOrderTrading({
         );
 
         if (!actualPosition) {
-          console.log(`⚠️ [SL/TP 업데이트] ${position.symbol} 포지션 없음, 스킵`);
+          console.log(`⚠️ [TP 업데이트] ${position.symbol} 포지션 없음, 스킵`);
           return;
         }
 
@@ -1634,33 +1552,17 @@ export function useLimitOrderTrading({
             : undefined;
         const positionValueUsd = avgPrice * qty;
 
-        // 새 손절가/익절가 계산
-        const slPercent = (currentSl / positionValueUsd) * 100;
+        // 새 익절가 계산
         const tpPercent = (currentTp / positionValueUsd) * 100;
-
-        let slPrice: number;
         let tpPrice: number;
 
         if (position.side === 'long') {
-          slPrice = avgPrice * (1 - slPercent / 100);
           tpPrice = avgPrice * (1 + tpPercent / 100);
         } else {
-          slPrice = avgPrice * (1 + slPercent / 100);
           tpPrice = avgPrice * (1 - tpPercent / 100);
         }
 
-        console.log(`📊 [새 SL/TP] 포지션가치=$${positionValueUsd.toFixed(2)} | SL=$${currentSl}→${slPrice.toFixed(4)} | TP=$${currentTp}→${tpPrice.toFixed(4)}`);
-
-        // 새 STOP_MARKET 주문
-        try {
-          const slResult = await placeStopMarketOrder(position.symbol, closeSide, qty, slPrice, positionSide);
-          if (isMounted && slResult && !slResult.error) {
-            console.log(`✅ [STOP_MARKET] 재설정 완료! 손절가=${slPrice.toFixed(4)}`);
-          }
-        } catch (slError: any) {
-          const msg = slError?.message || '손절 주문 재설정 실패';
-          console.warn(`❌ STOP_MARKET 재설정 실패:`, msg);
-        }
+        console.log(`📊 [새 TP] 포지션가치=$${positionValueUsd.toFixed(2)} | TP=$${currentTp}→${tpPrice.toFixed(4)}`);
 
         if (!isMounted) return;
 
@@ -1677,98 +1579,25 @@ export function useLimitOrderTrading({
 
         if (!isMounted) return;
 
-        // 포지션 상태에 새 손절가 저장
-        setState(prev => {
-          if (!prev.currentPosition) return prev;
-          return {
-            ...prev,
-            currentPosition: {
-              ...prev.currentPosition,
-              stopLossPrice: slPrice,
-            },
-            statusMessage: `✅ SL/TP 업데이트 완료!`,
-          };
-        });
+        setState(prev => ({
+          ...prev,
+          statusMessage: `✅ TP 업데이트 완료!`,
+        }));
 
       } catch (error: any) {
-        console.error('[SL/TP 업데이트 오류]', error);
+        console.error('[TP 업데이트 오류]', error);
       }
     };
     
-    updateSlTpOrders();
+    updateTpOrders();
     
     return () => {
       isMounted = false;
     };
-  }, [filterSettings?.stopLossUsdt, filterSettings?.takeProfitUsdt, cancelAllOrders, getPositions, placeStopMarketOrder, placeTakeProfitMarketOrder]);
+  }, [filterSettings?.takeProfitUsdt, getPositions, placeTakeProfitMarketOrder, getOpenOrders, cancelOrder]);
 
   // ===== Cleanup =====
   // (레거시 타임아웃 로직 제거됨)
-
-  // ===== DTFX 기반 자동 손절 가격 =====
-  // 포지션이 있을 때 자동으로 DTFX 존을 분석해서 손절가 계산
-  useEffect(() => {
-    if (!filterSettings?.autoDTFXStopLoss) {
-      setState(prev => (prev.dtfxStopLossPrice ? { ...prev, dtfxStopLossPrice: undefined } : prev));
-      return;
-    }
-    
-    const position = currentPositionRef.current;
-    if (!position) return;
-    
-    // 이미 손절가가 설정되어 있으면 스킵
-    if (state.dtfxStopLossPrice) return;
-    
-    let isMounted = true;
-    
-    const calculateDTFXStopLoss = async () => {
-      try {
-        const klines = await fetch1mKlinesForDTFX(position.symbol, 100);
-        if (!klines || klines.length < 30 || !isMounted) return;
-        
-        const dtfxData = analyzeDTFX(klines);
-        if (dtfxData.zones.length === 0) {
-          console.log(`📊 [DTFX 손절] ${position.symbol} - 존 없음, 손절가 계산 불가`);
-          return;
-        }
-        
-        // 포지션 방향에 맞는 존 찾기
-        // LONG → demand zone, SHORT → supply zone
-        const matchingZones = dtfxData.zones.filter(z => 
-          (position.side === 'long' && z.type === 'demand') ||
-          (position.side === 'short' && z.type === 'supply')
-        );
-        
-        if (matchingZones.length === 0) {
-          console.log(`📊 [DTFX 손절] ${position.symbol} - 방향 맞는 존 없음`);
-          return;
-        }
-        
-        // 가장 최근 존 사용
-        const latestZone = matchingZones[matchingZones.length - 1];
-        const stopLossPrice = latestZone.from.price;
-        
-        console.log(`🎯 [DTFX 손절] ${position.symbol} ${position.side} → zone.from: $${stopLossPrice.toFixed(6)}`);
-        
-        if (isMounted) {
-          setState(prev => ({
-            ...prev,
-            dtfxStopLossPrice: stopLossPrice,
-          }));
-        }
-      } catch (error) {
-        console.warn('[DTFX 손절 계산 오류]', error);
-      }
-    };
-    
-    // 포지션 있으면 즉시 계산
-    calculateDTFXStopLoss();
-    
-    return () => {
-      isMounted = false;
-    };
-  }, [filterSettings?.autoDTFXStopLoss, state.currentPosition?.symbol, state.currentPosition?.side, state.dtfxStopLossPrice]);
-
 
   // ===== DTFX OTE 구간 체크 및 확인 대기 (자동 진입 → 사용자 확인 방식으로 변경) =====
   const checkDTFXOTEAndEntry = useCallback(async (symbol: string, currentPrice: number) => {
@@ -1824,20 +1653,9 @@ export function useLimitOrderTrading({
         const entryRatio = oteSignal.entryRatio || 0;
         
         console.log(`🎯 [DTFX OTE] ${symbol} ${oteSignal.direction} @ ${currentPrice} (${(entryRatio * 100).toFixed(1)}% 레벨, ${zoneType} Zone)`);
-        
-        // 🆕 자동 진입 대신 대기 시그널로 저장 (사용자 확인 필요)
-        // + DTFX 자동 손절가: "존이 시작된 기준 캔들"(zone.from)의 고/저점 가격
-        //   - demand(롱존)  : zone.from.price (swing low)
-        //   - supply(숏존)  : zone.from.price (swing high)
-        let dtfxStopLossPrice: number | undefined;
-        if (filterSettings?.autoDTFXStopLoss && oteSignal.zone) {
-          dtfxStopLossPrice = oteSignal.zone.from.price;
-          console.log(`🎯 [DTFX 손절] zone.from 기준: $${dtfxStopLossPrice.toFixed(6)} (zone=${oteSignal.zone.id})`);
-        }
 
         setState(prev => ({
           ...prev,
-          dtfxStopLossPrice: dtfxStopLossPrice ?? prev.dtfxStopLossPrice,
           pendingDTFXSignal: {
             symbol,
             direction: oteSignal.direction!,
@@ -1863,7 +1681,7 @@ export function useLimitOrderTrading({
       console.error('[DTFX OTE 체크 오류]', error);
       return null;
     }
-  }, [filterSettings?.dtfxEnabled, filterSettings?.autoDTFXStopLoss, state.isEnabled, state.currentPosition, state.pendingDTFXSignal, state.dtfxLastCheck, user]);
+  }, [filterSettings?.dtfxEnabled, state.isEnabled, state.currentPosition, state.pendingDTFXSignal, state.dtfxLastCheck, user]);
 
   // DTFX 시그널 확인 후 진입
   const confirmDTFXEntry = useCallback(async () => {
