@@ -1765,18 +1765,13 @@ export function useLimitOrderTrading({
         console.log(`🎯 [DTFX OTE] ${symbol} ${oteSignal.direction} @ ${currentPrice} (${(entryRatio * 100).toFixed(1)}% 레벨, ${zoneType} Zone)`);
         
         // 🆕 자동 진입 대신 대기 시그널로 저장 (사용자 확인 필요)
-        // + DTFX 자동 손절가: 존의 상단(숏) 또는 하단(롱)을 손절선으로
+        // + DTFX 자동 손절가: "존이 시작된 기준 캔들"(zone.from)의 고/저점 가격
+        //   - demand(롱존)  : zone.from.price (swing low)
+        //   - supply(숏존)  : zone.from.price (swing high)
         let dtfxStopLossPrice: number | undefined;
         if (filterSettings?.autoDTFXStopLoss && oteSignal.zone) {
-          // 숏: 존 상단 위가 손절 (zone.topPrice)
-          // 롱: 존 하단 아래가 손절 (zone.bottomPrice)
-          if (oteSignal.direction === 'short') {
-            dtfxStopLossPrice = oteSignal.zone.topPrice;
-          } else {
-            dtfxStopLossPrice = oteSignal.zone.bottomPrice;
-          }
-          
-          console.log(`🎯 [DTFX 손절] ${oteSignal.direction === 'short' ? '숏→존상단' : '롱→존하단'}: $${dtfxStopLossPrice?.toFixed(6)}`);
+          dtfxStopLossPrice = oteSignal.zone.from.price;
+          console.log(`🎯 [DTFX 손절] zone.from 기준: $${dtfxStopLossPrice.toFixed(6)} (zone=${oteSignal.zone.id})`);
         }
 
         setState(prev => ({
