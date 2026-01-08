@@ -22,8 +22,11 @@ let allSymbolsLeverageCache: Map<string, number> | null = null;
 let cacheTimestamp = 0;
 const CACHE_DURATION = 5 * 60 * 1000; // 5분
 
+// 앱 전체 최대 레버리지 제한
+const APP_MAX_LEVERAGE = 50;
+
 export function useSymbolMaxLeverage(symbol: string) {
-  const [maxLeverage, setMaxLeverage] = useState<number>(125); // 기본값
+  const [maxLeverage, setMaxLeverage] = useState<number>(APP_MAX_LEVERAGE); // 기본값 = 앱 최대
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -31,7 +34,9 @@ export function useSymbolMaxLeverage(symbol: string) {
 
     // 캐시에서 먼저 확인
     if (leverageCache.has(symbol)) {
-      setMaxLeverage(leverageCache.get(symbol)!);
+      const cached = leverageCache.get(symbol)!;
+      // 앱 최대값과 비교해서 더 작은 값 사용
+      setMaxLeverage(Math.min(cached, APP_MAX_LEVERAGE));
       return;
     }
 
@@ -49,9 +54,10 @@ export function useSymbolMaxLeverage(symbol: string) {
             const brackets = data[0]?.brackets || [];
             if (brackets.length > 0) {
               // 첫 번째 브라켓이 가장 높은 레버리지
-              const max = brackets[0]?.initialLeverage || 125;
-              leverageCache.set(symbol, max);
-              setMaxLeverage(max);
+              const symbolMax = brackets[0]?.initialLeverage || APP_MAX_LEVERAGE;
+              leverageCache.set(symbol, symbolMax);
+              // 앱 최대값과 비교해서 더 작은 값 사용
+              setMaxLeverage(Math.min(symbolMax, APP_MAX_LEVERAGE));
             }
           }
         }
@@ -105,27 +111,33 @@ export async function fetchAllSymbolsMaxLeverage(): Promise<Map<string, number>>
   return new Map();
 }
 
-// 레버리지 옵션 생성 (최대 레버리지에 맞게)
+// 레버리지 옵션 생성 (최대 레버리지에 맞게, 앱 최대값 적용)
 export function generateLeverageOptions(maxLeverage: number): number[] {
   const options: number[] = [];
   
-  // 1, 2, 3, 5, 10, 20, 25, 50, 75, 100, 125 중 최대 레버리지 이하만
-  const presets = [1, 2, 3, 5, 10, 15, 20, 25, 50, 75, 100, 125];
+  // 앱 최대값 적용
+  const effectiveMax = Math.min(maxLeverage, APP_MAX_LEVERAGE);
+  
+  // 1, 2, 3, 5, 10, 20, 25, 50 중 최대 레버리지 이하만 (75, 100, 125 제거)
+  const presets = [1, 2, 3, 5, 10, 15, 20, 25, 50];
   
   for (const preset of presets) {
-    if (preset <= maxLeverage) {
+    if (preset <= effectiveMax) {
       options.push(preset);
     }
   }
   
   // 최대 레버리지가 presets에 없으면 추가
-  if (maxLeverage > 0 && !options.includes(maxLeverage)) {
-    options.push(maxLeverage);
+  if (effectiveMax > 0 && !options.includes(effectiveMax)) {
+    options.push(effectiveMax);
     options.sort((a, b) => a - b);
   }
   
   return options;
 }
+
+// 앱 최대 레버리지 export
+export const MAX_APP_LEVERAGE = APP_MAX_LEVERAGE;
 
 // 분할 옵션 (기존 호환용 - 사용 중인 곳 있을 수 있음)
 export const SPLIT_OPTIONS = [1, 2, 3, 5, 10] as const;
