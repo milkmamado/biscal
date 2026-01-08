@@ -1123,6 +1123,12 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
     }
     
     // 익절가 1단계 표시 (노란색/금색 점선)
+    if (takeProfitPrice) {
+      const inRange = takeProfitPrice >= adjustedMin && takeProfitPrice <= adjustedMax;
+      if (!inRange) {
+        console.log(`📊 [TP 라인] 범위 밖: TP=${takeProfitPrice.toFixed(6)}, min=${adjustedMin.toFixed(6)}, max=${adjustedMax.toFixed(6)}`);
+      }
+    }
     if (takeProfitPrice && takeProfitPrice >= adjustedMin && takeProfitPrice <= adjustedMax) {
       const tpY = CANVAS_PADDING / 2 + ((adjustedMax - takeProfitPrice) / adjustedRange) * priceChartHeight;
       
