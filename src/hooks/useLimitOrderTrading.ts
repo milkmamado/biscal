@@ -1678,7 +1678,7 @@ export function useLimitOrderTrading({
   // (레거시 타임아웃 로직 제거됨)
 
   // ===== DTFX 기반 자동 손절 가격 계산 =====
-  // viewingSymbol에서 DTFX 분석하여 스윙 고/저점 기반 손절가 설정
+  // 직전 2~3개 1분봉의 고/저점을 손절선으로 설정 (타이트한 손절)
   useEffect(() => {
     if (!filterSettings?.autoDTFXStopLoss) {
       // 자동 손절 비활성화 → 가격 초기화
@@ -1690,56 +1690,35 @@ export function useLimitOrderTrading({
     
     let isMounted = true;
     
-    const calculateDTFXStopLoss = async () => {
+    const calculateRecentCandleStopLoss = async () => {
       try {
-        // 1분봉 데이터 조회
-        const klines = await fetch1mKlinesForDTFX(viewingSymbol, 100);
-        if (!klines || klines.length < 30) return;
-        
-        // DTFX 분석 실행
-        const dtfxData = analyzeDTFX(klines);
+        // 최근 5개 1분봉만 조회 (현재봉 + 직전 4개)
+        const klines = await fetch1mKlinesForDTFX(viewingSymbol, 5);
+        if (!klines || klines.length < 3) return;
         if (!isMounted) return;
         
         // 현재 포지션 정보
         const position = currentPositionRef.current;
         
-        // 스윙 포인트에서 손절 레벨 계산
-        // LONG: 직전 스윙 로우 (지지선) → 그 아래를 손절
-        // SHORT: 직전 스윙 하이 (저항선) → 그 위를 손절
-        const swingHighs = dtfxData.swingPoints.filter(s => s.type === 'high').slice(-3);
-        const swingLows = dtfxData.swingPoints.filter(s => s.type === 'low').slice(-3);
+        // 직전 2개 봉 (현재봉 제외) - 인덱스: length-2, length-3
+        const prevCandle1 = klines[klines.length - 2]; // 직전봉
+        const prevCandle2 = klines[klines.length - 3]; // 전전봉
         
         let stopLossPrice: number | undefined;
         
         if (position) {
-          // 포지션 있을 때: 포지션 방향에 따라 손절선 결정
           if (position.side === 'long') {
-            // 롱 포지션: 최근 스윙 로우 중 진입가 아래의 가장 가까운 것
-            const validSwingLows = swingLows.filter(s => s.price < position.avgPrice);
-            if (validSwingLows.length > 0) {
-              // 가장 가까운(높은) 스윙 로우 선택
-              stopLossPrice = Math.max(...validSwingLows.map(s => s.price));
-            } else if (swingLows.length > 0) {
-              // 진입가 아래 스윙 로우가 없으면 가장 최근 스윙 로우
-              stopLossPrice = swingLows[swingLows.length - 1].price;
-            }
+            // 롱 포지션: 직전 2개 봉 중 가장 낮은 저가를 손절선으로
+            const recentLow = Math.min(prevCandle1.low, prevCandle2.low);
+            stopLossPrice = recentLow;
           } else {
-            // 숏 포지션: 최근 스윙 하이 중 진입가 위의 가장 가까운 것
-            const validSwingHighs = swingHighs.filter(s => s.price > position.avgPrice);
-            if (validSwingHighs.length > 0) {
-              // 가장 가까운(낮은) 스윙 하이 선택
-              stopLossPrice = Math.min(...validSwingHighs.map(s => s.price));
-            } else if (swingHighs.length > 0) {
-              // 진입가 위 스윙 하이가 없으면 가장 최근 스윙 하이
-              stopLossPrice = swingHighs[swingHighs.length - 1].price;
-            }
+            // 숏 포지션: 직전 2개 봉 중 가장 높은 고가를 손절선으로
+            const recentHigh = Math.max(prevCandle1.high, prevCandle2.high);
+            stopLossPrice = recentHigh;
           }
         } else {
-          // 포지션 없을 때: 차트에 표시할 참고용 레벨 (가장 최근 스윙 포인트)
-          const lastSwing = dtfxData.swingPoints[dtfxData.swingPoints.length - 1];
-          if (lastSwing) {
-            stopLossPrice = lastSwing.price;
-          }
+          // 포지션 없을 때: 직전봉 기준 참고용 레벨
+          stopLossPrice = prevCandle1.low; // 기본으로 저점 표시
         }
         
         if (isMounted && stopLossPrice) {
@@ -1749,15 +1728,15 @@ export function useLimitOrderTrading({
           }));
         }
       } catch (error) {
-        console.warn('[DTFX 자동 손절] 계산 오류:', error);
+        console.warn('[자동 손절] 계산 오류:', error);
       }
     };
     
     // 초기 계산
-    calculateDTFXStopLoss();
+    calculateRecentCandleStopLoss();
     
-    // 10초마다 갱신
-    const interval = setInterval(calculateDTFXStopLoss, 10000);
+    // 5초마다 갱신 (1분봉 변화 빠르게 반영)
+    const interval = setInterval(calculateRecentCandleStopLoss, 5000);
     
     return () => {
       isMounted = false;
