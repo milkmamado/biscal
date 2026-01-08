@@ -62,8 +62,8 @@ export const OTE_ZONE = {
   sweetSpot: 0.705,
 };
 
-// Structure Length (LuxAlgo 기본값: 10)
-export const DTFX_STRUCTURE_LENGTH = 10;
+// Structure Length (최근 존만 표시하도록 5로 축소)
+export const DTFX_STRUCTURE_LENGTH = 5;
 
 /**
  * Swing High/Low 포인트 감지
