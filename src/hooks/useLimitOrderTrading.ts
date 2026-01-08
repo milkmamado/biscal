@@ -1702,6 +1702,68 @@ export function useLimitOrderTrading({
     toast.info('DTFX 시그널 스킵', { description: '다음 시그널을 기다립니다' });
   }, []);
 
+  // 수동 손절가 설정 (차트에서 드래그로 설정 시 호출)
+  const setManualStopLoss = useCallback(async (slPrice: number | null) => {
+    if (!user) return;
+    if (!state.currentPosition) {
+      console.log('[수동 손절] 포지션 없음 - 무시');
+      return;
+    }
+
+    const { symbol, side, totalQuantity } = state.currentPosition;
+    const closeSide = side === 'long' ? 'SELL' : 'BUY';
+    const positionSide = side === 'long' ? 'LONG' : 'SHORT';
+
+    try {
+      // 기존 STOP_MARKET 주문 취소
+      const openOrders = await getOpenOrders(symbol);
+      const slTypes = new Set(['STOP_MARKET', 'STOP']);
+      const slOrders = (openOrders || []).filter((o: any) => {
+        const t = String(o?.type || o?.origType || '').toUpperCase();
+        return slTypes.has(t);
+      });
+
+      for (const o of slOrders) {
+        const orderIdNum = Number(o.orderId);
+        if (!Number.isFinite(orderIdNum)) continue;
+        try {
+          await cancelOrder(symbol, orderIdNum);
+          console.log(`[수동 손절] 기존 SL 주문 취소: ${orderIdNum}`);
+        } catch {
+          // ignore
+        }
+      }
+
+      // 손절가가 null이면 취소만 하고 종료
+      if (!slPrice) {
+        console.log('[수동 손절] 손절가 제거됨');
+        toast.info('⚡ SL_REMOVED', { 
+          description: `${symbol.replace('USDT', '')} 손절 주문 취소됨`,
+          className: 'font-mono uppercase',
+        });
+        return;
+      }
+
+      // 잠시 대기 (취소 반영)
+      await new Promise(r => setTimeout(r, 150));
+
+      // 새 STOP_MARKET 주문 배치
+      await placeStopMarketOrder(symbol, closeSide, totalQuantity, slPrice, positionSide as 'LONG' | 'SHORT');
+      console.log(`[수동 손절] SL 주문 배치: ${symbol} ${closeSide} @ ${slPrice}`);
+      
+      toast.success('⚡ SL_SET', {
+        description: `${symbol.replace('USDT', '')} SL @ $${slPrice.toFixed(4)}`,
+        className: 'font-mono uppercase',
+      });
+    } catch (error: any) {
+      console.error('[수동 손절] 오류:', error);
+      toast.error('⚡ SL_ERROR', {
+        description: error?.message || '손절 주문 실패',
+        className: 'font-mono uppercase',
+      });
+    }
+  }, [user, state.currentPosition, getOpenOrders, cancelOrder, placeStopMarketOrder]);
+
   return {
     state,
     toggleAutoTrading,
@@ -1717,5 +1779,6 @@ export function useLimitOrderTrading({
     checkDTFXOTEAndEntry,
     confirmDTFXEntry,
     skipDTFXSignal,
+    setManualStopLoss,
   };
 }

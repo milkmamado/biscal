@@ -39,6 +39,9 @@ const Index = () => {
   // 미체결 주문 상태 (차트에 표시용)
   const [openOrders, setOpenOrders] = useState<{ orderId: number; price: number; side: 'BUY' | 'SELL'; origQty: number; executedQty: number; }[]>([]);
   
+  // 수동 손절가 상태 (차트에서 드래그로 설정)
+  const [manualSlPrice, setManualSlPrice] = useState<number | null>(null);
+  
   // 잔고 퍼센트 매수 상태
   const [balancePercent, setBalancePercent] = useState<10 | 20 | 25 | 50 | 60 | 98>(98);
   const [majorCoinMode, setMajorCoinMode] = useState(true); // 메이저/잡코인 모드 토글
@@ -232,6 +235,20 @@ const Index = () => {
   const handleCancelEntry = () => {
     autoTrading.cancelEntry();
   };
+  
+  // 수동 손절가 변경 핸들러
+  const handleManualSlPriceChange = useCallback((price: number | null) => {
+    setManualSlPrice(price);
+    // 바이낸스에 STOP_MARKET 주문 배치
+    autoTrading.setManualStopLoss(price);
+  }, [autoTrading.setManualStopLoss]);
+  
+  // 포지션 청산 시 손절가 초기화
+  useEffect(() => {
+    if (!autoTrading.state.currentPosition && manualSlPrice !== null) {
+      setManualSlPrice(null);
+    }
+  }, [autoTrading.state.currentPosition, manualSlPrice]);
 
   // Show loading
   if (loading || (user && checkingKeys)) {
@@ -294,6 +311,8 @@ const Index = () => {
             })) || []}
             openOrders={openOrders}
             dtfxEnabled={dtfxEnabled}
+            manualSlPrice={manualSlPrice}
+            onManualSlPriceChange={handleManualSlPriceChange}
           />
         </div>
 
