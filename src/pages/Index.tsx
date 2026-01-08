@@ -34,8 +34,6 @@ const Index = () => {
   const [screeningLogs, setScreeningLogs] = useState<ScreeningLog[]>([]);
   
   const [dtfxEnabled, setDtfxEnabled] = useState(false); // DTFX 차트 표시 토글
-  const [autoDTFXStopLoss, setAutoDTFXStopLoss] = useState(true); // DTFX 기반 자동 손절 (기본 ON)
-  const [stopLossUsdt, setStopLossUsdt] = useState(1.5); // 기본 1.5 USDT 손절 (한틱손절 방지)
   const [takeProfitUsdt, setTakeProfitUsdt] = useState(2.0); // 기본 2.0 USDT 익절
   
   // 미체결 주문 상태 (차트에 표시용)
@@ -88,9 +86,7 @@ const Index = () => {
     initialStats,
     logTrade,
     filterSettings: {
-      stopLossUsdt,
       takeProfitUsdt,
-      autoDTFXStopLoss,
     },
   });
   
@@ -256,43 +252,25 @@ const Index = () => {
     ? tickers.find(t => t.symbol === autoTrading.state.currentPosition?.symbol)?.price || 0
     : 0;
     
-  // 손절/익절 가격 계산 (USDT 손익 기준 또는 DTFX 자동)
+  // 익절 가격 계산 (USDT 손익 기준) - 손절 기능 완전 제거
   const position = autoTrading.state.currentPosition;
-  const calculateSlTpPrices = () => {
-    if (!position) return { stopLossPrice: undefined, takeProfitPrice: undefined };
+  const calculateTpPrice = () => {
+    if (!position) return undefined;
     
     const entryPrice = position.avgPrice;
     const qty = position.totalQuantity;
     const positionValueUsd = entryPrice * qty;
     
-    let slPrice: number | undefined;
-    let tpPrice: number;
-    
-    // DTFX 자동 손절 모드
-    if (autoDTFXStopLoss && autoTrading.state.dtfxStopLossPrice) {
-      slPrice = autoTrading.state.dtfxStopLossPrice;
-    } else {
-      // 수동 USDT 기반 손절
-      const slPercent = (stopLossUsdt / positionValueUsd) * 100;
-      if (position.side === 'long') {
-        slPrice = entryPrice * (1 - slPercent / 100);
-      } else {
-        slPrice = entryPrice * (1 + slPercent / 100);
-      }
-    }
-    
-    // 익절은 항상 USDT 기반
+    // 익절은 USDT 기반
     const tpPercent = (takeProfitUsdt / positionValueUsd) * 100;
     if (position.side === 'long') {
-      tpPrice = entryPrice * (1 + tpPercent / 100);
+      return entryPrice * (1 + tpPercent / 100);
     } else {
-      tpPrice = entryPrice * (1 - tpPercent / 100);
+      return entryPrice * (1 - tpPercent / 100);
     }
-    
-    return { stopLossPrice: slPrice, takeProfitPrice: tpPrice };
   };
   
-  const { stopLossPrice, takeProfitPrice } = calculateSlTpPrices();
+  const takeProfitPrice = calculateTpPrice();
 
   return (
     <div className="h-screen bg-background p-1 overflow-hidden flex flex-col">
@@ -305,7 +283,6 @@ const Index = () => {
             symbol={selectedSymbol} 
             hasPosition={!!autoTrading.state.currentPosition}
             entryPrice={autoTrading.state.currentPosition?.avgPrice}
-            stopLossPrice={stopLossPrice}
             takeProfitPrice={takeProfitPrice}
             positionSide={autoTrading.state.currentPosition?.side}
             onSelectSymbol={setSelectedSymbol}
@@ -380,11 +357,6 @@ const Index = () => {
           <TradingSettingsPanel
             dtfxEnabled={dtfxEnabled}
             onToggleDtfx={setDtfxEnabled}
-            autoDTFXStopLoss={autoDTFXStopLoss}
-            onToggleAutoDTFXStopLoss={setAutoDTFXStopLoss}
-            stopLossUsdt={stopLossUsdt}
-            onStopLossChange={setStopLossUsdt}
-            dtfxStopLossPrice={autoTrading.state.dtfxStopLossPrice}
             takeProfitUsdt={takeProfitUsdt}
             onTakeProfitChange={setTakeProfitUsdt}
             isAutoTradingEnabled={autoTrading.state.isEnabled}
