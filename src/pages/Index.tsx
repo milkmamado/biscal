@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useTradingLogs } from '@/hooks/useTradingLogs';
@@ -7,7 +7,7 @@ import { useCoinScreening } from '@/hooks/useCoinScreening';
 import { useTickerWebSocket } from '@/hooks/useTickerWebSocket';
 import { useWakeLock } from '@/hooks/useWakeLock';
 import { useUserDataStream } from '@/hooks/useUserDataStream';
-import { toast } from 'sonner';
+
 
 import { supabase } from '@/integrations/supabase/client';
 import DualChartPanel from '@/components/DualChartPanel';
@@ -94,51 +94,9 @@ const Index = () => {
     },
   });
   
-  // 🔔 외부 청산 감지 (바이낸스 앱 등에서 직접 청산 시)
-  const prevPositionSymbolRef = useRef<string | null>(null);
-  
-  useEffect(() => {
-    if (!userDataStream.isConnected) return;
-    
-    const currentLocalPosition = autoTrading.state.currentPosition;
-    const posSymbol = currentLocalPosition?.symbol;
-    
-    // 로컬에서 포지션 추적 중인 경우
-    if (posSymbol) {
-      prevPositionSymbolRef.current = posSymbol;
-      
-      // 🔥 청산 진행 중이면 외부 청산 감지 스킵 (수동 청산 시 오탐 방지)
-      if (currentLocalPosition?.entryPhase === 'closing') {
-        return;
-      }
-      
-      // User Data Stream에서 해당 심볼 포지션 확인
-      const streamPosition = userDataStream.getPosition(posSymbol);
-      
-      // 로컬엔 있는데 스트림에서 사라졌으면 → 외부 청산!
-      if (!streamPosition && currentLocalPosition?.entryPhase === 'active') {
-        console.log(`🚨 [외부 청산 감지] ${posSymbol} 포지션이 외부에서 청산됨!`);
-        toast.warning(`📢 ${posSymbol} 외부 청산 감지`, {
-          description: '바이낸스 앱 또는 다른 곳에서 포지션이 청산되었습니다.',
-          duration: 5000,
-        });
-        
-        // 내부 상태 초기화 (closePosition 호출 시 실제 청산 시도하므로 상태만 정리)
-        handleTradeComplete();
-      }
-    }
-    
-    // 이전 포지션 심볼이 있고, 지금 로컬 포지션이 없는데 스트림에도 없으면 청산 완료
-    if (prevPositionSymbolRef.current && !currentLocalPosition) {
-      const prevSymbol = prevPositionSymbolRef.current;
-      const streamPosition = userDataStream.getPosition(prevSymbol);
-      
-      if (!streamPosition) {
-        prevPositionSymbolRef.current = null;
-      }
-    }
-  }, [userDataStream.lastEventTime, userDataStream.isConnected, autoTrading.state.currentPosition, handleTradeComplete]);
-  
+  // 🔔 외부 청산 감지/정리는 매매 훅 내부(실제 포지션 조회)에서 처리함
+  // - User Data Stream은 일시적으로 포지션이 비어 보이는 타이밍이 있어 오탐 가능
+
   // 자동매매 중 절전 방지
   useWakeLock(autoTrading.state.isEnabled);
 
