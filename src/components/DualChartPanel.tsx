@@ -29,6 +29,9 @@ interface DualChartPanelProps {
   entryPoints?: EntryPoint[];
   openOrders?: OpenOrder[];
   dtfxEnabled?: boolean;
+  // 수동 손절 관련
+  manualSlPrice?: number | null;
+  onManualSlPriceChange?: (price: number | null) => void;
 }
 
 const INTERVALS = [
@@ -52,6 +55,8 @@ const DualChartPanel = ({
   entryPoints = [],
   openOrders = [],
   dtfxEnabled = false,
+  manualSlPrice,
+  onManualSlPriceChange,
 }: DualChartPanelProps) => {
   const [interval, setInterval] = useState(60);
   const prevSymbolRef = useRef<string>(symbol);
@@ -111,6 +116,9 @@ const DualChartPanel = ({
             entryPoints={hasPosition ? entryPoints : undefined}
             openOrders={openOrders}
             dtfxEnabled={dtfxEnabled}
+            manualSlPrice={manualSlPrice}
+            onManualSlPriceChange={onManualSlPriceChange}
+            hasPosition={hasPosition}
           />
           
           {/* 스크리닝 로그 오버레이 - 차트 영역 중하단 */}
