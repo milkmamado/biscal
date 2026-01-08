@@ -176,46 +176,12 @@ export function TradingSettingsPanel({
                   </p>
                 </div>
               ) : (
-                // 수동 손절 모드: 기존 USDT 입력
-                <>
-                  <div className="flex items-center gap-2">
-                    <Label className="text-[10px] text-muted-foreground whitespace-nowrap">손절 금액</Label>
-                    <div className="flex-1 flex items-center gap-1">
-                      <Input
-                        type="text"
-                        inputMode="decimal"
-                        value={localStopLoss}
-                        onChange={(e) => setLocalStopLoss(e.target.value)}
-                        onBlur={applyStopLoss}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            applyStopLoss();
-                            (e.target as HTMLInputElement).blur();
-                          }
-                        }}
-                        className="h-7 text-[10px] text-right font-mono bg-background/50"
-                      />
-                      <span className="text-[10px] text-muted-foreground">USDT</span>
-                    </div>
-                  </div>
-
-                  {/* 손절 빠른 선택 버튼 */}
-                  <div className="flex gap-1">
-                    {[5, 10, 15, 20, 30].map((val) => (
-                      <button
-                        key={val}
-                        onClick={() => onStopLossChange(val)}
-                        className={`flex-1 py-1 text-[9px] rounded border transition-colors ${
-                          stopLossUsdt === val
-                            ? 'bg-red-500/20 border-red-500/50 text-red-400'
-                            : 'bg-background/30 border-border/30 text-muted-foreground hover:border-red-500/30'
-                        }`}
-                      >
-                        ${val}
-                      </button>
-                    ))}
-                  </div>
-                </>
+                // 손절 비활성화 모드
+                <div className="px-2 py-2 rounded bg-muted/30 border border-border/30">
+                  <p className="text-[10px] text-muted-foreground text-center">
+                    🚫 손절 비활성화
+                  </p>
+                </div>
               )}
             </div>
           </div>
