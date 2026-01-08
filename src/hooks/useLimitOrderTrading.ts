@@ -1699,14 +1699,68 @@ export function useLimitOrderTrading({
   // (레거시 타임아웃 로직 제거됨)
 
   // ===== DTFX 기반 자동 손절 가격 =====
-  // 사용자가 말한 "돌파 기준봉"(BOS/CHoCH에서 깨진 스윙 캔들)을
-  // 손절 기준으로 쓰기 위해, 실제 계산은 DTFX 시그널(OTE) 발생 시점에 수행한다.
-  // 여기서는 토글 OFF 시 초기화만 담당.
+  // 포지션이 있을 때 자동으로 DTFX 존을 분석해서 손절가 계산
   useEffect(() => {
     if (!filterSettings?.autoDTFXStopLoss) {
       setState(prev => (prev.dtfxStopLossPrice ? { ...prev, dtfxStopLossPrice: undefined } : prev));
+      return;
     }
-  }, [filterSettings?.autoDTFXStopLoss]);
+    
+    const position = currentPositionRef.current;
+    if (!position) return;
+    
+    // 이미 손절가가 설정되어 있으면 스킵
+    if (state.dtfxStopLossPrice) return;
+    
+    let isMounted = true;
+    
+    const calculateDTFXStopLoss = async () => {
+      try {
+        const klines = await fetch1mKlinesForDTFX(position.symbol, 100);
+        if (!klines || klines.length < 30 || !isMounted) return;
+        
+        const dtfxData = analyzeDTFX(klines);
+        if (dtfxData.zones.length === 0) {
+          console.log(`📊 [DTFX 손절] ${position.symbol} - 존 없음, 손절가 계산 불가`);
+          return;
+        }
+        
+        // 포지션 방향에 맞는 존 찾기
+        // LONG → demand zone, SHORT → supply zone
+        const matchingZones = dtfxData.zones.filter(z => 
+          (position.side === 'long' && z.type === 'demand') ||
+          (position.side === 'short' && z.type === 'supply')
+        );
+        
+        if (matchingZones.length === 0) {
+          console.log(`📊 [DTFX 손절] ${position.symbol} - 방향 맞는 존 없음`);
+          return;
+        }
+        
+        // 가장 최근 존 사용
+        const latestZone = matchingZones[matchingZones.length - 1];
+        const stopLossPrice = latestZone.from.price;
+        
+        console.log(`🎯 [DTFX 손절] ${position.symbol} ${position.side} → zone.from: $${stopLossPrice.toFixed(6)}`);
+        
+        if (isMounted) {
+          setState(prev => ({
+            ...prev,
+            dtfxStopLossPrice: stopLossPrice,
+          }));
+        }
+      } catch (error) {
+        console.warn('[DTFX 손절 계산 오류]', error);
+      }
+    };
+    
+    // 포지션 있으면 즉시 계산
+    calculateDTFXStopLoss();
+    
+    return () => {
+      isMounted = false;
+    };
+  }, [filterSettings?.autoDTFXStopLoss, state.currentPosition?.symbol, state.currentPosition?.side, state.dtfxStopLossPrice]);
 
 
   // ===== DTFX OTE 구간 체크 및 확인 대기 (자동 진입 → 사용자 확인 방식으로 변경) =====
