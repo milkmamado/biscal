@@ -67,7 +67,7 @@ export default function Auth() {
 
     try {
       if (isLogin) {
-        // 바로 로그인 (OTP 인증 비활성화)
+        // 먼저 비밀번호 검증을 위해 로그인 시도
         const { error } = await signIn(email, password);
         if (error) {
           let message = "로그인에 실패했습니다";
@@ -79,8 +79,17 @@ export default function Auth() {
           return;
         }
 
-        console.log("로그인 성공: 환영합니다!");
-        navigate('/');
+        // 비밀번호 검증 성공 후 로그아웃하고 OTP 발송
+        await supabase.auth.signOut();
+        
+        try {
+          await sendVerificationCode(email);
+          console.log("인증 코드 발송: 이메일을 확인하세요");
+          setPendingOtp(true);
+          setStep('otp');
+        } catch (otpError: any) {
+          console.error("인증 코드 발송 실패:", otpError.message);
+        }
       } else {
         const { error } = await signUp(email, password);
         if (error) {
