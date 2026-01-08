@@ -1765,20 +1765,18 @@ export function useLimitOrderTrading({
         console.log(`🎯 [DTFX OTE] ${symbol} ${oteSignal.direction} @ ${currentPrice} (${(entryRatio * 100).toFixed(1)}% 레벨, ${zoneType} Zone)`);
         
         // 🆕 자동 진입 대신 대기 시그널로 저장 (사용자 확인 필요)
-        // + DTFX 자동 손절가: "돌파 기준봉"(깨진 스윙 캔들)의 low/high
+        // + DTFX 자동 손절가: 존의 상단(숏) 또는 하단(롱)을 손절선으로
         let dtfxStopLossPrice: number | undefined;
-        if (filterSettings?.autoDTFXStopLoss) {
-          const zoneId = oteSignal.zone.id;
-          const shiftId = zoneId.startsWith('zone_') ? zoneId.slice('zone_'.length) : zoneId;
-          const shift = dtfxData.structureShifts.find(s => s.id === shiftId);
-          const triggerCandle = shift ? klines[shift.from.index] : undefined;
-
-          if (triggerCandle) {
-            const candidate = oteSignal.direction === 'long' ? triggerCandle.low : triggerCandle.high;
-            // 방향상 말이 되는 값만 반영 (롱은 아래, 숏은 위)
-            const valid = oteSignal.direction === 'long' ? candidate < currentPrice : candidate > currentPrice;
-            dtfxStopLossPrice = valid ? candidate : candidate;
+        if (filterSettings?.autoDTFXStopLoss && oteSignal.zone) {
+          // 숏: 존 상단 위가 손절 (zone.topPrice)
+          // 롱: 존 하단 아래가 손절 (zone.bottomPrice)
+          if (oteSignal.direction === 'short') {
+            dtfxStopLossPrice = oteSignal.zone.topPrice;
+          } else {
+            dtfxStopLossPrice = oteSignal.zone.bottomPrice;
           }
+          
+          console.log(`🎯 [DTFX 손절] ${oteSignal.direction === 'short' ? '숏→존상단' : '롱→존하단'}: $${dtfxStopLossPrice?.toFixed(6)}`);
         }
 
         setState(prev => ({
