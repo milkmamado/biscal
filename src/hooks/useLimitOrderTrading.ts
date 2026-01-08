@@ -1319,18 +1319,34 @@ export function useLimitOrderTrading({
   // ===== 수동 지정가 진입 (잔고 퍼센트 기반) =====
   const manualLimitEntry = useCallback(async (symbol: string, direction: 'long' | 'short', price: number, balancePercent: number = 98) => {
     console.log(`📌 [manualLimitEntry] 호출됨: ${symbol} ${direction} @ ${price} (${balancePercent}%)`);
+    console.log(`📌 [manualLimitEntry] 상태 체크: user=${!!user}, balanceUSD=${balanceUSD}, processing=${processingRef.current}`);
     
     if (!user) {
-      console.log('로그인이 필요합니다');
+      console.log('❌ [manualLimitEntry] 로그인이 필요합니다');
+      toast.error('⚡ LOGIN_REQUIRED', {
+        description: 'Please login to place orders.',
+        duration: 3000,
+        position: 'bottom-right',
+      });
       return;
     }
     const existing = state.currentPosition;
     if (existing && (existing.symbol !== symbol || existing.side !== direction)) {
-      console.log('다른 포지션이 있어 추가 진입 불가');
+      console.log('❌ [manualLimitEntry] 다른 포지션이 있어 추가 진입 불가');
+      toast.error('⚡ POSITION_EXISTS', {
+        description: 'Close existing position first.',
+        duration: 3000,
+        position: 'bottom-right',
+      });
       return;
     }
     if (processingRef.current) {
-      console.log('처리 중입니다');
+      console.log('❌ [manualLimitEntry] 이미 처리 중입니다');
+      toast.warning('⚡ PROCESSING', {
+        description: 'Order already in progress.',
+        duration: 2000,
+        position: 'bottom-right',
+      });
       return;
     }
     
