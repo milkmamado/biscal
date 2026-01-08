@@ -348,35 +348,30 @@ export function useLimitOrderTrading({
       if (processingRef.current) return;
       if (serverSlTpInProgressRef.current) return;
 
-      const targetStopLossUsdt = filterSettingsRef.current?.stopLossUsdt ?? 7;
+      // 🆕 DTFX 자동 손절이 OFF면 손절 완전 비활성화
+      const dtfxAutoEnabled = !!filterSettingsRef.current?.autoDTFXStopLoss;
       const targetTakeProfitUsdt = filterSettingsRef.current?.takeProfitUsdt ?? 7;
 
       const positionValueUsd = opts.avgPrice * opts.qty;
       if (!Number.isFinite(positionValueUsd) || positionValueUsd <= 0) return;
 
-      const slPercent = (targetStopLossUsdt / positionValueUsd) * 100;
       const tpPercent = (targetTakeProfitUsdt / positionValueUsd) * 100;
-
-      // 기본(USDT 기준) SL
-      let slPrice =
-        opts.side === 'long'
-          ? opts.avgPrice * (1 - slPercent / 100)
-          : opts.avgPrice * (1 + slPercent / 100);
-
-      // DTFX 자동 손절: "돌파 기준봉"의 low/high를 그대로 사용
-      const dtfxAutoEnabled = !!filterSettingsRef.current?.autoDTFXStopLoss;
-      const dtfxSl = dtfxStopLossPriceRef.current;
-      if (dtfxAutoEnabled && typeof dtfxSl === 'number' && Number.isFinite(dtfxSl)) {
-        const valid = opts.side === 'long' ? dtfxSl < opts.avgPrice : dtfxSl > opts.avgPrice;
-        if (valid) slPrice = dtfxSl;
-      }
-
       const tpPrice =
         opts.side === 'long'
           ? opts.avgPrice * (1 + tpPercent / 100)
           : opts.avgPrice * (1 - tpPercent / 100);
 
-      const key = `${opts.symbol}-${opts.side}-${opts.qty.toFixed(6)}-${opts.avgPrice.toFixed(6)}-${targetStopLossUsdt}-${targetTakeProfitUsdt}-${dtfxAutoEnabled ? 'dtfx' : 'usdt'}-${slPrice.toFixed(6)}`;
+      // 손절가 계산 (DTFX 자동 ON일 때만)
+      let slPrice: number | null = null;
+      if (dtfxAutoEnabled) {
+        const dtfxSl = dtfxStopLossPriceRef.current;
+        if (typeof dtfxSl === 'number' && Number.isFinite(dtfxSl)) {
+          const valid = opts.side === 'long' ? dtfxSl < opts.avgPrice : dtfxSl > opts.avgPrice;
+          if (valid) slPrice = dtfxSl;
+        }
+      }
+
+      const key = `${opts.symbol}-${opts.side}-${opts.qty.toFixed(6)}-${opts.avgPrice.toFixed(6)}-${targetTakeProfitUsdt}-${dtfxAutoEnabled ? 'dtfx' : 'nosl'}-${slPrice?.toFixed(6) ?? 'none'}`;
       const now = Date.now();
 
       // 실패 시 반복 호출 방지 (10초 스로틀)
@@ -393,7 +388,7 @@ export function useLimitOrderTrading({
       const closeSide = opts.side === 'long' ? 'SELL' : 'BUY';
 
       console.log(
-        `🧷 [서버 SL/TP 유지] ${opts.symbol} ${opts.side} qty=${opts.qty.toFixed(6)} avg=${opts.avgPrice} | SL=$${targetStopLossUsdt}→${slPrice.toFixed(4)} | TP=$${targetTakeProfitUsdt}→${tpPrice.toFixed(4)}`
+        `🧷 [서버 SL/TP 유지] ${opts.symbol} ${opts.side} qty=${opts.qty.toFixed(6)} avg=${opts.avgPrice} | SL=${dtfxAutoEnabled ? (slPrice?.toFixed(4) ?? 'DTFX없음') : '🚫비활성화'} | TP=$${targetTakeProfitUsdt}→${tpPrice.toFixed(4)}`
       );
 
       try {
@@ -418,14 +413,16 @@ export function useLimitOrderTrading({
         // 취소 반영 대기
         await new Promise((r) => setTimeout(r, 150));
 
-        // STOP_MARKET
-        try {
-          await placeStopMarketOrderRef.current(opts.symbol, closeSide, opts.qty, slPrice, opts.positionSide);
-        } catch (e: any) {
-          console.warn('[서버 SL/TP] STOP_MARKET 실패:', e?.message || e);
+        // STOP_MARKET - DTFX 자동 ON이고 유효한 손절가가 있을 때만
+        if (dtfxAutoEnabled && slPrice !== null) {
+          try {
+            await placeStopMarketOrderRef.current(opts.symbol, closeSide, opts.qty, slPrice, opts.positionSide);
+          } catch (e: any) {
+            console.warn('[서버 SL/TP] STOP_MARKET 실패:', e?.message || e);
+          }
         }
 
-        // TAKE_PROFIT_MARKET
+        // TAKE_PROFIT_MARKET (익절은 항상 설정)
         try {
           await placeTakeProfitMarketOrderRef.current(opts.symbol, closeSide, opts.qty, tpPrice, opts.positionSide);
         } catch (e: any) {
@@ -473,21 +470,16 @@ export function useLimitOrderTrading({
 
           console.log(`🔄 [포지션 동기화] ${symbol} ${side} @ ${entryPrice} qty=${qty} PnL=$${unrealizedPnl.toFixed(2)}`);
 
-          // 손절가 계산 (표시용)
-          const positionValueUsd = entryPrice * qty;
-          const targetStopLossUsdt = filterSettingsRef.current?.stopLossUsdt ?? 7;
-          const slPercent = (targetStopLossUsdt / positionValueUsd) * 100;
-
-          let slPrice =
-            side === 'long'
-              ? entryPrice * (1 - slPercent / 100)
-              : entryPrice * (1 + slPercent / 100);
-
+          // 손절가 계산 (표시용) - DTFX 자동 ON일 때만
           const dtfxAutoEnabled = !!filterSettingsRef.current?.autoDTFXStopLoss;
-          const dtfxSl = dtfxStopLossPriceRef.current;
-          if (dtfxAutoEnabled && typeof dtfxSl === 'number' && Number.isFinite(dtfxSl)) {
-            const valid = side === 'long' ? dtfxSl < entryPrice : dtfxSl > entryPrice;
-            if (valid) slPrice = dtfxSl;
+          let slPrice: number | undefined = undefined;
+          
+          if (dtfxAutoEnabled) {
+            const dtfxSl = dtfxStopLossPriceRef.current;
+            if (typeof dtfxSl === 'number' && Number.isFinite(dtfxSl)) {
+              const valid = side === 'long' ? dtfxSl < entryPrice : dtfxSl > entryPrice;
+              if (valid) slPrice = dtfxSl;
+            }
           }
 
           if (isMounted) {
