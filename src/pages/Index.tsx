@@ -107,6 +107,11 @@ const Index = () => {
     if (posSymbol) {
       prevPositionSymbolRef.current = posSymbol;
       
+      // 🔥 청산 진행 중이면 외부 청산 감지 스킵 (수동 청산 시 오탐 방지)
+      if (currentLocalPosition?.entryPhase === 'closing') {
+        return;
+      }
+      
       // User Data Stream에서 해당 심볼 포지션 확인
       const streamPosition = userDataStream.getPosition(posSymbol);
       
