@@ -40,7 +40,6 @@ interface TickChartProps {
   height?: number;
   interval?: number; // 봉 간격 (초)
   entryPrice?: number; // 포지션 진입가
-  stopLossPrice?: number; // 손절 예정 가격
   takeProfitPrice?: number; // 익절 예정 가격
   positionSide?: 'long' | 'short'; // 포지션 방향
   entryPoints?: EntryPoint[]; // 분할 매수 포인트
@@ -125,7 +124,7 @@ const getIntervalString = (seconds: number): string => {
   return '1d';
 };
 
-const TickChart = ({ symbol, orderBook = null, isConnected = false, height, interval = 60, entryPrice, stopLossPrice, takeProfitPrice, positionSide, entryPoints = [], openOrders = [], dtfxEnabled = false }: TickChartProps) => {
+const TickChart = ({ symbol, orderBook = null, isConnected = false, height, interval = 60, entryPrice, takeProfitPrice, positionSide, entryPoints = [], openOrders = [], dtfxEnabled = false }: TickChartProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [candles, setCandles] = useState<Candle[]>([]);
@@ -1100,28 +1099,6 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
       ctx.fillText('진입', width - 25, entryY + 3);
     }
     
-    // 손절가 표시 (빨간색 점선)
-    if (stopLossPrice && stopLossPrice >= adjustedMin && stopLossPrice <= adjustedMax) {
-      const slY = CANVAS_PADDING / 2 + ((adjustedMax - stopLossPrice) / adjustedRange) * priceChartHeight;
-      
-      ctx.strokeStyle = 'rgba(239, 68, 68, 0.8)'; // red-500
-      ctx.lineWidth = 1.5;
-      ctx.setLineDash([4, 4]);
-      ctx.beginPath();
-      ctx.moveTo(CANVAS_PADDING, slY);
-      ctx.lineTo(width - 50, slY);
-      ctx.stroke();
-      ctx.setLineDash([]);
-      
-      // 손절가 라벨
-      ctx.fillStyle = 'rgba(239, 68, 68, 0.9)';
-      ctx.fillRect(width - 48, slY - 8, 46, 16);
-      ctx.fillStyle = '#fff';
-      ctx.font = 'bold 9px monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText('SL', width - 25, slY + 3);
-    }
-    
     // 익절가 1단계 표시 (노란색/금색 점선)
     if (takeProfitPrice) {
       const inRange = takeProfitPrice >= adjustedMin && takeProfitPrice <= adjustedMax;
@@ -1222,8 +1199,7 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
       ctx.stroke();
       ctx.setLineDash([]);
     }
-    
-  }, [candles, containerHeight, isConnected, loading, visibleCount, entryPrice, stopLossPrice, takeProfitPrice, entryPoints, openOrders, dtfxEnabled, trendlineEnabled]);
+  }, [candles, containerHeight, isConnected, loading, visibleCount, entryPrice, takeProfitPrice, entryPoints, openOrders, dtfxEnabled, trendlineEnabled]);
   
   // 가격 포맷팅
   const formatPrice = (price: number): string => {
