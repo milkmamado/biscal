@@ -319,6 +319,7 @@ export function useLimitOrderTrading({
   const getOpenOrdersRef = useRef(getOpenOrders);
   const cancelOrderRef = useRef(cancelOrder);
   const filterSettingsRef = useRef(filterSettings);
+  const dtfxStopLossPriceRef = useRef<number | undefined>(state.dtfxStopLossPrice);
 
   useEffect(() => {
     placeStopMarketOrderRef.current = placeStopMarketOrder;
@@ -327,6 +328,10 @@ export function useLimitOrderTrading({
     cancelOrderRef.current = cancelOrder;
     filterSettingsRef.current = filterSettings;
   }, [placeStopMarketOrder, placeTakeProfitMarketOrder, getOpenOrders, cancelOrder, filterSettings]);
+
+  useEffect(() => {
+    dtfxStopLossPriceRef.current = state.dtfxStopLossPrice;
+  }, [state.dtfxStopLossPrice]);
   
   useEffect(() => {
     if (!user) return;
@@ -352,17 +357,26 @@ export function useLimitOrderTrading({
       const slPercent = (targetStopLossUsdt / positionValueUsd) * 100;
       const tpPercent = (targetTakeProfitUsdt / positionValueUsd) * 100;
 
-      const slPrice =
+      // 기본(USDT 기준) SL
+      let slPrice =
         opts.side === 'long'
           ? opts.avgPrice * (1 - slPercent / 100)
           : opts.avgPrice * (1 + slPercent / 100);
+
+      // DTFX 자동 손절: "돌파 기준봉"의 low/high를 그대로 사용
+      const dtfxAutoEnabled = !!filterSettingsRef.current?.autoDTFXStopLoss;
+      const dtfxSl = dtfxStopLossPriceRef.current;
+      if (dtfxAutoEnabled && typeof dtfxSl === 'number' && Number.isFinite(dtfxSl)) {
+        const valid = opts.side === 'long' ? dtfxSl < opts.avgPrice : dtfxSl > opts.avgPrice;
+        if (valid) slPrice = dtfxSl;
+      }
 
       const tpPrice =
         opts.side === 'long'
           ? opts.avgPrice * (1 + tpPercent / 100)
           : opts.avgPrice * (1 - tpPercent / 100);
 
-      const key = `${opts.symbol}-${opts.side}-${opts.qty.toFixed(6)}-${opts.avgPrice.toFixed(6)}-${targetStopLossUsdt}-${targetTakeProfitUsdt}`;
+      const key = `${opts.symbol}-${opts.side}-${opts.qty.toFixed(6)}-${opts.avgPrice.toFixed(6)}-${targetStopLossUsdt}-${targetTakeProfitUsdt}-${dtfxAutoEnabled ? 'dtfx' : 'usdt'}-${slPrice.toFixed(6)}`;
       const now = Date.now();
 
       // 실패 시 반복 호출 방지 (10초 스로틀)
@@ -464,10 +478,17 @@ export function useLimitOrderTrading({
           const targetStopLossUsdt = filterSettingsRef.current?.stopLossUsdt ?? 7;
           const slPercent = (targetStopLossUsdt / positionValueUsd) * 100;
 
-          const slPrice =
+          let slPrice =
             side === 'long'
               ? entryPrice * (1 - slPercent / 100)
               : entryPrice * (1 + slPercent / 100);
+
+          const dtfxAutoEnabled = !!filterSettingsRef.current?.autoDTFXStopLoss;
+          const dtfxSl = dtfxStopLossPriceRef.current;
+          if (dtfxAutoEnabled && typeof dtfxSl === 'number' && Number.isFinite(dtfxSl)) {
+            const valid = side === 'long' ? dtfxSl < entryPrice : dtfxSl > entryPrice;
+            if (valid) slPrice = dtfxSl;
+          }
 
           if (isMounted) {
             setState(prev => {
@@ -1677,72 +1698,16 @@ export function useLimitOrderTrading({
   // ===== Cleanup =====
   // (레거시 타임아웃 로직 제거됨)
 
-  // ===== DTFX 기반 자동 손절 가격 계산 =====
-  // 직전 2~3개 1분봉의 고/저점을 손절선으로 설정 (타이트한 손절)
+  // ===== DTFX 기반 자동 손절 가격 =====
+  // 사용자가 말한 "돌파 기준봉"(BOS/CHoCH에서 깨진 스윙 캔들)을
+  // 손절 기준으로 쓰기 위해, 실제 계산은 DTFX 시그널(OTE) 발생 시점에 수행한다.
+  // 여기서는 토글 OFF 시 초기화만 담당.
   useEffect(() => {
     if (!filterSettings?.autoDTFXStopLoss) {
-      // 자동 손절 비활성화 → 가격 초기화
-      setState(prev => prev.dtfxStopLossPrice ? { ...prev, dtfxStopLossPrice: undefined } : prev);
-      return;
+      setState(prev => (prev.dtfxStopLossPrice ? { ...prev, dtfxStopLossPrice: undefined } : prev));
     }
-    
-    if (!viewingSymbol) return;
-    
-    let isMounted = true;
-    
-    const calculateRecentCandleStopLoss = async () => {
-      try {
-        // 최근 5개 1분봉만 조회 (현재봉 + 직전 4개)
-        const klines = await fetch1mKlinesForDTFX(viewingSymbol, 5);
-        if (!klines || klines.length < 3) return;
-        if (!isMounted) return;
-        
-        // 현재 포지션 정보
-        const position = currentPositionRef.current;
-        
-        // 직전 2개 봉 (현재봉 제외) - 인덱스: length-2, length-3
-        const prevCandle1 = klines[klines.length - 2]; // 직전봉
-        const prevCandle2 = klines[klines.length - 3]; // 전전봉
-        
-        let stopLossPrice: number | undefined;
-        
-        if (position) {
-          if (position.side === 'long') {
-            // 롱 포지션: 직전 2개 봉 중 가장 낮은 저가를 손절선으로
-            const recentLow = Math.min(prevCandle1.low, prevCandle2.low);
-            stopLossPrice = recentLow;
-          } else {
-            // 숏 포지션: 직전 2개 봉 중 가장 높은 고가를 손절선으로
-            const recentHigh = Math.max(prevCandle1.high, prevCandle2.high);
-            stopLossPrice = recentHigh;
-          }
-        } else {
-          // 포지션 없을 때: 직전봉 기준 참고용 레벨
-          stopLossPrice = prevCandle1.low; // 기본으로 저점 표시
-        }
-        
-        if (isMounted && stopLossPrice) {
-          setState(prev => ({
-            ...prev,
-            dtfxStopLossPrice: stopLossPrice,
-          }));
-        }
-      } catch (error) {
-        console.warn('[자동 손절] 계산 오류:', error);
-      }
-    };
-    
-    // 초기 계산
-    calculateRecentCandleStopLoss();
-    
-    // 5초마다 갱신 (1분봉 변화 빠르게 반영)
-    const interval = setInterval(calculateRecentCandleStopLoss, 5000);
-    
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
-  }, [viewingSymbol, filterSettings?.autoDTFXStopLoss]);
+  }, [filterSettings?.autoDTFXStopLoss]);
+
 
   // ===== DTFX OTE 구간 체크 및 확인 대기 (자동 진입 → 사용자 확인 방식으로 변경) =====
   const checkDTFXOTEAndEntry = useCallback(async (symbol: string, currentPrice: number) => {
@@ -1800,8 +1765,25 @@ export function useLimitOrderTrading({
         console.log(`🎯 [DTFX OTE] ${symbol} ${oteSignal.direction} @ ${currentPrice} (${(entryRatio * 100).toFixed(1)}% 레벨, ${zoneType} Zone)`);
         
         // 🆕 자동 진입 대신 대기 시그널로 저장 (사용자 확인 필요)
+        // + DTFX 자동 손절가: "돌파 기준봉"(깨진 스윙 캔들)의 low/high
+        let dtfxStopLossPrice: number | undefined;
+        if (filterSettings?.autoDTFXStopLoss) {
+          const zoneId = oteSignal.zone.id;
+          const shiftId = zoneId.startsWith('zone_') ? zoneId.slice('zone_'.length) : zoneId;
+          const shift = dtfxData.structureShifts.find(s => s.id === shiftId);
+          const triggerCandle = shift ? klines[shift.from.index] : undefined;
+
+          if (triggerCandle) {
+            const candidate = oteSignal.direction === 'long' ? triggerCandle.low : triggerCandle.high;
+            // 방향상 말이 되는 값만 반영 (롱은 아래, 숏은 위)
+            const valid = oteSignal.direction === 'long' ? candidate < currentPrice : candidate > currentPrice;
+            dtfxStopLossPrice = valid ? candidate : candidate;
+          }
+        }
+
         setState(prev => ({
           ...prev,
+          dtfxStopLossPrice: dtfxStopLossPrice ?? prev.dtfxStopLossPrice,
           pendingDTFXSignal: {
             symbol,
             direction: oteSignal.direction!,
@@ -1827,7 +1809,7 @@ export function useLimitOrderTrading({
       console.error('[DTFX OTE 체크 오류]', error);
       return null;
     }
-  }, [filterSettings?.dtfxEnabled, state.isEnabled, state.currentPosition, state.pendingDTFXSignal, state.dtfxLastCheck, user]);
+  }, [filterSettings?.dtfxEnabled, filterSettings?.autoDTFXStopLoss, state.isEnabled, state.currentPosition, state.pendingDTFXSignal, state.dtfxLastCheck, user]);
 
   // DTFX 시그널 확인 후 진입
   const confirmDTFXEntry = useCallback(async () => {
