@@ -305,7 +305,16 @@ export function analyzeDTFX(candles: Candle[], lookback: number = DTFX_STRUCTURE
   
   // 4. 존 무효화 체크 (가격이 존을 완전히 이탈하면 비활성화)
   const currentPrice = candles[candles.length - 1]?.close || 0;
+  const currentCandleIndex = candles.length - 1;
+  
   zones.forEach(zone => {
+    // 최근 5캔들 이내에 생성된 존만 활성 상태 유지
+    const zoneAge = currentCandleIndex - Math.max(zone.from.index, zone.to.index);
+    if (zoneAge > 5) {
+      zone.active = false;
+      return;
+    }
+    
     if (zone.type === 'demand') {
       // Demand 존: 가격이 존 아래로 내려가면 무효화
       if (currentPrice < zone.bottomPrice * 0.995) {
