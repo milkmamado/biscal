@@ -560,9 +560,24 @@ export function useLimitOrderTrading({
            }
         } else {
           // 포지션이 없으면 동기화 키 초기화 + 로컬 상태 정리
-          const hadPosition = lastSyncedPositionRef.current !== null || currentPositionRef.current !== null;
+          const localPos = currentPositionRef.current;
+          const hadPosition = lastSyncedPositionRef.current !== null || localPos !== null;
           
           if (hadPosition) {
+            // ✅ 외부 청산 토스트는 "로컬 포지션이 active로 남아있는데" 실제 포지션이 없을 때만
+            // (수동/정상 청산 과정에서는 localPos가 null/closing으로 바뀌므로 오탐 방지)
+            if (localPos && localPos.entryPhase === 'active') {
+              const timeSinceEntry = Date.now() - (localPos.startTime || 0);
+              if (timeSinceEntry > 10_000) {
+                toast.warning(`📢 ${localPos.symbol} 외부 청산 감지`, {
+                  description: '바이낸스 앱 또는 다른 곳에서 포지션이 청산되었습니다.',
+                  duration: 5000,
+                });
+              } else {
+                console.log(`⏳ [외부 청산 후보] 진입 직후 ${(timeSinceEntry / 1000).toFixed(1)}초 - 토스트 무시`);
+              }
+            }
+
             console.log(`🔄 [포지션 동기화] 외부 청산 감지! 로컬 상태 초기화`);
             lastSyncedPositionRef.current = null;
             slTpSettingInProgressRef.current = null;
