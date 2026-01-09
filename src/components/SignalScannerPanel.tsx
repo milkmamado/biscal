@@ -159,7 +159,7 @@ export function SignalScannerPanel({
           background: 'linear-gradient(180deg, rgba(0, 255, 255, 0.03) 0%, transparent 100%)',
         }}
       >
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
           {/* 레버리지 Select */}
           <Select
             value={effectiveLeverage.toString()}
