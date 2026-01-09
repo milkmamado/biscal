@@ -1760,14 +1760,18 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
           >
             <TrendingUp className="w-3.5 h-3.5" />
           </button>
-          {/* 손절 설정 모드 토글 - 모드만 전환, 라인은 유지 */}
+          {/* 손절 설정 모드 토글 */}
           <button
             onClick={() => {
               const newMode = !slModeEnabled;
               setSlModeEnabled(newMode);
-              // SL 모드 켜면 TP 모드만 끔 (TP 라인은 유지)
-              if (newMode) setTpModeEnabled(false);
-              // SL 모드를 끄더라도 SL 라인은 유지 (삭제 안함)
+              if (newMode) {
+                // SL 모드 켜면 TP 모드만 끔 (TP 라인은 유지)
+                setTpModeEnabled(false);
+              } else {
+                // SL 모드 끄면 SL 선 삭제
+                if (onManualSlPriceChange) onManualSlPriceChange(null);
+              }
             }}
             className={cn(
               "p-1 rounded transition-colors",
@@ -1785,9 +1789,13 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
               onClick={() => {
                 const newMode = !tpModeEnabled;
                 setTpModeEnabled(newMode);
-                // TP 모드 켜면 SL 모드만 끔 (SL 라인은 유지)
-                if (newMode) setSlModeEnabled(false);
-                // TP 모드를 끄더라도 TP 라인은 유지 (삭제 안함)
+                if (newMode) {
+                  // TP 모드 켜면 SL 모드만 끔 (SL 라인은 유지)
+                  setSlModeEnabled(false);
+                } else {
+                  // TP 모드 끄면 TP 선 삭제
+                  if (onManualTpPriceChange) onManualTpPriceChange(null);
+                }
               }}
               className={cn(
                 "p-1 rounded transition-colors",
