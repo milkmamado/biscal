@@ -115,9 +115,15 @@ export function TradingSettingsPanel({
                       (e.target as HTMLInputElement).blur();
                     }
                   }}
-                  className="h-7 text-[10px] text-right font-mono bg-background/50"
+                  className="h-7 w-16 text-[10px] text-right font-mono bg-background/50"
                 />
                 <span className="text-[10px] text-muted-foreground">USDT</span>
+                <button
+                  onClick={() => onTakeProfitChange(takeProfitUsdt + 1)}
+                  className="h-7 px-2 text-[10px] font-bold rounded border border-cyan-500/50 bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30 transition-colors"
+                >
+                  +
+                </button>
               </div>
             </div>
 
