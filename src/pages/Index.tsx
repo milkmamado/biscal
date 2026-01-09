@@ -1,13 +1,11 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { useTradingLogs } from '@/hooks/useTradingLogs';
 import { useLimitOrderTrading } from '@/hooks/useLimitOrderTrading';
 import { useCoinScreening } from '@/hooks/useCoinScreening';
 import { useTickerWebSocket } from '@/hooks/useTickerWebSocket';
 import { useWakeLock } from '@/hooks/useWakeLock';
 import { useUserDataStream } from '@/hooks/useUserDataStream';
-
 
 import { supabase } from '@/integrations/supabase/client';
 import DualChartPanel from '@/components/DualChartPanel';
@@ -56,7 +54,6 @@ const Index = () => {
 
   const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
-  const { dailyStats, dbTradeLogs, logTrade, fetchDailyStats } = useTradingLogs();
   
   // Only connect WebSocket when user is authenticated and API keys are ready
   const shouldConnectWebSocket = !!user && hasApiKeys === true;
@@ -68,16 +65,7 @@ const Index = () => {
   // 청산 후 즉시 잔고 갱신
   const handleTradeComplete = useCallback(() => {
     setRefreshTrigger(prev => prev + 1);
-    fetchDailyStats();
-  }, [fetchDailyStats]);
-  
-  // 초기 통계
-  const initialStats = {
-    trades: dailyStats.tradeCount,
-    wins: dailyStats.winCount,
-    losses: dailyStats.lossCount,
-    totalPnL: dailyStats.totalPnL,
-  };
+  }, []);
   
   // 지정가 매매 훅 (실거래)
   const autoTrading = useLimitOrderTrading({
@@ -86,8 +74,6 @@ const Index = () => {
     krwRate,
     viewingSymbol: selectedSymbol,
     onTradeComplete: handleTradeComplete,
-    initialStats,
-    logTrade,
     filterSettings: {
       takeProfitUsdt,
     },

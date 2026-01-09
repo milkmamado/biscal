@@ -9,7 +9,6 @@ import { formatPrice } from '@/lib/binance';
 import { useBinanceApi } from '@/hooks/useBinanceApi';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
-import TradingRecordModal from './TradingRecordModal';
 import OrderBook from './OrderBook';
 import { LIMIT_ORDER_CONFIG } from '@/lib/limitOrderConfig';
 import { useRealtimePnL } from '@/hooks/useRealtimePnL';
