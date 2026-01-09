@@ -1775,13 +1775,27 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
             }}
             className={cn(
               "p-1 rounded transition-colors",
-              slModeEnabled 
-                ? "bg-red-500/80 hover:bg-red-500 text-white" 
+              slModeEnabled || manualSlPrice != null
+                ? "bg-red-500/80 hover:bg-red-500 text-white"
                 : "bg-secondary/80 hover:bg-secondary text-muted-foreground hover:text-foreground"
             )}
-            title={hasPosition ? "손절 설정 모드 (차트 클릭으로 손절가 설정)" : "손절 설정 모드 (포지션 없음 - 연습용)"}
+            title={
+              slModeEnabled
+                ? (hasPosition
+                    ? "손절 설정 모드 (차트 클릭/드래그로 손절가 설정)"
+                    : "손절 설정 모드 (포지션 없음 - 연습용)")
+                : manualSlPrice != null
+                  ? "손절 활성화됨 (수정하려면 버튼 클릭)"
+                  : (hasPosition
+                      ? "손절 설정 모드 (차트 클릭으로 손절가 설정)"
+                      : "손절 설정 모드 (포지션 없음 - 연습용)")
+            }
           >
-            {slModeEnabled ? <Shield className="w-3.5 h-3.5" /> : <ShieldOff className="w-3.5 h-3.5" />}
+            {slModeEnabled || manualSlPrice != null ? (
+              <Shield className="w-3.5 h-3.5" />
+            ) : (
+              <ShieldOff className="w-3.5 h-3.5" />
+            )}
           </button>
           {/* 익절 설정 모드 토글 - 차트 TP 모드가 활성화된 경우에만 표시 */}
           {chartTpEnabled && (
@@ -1799,13 +1813,27 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
               }}
               className={cn(
                 "p-1 rounded transition-colors",
-                tpModeEnabled 
-                  ? "bg-amber-500/80 hover:bg-amber-500 text-white" 
+                tpModeEnabled || manualTpPrice != null
+                  ? "bg-amber-500/80 hover:bg-amber-500 text-white"
                   : "bg-secondary/80 hover:bg-secondary text-muted-foreground hover:text-foreground"
               )}
-              title={hasPosition ? "익절 설정 모드 (차트 클릭으로 익절가 설정)" : "익절 설정 모드 (포지션 없음 - 연습용)"}
+              title={
+                tpModeEnabled
+                  ? (hasPosition
+                      ? "익절 설정 모드 (차트 클릭/드래그로 익절가 설정)"
+                      : "익절 설정 모드 (포지션 없음 - 연습용)")
+                  : manualTpPrice != null
+                    ? "익절 활성화됨 (수정하려면 버튼 클릭)"
+                    : (hasPosition
+                        ? "익절 설정 모드 (차트 클릭으로 익절가 설정)"
+                        : "익절 설정 모드 (포지션 없음 - 연습용)")
+              }
             >
-              {tpModeEnabled ? <Target className="w-3.5 h-3.5" /> : <CircleOff className="w-3.5 h-3.5" />}
+              {tpModeEnabled || manualTpPrice != null ? (
+                <Target className="w-3.5 h-3.5" />
+              ) : (
+                <CircleOff className="w-3.5 h-3.5" />
+              )}
             </button>
           )}
         </div>
