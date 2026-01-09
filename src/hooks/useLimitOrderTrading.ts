@@ -137,21 +137,6 @@ interface UseLimitOrderTradingProps {
   // 현재 화면에서 보고 있는 종목(호가창 기준)
   viewingSymbol?: string;
   onTradeComplete?: () => void;
-  initialStats?: {
-    trades: number;
-    wins: number;
-    losses: number;
-    totalPnL: number;
-  };
-  logTrade?: (trade: {
-    symbol: string;
-    side: 'long' | 'short';
-    entryPrice: number;
-    exitPrice: number;
-    quantity: number;
-    leverage: number;
-    pnlUsd: number;
-  }) => void;
   majorCoinMode?: boolean;
   // 필터 설정
   filterSettings?: {
@@ -167,8 +152,6 @@ export function useLimitOrderTrading({
   krwRate,
   viewingSymbol,
   onTradeComplete,
-  initialStats,
-  logTrade,
   majorCoinMode = true,
   filterSettings,
 }: UseLimitOrderTradingProps) {
@@ -181,7 +164,7 @@ export function useLimitOrderTrading({
     currentSymbol: null,
     pendingSignal: null,
     currentPosition: null,
-    todayStats: initialStats || { trades: 0, wins: 0, losses: 0, totalPnL: 0 },
+    todayStats: { trades: 0, wins: 0, losses: 0, totalPnL: 0 },
     tradeLogs: [],
     statusMessage: '🔄 지정가 매매 비활성화',
     scanningProgress: '',
@@ -280,15 +263,6 @@ export function useLimitOrderTrading({
     }
   }, [user, viewingSymbol, state.aiEnabled, analyzeMarket, fetch5mKlines]);
 
-  // 초기 통계 업데이트
-  useEffect(() => {
-    if (initialStats) {
-      setState(prev => ({
-        ...prev,
-        todayStats: initialStats,
-      }));
-    }
-  }, [initialStats?.trades, initialStats?.wins, initialStats?.losses, initialStats?.totalPnL]);
 
   const processingRef = useRef(false);
   const lastEntryTimeRef = useRef(0);
@@ -802,17 +776,6 @@ export function useLimitOrderTrading({
 
       console.log(`${isWin ? '✅' : '❌'} ${reasonText[reason]} | ${pnl >= 0 ? '+' : ''}₩${pnlKRW.toLocaleString()}`);
 
-      if (logTrade) {
-        logTrade({
-          symbol: position.symbol,
-          side: position.side,
-          entryPrice: actualEntryPrice,
-          exitPrice: actualExitPrice,  // 실제 체결가
-          quantity: actualQty,
-          leverage,
-          pnlUsd: pnl,
-        });
-      }
 
       onTradeComplete?.();
     } catch (error: any) {
@@ -829,7 +792,7 @@ export function useLimitOrderTrading({
       processingRef.current = false;
       setState(prev => ({ ...prev, isProcessing: false }));
     }
-  }, [state.currentPosition, placeMarketOrder, getPositions, cancelPendingOrders, cancelAllOrders, krwRate, leverage, addLog, onTradeComplete, logTrade]);
+  }, [state.currentPosition, placeMarketOrder, getPositions, cancelPendingOrders, cancelAllOrders, krwRate, leverage, addLog, onTradeComplete]);
 
   // ===== TP/SL 체크 =====
   const checkTpSl = useCallback(async (currentPrice: number) => {

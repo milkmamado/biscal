@@ -2,7 +2,6 @@ import { cn } from '@/lib/utils';
 import { Zap, Crown, Brain, LogOut, ChevronDown } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { useAuth } from '@/hooks/useAuth';
-import TradingRecordModal from './TradingRecordModal';
 import { useSymbolMaxLeverage, generateLeverageOptions, BALANCE_PERCENT_OPTIONS, BalancePercent } from '@/hooks/useSymbolMaxLeverage';
 import {
   Select,
@@ -231,8 +230,6 @@ export function SignalScannerPanel({
               ))}
             </SelectContent>
           </Select>
-
-          <TradingRecordModal krwRate={krwRate} refreshTrigger={refreshTrigger} />
         </div>
       </div>
     </div>
