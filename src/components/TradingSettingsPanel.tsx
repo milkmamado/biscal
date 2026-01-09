@@ -119,6 +119,12 @@ export function TradingSettingsPanel({
                 />
                 <span className="text-[10px] text-muted-foreground">USDT</span>
                 <button
+                  onClick={() => onTakeProfitChange(Math.max(0.1, takeProfitUsdt - 1))}
+                  className="h-7 px-2 text-[10px] font-bold rounded border border-cyan-500/50 bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30 transition-colors"
+                >
+                  -
+                </button>
+                <button
                   onClick={() => onTakeProfitChange(takeProfitUsdt + 1)}
                   className="h-7 px-2 text-[10px] font-bold rounded border border-cyan-500/50 bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30 transition-colors"
                 >
