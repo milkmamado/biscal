@@ -5,7 +5,7 @@
  * - 스크롤 가능 + 접기/펼치기
  */
 import { useState, useEffect, useCallback } from 'react';
-import { ChevronDown, ChevronUp, X, Star } from 'lucide-react';
+import { ChevronDown, ChevronUp, X, Crosshair } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface WatchlistItem {
@@ -89,7 +89,7 @@ export default function WatchlistPanel({ currentSymbol, onSelectSymbol }: Watchl
         className="w-full flex items-center justify-between px-2 py-1.5 hover:bg-muted/30 transition-colors"
       >
         <div className="flex items-center gap-1.5">
-          <Star className="w-3 h-3 text-cyan-400" style={{ filter: 'drop-shadow(0 0 4px rgba(0, 255, 255, 0.5))' }} />
+          <Crosshair className="w-3 h-3 text-cyan-400" style={{ filter: 'drop-shadow(0 0 4px rgba(0, 255, 255, 0.5))' }} />
           <span className="text-xs font-medium text-foreground">관심종목</span>
           <span className="text-[10px] text-cyan-400/60">({watchlist.length})</span>
         </div>
