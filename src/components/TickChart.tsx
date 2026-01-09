@@ -1275,16 +1275,16 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
     return price;
   }, []);
   
-  // 차트 클릭 핸들러 (손절 모드 ON 시 SL 가격 설정)
+  // 차트 클릭 핸들러 (손절 모드 ON 시 SL 가격 설정 - 포지션 없어도 라인 그리기 가능)
   const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!slModeEnabled || !hasPosition) return;
+    if (!slModeEnabled) return;
     if (isDraggingSl) return; // 드래그 중이면 클릭 무시
     
     const price = yToPrice(e.clientY);
     if (price && onManualSlPriceChange) {
       onManualSlPriceChange(price);
     }
-  }, [slModeEnabled, hasPosition, isDraggingSl, yToPrice, onManualSlPriceChange]);
+  }, [slModeEnabled, isDraggingSl, yToPrice, onManualSlPriceChange]);
   
   // 마우스 다운 핸들러 (SL 라인 드래그 시작)
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -1555,7 +1555,7 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
         ref={canvasRef} 
         className={cn(
           "w-full h-full absolute inset-0 z-10",
-          slModeEnabled && hasPosition && "cursor-crosshair"
+          slModeEnabled && "cursor-crosshair"
         )}
         onClick={handleCanvasClick}
         onMouseDown={handleMouseDown}
@@ -1614,28 +1614,26 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
           >
             <TrendingUp className="w-3.5 h-3.5" />
           </button>
-          {/* 손절 설정 모드 토글 (포지션 있을 때만 표시) */}
-          {hasPosition && (
-            <button
-              onClick={() => {
-                const newMode = !slModeEnabled;
-                setSlModeEnabled(newMode);
-                // 손절 모드 끄면 손절가도 초기화
-                if (!newMode && onManualSlPriceChange) {
-                  onManualSlPriceChange(null);
-                }
-              }}
-              className={cn(
-                "p-1 rounded transition-colors",
-                slModeEnabled 
-                  ? "bg-red-500/80 hover:bg-red-500 text-white" 
-                  : "bg-secondary/80 hover:bg-secondary text-muted-foreground hover:text-foreground"
-              )}
-              title="손절 설정 모드 (차트 클릭으로 손절가 설정)"
-            >
-              {slModeEnabled ? <Shield className="w-3.5 h-3.5" /> : <ShieldOff className="w-3.5 h-3.5" />}
-            </button>
-          )}
+          {/* 손절 설정 모드 토글 (항상 표시, 실제 반영은 포지션 보유 시에만) */}
+          <button
+            onClick={() => {
+              const newMode = !slModeEnabled;
+              setSlModeEnabled(newMode);
+              // 손절 모드 끄면 손절가도 초기화
+              if (!newMode && onManualSlPriceChange) {
+                onManualSlPriceChange(null);
+              }
+            }}
+            className={cn(
+              "p-1 rounded transition-colors",
+              slModeEnabled 
+                ? "bg-red-500/80 hover:bg-red-500 text-white" 
+                : "bg-secondary/80 hover:bg-secondary text-muted-foreground hover:text-foreground"
+            )}
+            title={hasPosition ? "손절 설정 모드 (차트 클릭으로 손절가 설정)" : "손절 설정 모드 (포지션 없음 - 연습용)"}
+          >
+            {slModeEnabled ? <Shield className="w-3.5 h-3.5" /> : <ShieldOff className="w-3.5 h-3.5" />}
+          </button>
         </div>
         <span className="text-[10px] text-muted-foreground font-mono bg-secondary/60 px-1.5 py-0.5 rounded">
           {getIntervalString(interval)} {visibleCount}봉
