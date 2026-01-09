@@ -16,14 +16,14 @@ const Toaster = ({ ...props }: ToasterProps) => {
       toastOptions={{
         classNames: {
           toast:
-            "group toast group-[.toaster]:bg-background group-[.toaster]:text-foreground group-[.toaster]:border-border group-[.toaster]:shadow-lg",
-          description: "group-[.toast]:text-muted-foreground",
-          actionButton: "group-[.toast]:bg-primary group-[.toast]:text-primary-foreground",
+            "group toast group-[.toaster]:bg-[hsl(220,18%,10%)] group-[.toaster]:text-foreground group-[.toaster]:border-cyan-500/30 group-[.toaster]:shadow-[0_0_15px_rgba(0,255,255,0.15)] group-[.toaster]:font-mono",
+          description: "group-[.toast]:text-cyan-300/70",
+          actionButton: "group-[.toast]:bg-cyan-500 group-[.toast]:text-white",
           cancelButton: "group-[.toast]:bg-muted group-[.toast]:text-muted-foreground",
-          error: "group-[.toaster]:!bg-red-950 group-[.toaster]:!border-red-500/50 group-[.toaster]:!text-red-100",
-          success: "group-[.toaster]:!bg-green-950 group-[.toaster]:!border-green-500/50 group-[.toaster]:!text-green-100",
-          warning: "group-[.toaster]:!bg-yellow-950 group-[.toaster]:!border-yellow-500/50 group-[.toaster]:!text-yellow-100",
-          info: "group-[.toaster]:!bg-cyan-950 group-[.toaster]:!border-cyan-500/50 group-[.toaster]:!text-cyan-100",
+          error: "group-[.toaster]:!bg-[hsl(220,18%,10%)] group-[.toaster]:!border-red-500/40 group-[.toaster]:!text-red-300 group-[.toaster]:!shadow-[0_0_15px_rgba(255,80,80,0.15)]",
+          success: "group-[.toaster]:!bg-[hsl(220,18%,10%)] group-[.toaster]:!border-cyan-500/40 group-[.toaster]:!text-cyan-300 group-[.toaster]:!shadow-[0_0_15px_rgba(0,255,255,0.2)]",
+          warning: "group-[.toaster]:!bg-[hsl(220,18%,10%)] group-[.toaster]:!border-yellow-500/40 group-[.toaster]:!text-yellow-300 group-[.toaster]:!shadow-[0_0_15px_rgba(255,200,0,0.15)]",
+          info: "group-[.toaster]:!bg-[hsl(220,18%,10%)] group-[.toaster]:!border-cyan-500/40 group-[.toaster]:!text-cyan-300 group-[.toaster]:!shadow-[0_0_15px_rgba(0,255,255,0.2)]",
         },
       }}
       {...props}

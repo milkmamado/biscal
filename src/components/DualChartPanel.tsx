@@ -74,14 +74,14 @@ const DualChartPanel = ({
   // 최근 5개 로그만 표시
   const recentLogs = screeningLogs.slice(0, 5);
 
-  // 로그 타입별 색상
+  // 로그 타입별 색상 (Cyan 중심 통일)
   const getLogColor = (type: ScreeningLog['type']): string => {
     switch (type) {
-      case 'approve': return 'text-green-400';
+      case 'approve': return 'text-cyan-400';
       case 'reject': return 'text-red-400/70';
-      case 'signal': return 'text-yellow-400';
-      case 'start': return 'text-cyan-400';
-      case 'complete': return 'text-purple-400';
+      case 'signal': return 'text-cyan-300';
+      case 'start': return 'text-cyan-500';
+      case 'complete': return 'text-blue-400';
       default: return 'text-gray-400';
     }
   };
@@ -152,9 +152,9 @@ const DualChartPanel = ({
         </div>
         
         {/* Cyber Pigeon Area - 반응형 크기 */}
-        <div className="h-16 lg:h-20 xl:h-24 bg-gradient-to-b from-[#0a0a0a] via-[#0a0512] to-[#0d0d1a] border-t border-cyan-500/20 relative overflow-hidden shrink-0">
-          {/* 강화된 네온 그라데이션 배경 */}
-          <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/5 via-purple-500/5 to-pink-500/5" />
+        <div className="h-16 lg:h-20 xl:h-24 bg-gradient-to-b from-[#0a0a12] via-[#080c14] to-[#0a1018] border-t border-cyan-500/30 relative overflow-hidden shrink-0">
+          {/* Cyan 중심 네온 그라데이션 배경 */}
+          <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/5 via-blue-500/5 to-cyan-500/5" />
           
           {/* 네온 글로우 라인 - 상단 */}
           <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-cyan-400/60 to-transparent" />
@@ -171,8 +171,8 @@ const DualChartPanel = ({
             }}
           />
           
-          {/* 네온 글로우 라인 - 하단 */}
-          <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-pink-500/40 to-transparent" />
+          {/* 네온 글로우 라인 - 하단 (Cyan으로 통일) */}
+          <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-cyan-400/40 to-transparent" />
         </div>
       </div>
     </div>

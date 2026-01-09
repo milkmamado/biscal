@@ -97,8 +97,8 @@ export function SignalScannerPanel({
           </span>
           {isProcessing && (
             <div
-              className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse"
-              style={{ boxShadow: '0 0 10px rgba(255, 255, 0, 0.8)' }}
+              className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"
+              style={{ boxShadow: '0 0 10px rgba(0, 255, 255, 0.8)' }}
             />
           )}
         </div>
@@ -108,11 +108,11 @@ export function SignalScannerPanel({
             onClick={onToggleMajorCoinMode}
             className={cn(
               "p-1 rounded transition-all",
-              majorCoinMode ? "text-yellow-400" : "text-purple-400"
+              majorCoinMode ? "text-cyan-300" : "text-blue-400"
             )}
             style={{
-              background: majorCoinMode ? 'rgba(255, 215, 0, 0.2)' : 'rgba(168, 85, 247, 0.2)',
-              boxShadow: majorCoinMode ? '0 0 10px rgba(255, 215, 0, 0.4)' : '0 0 10px rgba(168, 85, 247, 0.4)',
+              background: majorCoinMode ? 'rgba(0, 255, 255, 0.15)' : 'rgba(59, 130, 246, 0.15)',
+              boxShadow: majorCoinMode ? '0 0 10px rgba(0, 255, 255, 0.3)' : '0 0 10px rgba(59, 130, 246, 0.3)',
             }}
             title={majorCoinMode ? "메이저 코인 모드" : "잡코인 모드"}
           >
