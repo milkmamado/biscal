@@ -276,12 +276,13 @@ const AutoTradingPanel = ({
     return userDataStream?.getUsdtBalance();
   }, [userDataStream?.lastEventTime]);
   
-  // User Data Stream 잔고가 있으면 즉시 반영
+  // User Data Stream 잔고가 있으면 즉시 반영 (첫 로드 + 모든 변동 감지)
   useEffect(() => {
     if (realtimeUsdtBalance && realtimeUsdtBalance.walletBalance > 0) {
       const newBalance = realtimeUsdtBalance.walletBalance;
-      if (Math.abs(newBalance - balanceUSD) > 0.01) {
-        console.log(`💰 [실시간 잔고] ${balanceUSD.toFixed(2)} → ${newBalance.toFixed(2)} (변동: ${realtimeUsdtBalance.balanceChange.toFixed(2)})`);
+      // 첫 로드(balanceUSD=0)이거나 0.001 이상 변동 시 반영 (고레버리지 소액 손실도 감지)
+      if (balanceUSD === 0 || Math.abs(newBalance - balanceUSD) > 0.001) {
+        console.log(`💰 [실시간 잔고] ${balanceUSD.toFixed(4)} → ${newBalance.toFixed(4)} (변동: ${realtimeUsdtBalance.balanceChange.toFixed(4)})`);
         setBalanceUSD(newBalance);
         onBalanceChange?.(newBalance);
       }
