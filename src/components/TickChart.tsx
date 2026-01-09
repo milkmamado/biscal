@@ -1275,6 +1275,30 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
     return price;
   }, []);
   
+  // SL 가격 유효성 검증 (포지션 방향에 따라)
+  const validateSlPrice = useCallback((slPrice: number): { valid: boolean; reason?: string } => {
+    // 포지션 없으면 연습용이므로 항상 허용
+    if (!entryPrice || !positionSide) {
+      return { valid: true };
+    }
+    
+    // 롱포지션: SL은 진입가 아래만 허용
+    if (positionSide === 'long') {
+      if (slPrice >= entryPrice) {
+        return { valid: false, reason: '롱 포지션은 진입가 아래에 손절을 설정하세요' };
+      }
+    }
+    
+    // 숏포지션: SL은 진입가 위만 허용
+    if (positionSide === 'short') {
+      if (slPrice <= entryPrice) {
+        return { valid: false, reason: '숏 포지션은 진입가 위에 손절을 설정하세요' };
+      }
+    }
+    
+    return { valid: true };
+  }, [entryPrice, positionSide]);
+  
   // 차트 클릭 핸들러 (손절 모드 ON 시 SL 가격 설정 - 포지션 없어도 라인 그리기 가능)
   const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!slModeEnabled) return;
@@ -1282,9 +1306,15 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
     
     const price = yToPrice(e.clientY);
     if (price && onManualSlPriceChange) {
+      const validation = validateSlPrice(price);
+      if (!validation.valid) {
+        // 잘못된 위치 클릭 시 콘솔에 경고 (토스트는 Index.tsx에서 처리)
+        console.warn(`⚠️ [SL] ${validation.reason} (클릭가: $${price.toFixed(6)}, 진입가: $${entryPrice?.toFixed(6)})`);
+        return; // 설정 무시
+      }
       onManualSlPriceChange(price);
     }
-  }, [slModeEnabled, isDraggingSl, yToPrice, onManualSlPriceChange]);
+  }, [slModeEnabled, isDraggingSl, yToPrice, onManualSlPriceChange, validateSlPrice, entryPrice]);
   
   // 마우스 다운 핸들러 (SL 라인 드래그 시작)
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -1315,9 +1345,14 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
     
     const price = yToPrice(e.clientY);
     if (price && onManualSlPriceChange) {
+      const validation = validateSlPrice(price);
+      if (!validation.valid) {
+        // 드래그 중 잘못된 영역으로 가면 무시 (기존 SL 유지)
+        return;
+      }
       onManualSlPriceChange(price);
     }
-  }, [isDraggingSl, yToPrice, onManualSlPriceChange]);
+  }, [isDraggingSl, yToPrice, onManualSlPriceChange, validateSlPrice]);
   
   // 마우스 업 핸들러 (드래그 종료)
   const handleMouseUp = useCallback(() => {
