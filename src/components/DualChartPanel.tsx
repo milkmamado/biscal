@@ -35,6 +35,8 @@ interface DualChartPanelProps {
   // 수동 익절 관련
   manualTpPrice?: number | null;
   onManualTpPriceChange?: (price: number | null) => void;
+  // 차트 TP 모드 활성화 상태
+  chartTpEnabled?: boolean;
 }
 
 const INTERVALS = [
@@ -62,6 +64,7 @@ const DualChartPanel = ({
   onManualSlPriceChange,
   manualTpPrice,
   onManualTpPriceChange,
+  chartTpEnabled = false,
 }: DualChartPanelProps) => {
   const [interval, setInterval] = useState(60);
   const prevSymbolRef = useRef<string>(symbol);
@@ -123,9 +126,10 @@ const DualChartPanel = ({
             dtfxEnabled={dtfxEnabled}
             manualSlPrice={manualSlPrice}
             onManualSlPriceChange={onManualSlPriceChange}
-            manualTpPrice={manualTpPrice}
-            onManualTpPriceChange={onManualTpPriceChange}
+            manualTpPrice={chartTpEnabled ? manualTpPrice : null}
+            onManualTpPriceChange={chartTpEnabled ? onManualTpPriceChange : undefined}
             hasPosition={hasPosition}
+            chartTpEnabled={chartTpEnabled}
           />
           
           {/* 스크리닝 로그 오버레이 - 차트 영역 중하단 */}

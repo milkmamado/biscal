@@ -44,6 +44,9 @@ const Index = () => {
   // 수동 익절가 상태 (차트에서 드래그로 설정)
   const [manualTpPrice, setManualTpPrice] = useState<number | null>(null);
   
+  // 차트 TP 모드 (ON: 차트에서 직접 설정, OFF: USDT 기반 자동)
+  const [chartTpEnabled, setChartTpEnabled] = useState(false);
+  
   // 잔고 퍼센트 매수 상태
   const [balancePercent, setBalancePercent] = useState<10 | 20 | 25 | 50 | 60 | 98>(98);
   const [majorCoinMode, setMajorCoinMode] = useState(true); // 메이저/Altcoin 모드 토글
@@ -80,6 +83,7 @@ const Index = () => {
     onTradeComplete: handleTradeComplete,
     filterSettings: {
       takeProfitUsdt,
+      chartTpEnabled, // 차트 TP 모드 활성화 시 자동 TP 비활성화
     },
   });
   
@@ -364,7 +368,7 @@ const Index = () => {
             symbol={selectedSymbol} 
             hasPosition={!!autoTrading.state.currentPosition}
             entryPrice={autoTrading.state.currentPosition?.avgPrice}
-            takeProfitPrice={takeProfitPrice}
+            takeProfitPrice={!chartTpEnabled ? takeProfitPrice : undefined}
             positionSide={autoTrading.state.currentPosition?.side}
             onSelectSymbol={setSelectedSymbol}
             screeningLogs={screeningLogs}
@@ -377,8 +381,9 @@ const Index = () => {
             dtfxEnabled={dtfxEnabled}
             manualSlPrice={manualSlPrice}
             onManualSlPriceChange={handleManualSlPriceChange}
-            manualTpPrice={manualTpPrice}
-            onManualTpPriceChange={handleManualTpPriceChange}
+            manualTpPrice={chartTpEnabled ? manualTpPrice : null}
+            onManualTpPriceChange={chartTpEnabled ? handleManualTpPriceChange : undefined}
+            chartTpEnabled={chartTpEnabled}
           />
         </div>
 
@@ -445,6 +450,17 @@ const Index = () => {
             takeProfitUsdt={takeProfitUsdt}
             onTakeProfitChange={setTakeProfitUsdt}
             isAutoTradingEnabled={autoTrading.state.isEnabled}
+            chartTpEnabled={chartTpEnabled}
+            onChartTpToggle={(enabled) => {
+              setChartTpEnabled(enabled);
+              // 차트 TP 모드 끄면 수동 TP도 초기화
+              if (!enabled && manualTpPrice !== null) {
+                setManualTpPrice(null);
+                // 기존 TP 주문 취소 (null 전달하면 취소됨)
+                autoTrading.setManualTakeProfit(null);
+              }
+            }}
+            manualTpPrice={manualTpPrice}
           />
           <ScalpingRatingPanel />
           <WatchlistPanel 

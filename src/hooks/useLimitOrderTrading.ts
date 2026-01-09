@@ -142,6 +142,7 @@ interface UseLimitOrderTradingProps {
   filterSettings?: {
     takeProfitUsdt: number; // USDT 기반 익절
     dtfxEnabled?: boolean; // DTFX OTE 구간 진입 모드
+    chartTpEnabled?: boolean; // 차트 TP 모드 활성화 시 자동 TP 배치 비활성화
   };
 }
 
@@ -309,6 +310,12 @@ export function useLimitOrderTrading({
       if (!isMounted) return;
       if (processingRef.current) return;
       if (serverSlTpInProgressRef.current) return;
+      
+      // 🚨 차트 TP 모드 활성화 시 자동 TP 배치 건너뛰기 (수동 TP만 사용)
+      if (filterSettingsRef.current?.chartTpEnabled) {
+        console.log('[서버 TP] 차트 TP 모드 활성화 → 자동 TP 배치 건너뜀');
+        return;
+      }
 
       const targetTakeProfitUsdt = filterSettingsRef.current?.takeProfitUsdt ?? 7;
 
@@ -841,6 +848,12 @@ export function useLimitOrderTrading({
     // (손절 기능 완전 제거됨)
 
     // 익절 체크 (USDT 기반) → 전량 시장가 청산
+    // 🚨 차트 TP 모드 활성화 시에는 바이낸스 서버 주문이 처리하므로 로컬 체크 건너뜀
+    if (filterSettings?.chartTpEnabled) {
+      // 차트 TP 모드: 서버 TAKE_PROFIT_MARKET 주문에 의존
+      return;
+    }
+    
     const targetProfitUsdt = filterSettings?.takeProfitUsdt ?? 7;
     if (pnlUSD >= targetProfitUsdt) {
       console.log(`💰 익절! $${pnlUSD.toFixed(2)} >= $${targetProfitUsdt}`);
