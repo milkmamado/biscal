@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useTradingLogs } from '@/hooks/useTradingLogs';
@@ -236,16 +236,24 @@ const Index = () => {
     autoTrading.cancelEntry();
   };
   
-  // 수동 손절가 변경 핸들러
+  // 수동 손절가 변경 핸들러 (포지션 있을 때만 실제 주문 반영)
   const handleManualSlPriceChange = useCallback((price: number | null) => {
     setManualSlPrice(price);
-    // 바이낸스에 STOP_MARKET 주문 배치
-    autoTrading.setManualStopLoss(price);
-  }, [autoTrading.setManualStopLoss]);
+    // 포지션 보유 시에만 바이낸스에 STOP_MARKET 주문 배치
+    if (autoTrading.state.currentPosition) {
+      autoTrading.setManualStopLoss(price);
+    }
+  }, [autoTrading.setManualStopLoss, autoTrading.state.currentPosition]);
   
-  // 포지션 청산 시 손절가 초기화
+  // 포지션 청산 시 손절가 초기화 (포지션이 있다가 없어졌을 때만)
+  const prevPositionRef = useRef(autoTrading.state.currentPosition);
   useEffect(() => {
-    if (!autoTrading.state.currentPosition && manualSlPrice !== null) {
+    const hadPosition = prevPositionRef.current;
+    const hasPosition = autoTrading.state.currentPosition;
+    prevPositionRef.current = hasPosition;
+    
+    // 포지션이 있다가 없어졌을 때만 초기화
+    if (hadPosition && !hasPosition && manualSlPrice !== null) {
       setManualSlPrice(null);
     }
   }, [autoTrading.state.currentPosition, manualSlPrice]);
