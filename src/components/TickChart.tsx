@@ -52,6 +52,7 @@ interface TickChartProps {
   manualTpPrice?: number | null;
   onManualTpPriceChange?: (price: number | null) => void;
   hasPosition?: boolean; // 포지션 보유 여부
+  chartTpEnabled?: boolean; // 차트 TP 모드 활성화 상태 (우측 패널에서 제어)
 }
 
 const MAX_CANDLES = 200;
@@ -131,7 +132,7 @@ const getIntervalString = (seconds: number): string => {
   return '1d';
 };
 
-const TickChart = ({ symbol, orderBook = null, isConnected = false, height, interval = 60, entryPrice, takeProfitPrice, positionSide, entryPoints = [], openOrders = [], dtfxEnabled = false, manualSlPrice, onManualSlPriceChange, manualTpPrice, onManualTpPriceChange, hasPosition = false }: TickChartProps) => {
+const TickChart = ({ symbol, orderBook = null, isConnected = false, height, interval = 60, entryPrice, takeProfitPrice, positionSide, entryPoints = [], openOrders = [], dtfxEnabled = false, manualSlPrice, onManualSlPriceChange, manualTpPrice, onManualTpPriceChange, hasPosition = false, chartTpEnabled = false }: TickChartProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [candles, setCandles] = useState<Candle[]>([]);
@@ -169,6 +170,13 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
   const [isDraggingTp, setIsDraggingTp] = useState(false);
   const tpDragStartYRef = useRef<number>(0);
   const tpDragStartPriceRef = useRef<number>(0);
+  
+  // 차트 TP 모드가 OFF되면 tpModeEnabled도 자동 OFF (충돌 방지)
+  useEffect(() => {
+    if (!chartTpEnabled && tpModeEnabled) {
+      setTpModeEnabled(false);
+    }
+  }, [chartTpEnabled, tpModeEnabled]);
   
   // 차트 범위 정보 저장 (마우스 이벤트에서 가격 계산용)
   const chartRangeRef = useRef<{
@@ -1772,26 +1780,28 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
           >
             {slModeEnabled ? <Shield className="w-3.5 h-3.5" /> : <ShieldOff className="w-3.5 h-3.5" />}
           </button>
-          {/* 익절 설정 모드 토글 */}
-          <button
-            onClick={() => {
-              const newMode = !tpModeEnabled;
-              setTpModeEnabled(newMode);
-              if (newMode) setSlModeEnabled(false); // TP 켜면 SL 끔
-              if (!newMode && onManualTpPriceChange) {
-                onManualTpPriceChange(null);
-              }
-            }}
-            className={cn(
-              "p-1 rounded transition-colors",
-              tpModeEnabled 
-                ? "bg-amber-500/80 hover:bg-amber-500 text-white" 
-                : "bg-secondary/80 hover:bg-secondary text-muted-foreground hover:text-foreground"
-            )}
-            title={hasPosition ? "익절 설정 모드 (차트 클릭으로 익절가 설정)" : "익절 설정 모드 (포지션 없음 - 연습용)"}
-          >
-            {tpModeEnabled ? <Target className="w-3.5 h-3.5" /> : <CircleOff className="w-3.5 h-3.5" />}
-          </button>
+          {/* 익절 설정 모드 토글 - 차트 TP 모드가 활성화된 경우에만 표시 */}
+          {chartTpEnabled && (
+            <button
+              onClick={() => {
+                const newMode = !tpModeEnabled;
+                setTpModeEnabled(newMode);
+                if (newMode) setSlModeEnabled(false); // TP 켜면 SL 끔
+                if (!newMode && onManualTpPriceChange) {
+                  onManualTpPriceChange(null);
+                }
+              }}
+              className={cn(
+                "p-1 rounded transition-colors",
+                tpModeEnabled 
+                  ? "bg-amber-500/80 hover:bg-amber-500 text-white" 
+                  : "bg-secondary/80 hover:bg-secondary text-muted-foreground hover:text-foreground"
+              )}
+              title={hasPosition ? "익절 설정 모드 (차트 클릭으로 익절가 설정)" : "익절 설정 모드 (포지션 없음 - 연습용)"}
+            >
+              {tpModeEnabled ? <Target className="w-3.5 h-3.5" /> : <CircleOff className="w-3.5 h-3.5" />}
+            </button>
+          )}
         </div>
         <span className="text-[10px] text-muted-foreground font-mono bg-secondary/60 px-1.5 py-0.5 rounded">
           {getIntervalString(interval)} {visibleCount}봉
