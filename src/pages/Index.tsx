@@ -238,9 +238,12 @@ const Index = () => {
   
   // 수동 손절가 변경 핸들러 (포지션 있을 때만 실제 주문 반영)
   const handleManualSlPriceChange = useCallback((price: number | null) => {
+    const hasPos = !!autoTrading.state.currentPosition;
+    console.log(`🛡️ [ManualSL] 손절가 변경: ${price ? `$${price.toFixed(6)}` : 'null'} | 포지션: ${hasPos ? '있음 → 바이낸스 반영' : '없음 → 연습용'}`);
+    
     setManualSlPrice(price);
     // 포지션 보유 시에만 바이낸스에 STOP_MARKET 주문 배치
-    if (autoTrading.state.currentPosition) {
+    if (hasPos) {
       autoTrading.setManualStopLoss(price);
     }
   }, [autoTrading.setManualStopLoss, autoTrading.state.currentPosition]);
