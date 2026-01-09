@@ -41,6 +41,9 @@ const Index = () => {
   // 수동 손절가 상태 (차트에서 드래그로 설정)
   const [manualSlPrice, setManualSlPrice] = useState<number | null>(null);
   
+  // 수동 익절가 상태 (차트에서 드래그로 설정)
+  const [manualTpPrice, setManualTpPrice] = useState<number | null>(null);
+  
   // 잔고 퍼센트 매수 상태
   const [balancePercent, setBalancePercent] = useState<10 | 20 | 25 | 50 | 60 | 98>(98);
   const [majorCoinMode, setMajorCoinMode] = useState(true); // 메이저/Altcoin 모드 토글
@@ -260,7 +263,44 @@ const Index = () => {
     }
   }, [autoTrading.setManualStopLoss, autoTrading.state.currentPosition]);
   
-  // 포지션 청산 시 손절가 초기화 (포지션이 있다가 없어졌을 때만)
+  // 수동 익절가 변경 핸들러 (포지션 있을 때만 실제 주문 반영 + 방향별 유효성 검증)
+  const handleManualTpPriceChange = useCallback((price: number | null) => {
+    const position = autoTrading.state.currentPosition;
+    const hasPos = !!position;
+    
+    // 포지션이 있을 때 방향별 유효성 검증
+    if (hasPos && price !== null && position) {
+      const entryPrice = position.avgPrice;
+      
+      // 롱포지션: TP는 진입가 위만 허용
+      if (position.side === 'long' && price <= entryPrice) {
+        toast.error('⚠️ 롱 포지션은 진입가 위에 익절을 설정하세요', {
+          description: `진입가: $${entryPrice.toFixed(4)} | 클릭: $${price.toFixed(4)}`,
+          duration: 2000,
+        });
+        return;
+      }
+      
+      // 숏포지션: TP는 진입가 아래만 허용
+      if (position.side === 'short' && price >= entryPrice) {
+        toast.error('⚠️ 숏 포지션은 진입가 아래에 익절을 설정하세요', {
+          description: `진입가: $${entryPrice.toFixed(4)} | 클릭: $${price.toFixed(4)}`,
+          duration: 2000,
+        });
+        return;
+      }
+    }
+    
+    console.log(`🎯 [ManualTP] 익절가 변경: ${price ? `$${price.toFixed(6)}` : 'null'} | 포지션: ${hasPos ? '있음 → 바이낸스 반영' : '없음 → 연습용'}`);
+    
+    setManualTpPrice(price);
+    // 포지션 보유 시에만 바이낸스에 TAKE_PROFIT_MARKET 주문 배치
+    if (hasPos) {
+      autoTrading.setManualTakeProfit(price);
+    }
+  }, [autoTrading.setManualTakeProfit, autoTrading.state.currentPosition]);
+  
+  // 포지션 청산 시 손절가/익절가 초기화 (포지션이 있다가 없어졌을 때만)
   const prevPositionRef = useRef(autoTrading.state.currentPosition);
   useEffect(() => {
     const hadPosition = prevPositionRef.current;
@@ -268,10 +308,11 @@ const Index = () => {
     prevPositionRef.current = hasPosition;
     
     // 포지션이 있다가 없어졌을 때만 초기화
-    if (hadPosition && !hasPosition && manualSlPrice !== null) {
-      setManualSlPrice(null);
+    if (hadPosition && !hasPosition) {
+      if (manualSlPrice !== null) setManualSlPrice(null);
+      if (manualTpPrice !== null) setManualTpPrice(null);
     }
-  }, [autoTrading.state.currentPosition, manualSlPrice]);
+  }, [autoTrading.state.currentPosition, manualSlPrice, manualTpPrice]);
 
   // Show loading
   if (loading || (user && checkingKeys)) {
@@ -336,6 +377,8 @@ const Index = () => {
             dtfxEnabled={dtfxEnabled}
             manualSlPrice={manualSlPrice}
             onManualSlPriceChange={handleManualSlPriceChange}
+            manualTpPrice={manualTpPrice}
+            onManualTpPriceChange={handleManualTpPriceChange}
           />
         </div>
 

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { cn } from '@/lib/utils';
-import { ZoomIn, ZoomOut, TrendingUp, Shield, ShieldOff } from 'lucide-react';
+import { ZoomIn, ZoomOut, TrendingUp, Shield, ShieldOff, Target, CircleOff } from 'lucide-react';
 import cyberpunkGirl from '@/assets/cyberpunk-girl.png';
 import { analyzeDTFX, detectSwingPoints, SwingPoint, DTFXZone, StructureShift, DTFX_STRUCTURE_LENGTH } from '@/hooks/useDTFX';
 
@@ -48,6 +48,9 @@ interface TickChartProps {
   // 수동 손절 관련
   manualSlPrice?: number | null;
   onManualSlPriceChange?: (price: number | null) => void;
+  // 수동 익절 관련
+  manualTpPrice?: number | null;
+  onManualTpPriceChange?: (price: number | null) => void;
   hasPosition?: boolean; // 포지션 보유 여부
 }
 
@@ -128,7 +131,7 @@ const getIntervalString = (seconds: number): string => {
   return '1d';
 };
 
-const TickChart = ({ symbol, orderBook = null, isConnected = false, height, interval = 60, entryPrice, takeProfitPrice, positionSide, entryPoints = [], openOrders = [], dtfxEnabled = false, manualSlPrice, onManualSlPriceChange, hasPosition = false }: TickChartProps) => {
+const TickChart = ({ symbol, orderBook = null, isConnected = false, height, interval = 60, entryPrice, takeProfitPrice, positionSide, entryPoints = [], openOrders = [], dtfxEnabled = false, manualSlPrice, onManualSlPriceChange, manualTpPrice, onManualTpPriceChange, hasPosition = false }: TickChartProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [candles, setCandles] = useState<Candle[]>([]);
@@ -160,6 +163,12 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
   const [isDraggingSl, setIsDraggingSl] = useState(false);
   const slDragStartYRef = useRef<number>(0);
   const slDragStartPriceRef = useRef<number>(0);
+  
+  // 익절 설정 모드
+  const [tpModeEnabled, setTpModeEnabled] = useState(false);
+  const [isDraggingTp, setIsDraggingTp] = useState(false);
+  const tpDragStartYRef = useRef<number>(0);
+  const tpDragStartPriceRef = useRef<number>(0);
   
   // 차트 범위 정보 저장 (마우스 이벤트에서 가격 계산용)
   const chartRangeRef = useRef<{
@@ -1256,7 +1265,43 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
         ctx.fillText('⬍ 드래그', CANVAS_PADDING + 5, slY + 3);
       }
     }
-  }, [candles, containerHeight, isConnected, loading, visibleCount, entryPrice, takeProfitPrice, entryPoints, openOrders, dtfxEnabled, trendlineEnabled, manualSlPrice, slModeEnabled, isDraggingSl]);
+    
+    // 수동 익절가 표시 (금색/오렌지 점선 + 드래그 가능) - 수동 설정 시 기본 TP 대신 표시
+    if (manualTpPrice && manualTpPrice >= adjustedMin && manualTpPrice <= adjustedMax) {
+      const tpY = CANVAS_PADDING / 2 + ((adjustedMax - manualTpPrice) / adjustedRange) * priceChartHeight;
+      
+      // 드래그 영역 강조 (익절 모드 활성화 시)
+      if (tpModeEnabled) {
+        ctx.fillStyle = 'rgba(251, 191, 36, 0.1)';
+        ctx.fillRect(CANVAS_PADDING, tpY - 8, width - CANVAS_PADDING - 50, 16);
+      }
+      
+      ctx.strokeStyle = 'rgba(251, 191, 36, 0.9)'; // amber-400
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 4]);
+      ctx.beginPath();
+      ctx.moveTo(CANVAS_PADDING, tpY);
+      ctx.lineTo(width - 50, tpY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      
+      // 익절가 라벨
+      ctx.fillStyle = 'rgba(251, 191, 36, 0.95)';
+      ctx.fillRect(width - 48, tpY - 8, 46, 16);
+      ctx.fillStyle = '#000';
+      ctx.font = 'bold 9px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('TP', width - 25, tpY + 3);
+      
+      // 드래그 힌트 (모드 활성화 시)
+      if (tpModeEnabled && !isDraggingTp) {
+        ctx.fillStyle = 'rgba(251, 191, 36, 0.7)';
+        ctx.font = '8px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('⬍ 드래그', CANVAS_PADDING + 5, tpY + 3);
+      }
+    }
+  }, [candles, containerHeight, isConnected, loading, visibleCount, entryPrice, takeProfitPrice, entryPoints, openOrders, dtfxEnabled, trendlineEnabled, manualSlPrice, slModeEnabled, isDraggingSl, manualTpPrice, tpModeEnabled, isDraggingTp]);
   
   // Y 좌표 → 가격 변환 함수
   const yToPrice = useCallback((clientY: number): number | null => {
@@ -1299,74 +1344,132 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
     return { valid: true };
   }, [entryPrice, positionSide]);
   
-  // 차트 클릭 핸들러 (손절 모드 ON 시 SL 가격 설정 - 포지션 없어도 라인 그리기 가능)
-  const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!slModeEnabled) return;
-    if (isDraggingSl) return; // 드래그 중이면 클릭 무시
-    
-    const price = yToPrice(e.clientY);
-    if (price && onManualSlPriceChange) {
-      const validation = validateSlPrice(price);
-      if (!validation.valid) {
-        // 잘못된 위치 클릭 시 콘솔에 경고 (토스트는 Index.tsx에서 처리)
-        console.warn(`⚠️ [SL] ${validation.reason} (클릭가: $${price.toFixed(6)}, 진입가: $${entryPrice?.toFixed(6)})`);
-        return; // 설정 무시
-      }
-      onManualSlPriceChange(price);
+  // TP 가격 유효성 검증 (포지션 방향에 따라 - SL과 반대)
+  const validateTpPrice = useCallback((tpPrice: number): { valid: boolean; reason?: string } => {
+    // 포지션 없으면 연습용이므로 항상 허용
+    if (!entryPrice || !positionSide) {
+      return { valid: true };
     }
-  }, [slModeEnabled, isDraggingSl, yToPrice, onManualSlPriceChange, validateSlPrice, entryPrice]);
-  
-  // 마우스 다운 핸들러 (SL 라인 드래그 시작)
-  const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!slModeEnabled || !manualSlPrice || !chartRangeRef.current) return;
     
+    // 롱포지션: TP는 진입가 위만 허용
+    if (positionSide === 'long') {
+      if (tpPrice <= entryPrice) {
+        return { valid: false, reason: '롱 포지션은 진입가 위에 익절을 설정하세요' };
+      }
+    }
+    
+    // 숏포지션: TP는 진입가 아래만 허용
+    if (positionSide === 'short') {
+      if (tpPrice >= entryPrice) {
+        return { valid: false, reason: '숏 포지션은 진입가 아래에 익절을 설정하세요' };
+      }
+    }
+    
+    return { valid: true };
+  }, [entryPrice, positionSide]);
+  
+  // 차트 클릭 핸들러 (SL/TP 모드에 따라 가격 설정)
+  const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    // TP 모드 우선 (SL과 동시에 활성화되지 않도록)
+    if (tpModeEnabled) {
+      if (isDraggingTp) return;
+      
+      const price = yToPrice(e.clientY);
+      if (price && onManualTpPriceChange) {
+        const validation = validateTpPrice(price);
+        if (!validation.valid) {
+          console.warn(`⚠️ [TP] ${validation.reason} (클릭가: $${price.toFixed(6)}, 진입가: $${entryPrice?.toFixed(6)})`);
+          return;
+        }
+        onManualTpPriceChange(price);
+      }
+      return;
+    }
+    
+    // SL 모드
+    if (slModeEnabled) {
+      if (isDraggingSl) return;
+      
+      const price = yToPrice(e.clientY);
+      if (price && onManualSlPriceChange) {
+        const validation = validateSlPrice(price);
+        if (!validation.valid) {
+          console.warn(`⚠️ [SL] ${validation.reason} (클릭가: $${price.toFixed(6)}, 진입가: $${entryPrice?.toFixed(6)})`);
+          return;
+        }
+        onManualSlPriceChange(price);
+      }
+    }
+  }, [slModeEnabled, tpModeEnabled, isDraggingSl, isDraggingTp, yToPrice, onManualSlPriceChange, onManualTpPriceChange, validateSlPrice, validateTpPrice, entryPrice]);
+  
+  // 마우스 다운 핸들러 (SL/TP 라인 드래그 시작)
+  const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || !chartRangeRef.current) return;
     
     const rect = canvas.getBoundingClientRect();
     const y = e.clientY - rect.top;
     const { adjustedMax, adjustedRange, priceChartHeight } = chartRangeRef.current;
     
-    // 현재 SL 라인의 Y 좌표
-    const slY = CANVAS_PADDING / 2 + ((adjustedMax - manualSlPrice) / adjustedRange) * priceChartHeight;
-    
-    // 클릭이 SL 라인 근처(±10px)인지 확인
-    if (Math.abs(y - slY) <= 10) {
-      setIsDraggingSl(true);
-      slDragStartYRef.current = y;
-      slDragStartPriceRef.current = manualSlPrice;
-      e.preventDefault();
-    }
-  }, [slModeEnabled, manualSlPrice]);
-  
-  // 마우스 이동 핸들러 (SL 라인 드래그)
-  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isDraggingSl || !chartRangeRef.current) return;
-    
-    const price = yToPrice(e.clientY);
-    if (price && onManualSlPriceChange) {
-      const validation = validateSlPrice(price);
-      if (!validation.valid) {
-        // 드래그 중 잘못된 영역으로 가면 무시 (기존 SL 유지)
+    // TP 모드 & TP 라인 드래그
+    if (tpModeEnabled && manualTpPrice) {
+      const tpY = CANVAS_PADDING / 2 + ((adjustedMax - manualTpPrice) / adjustedRange) * priceChartHeight;
+      if (Math.abs(y - tpY) <= 10) {
+        setIsDraggingTp(true);
+        tpDragStartYRef.current = y;
+        tpDragStartPriceRef.current = manualTpPrice;
+        e.preventDefault();
         return;
       }
-      onManualSlPriceChange(price);
     }
-  }, [isDraggingSl, yToPrice, onManualSlPriceChange, validateSlPrice]);
+    
+    // SL 모드 & SL 라인 드래그
+    if (slModeEnabled && manualSlPrice) {
+      const slY = CANVAS_PADDING / 2 + ((adjustedMax - manualSlPrice) / adjustedRange) * priceChartHeight;
+      if (Math.abs(y - slY) <= 10) {
+        setIsDraggingSl(true);
+        slDragStartYRef.current = y;
+        slDragStartPriceRef.current = manualSlPrice;
+        e.preventDefault();
+      }
+    }
+  }, [slModeEnabled, tpModeEnabled, manualSlPrice, manualTpPrice]);
+  
+  // 마우스 이동 핸들러 (SL/TP 라인 드래그)
+  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    // TP 드래그 중
+    if (isDraggingTp && chartRangeRef.current) {
+      const price = yToPrice(e.clientY);
+      if (price && onManualTpPriceChange) {
+        const validation = validateTpPrice(price);
+        if (!validation.valid) return;
+        onManualTpPriceChange(price);
+      }
+      return;
+    }
+    
+    // SL 드래그 중
+    if (isDraggingSl && chartRangeRef.current) {
+      const price = yToPrice(e.clientY);
+      if (price && onManualSlPriceChange) {
+        const validation = validateSlPrice(price);
+        if (!validation.valid) return;
+        onManualSlPriceChange(price);
+      }
+    }
+  }, [isDraggingSl, isDraggingTp, yToPrice, onManualSlPriceChange, onManualTpPriceChange, validateSlPrice, validateTpPrice]);
   
   // 마우스 업 핸들러 (드래그 종료)
   const handleMouseUp = useCallback(() => {
-    if (isDraggingSl) {
-      setIsDraggingSl(false);
-    }
-  }, [isDraggingSl]);
+    if (isDraggingSl) setIsDraggingSl(false);
+    if (isDraggingTp) setIsDraggingTp(false);
+  }, [isDraggingSl, isDraggingTp]);
   
   // 마우스 리브 핸들러 (캔버스 밖으로 나가면 드래그 종료)
   const handleMouseLeave = useCallback(() => {
-    if (isDraggingSl) {
-      setIsDraggingSl(false);
-    }
-  }, [isDraggingSl]);
+    if (isDraggingSl) setIsDraggingSl(false);
+    if (isDraggingTp) setIsDraggingTp(false);
+  }, [isDraggingSl, isDraggingTp]);
   
   // 가격 포맷팅
   const formatPrice = (price: number): string => {
@@ -1590,7 +1693,7 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
         ref={canvasRef} 
         className={cn(
           "w-full h-full absolute inset-0 z-10",
-          slModeEnabled && "cursor-crosshair"
+          (slModeEnabled || tpModeEnabled) && "cursor-crosshair"
         )}
         onClick={handleCanvasClick}
         onMouseDown={handleMouseDown}
@@ -1649,12 +1752,12 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
           >
             <TrendingUp className="w-3.5 h-3.5" />
           </button>
-          {/* 손절 설정 모드 토글 (항상 표시, 실제 반영은 포지션 보유 시에만) */}
+          {/* 손절 설정 모드 토글 */}
           <button
             onClick={() => {
               const newMode = !slModeEnabled;
               setSlModeEnabled(newMode);
-              // 손절 모드 끄면 손절가도 초기화
+              if (newMode) setTpModeEnabled(false); // SL 켜면 TP 끔
               if (!newMode && onManualSlPriceChange) {
                 onManualSlPriceChange(null);
               }
@@ -1668,6 +1771,26 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
             title={hasPosition ? "손절 설정 모드 (차트 클릭으로 손절가 설정)" : "손절 설정 모드 (포지션 없음 - 연습용)"}
           >
             {slModeEnabled ? <Shield className="w-3.5 h-3.5" /> : <ShieldOff className="w-3.5 h-3.5" />}
+          </button>
+          {/* 익절 설정 모드 토글 */}
+          <button
+            onClick={() => {
+              const newMode = !tpModeEnabled;
+              setTpModeEnabled(newMode);
+              if (newMode) setSlModeEnabled(false); // TP 켜면 SL 끔
+              if (!newMode && onManualTpPriceChange) {
+                onManualTpPriceChange(null);
+              }
+            }}
+            className={cn(
+              "p-1 rounded transition-colors",
+              tpModeEnabled 
+                ? "bg-amber-500/80 hover:bg-amber-500 text-white" 
+                : "bg-secondary/80 hover:bg-secondary text-muted-foreground hover:text-foreground"
+            )}
+            title={hasPosition ? "익절 설정 모드 (차트 클릭으로 익절가 설정)" : "익절 설정 모드 (포지션 없음 - 연습용)"}
+          >
+            {tpModeEnabled ? <Target className="w-3.5 h-3.5" /> : <CircleOff className="w-3.5 h-3.5" />}
           </button>
         </div>
         <span className="text-[10px] text-muted-foreground font-mono bg-secondary/60 px-1.5 py-0.5 rounded">

@@ -1743,6 +1743,66 @@ export function useLimitOrderTrading({
     }
   }, [user, state.currentPosition, getOpenOrders, cancelOrder, placeStopMarketOrder]);
 
+  // 수동 익절 설정 (차트에서 드래그로 설정한 TP를 바이낸스에 TAKE_PROFIT_MARKET 주문으로 배치)
+  const setManualTakeProfit = useCallback(async (tpPrice: number | null) => {
+    if (!user) return;
+    if (!state.currentPosition) return;
+
+    const position = state.currentPosition;
+    const { symbol, side, filledQuantity: totalQuantity } = position;
+    const closeSide = side === 'long' ? 'SELL' : 'BUY';
+    const positionSide = side === 'long' ? 'LONG' : 'SHORT';
+
+    try {
+      // 기존 TP 주문 취소
+      const openOrders = await getOpenOrders(symbol);
+      const tpTypes = new Set(['TAKE_PROFIT_MARKET', 'TAKE_PROFIT']);
+      const tpOrders = (openOrders || []).filter((o: any) => {
+        const t = String(o?.type || o?.origType || '').toUpperCase();
+        return tpTypes.has(t);
+      });
+
+      for (const o of tpOrders) {
+        const orderIdNum = Number(o.orderId);
+        if (!Number.isFinite(orderIdNum)) continue;
+        try {
+          await cancelOrder(symbol, orderIdNum);
+          console.log(`[수동 익절] 기존 TP 주문 취소: ${orderIdNum}`);
+        } catch {
+          // ignore
+        }
+      }
+
+      // 익절가가 null이면 취소만 하고 종료
+      if (!tpPrice) {
+        console.log('[수동 익절] 익절가 제거됨');
+        toast.info('⚡ TP_REMOVED', { 
+          description: `${symbol.replace('USDT', '')} 익절 주문 취소됨`,
+          className: 'font-mono uppercase',
+        });
+        return;
+      }
+
+      // 잠시 대기 (취소 반영)
+      await new Promise(r => setTimeout(r, 150));
+
+      // 새 TAKE_PROFIT_MARKET 주문 배치
+      await placeTakeProfitMarketOrder(symbol, closeSide, totalQuantity, tpPrice, positionSide as 'LONG' | 'SHORT');
+      console.log(`[수동 익절] TP 주문 배치: ${symbol} ${closeSide} @ ${tpPrice}`);
+      
+      toast.success('⚡ TP_SET', {
+        description: `${symbol.replace('USDT', '')} TP @ $${tpPrice.toFixed(4)}`,
+        className: 'font-mono uppercase',
+      });
+    } catch (error: any) {
+      console.error('[수동 익절] 오류:', error);
+      toast.error('⚡ TP_ERROR', {
+        description: error?.message || '익절 주문 실패',
+        className: 'font-mono uppercase',
+      });
+    }
+  }, [user, state.currentPosition, getOpenOrders, cancelOrder, placeTakeProfitMarketOrder]);
+
   return {
     state,
     toggleAutoTrading,
@@ -1759,5 +1819,6 @@ export function useLimitOrderTrading({
     confirmDTFXEntry,
     skipDTFXSignal,
     setManualStopLoss,
+    setManualTakeProfit,
   };
 }

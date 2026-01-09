@@ -32,6 +32,9 @@ interface DualChartPanelProps {
   // 수동 손절 관련
   manualSlPrice?: number | null;
   onManualSlPriceChange?: (price: number | null) => void;
+  // 수동 익절 관련
+  manualTpPrice?: number | null;
+  onManualTpPriceChange?: (price: number | null) => void;
 }
 
 const INTERVALS = [
@@ -57,6 +60,8 @@ const DualChartPanel = ({
   dtfxEnabled = false,
   manualSlPrice,
   onManualSlPriceChange,
+  manualTpPrice,
+  onManualTpPriceChange,
 }: DualChartPanelProps) => {
   const [interval, setInterval] = useState(60);
   const prevSymbolRef = useRef<string>(symbol);
@@ -111,13 +116,15 @@ const DualChartPanel = ({
             symbol={symbol}
             interval={interval}
             entryPrice={hasPosition ? entryPrice : undefined}
-            takeProfitPrice={hasPosition ? takeProfitPrice : undefined}
+            takeProfitPrice={hasPosition && !manualTpPrice ? takeProfitPrice : undefined}
             positionSide={hasPosition ? positionSide : undefined}
             entryPoints={hasPosition ? entryPoints : undefined}
             openOrders={openOrders}
             dtfxEnabled={dtfxEnabled}
             manualSlPrice={manualSlPrice}
             onManualSlPriceChange={onManualSlPriceChange}
+            manualTpPrice={manualTpPrice}
+            onManualTpPriceChange={onManualTpPriceChange}
             hasPosition={hasPosition}
           />
           
