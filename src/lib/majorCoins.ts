@@ -108,7 +108,7 @@ export const MAJOR_COIN_TRADING_CONFIG = {
   TIME_STOP_MINUTES: 12,     // 12분 (더 짧게)
 };
 
-// 잡코인 스크리닝 기준
+// Altcoin 스크리닝 기준
 export const ALTCOIN_CRITERIA = {
   // 저가 코인 필터 ($0.01 ~ $1.00)
   minPrice: 0.01,
@@ -117,7 +117,7 @@ export const ALTCOIN_CRITERIA = {
   // 거래량 기준 ($20M 이상)
   minVolume: 20_000_000,
   
-  // 변동성 범위 (잡코인은 변동성 높음 1~20%)
+  // 변동성 범위 (Altcoin은 변동성 높음 1~20%)
   minVolatility: 1.0,
   maxVolatility: 20,
   
@@ -126,16 +126,16 @@ export const ALTCOIN_CRITERIA = {
   maxATRPercent: 3.0,
 };
 
-// 잡코인용 거래 설정
+// Altcoin용 거래 설정
 export const ALTCOIN_TRADING_CONFIG = {
   // 수수료
   FEE_RATE: 0.05,
   
-  // 익절/손절 (잡코인은 더 넓게)
+  // 익절/손절 (Altcoin은 더 넓게)
   TP_PERCENT: 0.30,          // 기본 TP +0.30%
   SL_PERCENT: 0.15,          // 기본 SL -0.15%
   
-  // 동적 익절 (잡코인용)
+  // 동적 익절 (Altcoin용)
   DYNAMIC_TP: {
     WEAK: {
       TP_PERCENT: 0.25,
@@ -157,7 +157,7 @@ export const ALTCOIN_TRADING_CONFIG = {
     },
   },
   
-  // 조기 손절 (잡코인은 더 완화)
+  // 조기 손절 (Altcoin은 더 완화)
   EARLY_SL: {
     GRACE_PERIOD_SEC: 10,
     STAGE1_SEC: 30,

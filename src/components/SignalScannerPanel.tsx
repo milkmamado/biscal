@@ -103,7 +103,7 @@ export function SignalScannerPanel({
           )}
         </div>
         <div className="flex items-center gap-1.5">
-          {/* 메이저/잡코인 모드 토글 */}
+          {/* 메이저/Altcoin 모드 토글 */}
           <button
             onClick={onToggleMajorCoinMode}
             className={cn(
@@ -114,7 +114,7 @@ export function SignalScannerPanel({
               background: majorCoinMode ? 'rgba(0, 255, 255, 0.15)' : 'rgba(59, 130, 246, 0.15)',
               boxShadow: majorCoinMode ? '0 0 10px rgba(0, 255, 255, 0.3)' : '0 0 10px rgba(59, 130, 246, 0.3)',
             }}
-            title={majorCoinMode ? "메이저 코인 모드" : "잡코인 모드"}
+            title={majorCoinMode ? "메이저 코인 모드" : "Altcoin 모드"}
           >
             <Crown className="w-3.5 h-3.5" />
           </button>

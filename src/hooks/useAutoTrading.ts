@@ -284,7 +284,7 @@ export function useAutoTrading({
     setLeverage,
   } = useBinanceApi();
 
-  // 메이저 코인 설정 (잡코인 모드 제거됨)
+  // 메이저 코인 설정 (Altcoin 모드 제거됨)
   const tradingConfig = getTradingConfig();
 
   const [state, setState] = useState<AutoTradingState>({

@@ -42,7 +42,7 @@ const Index = () => {
   
   // 잔고 퍼센트 매수 상태
   const [balancePercent, setBalancePercent] = useState<10 | 20 | 25 | 50 | 60 | 98>(98);
-  const [majorCoinMode, setMajorCoinMode] = useState(true); // 메이저/잡코인 모드 토글
+  const [majorCoinMode, setMajorCoinMode] = useState(true); // 메이저/Altcoin 모드 토글
 
   // 스크리닝 로그 실시간 업데이트
   useEffect(() => {

@@ -55,14 +55,14 @@ const MAJOR_CRITERIA: ScreeningCriteria = {
   spreadThreshold: 0.05,     // 0.05% 이하 (메이저는 스프레드 적음)
 };
 
-// 잡코인 스크리닝 기준
+// Altcoin 스크리닝 기준
 const ALTCOIN_SCREENING_CRITERIA: ScreeningCriteria = {
   minVolume: ALTCOIN_CRITERIA.minVolume,
   minVolatility: ALTCOIN_CRITERIA.minVolatility,
   maxVolatility: ALTCOIN_CRITERIA.maxVolatility,
   minPrice: ALTCOIN_CRITERIA.minPrice,
   maxPrice: ALTCOIN_CRITERIA.maxPrice,
-  spreadThreshold: 0.08,     // 0.08% 이하 (잡코인은 스프레드 약간 높음)
+  spreadThreshold: 0.08,     // 0.08% 이하 (Altcoin은 스프레드 약간 높음)
 };
 
 // 1분봉 데이터 조회 함수
@@ -214,7 +214,7 @@ export function useCoinScreening(
     
     // UI 로그 초기화 및 시작
     clearScreeningLogs();
-    const modeLabel = majorCoinModeRef.current ? '메이저 코인' : '잡코인';
+    const modeLabel = majorCoinModeRef.current ? '메이저 코인' : 'Altcoin';
     addScreeningLog('start', `${modeLabel} 스크리닝 시작`);
 
     try {
@@ -235,7 +235,7 @@ export function useCoinScreening(
         }).join(', ');
         addScreeningLog('filter', `메이저 코인: ${eligible.length}개 [${tierInfo}]`);
       } else {
-        // 잡코인 모드: 메이저 제외, 가격/거래량 필터
+        // Altcoin 모드: 메이저 제외, 가격/거래량 필터
         eligible = currentTickers.filter(t => 
           !isMajorCoin(t.symbol) &&
           t.symbol !== 'BTCUSDT' &&
@@ -246,7 +246,7 @@ export function useCoinScreening(
           t.volatilityRange <= fullCriteria.maxVolatility
         );
         
-        addScreeningLog('filter', `잡코인: ${eligible.length}개 (가격 $${fullCriteria.minPrice}~$${fullCriteria.maxPrice})`);
+        addScreeningLog('filter', `Altcoin: ${eligible.length}개 (가격 $${fullCriteria.minPrice}~$${fullCriteria.maxPrice})`);
       }
 
       // 변동성 스코어 기준 정렬
@@ -261,10 +261,10 @@ export function useCoinScreening(
           if (majorCoinModeRef.current && a.tier && b.tier) {
             if (a.tier !== b.tier) return a.tier - b.tier;
           }
-          // 잡코인 모드: 변동성 스코어만으로 정렬
+          // Altcoin 모드: 변동성 스코어만으로 정렬
           return b.volatilityScore - a.volatilityScore;
         })
-        .slice(0, majorCoinModeRef.current ? 10 : 15); // 잡코인은 더 많이
+        .slice(0, majorCoinModeRef.current ? 10 : 15); // Altcoin은 더 많이
       
       const displaySymbols = scored.slice(0, 8).map(s => s.symbol.replace('USDT', '')).join(', ');
       addScreeningLog('filter', `분석 대상: ${displaySymbols}${scored.length > 8 ? '...' : ''}`)
