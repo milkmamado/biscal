@@ -6,6 +6,7 @@ import { useCoinScreening } from '@/hooks/useCoinScreening';
 import { useTickerWebSocket } from '@/hooks/useTickerWebSocket';
 import { useWakeLock } from '@/hooks/useWakeLock';
 import { useUserDataStream } from '@/hooks/useUserDataStream';
+import { toast } from 'sonner';
 
 import { supabase } from '@/integrations/supabase/client';
 import DualChartPanel from '@/components/DualChartPanel';
@@ -222,9 +223,34 @@ const Index = () => {
     autoTrading.cancelEntry();
   };
   
-  // 수동 손절가 변경 핸들러 (포지션 있을 때만 실제 주문 반영)
+  // 수동 손절가 변경 핸들러 (포지션 있을 때만 실제 주문 반영 + 방향별 유효성 검증)
   const handleManualSlPriceChange = useCallback((price: number | null) => {
-    const hasPos = !!autoTrading.state.currentPosition;
+    const position = autoTrading.state.currentPosition;
+    const hasPos = !!position;
+    
+    // 포지션이 있을 때 방향별 유효성 검증
+    if (hasPos && price !== null && position) {
+      const entryPrice = position.avgPrice;
+      
+      // 롱포지션: SL은 진입가 아래만 허용
+      if (position.side === 'long' && price >= entryPrice) {
+        toast.error('⚠️ 롱 포지션은 진입가 아래에 손절을 설정하세요', {
+          description: `진입가: $${entryPrice.toFixed(4)} | 클릭: $${price.toFixed(4)}`,
+          duration: 2000,
+        });
+        return; // 설정 무시
+      }
+      
+      // 숏포지션: SL은 진입가 위만 허용
+      if (position.side === 'short' && price <= entryPrice) {
+        toast.error('⚠️ 숏 포지션은 진입가 위에 손절을 설정하세요', {
+          description: `진입가: $${entryPrice.toFixed(4)} | 클릭: $${price.toFixed(4)}`,
+          duration: 2000,
+        });
+        return; // 설정 무시
+      }
+    }
+    
     console.log(`🛡️ [ManualSL] 손절가 변경: ${price ? `$${price.toFixed(6)}` : 'null'} | 포지션: ${hasPos ? '있음 → 바이낸스 반영' : '없음 → 연습용'}`);
     
     setManualSlPrice(price);
