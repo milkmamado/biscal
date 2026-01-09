@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Star, Clock } from 'lucide-react';
 
-// 스캘핑 시간대 적합도 데이터
+// 스캘핑 시간대 적합도 데이터 (Cyan 중심 색상)
 const getScalpingRating = () => {
   const now = new Date();
   const koreaOffset = 9 * 60;
@@ -14,17 +14,17 @@ const getScalpingRating = () => {
   } else if (hour >= 8 && hour < 9) {
     return { stars: 1, label: '준비중', color: '#9ca3af', volume: '낮음', volatility: '낮음' };
   } else if (hour >= 9 && hour < 11) {
-    return { stars: 3, label: '아시아장', color: '#eab308', volume: '보통', volatility: '보통' };
+    return { stars: 3, label: '아시아장', color: '#22d3ee', volume: '보통', volatility: '보통' };
   } else if (hour >= 11 && hour < 16) {
-    return { stars: 2, label: '점심휴식', color: '#f97316', volume: '낮음', volatility: '낮음' };
+    return { stars: 2, label: '점심휴식', color: '#67e8f9', volume: '낮음', volatility: '낮음' };
   } else if (hour >= 16 && hour < 18) {
-    return { stars: 3, label: '유럽준비', color: '#eab308', volume: '보통', volatility: '상승' };
+    return { stars: 3, label: '유럽준비', color: '#22d3ee', volume: '보통', volatility: '상승' };
   } else if (hour >= 18 && hour < 21) {
-    return { stars: 4, label: '유럽장', color: '#4ade80', volume: '높음', volatility: '높음' };
+    return { stars: 4, label: '유럽장', color: '#06b6d4', volume: '높음', volatility: '높음' };
   } else if (hour >= 21 && hour < 24) {
-    return { stars: 5, label: '골든타임', color: '#22c55e', volume: '최고', volatility: '최고' };
+    return { stars: 5, label: '골든타임', color: '#00ffff', volume: '최고', volatility: '최고' };
   } else if (hour >= 0 && hour < 2) {
-    return { stars: 4, label: '미국장', color: '#4ade80', volume: '높음', volatility: '높음' };
+    return { stars: 4, label: '미국장', color: '#06b6d4', volume: '높음', volatility: '높음' };
   } else {
     return { stars: 1, label: '마감', color: '#9ca3af', volume: '낮음', volatility: '하락' };
   }
@@ -58,16 +58,16 @@ export function ScalpingRatingPanel() {
     >
       {/* Header */}
       <div
-        className="flex items-center justify-between px-3 py-2 border-b border-border/30"
+        className="flex items-center justify-between px-3 py-2 border-b border-cyan-500/20"
         style={{
-          background: 'linear-gradient(90deg, rgba(255, 200, 0, 0.1) 0%, rgba(200, 150, 0, 0.05) 100%)',
+          background: 'linear-gradient(90deg, rgba(0, 255, 255, 0.08) 0%, rgba(0, 150, 200, 0.04) 100%)',
         }}
       >
         <div className="flex items-center gap-2">
-          <Clock className="w-4 h-4 text-yellow-400" />
+          <Clock className="w-4 h-4 text-cyan-400" />
           <span className="text-xs font-semibold text-foreground">스캘핑 적합도</span>
         </div>
-        <span className="text-[10px] text-muted-foreground font-mono">{currentTime}</span>
+        <span className="text-[10px] text-cyan-400/70 font-mono">{currentTime}</span>
       </div>
 
       {/* Content */}
@@ -87,8 +87,9 @@ export function ScalpingRatingPanel() {
                 key={i}
                 className="w-3.5 h-3.5"
                 style={{
-                  color: i <= rating.stars ? '#fbbf24' : '#374151',
-                  fill: i <= rating.stars ? '#fbbf24' : 'transparent',
+                  color: i <= rating.stars ? '#00ffff' : '#374151',
+                  fill: i <= rating.stars ? '#00ffff' : 'transparent',
+                  filter: i <= rating.stars ? 'drop-shadow(0 0 4px rgba(0, 255, 255, 0.5))' : 'none',
                 }}
               />
             ))}

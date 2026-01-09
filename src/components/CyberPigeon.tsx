@@ -30,19 +30,20 @@ const CyberPigeon = () => {
         style={{
           transform: `translateX(${glitchOffset}px)`,
           opacity: flicker ? 0.4 : 1,
-          background: 'linear-gradient(135deg, rgba(10, 10, 20, 0.95) 0%, rgba(20, 20, 40, 0.95) 100%)',
-          border: '1px solid rgba(255, 0, 136, 0.5)',
-          boxShadow: `0 0 20px rgba(255, 0, 136, 0.3), inset 0 0 10px rgba(0, 0, 0, 0.5), ${glitchFrame % 3 === 0 ? '0 0 30px rgba(0, 255, 255, 0.2)' : ''}`,
+          background: 'linear-gradient(135deg, rgba(10, 15, 25, 0.95) 0%, rgba(15, 25, 40, 0.95) 100%)',
+          border: '1px solid rgba(0, 255, 255, 0.4)',
+          boxShadow: `0 0 20px rgba(0, 255, 255, 0.25), inset 0 0 10px rgba(0, 0, 0, 0.5), ${glitchFrame % 3 === 0 ? '0 0 30px rgba(0, 150, 255, 0.2)' : ''}`,
         }}
       >
         <span 
           style={{
-            color: '#ff0088',
+            color: '#00ffff',
             fontFamily: 'monospace',
             textTransform: 'uppercase',
             letterSpacing: '0.05em',
             fontSize: '14px',
             fontWeight: 500,
+            textShadow: '0 0 10px rgba(0, 255, 255, 0.5)',
           }}
         >
           ◆ BISCAL_SYSTEM :: PRECISION_SCALPING_PROTOCOL_ACTIVE :: EXECUTE_WITH_DISCIPLINE_OR_GET_LIQUIDATED ◆
@@ -57,7 +58,7 @@ const CyberPigeon = () => {
             top: `${30 + Math.random() * 40}%`,
             left: 0,
             right: 0,
-            background: 'linear-gradient(90deg, transparent, #ff0088, transparent)',
+            background: 'linear-gradient(90deg, transparent, #00ffff, transparent)',
           }}
         />
       )}
@@ -66,7 +67,7 @@ const CyberPigeon = () => {
       <div 
         className="absolute inset-0 pointer-events-none opacity-[0.02]"
         style={{
-          background: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,0,136,0.1) 2px, rgba(255,0,136,0.1) 4px)',
+          background: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,255,255,0.1) 2px, rgba(0,255,255,0.1) 4px)',
         }}
       />
     </div>
