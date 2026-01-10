@@ -3,7 +3,7 @@ import App from "./App.tsx";
 import "./index.css";
 
 // 캐시 버전 관리 - 버전 변경 시 localStorage 클리어
-const CACHE_VERSION = "v2.3.0";
+const CACHE_VERSION = "v2.4.0";
 const storedVersion = localStorage.getItem("app_cache_version");
 
 if (storedVersion !== CACHE_VERSION) {
