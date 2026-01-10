@@ -1128,13 +1128,13 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
       ctx.stroke();
       ctx.setLineDash([]);
       
-      // 진입가 라벨
-      ctx.fillStyle = 'rgba(34, 197, 94, 0.9)';
-      ctx.fillRect(width - 48, entryY - 8, 46, 16);
-      ctx.fillStyle = '#000';
-      ctx.font = 'bold 9px monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText('진입', width - 25, entryY + 3);
+      // 진입가 라벨 (작은 라운드 뱃지)
+      const entryBadgeX = width - 38;
+      const entryBadgeRadius = 6;
+      ctx.beginPath();
+      ctx.arc(entryBadgeX, entryY, entryBadgeRadius, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(34, 197, 94, 0.95)';
+      ctx.fill();
     }
     
     // 익절가 1단계 표시 (노란색/금색 점선)
@@ -1156,13 +1156,13 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
       ctx.stroke();
       ctx.setLineDash([]);
       
-      // 익절가 라벨
-      ctx.fillStyle = 'rgba(251, 191, 36, 0.9)';
-      ctx.fillRect(width - 48, tpY - 8, 46, 16);
-      ctx.fillStyle = '#000';
-      ctx.font = 'bold 9px monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText('TP', width - 25, tpY + 3);
+      // 익절가 라벨 (작은 라운드 뱃지)
+      const tpBadgeX = width - 38;
+      const tpBadgeRadius = 6;
+      ctx.beginPath();
+      ctx.arc(tpBadgeX, tpY, tpBadgeRadius, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(251, 191, 36, 0.95)';
+      ctx.fill();
     }
     
     // 분할 매수 포인트 표시 (작은 점)
@@ -1257,21 +1257,13 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
       ctx.stroke();
       ctx.setLineDash([]);
       
-      // 손절가 라벨
+      // 손절가 라벨 (작은 라운드 뱃지)
+      const slBadgeX = width - 38;
+      const slBadgeRadius = 6;
+      ctx.beginPath();
+      ctx.arc(slBadgeX, slY, slBadgeRadius, 0, Math.PI * 2);
       ctx.fillStyle = 'rgba(239, 68, 68, 0.95)';
-      ctx.fillRect(width - 48, slY - 8, 46, 16);
-      ctx.fillStyle = '#fff';
-      ctx.font = 'bold 9px monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText('SL', width - 25, slY + 3);
-      
-      // 드래그 힌트 (모드 활성화 시)
-      if (slModeEnabled && !isDraggingSl) {
-        ctx.fillStyle = 'rgba(239, 68, 68, 0.7)';
-        ctx.font = '8px monospace';
-        ctx.textAlign = 'left';
-        ctx.fillText('⬍ 드래그', CANVAS_PADDING + 5, slY + 3);
-      }
+      ctx.fill();
     }
     
     // 수동 익절가 표시 (금색/오렌지 점선 + 드래그 가능) - 수동 설정 시 기본 TP 대신 표시
@@ -1293,21 +1285,13 @@ const TickChart = ({ symbol, orderBook = null, isConnected = false, height, inte
       ctx.stroke();
       ctx.setLineDash([]);
       
-      // 익절가 라벨
+      // 익절가 라벨 (작은 라운드 뱃지)
+      const manualTpBadgeX = width - 38;
+      const manualTpBadgeRadius = 6;
+      ctx.beginPath();
+      ctx.arc(manualTpBadgeX, tpY, manualTpBadgeRadius, 0, Math.PI * 2);
       ctx.fillStyle = 'rgba(251, 191, 36, 0.95)';
-      ctx.fillRect(width - 48, tpY - 8, 46, 16);
-      ctx.fillStyle = '#000';
-      ctx.font = 'bold 9px monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText('TP', width - 25, tpY + 3);
-      
-      // 드래그 힌트 (모드 활성화 시)
-      if (tpModeEnabled && !isDraggingTp) {
-        ctx.fillStyle = 'rgba(251, 191, 36, 0.7)';
-        ctx.font = '8px monospace';
-        ctx.textAlign = 'left';
-        ctx.fillText('⬍ 드래그', CANVAS_PADDING + 5, tpY + 3);
-      }
+      ctx.fill();
     }
   }, [candles, containerHeight, isConnected, loading, visibleCount, entryPrice, takeProfitPrice, entryPoints, openOrders, dtfxEnabled, trendlineEnabled, manualSlPrice, slModeEnabled, isDraggingSl, manualTpPrice, tpModeEnabled, isDraggingTp]);
   
