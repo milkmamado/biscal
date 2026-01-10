@@ -83,7 +83,9 @@ const Index = () => {
     onTradeComplete: handleTradeComplete,
     filterSettings: {
       takeProfitUsdt,
-      chartTpEnabled, // 차트 TP 모드 활성화 시 자동 TP 비활성화
+      chartTpEnabled, // 차트 TP 모드 활성화
+      manualTpPrice, // 차트에서 설정한 익절가
+      manualSlPrice, // 차트에서 설정한 손절가
     },
   });
   
@@ -258,10 +260,10 @@ const Index = () => {
       }
     }
     
-    console.log(`🛡️ [ManualSL] 손절가 변경: ${price ? `$${price.toFixed(6)}` : 'null'} | 포지션: ${hasPos ? '있음 → 바이낸스 반영' : '없음 → 연습용'}`);
+    console.log(`🛡️ [ManualSL] 손절가 변경: ${price ? `$${price.toFixed(6)}` : 'null'} | 포지션: ${hasPos ? '있음' : '없음(연습)'}`);
     
     setManualSlPrice(price);
-    // 포지션 보유 시에만 바이낸스에 STOP_MARKET 주문 배치
+    // 토스트 알림만 (실제 청산은 checkTpSl에서 로컬 모니터링)
     if (hasPos) {
       autoTrading.setManualStopLoss(price);
     }
@@ -295,10 +297,10 @@ const Index = () => {
       }
     }
     
-    console.log(`🎯 [ManualTP] 익절가 변경: ${price ? `$${price.toFixed(6)}` : 'null'} | 포지션: ${hasPos ? '있음 → 바이낸스 반영' : '없음 → 연습용'}`);
+    console.log(`🎯 [ManualTP] 익절가 변경: ${price ? `$${price.toFixed(6)}` : 'null'} | 포지션: ${hasPos ? '있음' : '없음(연습)'}`);
     
     setManualTpPrice(price);
-    // 포지션 보유 시에만 바이낸스에 TAKE_PROFIT_MARKET 주문 배치
+    // 토스트 알림만 (실제 청산은 checkTpSl에서 로컬 모니터링)
     if (hasPos) {
       autoTrading.setManualTakeProfit(price);
     }

@@ -142,7 +142,9 @@ interface UseLimitOrderTradingProps {
   filterSettings?: {
     takeProfitUsdt: number; // USDT 기반 익절
     dtfxEnabled?: boolean; // DTFX OTE 구간 진입 모드
-    chartTpEnabled?: boolean; // 차트 TP 모드 활성화 시 자동 TP 배치 비활성화
+    chartTpEnabled?: boolean; // 차트 TP 모드 활성화
+    manualTpPrice?: number | null; // 차트에서 설정한 익절가
+    manualSlPrice?: number | null; // 차트에서 설정한 손절가
   };
 }
 
@@ -845,15 +847,45 @@ export function useLimitOrderTrading({
     }
 
     // ===== 일반 모드 =====
-    // (손절 기능 완전 제거됨)
 
-    // 익절 체크 (USDT 기반) → 전량 시장가 청산
-    // 🚨 차트 TP 모드 활성화 시에는 바이낸스 서버 주문이 처리하므로 로컬 체크 건너뜀
+    // ===== 차트 TP/SL 모드: 로컬에서 가격 모니터링 → 도달 시 시장가 청산 =====
     if (filterSettings?.chartTpEnabled) {
-      // 차트 TP 모드: 서버 TAKE_PROFIT_MARKET 주문에 의존
+      const manualTp = filterSettings.manualTpPrice;
+      const manualSl = filterSettings.manualSlPrice;
+      
+      // 익절 체크
+      if (manualTp != null) {
+        const tpHit = position.side === 'long' 
+          ? currentPrice >= manualTp 
+          : currentPrice <= manualTp;
+        
+        if (tpHit) {
+          console.log(`🎯 [차트 TP] ${position.symbol} 익절 도달! 현재가 ${currentPrice} → TP ${manualTp}`);
+          playTpSound();
+          await closePositionMarket('tp', currentPrice);
+          return;
+        }
+      }
+      
+      // 손절 체크
+      if (manualSl != null) {
+        const slHit = position.side === 'long' 
+          ? currentPrice <= manualSl 
+          : currentPrice >= manualSl;
+        
+        if (slHit) {
+          console.log(`🛑 [차트 SL] ${position.symbol} 손절 도달! 현재가 ${currentPrice} → SL ${manualSl}`);
+          playSlSound();
+          await closePositionMarket('sl', currentPrice);
+          return;
+        }
+      }
+      
+      // 차트 모드에서는 USDT 기반 익절 건너뜀
       return;
     }
     
+    // ===== 기본 모드: USDT 기반 익절 =====
     const targetProfitUsdt = filterSettings?.takeProfitUsdt ?? 7;
     if (pnlUSD >= targetProfitUsdt) {
       console.log(`💰 익절! $${pnlUSD.toFixed(2)} >= $${targetProfitUsdt}`);
@@ -1694,147 +1726,44 @@ export function useLimitOrderTrading({
     toast.info('DTFX 시그널 스킵', { description: '다음 시그널을 기다립니다' });
   }, []);
 
-  // 수동 손절가 설정 (차트에서 드래그로 설정 시 호출)
+  // 수동 손절가 설정 (차트에서 드래그로 설정 시 호출) - 로컬 저장만, 서버 주문 없음
   const setManualStopLoss = useCallback(async (slPrice: number | null) => {
-    if (!user) return;
-    if (!state.currentPosition) {
-      console.log('[수동 손절] 포지션 없음 - 무시');
-      return;
-    }
-
-    const { symbol, side, totalQuantity } = state.currentPosition;
-    const closeSide = side === 'long' ? 'SELL' : 'BUY';
-    const positionSide = side === 'long' ? 'LONG' : 'SHORT';
-
-    try {
-      // 기존 STOP_MARKET 주문 취소
-      const openOrders = await getOpenOrders(symbol);
-      const slTypes = new Set(['STOP_MARKET', 'STOP']);
-      const slOrders = (openOrders || []).filter((o: any) => {
-        const t = String(o?.type || o?.origType || '').toUpperCase();
-        return slTypes.has(t);
+    if (slPrice === null) {
+      console.log('[수동 손절] 손절가 제거됨');
+      toast.info('⚡ SL_REMOVED', { 
+        description: '손절 라인 제거됨',
+        className: 'font-mono uppercase',
       });
-
-      for (const o of slOrders) {
-        const orderIdNum = Number(o.orderId);
-        if (!Number.isFinite(orderIdNum)) continue;
-        try {
-          await cancelOrder(symbol, orderIdNum);
-          console.log(`[수동 손절] 기존 SL 주문 취소: ${orderIdNum}`);
-        } catch {
-          // ignore
-        }
-      }
-
-      // 손절가가 null이면 취소만 하고 종료
-      if (!slPrice) {
-        console.log('[수동 손절] 손절가 제거됨');
-        toast.info('⚡ SL_REMOVED', { 
-          description: `${symbol.replace('USDT', '')} 손절 주문 취소됨`,
-          className: 'font-mono uppercase',
-        });
-        return;
-      }
-
-      // 잠시 대기 (취소 반영)
-      await new Promise(r => setTimeout(r, 150));
-
-      // 새 STOP_MARKET 주문 배치
-      const slResult = await placeStopMarketOrder(symbol, closeSide, totalQuantity, slPrice, positionSide as 'LONG' | 'SHORT');
-      console.log(`[수동 손절] SL 주문 결과:`, slResult);
-      
-      // 에러 체크
-      if (slResult?.code && slResult.code < 0) {
-        throw new Error(slResult.msg || `Binance error: ${slResult.code}`);
-      }
-      if (slResult?.error) {
-        throw new Error(slResult.error);
-      }
-      
-      console.log(`[수동 손절] SL 주문 배치 성공: ${symbol} ${closeSide} @ ${slPrice}`);
-      
+    } else {
+      console.log(`[수동 손절] 손절가 설정: $${slPrice}`);
       toast.success('⚡ SL_SET', {
-        description: `${symbol.replace('USDT', '')} SL @ $${slPrice.toFixed(4)}`,
-        className: 'font-mono uppercase',
-      });
-    } catch (error: any) {
-      console.error('[수동 손절] 오류:', error);
-      toast.error('⚡ SL_ERROR', {
-        description: error?.message || '손절 주문 실패',
+        description: `SL @ $${slPrice.toFixed(4)} (로컬 모니터링)`,
         className: 'font-mono uppercase',
       });
     }
-  }, [user, state.currentPosition, getOpenOrders, cancelOrder, placeStopMarketOrder]);
+    // 로컬에만 저장됨 - Index.tsx의 manualSlPrice state가 실제 저장소
+    // 가격 도달 시 checkTpSl에서 시장가 청산 실행
+  }, []);
 
-  // 수동 익절 설정 (차트에서 드래그로 설정한 TP를 바이낸스에 TAKE_PROFIT_MARKET 주문으로 배치)
+  // 수동 익절가 설정 (차트에서 드래그로 설정 시 호출) - 로컬 저장만, 서버 주문 없음
   const setManualTakeProfit = useCallback(async (tpPrice: number | null) => {
-    if (!user) return;
-    if (!state.currentPosition) return;
-
-    const position = state.currentPosition;
-    const { symbol, side, filledQuantity: totalQuantity } = position;
-    const closeSide = side === 'long' ? 'SELL' : 'BUY';
-    const positionSide = side === 'long' ? 'LONG' : 'SHORT';
-
-    try {
-      // 기존 TP 주문 취소
-      const openOrders = await getOpenOrders(symbol);
-      const tpTypes = new Set(['TAKE_PROFIT_MARKET', 'TAKE_PROFIT']);
-      const tpOrders = (openOrders || []).filter((o: any) => {
-        const t = String(o?.type || o?.origType || '').toUpperCase();
-        return tpTypes.has(t);
-      });
-
-      for (const o of tpOrders) {
-        const orderIdNum = Number(o.orderId);
-        if (!Number.isFinite(orderIdNum)) continue;
-        try {
-          await cancelOrder(symbol, orderIdNum);
-          console.log(`[수동 익절] 기존 TP 주문 취소: ${orderIdNum}`);
-        } catch {
-          // ignore
-        }
-      }
-
-      // 익절가가 null이면 취소만 하고 종료
-      if (!tpPrice) {
-        console.log('[수동 익절] 익절가 제거됨');
-        toast.info('⚡ TP_REMOVED', { 
-          description: `${symbol.replace('USDT', '')} 익절 주문 취소됨`,
-          className: 'font-mono uppercase',
-        });
-        return;
-      }
-
-      // 잠시 대기 (취소 반영)
-      await new Promise(r => setTimeout(r, 150));
-
-      // 새 TAKE_PROFIT_MARKET 주문 배치
-      const tpResult = await placeTakeProfitMarketOrder(symbol, closeSide, totalQuantity, tpPrice, positionSide as 'LONG' | 'SHORT');
-      console.log(`[수동 익절] TP 주문 결과:`, tpResult);
-      
-      // 에러 체크
-      if (tpResult?.code && tpResult.code < 0) {
-        throw new Error(tpResult.msg || `Binance error: ${tpResult.code}`);
-      }
-      if (tpResult?.error) {
-        throw new Error(tpResult.error);
-      }
-      
-      console.log(`[수동 익절] TP 주문 배치 성공: ${symbol} ${closeSide} @ ${tpPrice}`);
-      
-      toast.success('⚡ TP_SET', {
-        description: `${symbol.replace('USDT', '')} TP @ $${tpPrice.toFixed(4)}`,
+    if (tpPrice === null) {
+      console.log('[수동 익절] 익절가 제거됨');
+      toast.info('⚡ TP_REMOVED', { 
+        description: '익절 라인 제거됨',
         className: 'font-mono uppercase',
       });
-    } catch (error: any) {
-      console.error('[수동 익절] 오류:', error);
-      toast.error('⚡ TP_ERROR', {
-        description: error?.message || '익절 주문 실패',
+    } else {
+      console.log(`[수동 익절] 익절가 설정: $${tpPrice}`);
+      toast.success('⚡ TP_SET', {
+        description: `TP @ $${tpPrice.toFixed(4)} (로컬 모니터링)`,
         className: 'font-mono uppercase',
       });
     }
-  }, [user, state.currentPosition, getOpenOrders, cancelOrder, placeTakeProfitMarketOrder]);
+    // 로컬에만 저장됨 - Index.tsx의 manualTpPrice state가 실제 저장소
+    // 가격 도달 시 checkTpSl에서 시장가 청산 실행
+  }, []);
+
 
   return {
     state,
