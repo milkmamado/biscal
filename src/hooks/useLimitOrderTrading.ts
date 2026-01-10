@@ -1740,8 +1740,18 @@ export function useLimitOrderTrading({
       await new Promise(r => setTimeout(r, 150));
 
       // 새 STOP_MARKET 주문 배치
-      await placeStopMarketOrder(symbol, closeSide, totalQuantity, slPrice, positionSide as 'LONG' | 'SHORT');
-      console.log(`[수동 손절] SL 주문 배치: ${symbol} ${closeSide} @ ${slPrice}`);
+      const slResult = await placeStopMarketOrder(symbol, closeSide, totalQuantity, slPrice, positionSide as 'LONG' | 'SHORT');
+      console.log(`[수동 손절] SL 주문 결과:`, slResult);
+      
+      // 에러 체크
+      if (slResult?.code && slResult.code < 0) {
+        throw new Error(slResult.msg || `Binance error: ${slResult.code}`);
+      }
+      if (slResult?.error) {
+        throw new Error(slResult.error);
+      }
+      
+      console.log(`[수동 손절] SL 주문 배치 성공: ${symbol} ${closeSide} @ ${slPrice}`);
       
       toast.success('⚡ SL_SET', {
         description: `${symbol.replace('USDT', '')} SL @ $${slPrice.toFixed(4)}`,
@@ -1800,8 +1810,18 @@ export function useLimitOrderTrading({
       await new Promise(r => setTimeout(r, 150));
 
       // 새 TAKE_PROFIT_MARKET 주문 배치
-      await placeTakeProfitMarketOrder(symbol, closeSide, totalQuantity, tpPrice, positionSide as 'LONG' | 'SHORT');
-      console.log(`[수동 익절] TP 주문 배치: ${symbol} ${closeSide} @ ${tpPrice}`);
+      const tpResult = await placeTakeProfitMarketOrder(symbol, closeSide, totalQuantity, tpPrice, positionSide as 'LONG' | 'SHORT');
+      console.log(`[수동 익절] TP 주문 결과:`, tpResult);
+      
+      // 에러 체크
+      if (tpResult?.code && tpResult.code < 0) {
+        throw new Error(tpResult.msg || `Binance error: ${tpResult.code}`);
+      }
+      if (tpResult?.error) {
+        throw new Error(tpResult.error);
+      }
+      
+      console.log(`[수동 익절] TP 주문 배치 성공: ${symbol} ${closeSide} @ ${tpPrice}`);
       
       toast.success('⚡ TP_SET', {
         description: `${symbol.replace('USDT', '')} TP @ $${tpPrice.toFixed(4)}`,
