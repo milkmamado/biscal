@@ -282,14 +282,14 @@ export const useBinanceApi = () => {
     const roundedStopPrice = roundPrice(stopPrice, precision);
     const roundedQuantity = roundQuantity(quantity, precision);
 
+    // positionSide가 있으면 reduceOnly 사용 불가 (바이낸스 규칙)
     const params: Record<string, any> = {
       symbol,
       side,
       type: 'STOP_MARKET',
       stopPrice: roundedStopPrice,
       quantity: roundedQuantity,
-      reduceOnly: 'true', // 문자열로 전달 (바이낸스 API 요구사항)
-      ...(positionSide ? { positionSide } : {}),
+      ...(positionSide ? { positionSide } : { reduceOnly: 'true' }),
     };
 
     console.log(
@@ -311,14 +311,14 @@ export const useBinanceApi = () => {
     const roundedStopPrice = roundPrice(stopPrice, precision);
     const roundedQuantity = roundQuantity(quantity, precision);
 
+    // positionSide가 있으면 reduceOnly 사용 불가 (바이낸스 규칙)
     const params: Record<string, any> = {
       symbol,
       side,
       type: 'TAKE_PROFIT_MARKET',
       stopPrice: roundedStopPrice,
       quantity: roundedQuantity,
-      reduceOnly: 'true', // 문자열로 전달 (바이낸스 API 요구사항)
-      ...(positionSide ? { positionSide } : {}),
+      ...(positionSide ? { positionSide } : { reduceOnly: 'true' }),
     };
 
     console.log(
