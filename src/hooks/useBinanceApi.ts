@@ -308,18 +308,19 @@ export const useBinanceApi = () => {
   ) => {
     const precision = await fetchSymbolPrecision(symbol);
     const roundedStopPrice = roundPrice(stopPrice, precision);
+    const roundedQuantity = roundQuantity(quantity, precision);
 
     console.log(
-      `💰 [TAKE_PROFIT_MARKET] ${symbol} ${side} 익절가=${roundedStopPrice} (closePosition=true${positionSide ? `, positionSide=${positionSide}` : ''})`
+      `💰 [TAKE_PROFIT_MARKET] ${symbol} ${side} qty=${roundedQuantity} 익절가=${roundedStopPrice}${positionSide ? ` positionSide=${positionSide}` : ''}`
     );
 
-    // closePosition=true 사용 시 quantity 제거 (바이낸스 규칙)
+    // closePosition=true는 일부 계정 모드에서 -4120 에러 발생 → 직접 수량 지정
     const params: Record<string, any> = {
       symbol,
       side,
       type: 'TAKE_PROFIT_MARKET',
       stopPrice: roundedStopPrice,
-      closePosition: 'true', // 문자열로 전달
+      quantity: roundedQuantity,
       ...(positionSide ? { positionSide } : {}),
     };
 
