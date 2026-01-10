@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { fetchSymbolPrecision, roundQuantity, roundPrice } from '@/lib/binance';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 
 // VPS 직접 호출 (Edge Function 우회로 ~300ms 단축)
 const VPS_DIRECT_URL = 'https://api.biscal.me/api/direct';
@@ -159,6 +160,21 @@ export const useBinanceApi = () => {
     return callBinanceApi('getOpenOrders', symbol ? { symbol } : {});
   }, [callBinanceApi]);
 
+  // VPS에서 조건부 주문(type=STOP_MARKET/TAKE_PROFIT_MARKET)이 -4120으로 막히는 경우가 있어
+  // 이때는 Lovable Cloud 함수(사용자 저장 API키로 서명)로 우회한다.
+  const placeOrderSigned = useCallback(
+    async (params: Record<string, any>) => {
+      if (!user) return null;
+      const { data, error } = await supabase.functions.invoke('binance-signed', {
+        body: { action: 'placeOrder', params },
+      });
+      if (error) throw new Error(error.message);
+      if (data?.error) throw new Error(data.error);
+      return data;
+    },
+    [user]
+  );
+
   const placeMarketOrder = useCallback(async (
     symbol: string,
     side: 'BUY' | 'SELL',
@@ -280,23 +296,32 @@ export const useBinanceApi = () => {
   ) => {
     const precision = await fetchSymbolPrecision(symbol);
     const roundedStopPrice = roundPrice(stopPrice, precision);
+    const roundedQuantity = roundQuantity(quantity, precision);
 
-    console.log(
-      `🛑 [STOP_MARKET] ${symbol} ${side} 손절가=${roundedStopPrice} (closePosition=true${positionSide ? `, positionSide=${positionSide}` : ''})`
-    );
-
-    // closePosition=true 사용 시 quantity 제거 (바이낸스 규칙)
     const params: Record<string, any> = {
       symbol,
       side,
       type: 'STOP_MARKET',
       stopPrice: roundedStopPrice,
-      closePosition: 'true', // 문자열로 전달
+      quantity: roundedQuantity,
+      reduceOnly: true,
       ...(positionSide ? { positionSide } : {}),
     };
 
-    return callBinanceApi('placeOrder', params);
-  }, [callBinanceApi]);
+    console.log(
+      `🛑 [STOP_MARKET] ${symbol} ${side} qty=${roundedQuantity} 손절가=${roundedStopPrice}${positionSide ? ` positionSide=${positionSide}` : ''}`
+    );
+
+    const res = await callBinanceApi('placeOrder', params);
+
+    // VPS 엔드포인트에서 조건부 주문이 막히면(-4120) 서명 주문으로 우회
+    if (res?.code === -4120) {
+      console.warn('[-4120] VPS 조건부 주문 불가 → 서명 주문으로 우회');
+      return placeOrderSigned(params);
+    }
+
+    return res;
+  }, [callBinanceApi, placeOrderSigned]);
 
   // TAKE_PROFIT_MARKET 주문 (익절용)
   const placeTakeProfitMarketOrder = useCallback(async (
@@ -310,22 +335,30 @@ export const useBinanceApi = () => {
     const roundedStopPrice = roundPrice(stopPrice, precision);
     const roundedQuantity = roundQuantity(quantity, precision);
 
-    console.log(
-      `💰 [TAKE_PROFIT_MARKET] ${symbol} ${side} qty=${roundedQuantity} 익절가=${roundedStopPrice}${positionSide ? ` positionSide=${positionSide}` : ''}`
-    );
-
-    // closePosition=true는 일부 계정 모드에서 -4120 에러 발생 → 직접 수량 지정
     const params: Record<string, any> = {
       symbol,
       side,
       type: 'TAKE_PROFIT_MARKET',
       stopPrice: roundedStopPrice,
       quantity: roundedQuantity,
+      reduceOnly: true,
       ...(positionSide ? { positionSide } : {}),
     };
 
-    return callBinanceApi('placeOrder', params);
-  }, [callBinanceApi]);
+    console.log(
+      `💰 [TAKE_PROFIT_MARKET] ${symbol} ${side} qty=${roundedQuantity} 익절가=${roundedStopPrice}${positionSide ? ` positionSide=${positionSide}` : ''}`
+    );
+
+    const res = await callBinanceApi('placeOrder', params);
+
+    // VPS 엔드포인트에서 조건부 주문이 막히면(-4120) 서명 주문으로 우회
+    if (res?.code === -4120) {
+      console.warn('[-4120] VPS 조건부 주문 불가 → 서명 주문으로 우회');
+      return placeOrderSigned(params);
+    }
+
+    return res;
+  }, [callBinanceApi, placeOrderSigned]);
 
   const cancelOrder = useCallback(async (symbol: string, orderId: number) => {
     return callBinanceApi('cancelOrder', { symbol, orderId });
